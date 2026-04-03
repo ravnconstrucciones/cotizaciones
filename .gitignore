@@ -1,0 +1,9 @@
+.next
+node_modules
+.env.local
+out
+*.log
+.DS_Store
+
+# Fuentes crudas extraídas del PDF de Canva (opcional; lo versionado va en src/fonts/raleway/)
+src/fonts/canva-extracted/

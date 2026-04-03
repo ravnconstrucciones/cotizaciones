@@ -1,0 +1,69 @@
+@import "tailwindcss";
+
+/* Default dark (SSR / antes de next-themes); mismo token que html.dark */
+/* Blanco de marca: #fef7f2 (crema) en lugar de #fff */
+:root,
+html.dark {
+  color-scheme: dark;
+  --ravn-surface: #181817;
+  --ravn-fg: #fef7f2;
+  --ravn-muted: #aaaaaa;
+  --ravn-line: #555555;
+  --ravn-accent: #fef7f2;
+  --ravn-accent-contrast: #181817;
+  --ravn-subtle: rgba(254, 247, 242, 0.12);
+}
+
+html.light {
+  color-scheme: light;
+  --ravn-surface: #fef7f2;
+  --ravn-fg: #181817;
+  --ravn-muted: #666666;
+  --ravn-line: #444444;
+  --ravn-accent: #181817;
+  --ravn-accent-contrast: #fef7f2;
+  --ravn-subtle: rgba(24, 24, 23, 0.08);
+}
+
+@theme {
+  --color-ravn-surface: var(--ravn-surface);
+  --color-ravn-fg: var(--ravn-fg);
+  --color-ravn-muted: var(--ravn-muted);
+  --color-ravn-line: var(--ravn-line);
+  --color-ravn-accent: var(--ravn-accent);
+  --color-ravn-accent-contrast: var(--ravn-accent-contrast);
+  --color-ravn-subtle: var(--ravn-subtle);
+
+  /* compat: theme-toggle y código que aún usa ravn-ink */
+  --color-ravn-ink: var(--ravn-fg);
+
+  --font-sans: var(--font-raleway), ui-sans-serif, system-ui, sans-serif;
+  --font-raleway: var(--font-raleway), ui-sans-serif, system-ui, sans-serif;
+}
+
+@layer base {
+  body {
+    @apply bg-ravn-surface text-ravn-fg antialiased;
+  }
+}
+
+.font-raleway {
+  font-family: var(--font-raleway), ui-sans-serif, system-ui, sans-serif;
+}
+
+/* compat: antes Public Sans; todo Raleway */
+.font-public-sans {
+  font-family: var(--font-raleway), Raleway, ui-sans-serif, system-ui, sans-serif;
+}
+
+@layer components {
+  [data-no-spinner]::-webkit-outer-spin-button,
+  [data-no-spinner]::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+  [data-no-spinner] {
+    -moz-appearance: textfield;
+    appearance: textfield;
+  }
+}

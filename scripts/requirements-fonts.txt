@@ -1,0 +1,2 @@
+# Solo para scripts/extract_pdf_fonts.py (opcional, no usa el build de Next)
+pymupdf>=1.24.0
