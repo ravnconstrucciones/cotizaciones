@@ -119,6 +119,7 @@ export function NuevoItemManualModal({
         receta_id: String(recetaRow.id),
         cantidad: q,
         precio_material_congelado: pm,
+        descuento_material_pct: 0,
         precio_mo_congelada: pmo,
       });
 

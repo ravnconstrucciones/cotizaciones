@@ -82,12 +82,17 @@ function mapItemRow(raw: Record<string, unknown>): PresupuestoItemRow & {
   rubroNombre: string | null;
 } {
   const rec = normalizeRecetaJoin(raw.recetas as RecetaJoin | null);
+  const rawDisc = Number(raw.descuento_material_pct);
+  const disc = Number.isFinite(rawDisc)
+    ? Math.min(100, Math.max(0, rawDisc))
+    : 0;
   return {
     id: String(raw.id),
     presupuesto_id: String(raw.presupuesto_id),
     receta_id: String(raw.receta_id),
     cantidad: Number(raw.cantidad),
     precio_material_congelado: Number(raw.precio_material_congelado),
+    descuento_material_pct: disc,
     precio_mo_congelada: Number(raw.precio_mo_congelada),
     recetas: rec
       ? { nombre_item: String(rec.nombre_item), unidad: String(rec.unidad) }
@@ -255,6 +260,7 @@ export function PropuestaScreen({ presupuestoId }: { presupuestoId: string }) {
         receta_id,
         cantidad,
         precio_material_congelado,
+        descuento_material_pct,
         precio_mo_congelada,
         recetas (
           nombre_item,
@@ -284,6 +290,7 @@ export function PropuestaScreen({ presupuestoId }: { presupuestoId: string }) {
             receta_id,
             cantidad,
             precio_material_congelado,
+            descuento_material_pct,
             precio_mo_congelada,
             recetas ( nombre_item, unidad, rubro_id )
           `
@@ -432,10 +439,19 @@ export function PropuestaScreen({ presupuestoId }: { presupuestoId: string }) {
       const q = Number(row.cantidad) || 0;
       const pm = Number(row.precio_material_congelado) || 0;
       const pmo = Number(row.precio_mo_congelada) || 0;
-      material += q * pm;
-      mo += q * pmo;
+      const rawDisc = Number(row.descuento_material_pct);
+      const disc = Number.isFinite(rawDisc)
+        ? Math.min(100, Math.max(0, rawDisc))
+        : 0;
+      const facMat = Math.max(0, 1 - disc / 100);
+      material += roundArs2(q * pm * facMat);
+      mo += roundArs2(q * pmo);
     }
-    return { material, mo, total: material + mo };
+    return {
+      material,
+      mo,
+      total: roundArs2(material + mo),
+    };
   }, [items]);
 
   const montoImportePdf = useMemo(() => {
@@ -766,7 +782,7 @@ export function PropuestaScreen({ presupuestoId }: { presupuestoId: string }) {
                       Rentabilidad y costos
                     </Link>
                     <Link
-                      href="/nuevo-presupuesto"
+                      href={`/nuevo-presupuesto?id=${encodeURIComponent(presupuestoId)}`}
                       className="font-medium uppercase tracking-wider text-ravn-muted underline-offset-4 transition-colors hover:text-ravn-fg hover:underline"
                     >
                       Presupuesto (líneas y costos)
@@ -1048,7 +1064,7 @@ export function PropuestaScreen({ presupuestoId }: { presupuestoId: string }) {
             <div className="flex flex-col gap-4 border-t border-ravn-line pt-10 md:flex-row md:flex-wrap md:items-center md:justify-between md:gap-4">
               <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
                 <Link
-                  href="/nuevo-presupuesto"
+                  href={`/nuevo-presupuesto?id=${encodeURIComponent(presupuestoId)}`}
                   className="inline-flex w-fit items-center justify-center rounded-none border-2 border-ravn-line bg-ravn-surface px-6 py-3 text-sm font-medium uppercase tracking-wider text-ravn-fg transition-colors hover:bg-ravn-subtle focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ravn-fg"
                 >
                   Volver al presupuesto

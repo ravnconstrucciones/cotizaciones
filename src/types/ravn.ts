@@ -34,6 +34,8 @@ export type PresupuestoItemRow = {
   receta_id: string;
   cantidad: number;
   precio_material_congelado: number;
+  /** Descuento % sobre subtotal materiales de la línea (0–100). */
+  descuento_material_pct: number;
   precio_mo_congelada: number;
   recetas: RecetaNombreUnidad | null;
 };

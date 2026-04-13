@@ -3,8 +3,14 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import {
+  formatMoney,
+  parseFormattedNumber,
+  roundArs2,
+} from "@/lib/format-currency";
 import { formatTotalDisplay } from "@/lib/format-total-display";
 import { formatNumeroComercialHumano } from "@/lib/presupuesto-numero-comercial";
+import { parseRentabilidadInputsJson } from "@/lib/ravn-rentabilidad-inputs";
 
 type MonedaRow = "ARS" | "USD";
 
@@ -61,9 +67,70 @@ function totalFromItems(rows: ItemAgg[], presupuestoId: string): number {
   return t;
 }
 
+/** Costo directo (mat + M.O.) como en Rentabilidad: JSON persistido o, si no hay, suma de ítems. */
+function costoDirectoPrevisto(
+  presupuestoId: string,
+  rentabilidadInputs: unknown,
+  items: ItemAgg[]
+): number {
+  const ri = parseRentabilidadInputsJson(rentabilidadInputs, presupuestoId);
+  if (ri) {
+    const cm = roundArs2(parseFormattedNumber(ri.costoMaterialStr));
+    const cmo = roundArs2(parseFormattedNumber(ri.costoMoStr));
+    return roundArs2(cm + cmo);
+  }
+  return roundArs2(totalFromItems(items, presupuestoId));
+}
+
+function contingenciaMontoPrevista(
+  presupuestoId: string,
+  rentabilidadInputs: unknown,
+  costoDirecto: number
+): number {
+  const ri = parseRentabilidadInputsJson(rentabilidadInputs, presupuestoId);
+  if (!ri) return 0;
+  const n = parseFormattedNumber(ri.contingenciaPctStr.replace("%", ""));
+  const pct = Number.isFinite(n) ? Math.max(0, n) : 0;
+  return roundArs2(costoDirecto * (pct / 100));
+}
+
+function costosInternosYCargosDesdeRentab(
+  presupuestoId: string,
+  rentabilidadInputs: unknown
+): { costosInternos: number; cargosAdicionales: number } {
+  const ri = parseRentabilidadInputsJson(rentabilidadInputs, presupuestoId);
+  if (!ri) return { costosInternos: 0, cargosAdicionales: 0 };
+  return {
+    costosInternos: roundArs2(parseFormattedNumber(ri.costosInternosStr)),
+    cargosAdicionales: roundArs2(parseFormattedNumber(ri.cargosAdicionalesStr)),
+  };
+}
+
+/**
+ * Cupo de imprevistos (contingencia %) que queda: el exceso de gastos ejecutados
+ * sobre costo directo + costos internos + cargos adicionales consume ese cupo.
+ */
+function restanteImprevistosArs(
+  contingencia: number,
+  gastosEjecutados: number,
+  costoDirecto: number,
+  costosInternos: number,
+  cargosAdicionales: number
+): number {
+  const planPrevio = roundArs2(costoDirecto + costosInternos + cargosAdicionales);
+  const sobrePlan = Math.max(0, roundArs2(gastosEjecutados - planPrevio));
+  return Math.max(0, roundArs2(contingencia - sobrePlan));
+}
+
 export function ControlGastosScreen() {
   const [rows, setRows] = useState<PresupuestoControlRow[]>([]);
   const [items, setItems] = useState<ItemAgg[]>([]);
+  const [rentabilidadInputsById, setRentabilidadInputsById] = useState<
+    Map<string, unknown>
+  >(new Map());
+  const [gastadoPorId, setGastadoPorId] = useState<Map<string, number>>(
+    new Map()
+  );
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -150,6 +217,8 @@ export function ControlGastosScreen() {
       const ids = presRows.map((p) => p.id);
       if (ids.length === 0) {
         setItems([]);
+        setRentabilidadInputsById(new Map());
+        setGastadoPorId(new Map());
         setLoading(false);
         return;
       }
@@ -164,8 +233,43 @@ export function ControlGastosScreen() {
       if (errI) {
         setError(errI.message);
         setItems([]);
+        setRentabilidadInputsById(new Map());
+        setGastadoPorId(new Map());
       } else {
         setItems((itemRows ?? []) as ItemAgg[]);
+
+        const inputsMap = new Map<string, unknown>();
+        const gastadoMap = new Map<string, number>();
+
+        const { data: insRows, error: errIns } = await supabase
+          .from("presupuestos")
+          .select("id, rentabilidad_inputs")
+          .in("id", ids);
+
+        if (!errIns && insRows) {
+          for (const row of insRows as { id: unknown; rentabilidad_inputs?: unknown }[]) {
+            inputsMap.set(String(row.id), row.rentabilidad_inputs ?? null);
+          }
+        }
+
+        const { data: gastosRows, error: errG } = await supabase
+          .from("presupuestos_gastos")
+          .select("presupuesto_id, importe")
+          .in("presupuesto_id", ids);
+
+        if (!errG && gastosRows) {
+          for (const row of gastosRows as {
+            presupuesto_id: unknown;
+            importe: unknown;
+          }[]) {
+            const pid = String(row.presupuesto_id);
+            const imp = Number(row.importe) || 0;
+            gastadoMap.set(pid, roundArs2((gastadoMap.get(pid) ?? 0) + imp));
+          }
+        }
+
+        setRentabilidadInputsById(inputsMap);
+        setGastadoPorId(gastadoMap);
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Error al cargar.");
@@ -185,6 +289,39 @@ export function ControlGastosScreen() {
     }
     return m;
   }, [rows, items]);
+
+  const resumenGastosPorId = useMemo(() => {
+    const m = new Map<
+      string,
+      {
+        previstos: number;
+        ejecutados: number;
+        restanteImprevistos: number;
+        contingenciaCalculada: number;
+      }
+    >();
+    for (const p of rows) {
+      const inputsRaw = rentabilidadInputsById.get(p.id);
+      const cd = costoDirectoPrevisto(p.id, inputsRaw, items);
+      const { costosInternos, cargosAdicionales } =
+        costosInternosYCargosDesdeRentab(p.id, inputsRaw);
+      const cont = contingenciaMontoPrevista(p.id, inputsRaw, cd);
+      const ejecutado = gastadoPorId.get(p.id) ?? 0;
+      m.set(p.id, {
+        previstos: roundArs2(costosInternos + cargosAdicionales),
+        ejecutados: ejecutado,
+        restanteImprevistos: restanteImprevistosArs(
+          cont,
+          ejecutado,
+          cd,
+          costosInternos,
+          cargosAdicionales
+        ),
+        contingenciaCalculada: cont,
+      });
+    }
+    return m;
+  }, [rows, items, rentabilidadInputsById, gastadoPorId]);
 
   return (
     <div className="relative min-h-screen bg-ravn-surface px-8 pb-32 pr-20 pt-16 text-ravn-fg">
@@ -279,6 +416,53 @@ export function ControlGastosScreen() {
                           </p>
                         ) : null}
                       </div>
+                      <dl className="w-full max-w-[18rem] space-y-1.5 text-right text-[11px] leading-snug text-ravn-muted sm:max-w-xs">
+                        <div className="flex flex-col gap-0.5 sm:flex-row sm:justify-end sm:gap-2">
+                          <dt className="shrink-0 font-medium uppercase tracking-wide">
+                            Gastos previstos
+                          </dt>
+                          <dd className="tabular-nums text-ravn-fg">
+                            {formatMoney(
+                              resumenGastosPorId.get(p.id)?.previstos ?? 0
+                            )}
+                          </dd>
+                        </div>
+                        <div className="flex flex-col gap-0.5 sm:flex-row sm:justify-end sm:gap-2">
+                          <dt className="shrink-0 font-medium uppercase tracking-wide">
+                            Gastos ejecutados
+                          </dt>
+                          <dd className="tabular-nums text-ravn-fg">
+                            {formatMoney(
+                              resumenGastosPorId.get(p.id)?.ejecutados ?? 0
+                            )}
+                          </dd>
+                        </div>
+                        <div className="flex flex-col items-end gap-0.5">
+                          <div className="flex w-full flex-col gap-0.5 sm:flex-row sm:justify-end sm:gap-2">
+                            <dt className="shrink-0 font-medium uppercase tracking-wide">
+                              Cuánto te queda de imprevistos
+                            </dt>
+                            <dd className="tabular-nums text-ravn-fg">
+                              {formatMoney(
+                                resumenGastosPorId.get(p.id)
+                                  ?.restanteImprevistos ?? 0
+                              )}
+                            </dd>
+                          </div>
+                          {(resumenGastosPorId.get(p.id)?.contingenciaCalculada ??
+                            0) > 0 ? (
+                            <p className="max-w-[16rem] text-right text-[10px] font-normal normal-case leading-snug text-ravn-muted">
+                              Contingencia calculada (sobre costo directo):{" "}
+                              <span className="tabular-nums text-ravn-fg">
+                                {formatMoney(
+                                  resumenGastosPorId.get(p.id)
+                                    ?.contingenciaCalculada ?? 0
+                                )}
+                              </span>
+                            </p>
+                          ) : null}
+                        </div>
+                      </dl>
                       <Link
                         href={`/obras/${encodeURIComponent(p.id)}/gastos`}
                         className="inline-flex items-center justify-center rounded-none border-2 border-ravn-accent bg-ravn-accent px-6 py-3 text-center text-xs font-semibold uppercase tracking-[0.14em] text-ravn-accent-contrast transition-opacity hover:opacity-90"

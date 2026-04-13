@@ -67,3 +67,37 @@ html.light {
     appearance: textfield;
   }
 }
+
+/**
+ * Línea lateral del PDF (propuesta): `border-right` en un bloque que se parte
+ * entre páginas solo llega hasta el final del fragmento, no hasta el borde de la hoja.
+ * En impresión, una franja `position: fixed` se repite en cada página a altura completa.
+ */
+@media not print {
+  .ravn-print-lateral-strip {
+    display: none !important;
+  }
+}
+
+@media print {
+  .ravn-print-lateral-strip {
+    display: block !important;
+    position: fixed;
+    top: 0;
+    bottom: 0;
+    right: 6.5mm;
+    left: auto;
+    box-sizing: border-box;
+    width: 0;
+    margin: 0;
+    padding: 0;
+    border: 0 solid transparent;
+    border-right-width: var(--ravn-lateral-w, 1.05mm);
+    border-right-style: solid;
+    border-right-color: var(--ravn-lateral-color, #ffffff);
+    z-index: 2;
+    pointer-events: none;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+}

@@ -1,6 +1,11 @@
 "use client";
 
-import { forwardRef, Fragment, type ReactNode } from "react";
+import {
+  forwardRef,
+  Fragment,
+  type CSSProperties,
+  type ReactNode,
+} from "react";
 
 export type PdfPlantillaVisual = "negro" | "beige" | "verde";
 
@@ -20,6 +25,13 @@ const PDF = {
   ptTituloSeccion: 17.71,
   ptMeta: 10.47,
   ptCuerpoServicios: 11.51,
+  /** Subtítulos numerados dentro de “Servicios presupuestados” (cuerpo ~11,51 pt). */
+  ptSubtituloServicios: 13.25,
+  /**
+   * Texto previo al primer `1.` (p. ej. “Detalle técnico de obra: …”): título intermedio,
+   * más grande que subtítulos numerados y un poco menor que “Servicios presupuestados”.
+   */
+  ptTituloDetalleServicios: 16.35,
   ptCuerpoPagina2: 10.33,
   ptFooter: 12,
   /** Marca “RAVN.” solo cabecera pág. 1 (más grande que el pie). */
@@ -319,41 +331,202 @@ function PdfFooterContactos({ muted }: { muted: string }) {
 
 const GROSOR_LINEA_LATERAL_MM = 1.05;
 
+/**
+ * Parsea texto con marcadores **negrita** y devuelve nodos React.
+ * Las líneas que contienen **texto** se renderizan con font-semibold.
+ * El whitespace:pre-wrap del contenedor padre preserva los saltos de línea.
+ */
+function renderConNegrita(text: string): ReactNode {
+  const tokens = text.split(/(\*\*[^*\n]+\*\*)/g);
+  if (tokens.length === 1) return text;
+  return (
+    <>
+      {tokens.map((token, i) =>
+        token.startsWith("**") && token.endsWith("**") && token.length > 4 ? (
+          <strong key={i} className="font-raleway font-semibold">
+            {token.slice(2, -2)}
+          </strong>
+        ) : (
+          <Fragment key={i}>{token}</Fragment>
+        )
+      )}
+    </>
+  );
+}
+
+/** Línea tipo `3. Título del ítem` (también con ** opcionales alrededor del número). */
+const SUBTITULO_SERVICIOS_RE =
+  /^\s*(?:\*\*)?(\d+)\.(?:\*\*)?\s+(\S.*)$/;
+
+type ServiciosPdfBlock =
+  | { kind: "preamble"; text: string }
+  | { kind: "section"; titulo: string; cuerpo: string };
+
+function parseServiciosPresupuestadosBloques(raw: string): ServiciosPdfBlock[] {
+  const lines = raw.replace(/\r\n/g, "\n").split("\n");
+  const blocks: ServiciosPdfBlock[] = [];
+  const preamble: string[] = [];
+  let sectionTitulo: string | null = null;
+  const sectionCuerpo: string[] = [];
+
+  const pushPreamble = () => {
+    const t = preamble.join("\n");
+    if (t.trim()) {
+      blocks.push({ kind: "preamble", text: t });
+    }
+    preamble.length = 0;
+  };
+
+  const pushSection = () => {
+    if (sectionTitulo !== null) {
+      blocks.push({
+        kind: "section",
+        titulo: sectionTitulo,
+        cuerpo: sectionCuerpo.join("\n"),
+      });
+      sectionTitulo = null;
+      sectionCuerpo.length = 0;
+    }
+  };
+
+  for (const line of lines) {
+    if (SUBTITULO_SERVICIOS_RE.test(line)) {
+      pushPreamble();
+      pushSection();
+      sectionTitulo = line;
+      continue;
+    }
+    if (sectionTitulo !== null) {
+      sectionCuerpo.push(line);
+    } else {
+      preamble.push(line);
+    }
+  }
+  pushPreamble();
+  pushSection();
+  return blocks;
+}
+
+/**
+ * Aire al cortar entre páginas dentro de “Servicios” (`box-decoration-break: clone`).
+ * `paddingTop` se repite en cada fragmento (hoja 2+ del mismo bloque). El hijo con
+ * `SERVICIOS_CUERPO_PULL_PRIMERA_PAG` compensa solo el inicio del flujo en pág. 1
+ * para no abrir demasiado bajo el título “Servicios presupuestados”.
+ */
+const SERVICIOS_PDF_FRAG_PAD = {
+  paddingTop: "48pt",
+  paddingBottom: "22pt",
+  boxDecorationBreak: "clone" as const,
+  WebkitBoxDecorationBreak: "clone" as const,
+};
+
+const SERVICIOS_CUERPO_PULL_PRIMERA_PAG = "-26pt";
+
+/** Espacio antes del subtítulo respecto del bloque anterior (párrafo o preámbulo). */
+const SERVICIOS_SEC_MARGIN_TOP_PRIMERO = "12pt";
+const SERVICIOS_SEC_MARGIN_TOP_RESTO = "22pt";
+/** Aire después del subtítulo, antes del cuerpo. */
+const SERVICIOS_SUBTITULO_MARGIN_BOTTOM = "12pt";
+
+function renderServiciosPresupuestadosPdf(text: string): ReactNode {
+  const blocks = parseServiciosPresupuestadosBloques(text);
+  if (blocks.length === 0) {
+    return renderConNegrita(text.trim() || "—");
+  }
+
+  let indiceSeccion = 0;
+  return (
+    <>
+      {blocks.map((b, i) => {
+        if (b.kind === "preamble") {
+          if (!b.text.trim()) return null;
+          return (
+            <div
+              key={`pre-${i}`}
+              className="whitespace-pre-wrap font-raleway font-semibold"
+              style={{
+                fontSize: `${PDF.ptTituloDetalleServicios}pt`,
+                lineHeight: 1.22,
+                marginBottom: "20pt",
+              }}
+            >
+              {renderConNegrita(b.text)}
+            </div>
+          );
+        }
+        const idx = indiceSeccion;
+        indiceSeccion += 1;
+        const marginTopSeccion =
+          idx === 0 ? SERVICIOS_SEC_MARGIN_TOP_PRIMERO : SERVICIOS_SEC_MARGIN_TOP_RESTO;
+        return (
+          <div
+            key={`sec-${i}`}
+            style={{
+              marginTop: marginTopSeccion,
+              /* Si el bloque entra en una hoja, evita cortar entre título y cuerpo;
+               * si es más alto que una página, el motor puede partir dentro del cuerpo. */
+              breakInside: "avoid",
+              pageBreakInside: "avoid",
+            }}
+          >
+            <p
+              className="m-0 font-raleway font-semibold"
+              style={{
+                fontSize: `${PDF.ptSubtituloServicios}pt`,
+                lineHeight: 1.25,
+                marginBottom: SERVICIOS_SUBTITULO_MARGIN_BOTTOM,
+                breakAfter: "avoid",
+                pageBreakAfter: "avoid",
+              }}
+            >
+              {renderConNegrita(b.titulo.trim())}
+            </p>
+            {b.cuerpo.trim() ? (
+              <div
+                className="whitespace-pre-wrap font-normal"
+                style={{
+                  marginTop: 0,
+                  orphans: 3,
+                  widows: 3,
+                }}
+              >
+                {renderConNegrita(b.cuerpo)}
+              </div>
+            ) : null}
+          </div>
+        );
+      })}
+    </>
+  );
+}
+
 function HojaPdfConLineaLateral({
   children,
-  lateralColor,
   className,
   style,
   marcaEsquinaInfDerecha,
 }: {
   children: ReactNode;
-  lateralColor: string;
   className?: string;
   style?: React.CSSProperties;
   /** Solo última hoja: bloque RAVN / tagline al pie derecho, junto a la línea lateral. */
   marcaEsquinaInfDerecha?: ReactNode;
 }) {
+  /*
+   * La línea vertical en PDF la pinta `.ravn-print-lateral-strip` (fixed, solo @media print)
+   * en el ancestro `.ravn-print-root`, para que en cada hoja llegue de arriba a abajo.
+   * Acá solo reservamos el mismo espacio: mr-[6.5mm] + pr del className (9,5mm).
+   */
   return (
-    <div className={`relative ${className ?? ""}`} style={style}>
-      <div
-        aria-hidden
-        className="pointer-events-none absolute z-0"
-        style={{
-          top: 0,
-          bottom: 0,
-          right: "6.5mm",
-          width: `${GROSOR_LINEA_LATERAL_MM}mm`,
-          backgroundColor: lateralColor,
-          ...printExact,
-        }}
-      />
-      <div className="relative z-[1] min-h-0">{children}</div>
+    <div className="relative" style={style}>
+      <div className={`mr-[6.5mm] ${className ?? ""}`}>
+        <div className="relative z-[1] min-h-0">{children}</div>
+      </div>
       {marcaEsquinaInfDerecha ? (
         <div
           className="pointer-events-none absolute z-[3] text-right"
           style={{
             bottom: "11mm",
-            /* Más separación respecto de la línea lateral (~6,5 mm del borde). */
             right: "12mm",
             maxWidth: "52mm",
             ...printExact,
@@ -455,12 +628,16 @@ export const PlantillaA4Virtual = forwardRef<
           backgroundColor: theme.bg,
           color: theme.fg,
           fontFamily: rootFontStack,
+          ...({
+            "--ravn-lateral-color": theme.lateral,
+            "--ravn-lateral-w": `${GROSOR_LINEA_LATERAL_MM}mm`,
+          } as CSSProperties),
           ...printExact,
         }}
       >
+        <div aria-hidden className="ravn-print-lateral-strip" />
         <HojaPdfConLineaLateral
-          lateralColor={theme.lateral}
-          className="box-border flex min-h-[297mm] flex-col pl-[14mm] pr-[16mm] pb-[12mm] pt-[10mm]"
+          className="box-border flex min-h-[297mm] flex-col pl-[14mm] pr-[9.5mm] pb-[12mm] pt-[10mm]"
           style={{ ...printExact, breakAfter: "page" }}
         >
           <div className="relative min-w-0 flex-1 break-inside-auto">
@@ -510,8 +687,8 @@ export const PlantillaA4Virtual = forwardRef<
               <div
                 className="min-w-0 break-inside-avoid"
                 style={{
-                  paddingTop: "14pt",
-                  paddingBottom: "10pt",
+                  paddingTop: "12pt",
+                  paddingBottom: "6pt",
                 }}
               >
                 <h2
@@ -530,18 +707,19 @@ export const PlantillaA4Virtual = forwardRef<
                 style={{
                   fontSize: `${PDF.ptCuerpoServicios}pt`,
                   lineHeight: PDF.leadingCuerpo,
-                  whiteSpace: "pre-wrap",
+                  ...SERVICIOS_PDF_FRAG_PAD,
                 }}
               >
-                {cuerpoServicios}
+                <div style={{ marginTop: SERVICIOS_CUERPO_PULL_PRIMERA_PAG }}>
+                  {renderServiciosPresupuestadosPdf(cuerpoServicios)}
+                </div>
               </div>
             </section>
           </div>
         </HojaPdfConLineaLateral>
 
         <HojaPdfConLineaLateral
-          lateralColor={theme.lateral}
-          className="box-border flex min-h-[297mm] flex-col pl-[14mm] pr-[16mm] pb-[10mm] pt-[12mm]"
+          className="box-border flex min-h-[297mm] flex-col pl-[14mm] pr-[9.5mm] pb-[10mm] pt-[11mm]"
           style={printExact}
           marcaEsquinaInfDerecha={
             <PdfMarcaRavnPie ptFooter={`${PDF.ptFooter}pt`} />
@@ -549,7 +727,7 @@ export const PlantillaA4Virtual = forwardRef<
         >
           <div
             className="relative min-h-0 flex-1"
-            style={{ paddingTop: "20pt" }}
+            style={{ paddingTop: "14pt" }}
           >
             <SeccionPagina2 titulo="Importe" lineColor={theme.line} first>
               <p>El valor total presupuestado es de</p>

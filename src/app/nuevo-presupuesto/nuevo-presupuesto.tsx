@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
 import { NuevoRecetaModal } from "@/components/nuevo-receta-modal";
 import { RavnLogo } from "@/components/ravn-logo";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -67,6 +68,21 @@ function uniqueRubroIds(recetas: Receta[]): string[] {
 }
 
 /** Orden de sidebar: numérico por `id` cuando aplica, si no alfabético por id. */
+function fechaPresupuestoAInput(fecha: unknown): string {
+  if (fecha == null) return new Date().toISOString().slice(0, 10);
+  const s = String(fecha).trim();
+  if (s.length >= 10 && s[4] === "-" && s[7] === "-") return s.slice(0, 10);
+  try {
+    const d = new Date(s);
+    if (!Number.isNaN(d.getTime())) {
+      return d.toISOString().slice(0, 10);
+    }
+  } catch {
+    /* fallthrough */
+  }
+  return new Date().toISOString().slice(0, 10);
+}
+
 function sortRubrosRowsByNumericId(rubros: RubroRow[]): RubroRow[] {
   return [...rubros].sort((a, b) => {
     const na = Number(a.id);
@@ -85,12 +101,17 @@ function normalizeRecetaJoin(
 }
 
 function mapPresupuestoItemRow(raw: Record<string, unknown>): PresupuestoItemRow {
+  const rawDisc = Number(raw.descuento_material_pct);
+  const disc = Number.isFinite(rawDisc)
+    ? Math.min(100, Math.max(0, rawDisc))
+    : 0;
   return {
     id: String(raw.id),
     presupuesto_id: String(raw.presupuesto_id),
     receta_id: String(raw.receta_id),
     cantidad: Number(raw.cantidad),
     precio_material_congelado: Number(raw.precio_material_congelado),
+    descuento_material_pct: disc,
     precio_mo_congelada: Number(raw.precio_mo_congelada),
     recetas: normalizeRecetaJoin(
       raw.recetas as RecetaNombreUnidad | RecetaNombreUnidad[] | null
@@ -351,6 +372,10 @@ function ChevronIcon({
 }
 
 export function NuevoPresupuestoScreen() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const idDesdeUrl = (searchParams.get("id") ?? "").trim();
+
   const [fecha, setFecha] = useState(() =>
     new Date().toISOString().slice(0, 10)
   );
@@ -395,6 +420,8 @@ export function NuevoPresupuestoScreen() {
   const [sidebarWidth, setSidebarWidth] = useState(300);
   const [isResizing, setIsResizing] = useState(false);
   const itemsRef = useRef<PresupuestoItemRow[]>([]);
+  /** Evita re-hidratar por `?id=` justo después de desestimar / limpiar pantalla. */
+  const ignorarSiguienteCargaPorUrlRef = useRef(false);
 
   useEffect(() => {
     if (!isResizing) return;
@@ -420,7 +447,11 @@ export function NuevoPresupuestoScreen() {
 
   function updateItemInState(
     itemId: string,
-    field: "cantidad" | "precio_material_congelado" | "precio_mo_congelada",
+    field:
+      | "cantidad"
+      | "precio_material_congelado"
+      | "precio_mo_congelada"
+      | "descuento_material_pct",
     value: number
   ) {
     setItems((prev) =>
@@ -435,6 +466,7 @@ export function NuevoPresupuestoScreen() {
     payload: {
       cantidad: number;
       precio_material_congelado: number;
+      descuento_material_pct: number;
       precio_mo_congelada: number;
     }
   ) {
@@ -466,12 +498,17 @@ export function NuevoPresupuestoScreen() {
     const q = Number(row.cantidad);
     const pm = Number(row.precio_material_congelado);
     const pmo = Number(row.precio_mo_congelada);
+    const rawDisc = Number(row.descuento_material_pct);
+    const disc = Number.isFinite(rawDisc)
+      ? Math.min(100, Math.max(0, rawDisc))
+      : 0;
     if (!Number.isFinite(q) || q < 0) return;
     if (!Number.isFinite(pm) || pm < 0) return;
     if (!Number.isFinite(pmo) || pmo < 0) return;
     void handleUpdateItem(row.id, {
       cantidad: q,
       precio_material_congelado: pm,
+      descuento_material_pct: disc,
       precio_mo_congelada: pmo,
     });
   }
@@ -575,6 +612,7 @@ export function NuevoPresupuestoScreen() {
           receta_id,
           cantidad,
           precio_material_congelado,
+          descuento_material_pct,
           precio_mo_congelada,
           recetas ( nombre_item, unidad, rubro_id )
         `
@@ -607,6 +645,50 @@ export function NuevoPresupuestoScreen() {
     else setItems([]);
   }, [presupuestoId, loadItems]);
 
+  useEffect(() => {
+    if (!idDesdeUrl) {
+      ignorarSiguienteCargaPorUrlRef.current = false;
+      return;
+    }
+
+    if (ignorarSiguienteCargaPorUrlRef.current) {
+      ignorarSiguienteCargaPorUrlRef.current = false;
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      const supabase = createClient();
+      const { data, error } = await supabase
+        .from("presupuestos")
+        .select("id, fecha, nombre_cliente, domicilio")
+        .eq("id", idDesdeUrl)
+        .maybeSingle();
+      if (cancelled) return;
+      if (error || !data) {
+        setBanner({
+          type: "error",
+          text: error?.message ?? "No se encontró el presupuesto.",
+        });
+        router.replace("/nuevo-presupuesto", { scroll: false });
+        return;
+      }
+      const row = data as {
+        id: string;
+        fecha: unknown;
+        nombre_cliente: string | null;
+        domicilio: string | null;
+      };
+      setPresupuestoId(String(row.id));
+      setFecha(fechaPresupuestoAInput(row.fecha));
+      setNombreCliente(row.nombre_cliente?.trim() ?? "");
+      setDomicilio(row.domicilio?.trim() ?? "");
+      setBanner(null);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [idDesdeUrl, router]);
+
   const totales = useMemo(() => {
     let material = 0;
     let mo = 0;
@@ -614,10 +696,19 @@ export function NuevoPresupuestoScreen() {
       const q = Number(row.cantidad) || 0;
       const pm = Number(row.precio_material_congelado) || 0;
       const pmo = Number(row.precio_mo_congelada) || 0;
-      material += q * pm;
-      mo += q * pmo;
+      const rawDisc = Number(row.descuento_material_pct);
+      const disc = Number.isFinite(rawDisc)
+        ? Math.min(100, Math.max(0, rawDisc))
+        : 0;
+      const facMat = Math.max(0, 1 - disc / 100);
+      material += roundArs2(q * pm * facMat);
+      mo += roundArs2(q * pmo);
     }
-    return { material, mo, total: material + mo };
+    return {
+      material,
+      mo,
+      total: roundArs2(material + mo),
+    };
   }, [items]);
 
   const itemCountByRubro = useMemo(() => {
@@ -637,6 +728,8 @@ export function NuevoPresupuestoScreen() {
   }, [items, recetas]);
 
   function resetPantalla() {
+    ignorarSiguienteCargaPorUrlRef.current = true;
+    router.replace("/nuevo-presupuesto", { scroll: false });
     setPresupuestoId(null);
     setItems([]);
     setFecha(new Date().toISOString().slice(0, 10));
@@ -693,6 +786,10 @@ export function NuevoPresupuestoScreen() {
       }
 
       setPresupuestoId(id);
+      router.replace(
+        `/nuevo-presupuesto?id=${encodeURIComponent(id)}`,
+        { scroll: false }
+      );
       setBanner({
         type: "success",
         text: "Presupuesto creado. Seleccioná un rubro y agregá ítems.",
@@ -742,6 +839,7 @@ export function NuevoPresupuestoScreen() {
         receta_id: receta.id,
         cantidad: q,
         precio_material_congelado: pm,
+        descuento_material_pct: 0,
         precio_mo_congelada: pmo,
       });
 
@@ -854,6 +952,7 @@ export function NuevoPresupuestoScreen() {
         receta_id: String(receta.id),
         cantidad: 1,
         precio_material_congelado: receta.costo_base_material_unitario ?? 0,
+        descuento_material_pct: 0,
         precio_mo_congelada: receta.costo_base_mo_unitario ?? 0,
         recetas: {
           nombre_item: receta.nombre_item,
@@ -872,9 +971,12 @@ export function NuevoPresupuestoScreen() {
             receta_id: receta.id,
             cantidad: 1,
             precio_material_congelado: receta.costo_base_material_unitario ?? 0,
+            descuento_material_pct: 0,
             precio_mo_congelada: receta.costo_base_mo_unitario ?? 0,
           })
-          .select("id, presupuesto_id, receta_id, cantidad, precio_material_congelado, precio_mo_congelada, recetas ( nombre_item, unidad, rubro_id )")
+          .select(
+            "id, presupuesto_id, receta_id, cantidad, precio_material_congelado, descuento_material_pct, precio_mo_congelada, recetas ( nombre_item, unidad, rubro_id )"
+          )
           .single();
         if (error) {
           setItems((prev) => prev.filter((i) => i.id !== nuevoItem.id));
@@ -938,6 +1040,7 @@ export function NuevoPresupuestoScreen() {
       receta_id: String(r.id),
       cantidad: 1,
       precio_material_congelado: r.costo_base_material_unitario ?? 0,
+      descuento_material_pct: 0,
       precio_mo_congelada: r.costo_base_mo_unitario ?? 0,
       recetas: {
         nombre_item: r.nombre_item,
@@ -955,12 +1058,15 @@ export function NuevoPresupuestoScreen() {
         receta_id: r.id,
         cantidad: 1,
         precio_material_congelado: r.costo_base_material_unitario ?? 0,
+        descuento_material_pct: 0,
         precio_mo_congelada: r.costo_base_mo_unitario ?? 0,
       }));
       const { data, error } = await supabase
         .from("presupuestos_items")
         .insert(rows)
-        .select("id, presupuesto_id, receta_id, cantidad, precio_material_congelado, precio_mo_congelada, recetas ( nombre_item, unidad, rubro_id )");
+        .select(
+          "id, presupuesto_id, receta_id, cantidad, precio_material_congelado, descuento_material_pct, precio_mo_congelada, recetas ( nombre_item, unidad, rubro_id )"
+        );
       if (error) {
         const tempIds = new Set(nuevosItems.map((i) => i.id));
         setItems((prev) => prev.filter((i) => !tempIds.has(i.id)));
@@ -1448,7 +1554,7 @@ export function NuevoPresupuestoScreen() {
                 table-auto + min-w por columna: en viewports angostos la tabla supera el 100%
                 y este contenedor hace scroll horizontal — sin recortar titulares.
               */}
-              <table className="w-max min-w-full border-separate border-spacing-0 text-center text-sm table-auto [min-width:max(100%,98rem)]">
+              <table className="w-max min-w-full border-separate border-spacing-0 text-center text-sm table-auto [min-width:max(100%,106rem)]">
                 <thead className="font-raleway">
                   <tr className="border-b border-t border-ravn-line text-xs font-medium uppercase tracking-normal text-ravn-muted">
                     <th className="sticky top-0 left-0 z-[25] box-border min-w-[5.5rem] border-b border-r border-t border-ravn-line bg-ravn-surface px-3 py-3 text-center font-medium whitespace-normal leading-snug">
@@ -1465,6 +1571,9 @@ export function NuevoPresupuestoScreen() {
                     </th>
                     <th className="sticky top-0 z-20 min-w-[14rem] border-b border-r border-t border-ravn-line bg-ravn-surface px-3 py-3 text-center font-medium leading-snug whitespace-normal">
                       Precio Material
+                    </th>
+                    <th className="sticky top-0 z-20 min-w-[7.5rem] border-b border-r border-t border-ravn-line bg-ravn-surface px-2 py-3 text-center font-medium leading-snug whitespace-normal">
+                      Desc. %
                     </th>
                     <th className="sticky top-0 z-20 min-w-[14.5rem] border-b border-r border-t border-ravn-line bg-ravn-surface px-3 py-3 text-center font-medium leading-snug whitespace-normal">
                       Subtotal materiales
@@ -1484,7 +1593,7 @@ export function NuevoPresupuestoScreen() {
                   {!presupuestoId ? (
                     <tr>
                       <td
-                        colSpan={9}
+                        colSpan={10}
                         className="border-b border-ravn-line bg-ravn-surface px-5 py-10 text-center font-light text-ravn-muted sm:py-12"
                       >
                         Creá un presupuesto para ver las líneas aquí.
@@ -1493,7 +1602,7 @@ export function NuevoPresupuestoScreen() {
                   ) : items.length === 0 && !itemsLoading ? (
                     <tr>
                       <td
-                        colSpan={9}
+                        colSpan={10}
                         className="border-b border-ravn-line bg-ravn-surface px-5 py-10 text-center font-light text-ravn-muted sm:py-12"
                       >
                         Aún no hay ítems. Elegí un rubro y agregá líneas.
@@ -1505,9 +1614,16 @@ export function NuevoPresupuestoScreen() {
                       const pm =
                         Number(row.precio_material_congelado) || 0;
                       const pmo = Number(row.precio_mo_congelada) || 0;
-                      const subtotalMaterial = q * pm;
-                      const subtotalMo = q * pmo;
-                      const totalItem = subtotalMaterial + subtotalMo;
+                      const rawDisc = Number(row.descuento_material_pct);
+                      const pctLine = Number.isFinite(rawDisc)
+                        ? Math.min(100, Math.max(0, rawDisc))
+                        : 0;
+                      const facMat = Math.max(0, 1 - pctLine / 100);
+                      const subtotalMaterial = roundArs2(q * pm * facMat);
+                      const subtotalMo = roundArs2(q * pmo);
+                      const totalItem = roundArs2(
+                        subtotalMaterial + subtotalMo
+                      );
                       const nombre =
                         row.recetas?.nombre_item ?? "Ítem (sin nombre)";
                       const rid =
@@ -1591,16 +1707,34 @@ export function NuevoPresupuestoScreen() {
                               className={inputClass}
                             />
                           </td>
+                          <td className="min-w-[7.5rem] border-b border-r border-ravn-line bg-ravn-surface p-0">
+                            <FormattedNumberInput
+                              value={pctLine}
+                              decimals={2}
+                              onChange={(v) =>
+                                updateItemInState(
+                                  row.id,
+                                  "descuento_material_pct",
+                                  Math.min(100, Math.max(0, v))
+                                )
+                              }
+                              onBlur={() => persistRow(row.id)}
+                              disabled={isUpdating}
+                              className={inputClass}
+                            />
+                          </td>
                           <td className="min-w-[14.5rem] overflow-visible whitespace-nowrap border-b border-r border-ravn-line bg-ravn-surface p-0">
                             <PesosAmountInput
                               amount={subtotalMaterial}
-                              disabled={isUpdating}
+                              disabled={isUpdating || facMat <= 0}
                               onAmountChange={(next) => {
                                 const qq = Number(row.cantidad) || 0;
+                                if (qq <= 0 || facMat <= 0) return;
+                                const listSub = roundArs2(next / facMat);
                                 updateItemInState(
                                   row.id,
                                   "precio_material_congelado",
-                                  qq > 0 ? roundArs2(next / qq) : 0
+                                  roundArs2(listSub / qq)
                                 );
                               }}
                               onBlur={() => persistRow(row.id)}

@@ -26,6 +26,13 @@ const moneyUsd = new Intl.NumberFormat("en-US", {
   maximumFractionDigits: 2,
 });
 
+const moneyUsdInt = new Intl.NumberFormat("en-US", {
+  style: "currency",
+  currency: "USD",
+  minimumFractionDigits: 0,
+  maximumFractionDigits: 0,
+});
+
 function numberFmt(decimals: number): Intl.NumberFormat {
   return new Intl.NumberFormat("es-AR", {
     minimumFractionDigits: decimals,
@@ -71,6 +78,25 @@ export function formatMoneyMoneda(
     return normalizeMoneySpaces(moneyUsd.format(n));
   }
   return formatMoney(n);
+}
+
+/** Dólares sin centavos (vista previa / totales enteros). */
+export function formatMoneyUsdInt(value: number): string {
+  return normalizeMoneySpaces(
+    moneyUsdInt.format(Math.round(Number.isFinite(value) ? value : 0))
+  );
+}
+
+/**
+ * Solo dígitos (y pegado con puntos) → entero ARS con separadores de miles es-AR.
+ * Para campos de importe sin decimales.
+ */
+export function formatArsEnteroDesdeDigitos(raw: string): string {
+  const digits = String(raw ?? "").replace(/\D/g, "");
+  if (!digits) return "";
+  const n = Number(digits);
+  if (!Number.isFinite(n) || n < 0) return "";
+  return formatNumber(n, 0);
 }
 
 /** Número con separadores es-AR (miles `.`, decimales `,`). */

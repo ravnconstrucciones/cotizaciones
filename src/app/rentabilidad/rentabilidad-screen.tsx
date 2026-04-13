@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { RavnLogo } from "@/components/ravn-logo";
 import { createClient } from "@/lib/supabase/client";
 import {
@@ -10,8 +10,11 @@ import {
   etiquetaCasaDolar,
 } from "@/lib/cotizacion-labels";
 import {
+  formatArsEnteroDesdeDigitos,
   formatMoney,
+  formatMoneyInt,
   formatMoneyMoneda,
+  formatMoneyUsdInt,
   formatNumber,
   parseFormattedNumber,
   roundArs2,
@@ -106,6 +109,7 @@ export function RentabilidadScreen({
   /** Precio obra sin IVA distinto al redondeo automático desde ítems (cierre manual del importe). */
   const [precioObraManual, setPrecioObraManual] = useState<number | null>(null);
   const [importePropuestaDraft, setImportePropuestaDraft] = useState("");
+  const importeDraftSincronizadoManualRef = useRef(false);
 
   const [cotizaciones, setCotizaciones] = useState<CotizacionItem[]>([]);
   const [casaDolar, setCasaDolar] = useState<string>("oficial");
@@ -532,13 +536,40 @@ export function RentabilidadScreen({
     [importeArsParaPropuesta]
   );
 
+  /** Importe entero ARS que muestra la vista previa = lo del campo (si es válido) o el importe cerrado. */
+  const importeVistaPreviaArsEntero = useMemo(() => {
+    const trimmed = importePropuestaDraft.trim();
+    if (trimmed !== "") {
+      const n = Math.round(Math.max(0, parseFormattedNumber(trimmed)));
+      if (Number.isFinite(n)) return n;
+    }
+    return importeArsRedondeadoMostrado;
+  }, [importePropuestaDraft, importeArsRedondeadoMostrado]);
+
   useEffect(() => {
+    importeDraftSincronizadoManualRef.current = false;
+  }, [presupuestoIdInicial]);
+
+  useEffect(() => {
+    if (cargandoPresupuesto) return;
     if (precioObraManual == null) {
+      importeDraftSincronizadoManualRef.current = false;
       setImportePropuestaDraft(
         formatNumber(importeArsRedondeadoMostrado, 0)
       );
+      return;
     }
-  }, [importeArsRedondeadoMostrado, precioObraManual]);
+    if (!importeDraftSincronizadoManualRef.current) {
+      setImportePropuestaDraft(
+        formatNumber(importeArsRedondeadoMostrado, 0)
+      );
+      importeDraftSincronizadoManualRef.current = true;
+    }
+  }, [
+    cargandoPresupuesto,
+    precioObraManual,
+    importeArsRedondeadoMostrado,
+  ]);
 
   const previewCierreDesdeImporteDraft = useMemo(() => {
     if (!presupuestoIdInicial) return null;
@@ -580,6 +611,7 @@ export function RentabilidadScreen({
       setImportePropuestaDraft(
         formatNumber(importeArsRedondeadoMostrado, 0)
       );
+      importeDraftSincronizadoManualRef.current = precioObraManual != null;
       return;
     }
     const raw = parseFormattedNumber(trimmed);
@@ -587,12 +619,14 @@ export function RentabilidadScreen({
       setImportePropuestaDraft(
         formatNumber(importeArsRedondeadoMostrado, 0)
       );
+      importeDraftSincronizadoManualRef.current = precioObraManual != null;
       return;
     }
     const T = Math.round(Math.max(0, raw));
     const committedEntero = Math.round(importeArsParaPropuesta);
     if (T === committedEntero) {
       setImportePropuestaDraft(formatNumber(T, 0));
+      importeDraftSincronizadoManualRef.current = precioObraManual != null;
       return;
     }
     const seedP = precioObraManual ?? precioSinIvaCalculado;
@@ -606,6 +640,7 @@ export function RentabilidadScreen({
     const adj = ajustarPropuestaPrefAlImporteMostradoArs(basePref, T);
     setPrecioObraManual(adj.precioSinIvaArsRedondeado);
     setImportePropuestaDraft(formatNumber(T, 0));
+    importeDraftSincronizadoManualRef.current = true;
   }
 
   const puedeIrAPropuestaUsd =
@@ -687,7 +722,11 @@ export function RentabilidadScreen({
         </Link>
         <nav className="flex flex-wrap gap-3 font-raleway text-xs font-medium uppercase tracking-wider">
           <Link
-            href="/nuevo-presupuesto"
+            href={
+              presupuestoIdInicial
+                ? `/nuevo-presupuesto?id=${encodeURIComponent(presupuestoIdInicial)}`
+                : "/nuevo-presupuesto"
+            }
             className="text-ravn-muted underline-offset-4 transition-colors hover:text-ravn-fg hover:underline"
           >
             Nuevo presupuesto
@@ -1264,7 +1303,9 @@ export function RentabilidadScreen({
                       autoComplete="off"
                       value={importePropuestaDraft}
                       onChange={(e) =>
-                        setImportePropuestaDraft(e.target.value)
+                        setImportePropuestaDraft(
+                          formatArsEnteroDesdeDigitos(e.target.value)
+                        )
                       }
                       onBlur={() => handleImportePropuestaBlur()}
                       className={`${inputCls} mt-2 font-raleway text-lg font-semibold tabular-nums`}
@@ -1272,14 +1313,19 @@ export function RentabilidadScreen({
                     <p className="mt-2 text-xs leading-relaxed text-ravn-muted">
                       Editá el total en pesos (con o sin IVA según el casillero de
                       arriba). Al salir del campo se ajusta el precio de obra y se
-                      actualizan utilidad y margen obra. Si cambiás remarques o
-                      cargos, el cierre manual se descarta y vuelve el cálculo
-                      automático.
+                      actualizan utilidad y margen obra. Aumentar el importe
+                      manual sube la utilidad tras costos internos y el margen
+                      (el costo directo y los costos internos no cambian). Si
+                      cambiás remarques o cargos, el cierre manual se descarta y
+                      vuelve el cálculo automático.
                     </p>
                     {precioObraManual != null ? (
                       <button
                         type="button"
-                        onClick={() => setPrecioObraManual(null)}
+                        onClick={() => {
+                          importeDraftSincronizadoManualRef.current = false;
+                          setPrecioObraManual(null);
+                        }}
                         className="mt-3 rounded-none border border-ravn-line bg-ravn-surface px-4 py-2 text-xs font-medium uppercase tracking-wider text-ravn-fg transition-colors hover:bg-ravn-subtle"
                       >
                         Volver al precio calculado desde ítems
@@ -1293,19 +1339,25 @@ export function RentabilidadScreen({
                         <p className="mt-2 tabular-nums text-ravn-fg">
                           Precio obra sin IVA (impl.):{" "}
                           <span className="font-semibold">
-                            {formatMoney(previewCierreDesdeImporteDraft.pSin)}
+                            {formatMoneyInt(
+                              Math.round(previewCierreDesdeImporteDraft.pSin)
+                            )}
                           </span>
                         </p>
                         <p className="mt-1 tabular-nums text-ravn-fg">
                           Contribución (precio obra − costo directo):{" "}
                           <span className="font-semibold">
-                            {formatMoney(previewCierreDesdeImporteDraft.contr)}
+                            {formatMoneyInt(
+                              Math.round(previewCierreDesdeImporteDraft.contr)
+                            )}
                           </span>
                         </p>
                         <p className="mt-1 tabular-nums text-ravn-fg">
                           Utilidad neta estimada (tras costos internos):{" "}
                           <span className="font-semibold">
-                            {formatMoney(previewCierreDesdeImporteDraft.util)}
+                            {formatMoneyInt(
+                              Math.round(previewCierreDesdeImporteDraft.util)
+                            )}
                           </span>
                         </p>
                         <p className="mt-1 tabular-nums text-ravn-fg">
@@ -1319,16 +1371,15 @@ export function RentabilidadScreen({
                   </>
                 ) : (
                   <p className="mt-1 font-raleway text-lg font-semibold tabular-nums text-ravn-fg">
-                    {formatMoney(importeArsParaPropuesta)}
+                    {formatMoneyInt(importeArsRedondeadoMostrado)}
                   </p>
                 )}
                 {ventaDolarEfectiva > 0 ? (
                   <p className="mt-2 text-xs text-ravn-muted">
                     Equivalente aprox. en USD ({etiquetaTipoCambio}):{" "}
                     <span className="tabular-nums text-ravn-fg">
-                      {formatMoneyMoneda(
-                        toUsd(importeArsParaPropuesta),
-                        "USD"
+                      {formatMoneyUsdInt(
+                        toUsd(importeArsRedondeadoMostrado)
                       )}
                     </span>
                   </p>
@@ -1465,11 +1516,10 @@ export function RentabilidadScreen({
             <p className="mt-4 rounded-none border border-ravn-line bg-ravn-subtle px-4 py-3 text-sm tabular-nums text-ravn-fg">
               Vista previa:{" "}
               {monedaPresentacion === "ARS"
-                ? formatMoney(importeArsParaPropuesta)
+                ? formatMoneyInt(importeVistaPreviaArsEntero)
                 : ventaDolarEfectiva > 0
-                  ? formatMoneyMoneda(
-                      toUsd(importeArsParaPropuesta),
-                      "USD"
+                  ? formatMoneyUsdInt(
+                      toUsd(importeVistaPreviaArsEntero)
                     )
                   : "Ingresá cotización venta para ver USD"}
             </p>
@@ -1483,7 +1533,11 @@ export function RentabilidadScreen({
 
           <div className="flex flex-col gap-4 border-t border-ravn-line pt-8 sm:flex-row sm:flex-wrap">
             <Link
-              href="/nuevo-presupuesto"
+              href={
+                presupuestoIdInicial
+                  ? `/nuevo-presupuesto?id=${encodeURIComponent(presupuestoIdInicial)}`
+                  : "/nuevo-presupuesto"
+              }
               className="inline-flex w-fit items-center justify-center rounded-none border-2 border-ravn-line bg-ravn-surface px-6 py-3 text-sm font-medium uppercase tracking-wider text-ravn-fg transition-colors hover:bg-ravn-subtle"
             >
               Volver al presupuesto
