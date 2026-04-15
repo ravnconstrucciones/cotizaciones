@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Arranque de desarrollo: libera :3000 si quedó un next-server colgado, mejora el
-# watcher bajo Documents/iCloud, y usa Turbopack (más rápido que Webpack en dev).
+# watcher bajo Documents/iCloud. Por defecto Webpack; Turbopack: RAVN_TURBOPACK=1 npm run dev
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT" || exit 1
@@ -51,7 +51,10 @@ if [ -z "${RAVN_NO_POLLING:-}" ]; then
   esac
 fi
 
-if [ "${RAVN_TURBOPACK:-1}" = "1" ]; then
+# Por defecto Webpack: Turbopack (--turbopack) a veces rompe con 500 y
+# MODULE_NOT_FOUND en chunks/ssr/[turbopack]_runtime.js al tocar rutas API.
+# Para forzar Turbopack: RAVN_TURBOPACK=1 npm run dev
+if [ "${RAVN_TURBOPACK:-0}" = "1" ]; then
   exec "$NEXT_BIN" dev --turbopack -p "$PORT"
 else
   exec "$NEXT_BIN" dev -p "$PORT"

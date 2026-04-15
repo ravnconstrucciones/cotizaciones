@@ -1192,15 +1192,20 @@ export function RentabilidadScreen({
                 </div>
                 <div className="flex flex-wrap items-baseline justify-between gap-2 border-b border-ravn-line py-2">
                   <span className="text-xs uppercase tracking-wider text-ravn-muted">
-                    Utilidad neta estimada
+                    Margen bruto mat. + M.O.
                   </span>
                   <span className="font-raleway text-lg font-semibold tabular-nums text-ravn-fg sm:text-xl">
                     {formatMoney(gananciaNetaSobreMatMo)}
                   </span>
                 </div>
                 <p className="text-[11px] text-ravn-muted">
-                  Sobre costo directo (materiales + M.O.): venta final materiales +
-                  venta final M.O. menos esos costos.
+                  Venta final materiales + venta final M.O. menos solo el costo
+                  directo de materiales y M.O.{" "}
+                  <span className="font-medium text-ravn-fg">
+                    No incluye costos internos
+                  </span>{" "}
+                  ni el efecto de cargos adicionales y contingencia sobre el
+                  precio de obra (eso va en el total de abajo).
                 </p>
                 <div className="flex flex-wrap items-baseline justify-between gap-2 py-2">
                   <span className="text-xs uppercase tracking-wider text-ravn-muted">
@@ -1222,15 +1227,31 @@ export function RentabilidadScreen({
                     </p>
                     <div className="mt-2 flex flex-wrap items-baseline justify-between gap-2 border-b border-ravn-line py-2">
                       <span className="text-xs uppercase tracking-wider text-ravn-muted">
-                        Utilidad neta estimada (obra)
+                        Utilidad neta (obra)
                       </span>
                       <span className="font-raleway text-lg font-semibold tabular-nums text-ravn-fg sm:text-xl">
                         {formatMoney(utilidadNetaEstimada)}
                       </span>
                     </div>
-                    <p className="mt-1 text-[11px] text-ravn-muted">
-                      Precio obra sin IVA ajustado menos costo directo y costos
-                      internos.
+                    <p className="mt-2 space-y-1 text-[11px] leading-relaxed text-ravn-muted">
+                      <span className="block">
+                        No es el importe final al cliente: el precio obra sin IVA
+                        es{" "}
+                        <span className="tabular-nums font-medium text-ravn-fg">
+                          {formatMoney(precioSinIvaRedondeado)}
+                        </span>
+                        . La utilidad neta es lo que queda después de descontar
+                        costo directo y costos internos:
+                      </span>
+                      <span className="block tabular-nums">
+                        {formatMoney(precioSinIvaRedondeado)} −{" "}
+                        {formatMoney(costoDirecto)} (costo directo mat. + M.O.) −{" "}
+                        {formatMoney(costosInternos)} (costos internos) ={" "}
+                        <span className="font-medium text-ravn-fg">
+                          {formatMoney(utilidadNetaEstimada)}
+                        </span>
+                        .
+                      </span>
                     </p>
                     <div className="flex flex-wrap items-baseline justify-between gap-2 py-2">
                       <span className="text-xs uppercase tracking-wider text-ravn-muted">

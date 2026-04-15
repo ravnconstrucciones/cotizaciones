@@ -4,6 +4,8 @@
   "private": true,
   "scripts": {
     "dev": "bash scripts/dev.sh",
+    "dev:clean": "rm -rf .next && bash scripts/dev.sh",
+    "dev:turbo": "RAVN_TURBOPACK=1 bash scripts/dev.sh",
     "dev:webpack": "RAVN_TURBOPACK=0 bash scripts/dev.sh",
     "build": "next build",
     "start": "next start",
@@ -17,7 +19,8 @@
     "next-themes": "^0.4.6",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "react-to-print": "^3.3.0"
+    "react-to-print": "^3.3.0",
+    "recharts": "^3.8.1"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.0.9",

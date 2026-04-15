@@ -110,6 +110,7 @@ export function GastosScreen({ presupuestoId }: { presupuestoId: string }) {
   const [cotizError, setCotizError] = useState<string | null>(null);
   const [casaDolar, setCasaDolar] = useState<string>("oficial");
   const [cotizacionManualStr, setCotizacionManualStr] = useState("");
+  const [obraCashflowId, setObraCashflowId] = useState<string | null>(null);
 
   const rubrosOrdenados = useMemo(
     () => sortRubrosRowsByNumericId(rubros),
@@ -261,6 +262,7 @@ export function GastosScreen({ presupuestoId }: { presupuestoId: string }) {
         setCotizacionManualStr("");
         setGastos([]);
         setRubros([]);
+        setObraCashflowId(null);
         setLoading(false);
         return;
       }
@@ -268,7 +270,7 @@ export function GastosScreen({ presupuestoId }: { presupuestoId: string }) {
       const prefRaw = (pres as { propuesta_comercial_pref?: unknown })
         .propuesta_comercial_pref;
 
-      const [costos, rubRes, gastRes] = await Promise.all([
+      const [costos, rubRes, gastRes, obraRes] = await Promise.all([
         fetchCostoDirectoPresupuesto(supabase, presupuestoId),
         supabase.from("rubros").select("id, nombre").order("id", { ascending: true }),
         supabase
@@ -277,6 +279,7 @@ export function GastosScreen({ presupuestoId }: { presupuestoId: string }) {
           .eq("presupuesto_id", presupuestoId)
           .order("fecha", { ascending: false })
           .order("created_at", { ascending: false }),
+        supabase.from("obras").select("id").eq("presupuesto_id", presupuestoId).maybeSingle(),
       ]);
 
       const { total } = costos;
@@ -314,6 +317,13 @@ export function GastosScreen({ presupuestoId }: { presupuestoId: string }) {
       }
 
       setGastos((gastData ?? []) as GastoDbRow[]);
+
+      const { data: obraData, error: errObra } = obraRes;
+      if (!errObra && obraData && (obraData as { id?: string }).id) {
+        setObraCashflowId(String((obraData as { id: string }).id));
+      } else {
+        setObraCashflowId(null);
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Error al cargar.");
     } finally {
@@ -436,6 +446,19 @@ export function GastosScreen({ presupuestoId }: { presupuestoId: string }) {
           >
             Rentabilidad
           </Link>
+          {obraCashflowId ? (
+            <>
+              <span className="text-ravn-line" aria-hidden>
+                /
+              </span>
+              <Link
+                href={`/cashflow/obra/${encodeURIComponent(obraCashflowId)}`}
+                className="text-ravn-muted underline-offset-4 transition-colors hover:text-ravn-fg hover:underline"
+              >
+                Cashflow
+              </Link>
+            </>
+          ) : null}
           <span className="text-ravn-line" aria-hidden>
             /
           </span>

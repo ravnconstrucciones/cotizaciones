@@ -5,6 +5,9 @@ out
 *.log
 .DS_Store
 
+# Supabase CLI cache local
+supabase/.temp/
+
 # Permisos / rutas locales de Claude Code
 .claude/settings.local.json
 

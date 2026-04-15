@@ -12,7 +12,6 @@ import {
   parsePropuestaPrefJsonDesdeMismaFila,
   type PropuestaPrefV1,
 } from "@/lib/ravn-propuesta-pref";
-
 type MonedaRow = "ARS" | "USD";
 
 type PresupuestoHistorialRow = {
@@ -95,6 +94,9 @@ export function HistorialScreen() {
     null
   );
   const selectAllRef = useRef<HTMLInputElement>(null);
+  const [obraIdPorPresupuestoId, setObraIdPorPresupuestoId] = useState<
+    Map<string, string>
+  >(() => new Map());
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -208,6 +210,20 @@ export function HistorialScreen() {
         setItems([]);
       } else {
         setItems((itemRows ?? []) as ItemAgg[]);
+      }
+
+      const { data: obraRows, error: errObra } = await supabase
+        .from("obras")
+        .select("id, presupuesto_id")
+        .in("presupuesto_id", ids);
+      if (!errObra && obraRows) {
+        const m = new Map<string, string>();
+        for (const r of obraRows as { id: string; presupuesto_id: string }[]) {
+          m.set(r.presupuesto_id, r.id);
+        }
+        setObraIdPorPresupuestoId(m);
+      } else {
+        setObraIdPorPresupuestoId(new Map());
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Error al cargar el historial.");
@@ -378,8 +394,9 @@ export function HistorialScreen() {
         </h1>
         <p className="mt-2 max-w-2xl text-sm text-ravn-muted">
           Solo presupuestos con PDF generado. Seleccioná varios para eliminar en
-          lote. Los marcados como{" "}
-          <span className="text-ravn-fg">aprobados</span> aparecen en{" "}
+          lote.           La aprobación se hace desde{" "}
+          <span className="text-ravn-fg">Aprobar y planificar cashflow</span>{" "}
+          (revisión + ítems). Los aprobados aparecen en{" "}
           <Link
             href="/control-gastos"
             className="text-ravn-fg underline underline-offset-2"
@@ -521,22 +538,55 @@ export function HistorialScreen() {
                               Gastos de obra
                             </Link>
                           ) : null}
+                          {p.presupuesto_aprobado &&
+                          obraIdPorPresupuestoId.has(p.id) ? (
+                            <Link
+                              href={`/cashflow/obra/${encodeURIComponent(obraIdPorPresupuestoId.get(p.id)!)}`}
+                              className="text-xs font-medium uppercase tracking-wider text-ravn-muted underline-offset-2 transition-colors hover:text-ravn-fg hover:underline"
+                            >
+                              Cashflow
+                            </Link>
+                          ) : null}
                         </p>
-                        <label className="mt-3 flex w-fit cursor-pointer items-center gap-2">
-                          <input
-                            type="checkbox"
-                            checked={p.presupuesto_aprobado}
-                            disabled={updatingAprobadoId === p.id}
-                            onChange={(e) =>
-                              void setPresupuestoAprobado(p.id, e.target.checked)
-                            }
-                            className={checkboxCls}
-                            aria-label={`Presupuesto aprobado ${numeroLabel}`}
-                          />
-                          <span className="text-xs font-medium uppercase tracking-wider text-ravn-fg">
-                            Presupuesto aprobado
-                          </span>
-                        </label>
+                        {p.presupuesto_aprobado ? (
+                          <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:gap-4">
+                            <span className="text-xs font-medium uppercase tracking-wider text-ravn-fg">
+                              Presupuesto aprobado
+                            </span>
+                            <button
+                              type="button"
+                              disabled={updatingAprobadoId === p.id}
+                              onClick={() => {
+                                if (
+                                  !window.confirm(
+                                    "¿Quitar la aprobación? No se borran los ítems de cashflow ya creados."
+                                  )
+                                )
+                                  return;
+                                void setPresupuestoAprobado(p.id, false);
+                              }}
+                              className="w-fit text-left text-xs font-medium uppercase tracking-wider text-ravn-muted underline-offset-2 transition-colors hover:text-ravn-fg hover:underline disabled:opacity-50"
+                            >
+                              Quitar aprobación
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="mt-3 flex flex-col gap-2">
+                            <Link
+                              href={`/cashflow/planificar/${encodeURIComponent(p.id)}`}
+                              className="inline-flex w-full max-w-xs items-center justify-center rounded-none border-2 border-ravn-accent bg-ravn-accent px-5 py-3 text-center text-xs font-semibold uppercase tracking-wider text-ravn-accent-contrast transition-opacity hover:opacity-90 sm:w-auto"
+                            >
+                              Aprobar y planificar cashflow
+                            </Link>
+                            {(totalArsMostradoPorId.get(p.id) ?? 0) <= 0 ? (
+                              <p className="max-w-sm text-xs text-ravn-muted">
+                                Sin total en ARS en la nube: abrí Rentabilidad y
+                                guardá el importe para que el plan cuadre con la
+                                propuesta.
+                              </p>
+                            ) : null}
+                          </div>
+                        )}
                       </div>
                       <div className="text-right">
                         <p className="text-lg font-medium tabular-nums text-ravn-fg md:text-xl">
@@ -583,6 +633,7 @@ export function HistorialScreen() {
           </button>
         </div>
       ) : null}
+
     </div>
   );
 }

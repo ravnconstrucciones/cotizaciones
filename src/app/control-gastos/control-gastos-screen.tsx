@@ -10,6 +10,12 @@ import {
 } from "@/lib/format-currency";
 import { formatTotalDisplay } from "@/lib/format-total-display";
 import { formatNumeroComercialHumano } from "@/lib/presupuesto-numero-comercial";
+import {
+  importeArsParaPropuesta,
+  importeMostradoEnteroEnMoneda,
+  parsePropuestaPrefJsonDesdeMismaFila,
+  type PropuestaPrefV1,
+} from "@/lib/ravn-propuesta-pref";
 import { parseRentabilidadInputsJson } from "@/lib/ravn-rentabilidad-inputs";
 
 type MonedaRow = "ARS" | "USD";
@@ -106,6 +112,15 @@ function costosInternosYCargosDesdeRentab(
   };
 }
 
+/** Costo de ejecución previsto sin cupo de contingencia (lo que no es margen, salvo imprevistos). */
+function gastosPrevistosEjecucionArs(
+  costoDirecto: number,
+  costosInternos: number,
+  cargosAdicionales: number
+): number {
+  return roundArs2(costoDirecto + costosInternos + cargosAdicionales);
+}
+
 /**
  * Cupo de imprevistos (contingencia %) que queda: el exceso de gastos ejecutados
  * sobre costo directo + costos internos + cargos adicionales consume ese cupo.
@@ -117,9 +132,58 @@ function restanteImprevistosArs(
   costosInternos: number,
   cargosAdicionales: number
 ): number {
-  const planPrevio = roundArs2(costoDirecto + costosInternos + cargosAdicionales);
+  const planPrevio = gastosPrevistosEjecucionArs(
+    costoDirecto,
+    costosInternos,
+    cargosAdicionales
+  );
   const sobrePlan = Math.max(0, roundArs2(gastosEjecutados - planPrevio));
   return Math.max(0, roundArs2(contingencia - sobrePlan));
+}
+
+/** Gastos ejecutados (ARS) respecto del total cotizado al cliente (ARS). */
+function BarraGastoSobreTotalAlCliente({
+  gastadoArs,
+  totalClienteArs,
+}: {
+  gastadoArs: number;
+  totalClienteArs: number;
+}) {
+  const base = Math.max(0, totalClienteArs);
+  const g = Math.max(0, gastadoArs);
+  const pct = base > 0 ? Math.min(100, (g / base) * 100) : 0;
+  const over = base > 0 && g > base;
+  return (
+    <div
+      className="mt-2 w-full max-w-[20rem] overflow-hidden rounded-full border border-ravn-line bg-ravn-subtle py-1 pl-1 pr-1.5 sm:ml-auto"
+      role="img"
+      aria-label={`Gastos sobre total al cliente: ${Math.round(pct)} por ciento`}
+    >
+      <div className="h-2.5 overflow-hidden rounded-full bg-ravn-surface/70 dark:bg-ravn-surface/40">
+        <div
+          className={`h-full rounded-full transition-[width] duration-300 ${
+            over ? "bg-[#6b1c1c] dark:bg-[#8b2e2e]" : "bg-ravn-accent"
+          }`}
+          style={{ width: `${pct}%` }}
+        />
+      </div>
+    </div>
+  );
+}
+
+/** Ganancia neta (total al cliente menos gastos ejecutados), en la moneda de la propuesta. */
+function formatoRestanteFrenteAlCliente(
+  pref: PropuestaPrefV1,
+  restanteArs: number
+): string {
+  const moneda = pref.moneda === "USD" ? "USD" : "ARS";
+  if (moneda === "USD") {
+    const c = pref.cotizacionVentaArsPorUsd;
+    if (Number.isFinite(c) && c > 0) {
+      return formatTotalDisplay(Math.round(restanteArs / c), "USD");
+    }
+  }
+  return formatTotalDisplay(Math.round(restanteArs), "ARS");
 }
 
 export function ControlGastosScreen() {
@@ -131,6 +195,9 @@ export function ControlGastosScreen() {
   const [gastadoPorId, setGastadoPorId] = useState<Map<string, number>>(
     new Map()
   );
+  const [propuestaPrefPorId, setPropuestaPrefPorId] = useState<
+    Map<string, PropuestaPrefV1 | null>
+  >(new Map());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -219,6 +286,7 @@ export function ControlGastosScreen() {
         setItems([]);
         setRentabilidadInputsById(new Map());
         setGastadoPorId(new Map());
+        setPropuestaPrefPorId(new Map());
         setLoading(false);
         return;
       }
@@ -235,22 +303,39 @@ export function ControlGastosScreen() {
         setItems([]);
         setRentabilidadInputsById(new Map());
         setGastadoPorId(new Map());
+        setPropuestaPrefPorId(new Map());
       } else {
         setItems((itemRows ?? []) as ItemAgg[]);
 
         const inputsMap = new Map<string, unknown>();
         const gastadoMap = new Map<string, number>();
 
+        const prefMap = new Map<string, PropuestaPrefV1 | null>();
+
         const { data: insRows, error: errIns } = await supabase
           .from("presupuestos")
-          .select("id, rentabilidad_inputs")
+          .select("id, rentabilidad_inputs, propuesta_comercial_pref")
           .in("id", ids);
 
         if (!errIns && insRows) {
-          for (const row of insRows as { id: unknown; rentabilidad_inputs?: unknown }[]) {
-            inputsMap.set(String(row.id), row.rentabilidad_inputs ?? null);
+          for (const row of insRows as {
+            id: unknown;
+            rentabilidad_inputs?: unknown;
+            propuesta_comercial_pref?: unknown;
+          }[]) {
+            const pid = String(row.id);
+            inputsMap.set(pid, row.rentabilidad_inputs ?? null);
+            prefMap.set(
+              pid,
+              parsePropuestaPrefJsonDesdeMismaFila(
+                row.propuesta_comercial_pref,
+                pid
+              )
+            );
           }
         }
+
+        setPropuestaPrefPorId(prefMap);
 
         const { data: gastosRows, error: errG } = await supabase
           .from("presupuestos_gastos")
@@ -282,14 +367,6 @@ export function ControlGastosScreen() {
     void load();
   }, [load]);
 
-  const totalPorId = useMemo(() => {
-    const m = new Map<string, number>();
-    for (const p of rows) {
-      m.set(p.id, totalFromItems(items, p.id));
-    }
-    return m;
-  }, [rows, items]);
-
   const resumenGastosPorId = useMemo(() => {
     const m = new Map<
       string,
@@ -308,7 +385,11 @@ export function ControlGastosScreen() {
       const cont = contingenciaMontoPrevista(p.id, inputsRaw, cd);
       const ejecutado = gastadoPorId.get(p.id) ?? 0;
       m.set(p.id, {
-        previstos: roundArs2(costosInternos + cargosAdicionales),
+        previstos: gastosPrevistosEjecucionArs(
+          cd,
+          costosInternos,
+          cargosAdicionales
+        ),
         ejecutados: ejecutado,
         restanteImprevistos: restanteImprevistosArs(
           cont,
@@ -381,8 +462,23 @@ export function ControlGastosScreen() {
                 correlativo != null && Number.isFinite(Number(correlativo))
                   ? formatNumeroComercialHumano("P1", Number(correlativo))
                   : "—";
-              const total = totalPorId.get(p.id) ?? 0;
-              const totalFmt = formatTotalDisplay(total, "ARS");
+              const pref = propuestaPrefPorId.get(p.id) ?? null;
+              const totalClienteArs =
+                pref != null ? importeArsParaPropuesta(pref) : 0;
+              const monedaCliente: "ARS" | "USD" =
+                pref?.moneda === "USD" ? "USD" : "ARS";
+              const totalClienteFmt =
+                pref != null
+                  ? formatTotalDisplay(
+                      importeMostradoEnteroEnMoneda(pref, monedaCliente),
+                      monedaCliente
+                    )
+                  : null;
+              const ejecutadoArs = resumenGastosPorId.get(p.id)?.ejecutados ?? 0;
+              const restanteFrenteClienteArs =
+                pref != null
+                  ? roundArs2(totalClienteArs - ejecutadoArs)
+                  : 0;
               const pdfEnUsd = p.moneda === "USD";
 
               return (
@@ -405,11 +501,61 @@ export function ControlGastosScreen() {
                         </span>
                       </p>
                     </div>
-                    <div className="flex shrink-0 flex-col items-stretch gap-3 sm:items-end">
-                      <div className="text-right">
-                        <p className="text-lg font-medium tabular-nums text-ravn-fg md:text-xl">
-                          {totalFmt}
+                    <div className="flex w-full shrink-0 flex-col items-stretch gap-3 sm:max-w-md sm:items-end">
+                      <div className="text-left sm:text-right">
+                        <p className="text-[10px] font-medium uppercase tracking-[0.14em] text-ravn-muted">
+                          Total al cliente
                         </p>
+                        {totalClienteFmt != null ? (
+                          <>
+                            <p className="mt-0.5 text-lg font-medium tabular-nums text-ravn-fg md:text-xl">
+                              {totalClienteFmt}
+                            </p>
+                            {totalClienteArs > 0 && pref != null ? (
+                              <>
+                                <BarraGastoSobreTotalAlCliente
+                                  gastadoArs={ejecutadoArs}
+                                  totalClienteArs={totalClienteArs}
+                                />
+                                <div className="mt-2 text-left sm:text-right">
+                                  <p className="text-[10px] font-medium uppercase tracking-[0.14em] text-ravn-muted">
+                                    Ganancia neta
+                                  </p>
+                                  <p
+                                    className={`mt-0.5 text-base font-semibold tabular-nums md:text-lg ${
+                                      restanteFrenteClienteArs < 0
+                                        ? "text-[#6b1c1c] dark:text-[#f87171]"
+                                        : "text-ravn-fg"
+                                    }`}
+                                  >
+                                    {formatoRestanteFrenteAlCliente(
+                                      pref,
+                                      restanteFrenteClienteArs
+                                    )}
+                                  </p>
+                                  {restanteFrenteClienteArs < 0 ? (
+                                    <p className="mt-1 max-w-[14rem] text-right text-[10px] font-normal normal-case leading-snug text-ravn-muted sm:ml-auto">
+                                      Gastaste más que el total cotizado al
+                                      cliente (en esta vista se comparan montos
+                                      en pesos).
+                                    </p>
+                                  ) : null}
+                                </div>
+                              </>
+                            ) : null}
+                          </>
+                        ) : (
+                          <p className="mt-1 max-w-xs text-sm font-light leading-snug text-ravn-muted">
+                            Sin total guardado: abrí{" "}
+                            <Link
+                              href={`/rentabilidad?id=${encodeURIComponent(p.id)}`}
+                              className="text-ravn-fg underline underline-offset-2"
+                            >
+                              Rentabilidad
+                            </Link>{" "}
+                            y guardá el importe en la nube.
+                          </p>
+                        )}
                         {pdfEnUsd ? (
                           <p className="mt-1 text-[10px] text-ravn-muted">
                             PDF en USD
@@ -417,15 +563,21 @@ export function ControlGastosScreen() {
                         ) : null}
                       </div>
                       <dl className="w-full max-w-[18rem] space-y-1.5 text-right text-[11px] leading-snug text-ravn-muted sm:max-w-xs">
-                        <div className="flex flex-col gap-0.5 sm:flex-row sm:justify-end sm:gap-2">
-                          <dt className="shrink-0 font-medium uppercase tracking-wide">
-                            Gastos previstos
-                          </dt>
-                          <dd className="tabular-nums text-ravn-fg">
-                            {formatMoney(
-                              resumenGastosPorId.get(p.id)?.previstos ?? 0
-                            )}
-                          </dd>
+                        <div>
+                          <div className="flex flex-col gap-0.5 sm:flex-row sm:justify-end sm:gap-2">
+                            <dt className="shrink-0 font-medium uppercase tracking-wide">
+                              Gastos previstos
+                            </dt>
+                            <dd className="tabular-nums text-ravn-fg">
+                              {formatMoney(
+                                resumenGastosPorId.get(p.id)?.previstos ?? 0
+                              )}
+                            </dd>
+                          </div>
+                          <p className="mt-0.5 max-w-[18rem] text-right text-[10px] font-normal normal-case leading-snug text-ravn-muted sm:max-w-xs">
+                            Costo directo + costos internos + cargos (sin cupo
+                            de contingencia).
+                          </p>
                         </div>
                         <div className="flex flex-col gap-0.5 sm:flex-row sm:justify-end sm:gap-2">
                           <dt className="shrink-0 font-medium uppercase tracking-wide">
