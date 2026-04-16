@@ -116,3 +116,61 @@ comment on column public.obras.cobranza_cerrada_at is
 
 comment on column public.obras.monto_total_a_cobrar_ars is
   'Snapshot del total a cobrar (sin IVA según propuesta) al cerrar cobranza.';
+
+-- ── Gastos de obra: adjuntos foto/audio (Storage) ──────────────────────────
+-- Ver migración 20260415210000_gastos_obra_adjuntos_storage.sql
+
+alter table public.presupuestos_gastos
+  add column if not exists adjunto_path text null;
+
+alter table public.presupuestos_gastos
+  add column if not exists adjunto_kind text null;
+
+alter table public.presupuestos_gastos
+  drop constraint if exists presupuestos_gastos_adjunto_kind_chk;
+
+alter table public.presupuestos_gastos
+  add constraint presupuestos_gastos_adjunto_kind_chk
+  check (adjunto_kind is null or adjunto_kind in ('foto', 'audio'));
+
+insert into storage.buckets (id, name, public, file_size_limit)
+values ('gastos-obra', 'gastos-obra', true, 52428800)
+on conflict (id) do update
+set
+  public = excluded.public,
+  file_size_limit = excluded.file_size_limit;
+
+drop policy if exists "gastos_obra_select" on storage.objects;
+drop policy if exists "gastos_obra_insert" on storage.objects;
+drop policy if exists "gastos_obra_delete" on storage.objects;
+
+create policy "gastos_obra_select"
+  on storage.objects for select
+  to public
+  using (bucket_id = 'gastos-obra');
+
+create policy "gastos_obra_insert"
+  on storage.objects for insert
+  to public
+  with check (bucket_id = 'gastos-obra');
+
+create policy "gastos_obra_delete"
+  on storage.objects for delete
+  to public
+  using (bucket_id = 'gastos-obra');
+
+-- ── Comprobantes en libreta (cashflow_items) ───────────────────────────────
+-- Migración 20260415220000_cashflow_items_adjunto.sql
+
+alter table public.cashflow_items
+  add column if not exists adjunto_path text null;
+
+alter table public.cashflow_items
+  add column if not exists adjunto_kind text null;
+
+alter table public.cashflow_items
+  drop constraint if exists cashflow_items_adjunto_kind_chk;
+
+alter table public.cashflow_items
+  add constraint cashflow_items_adjunto_kind_chk
+  check (adjunto_kind is null or adjunto_kind in ('foto', 'audio'));

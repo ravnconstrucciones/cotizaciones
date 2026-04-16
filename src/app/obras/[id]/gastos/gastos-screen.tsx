@@ -24,6 +24,7 @@ import {
   prefijoPlantillaComercial,
   resolveNumeroComercial,
 } from "@/lib/presupuesto-numero-comercial";
+import { deleteGastoAdjuntoStorage } from "@/lib/gastos-storage";
 import {
   parsePropuestaPrefJsonDesdeMismaFila,
   type PropuestaPrefV1,
@@ -50,6 +51,8 @@ type GastoDbRow = {
   cotizacion_venta_ars_por_usd?: number | string | null;
   casa_dolar?: string | null;
   created_at?: string;
+  adjunto_path?: string | null;
+  adjunto_kind?: string | null;
 };
 
 type CotizacionItem = {
@@ -85,8 +88,31 @@ function fechaIsoToDisplay(iso: string): string {
   return iso;
 }
 
-export function GastosScreen({ presupuestoId }: { presupuestoId: string }) {
-  const [loading, setLoading] = useState(true);
+type ObraOpcion = {
+  id: string;
+  nombre_cliente: string | null;
+  fecha: string | null;
+};
+
+export function GastosScreen({
+  presupuestoId: presupuestoIdProp,
+}: {
+  /** Si es `null`, se muestra selector de obra (p. ej. `/gastos/nuevo`). */
+  presupuestoId: string | null;
+}) {
+  const presupuestoFijo =
+    presupuestoIdProp != null && String(presupuestoIdProp).trim() !== ""
+      ? String(presupuestoIdProp).trim()
+      : null;
+  const [obraElegida, setObraElegida] = useState<string | null>(presupuestoFijo);
+  const [obrasOpciones, setObrasOpciones] = useState<ObraOpcion[]>([]);
+  const [obrasListaLoading, setObrasListaLoading] = useState(
+    presupuestoFijo == null
+  );
+
+  const effectivePresupuestoId = presupuestoFijo ?? obraElegida;
+
+  const [loading, setLoading] = useState(presupuestoFijo != null);
   const [error, setError] = useState<string | null>(null);
   const [nombreCliente, setNombreCliente] = useState("");
   const [pdfGenerado, setPdfGenerado] = useState<boolean | null>(null);
@@ -221,6 +247,11 @@ export function GastosScreen({ presupuestoId }: { presupuestoId: string }) {
   }, [presupuestoAprobado, propuestaPref?.moneda, loadCotizaciones]);
 
   const load = useCallback(async () => {
+    const pid = effectivePresupuestoId;
+    if (!pid) {
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     setError(null);
     try {
@@ -232,9 +263,9 @@ export function GastosScreen({ presupuestoId }: { presupuestoId: string }) {
           .select(
             "nombre_cliente, pdf_generado, propuesta_comercial_pref, presupuesto_aprobado"
           )
-          .eq("id", presupuestoId)
+          .eq("id", pid)
           .single(),
-        resolveNumeroComercial(supabase, presupuestoId),
+        resolveNumeroComercial(supabase, pid),
       ]);
 
       const { data: pres, error: errP } = presRes;
@@ -271,20 +302,20 @@ export function GastosScreen({ presupuestoId }: { presupuestoId: string }) {
         .propuesta_comercial_pref;
 
       const [costos, rubRes, gastRes, obraRes] = await Promise.all([
-        fetchCostoDirectoPresupuesto(supabase, presupuestoId),
+        fetchCostoDirectoPresupuesto(supabase, pid),
         supabase.from("rubros").select("id, nombre").order("id", { ascending: true }),
         supabase
           .from("presupuestos_gastos")
           .select("*")
-          .eq("presupuesto_id", presupuestoId)
+          .eq("presupuesto_id", pid)
           .order("fecha", { ascending: false })
           .order("created_at", { ascending: false }),
-        supabase.from("obras").select("id").eq("presupuesto_id", presupuestoId).maybeSingle(),
+        supabase.from("obras").select("id").eq("presupuesto_id", pid).maybeSingle(),
       ]);
 
       const { total } = costos;
       setCostoDirecto(total);
-      const pref = parsePropuestaPrefJsonDesdeMismaFila(prefRaw, presupuestoId);
+      const pref = parsePropuestaPrefJsonDesdeMismaFila(prefRaw, pid);
       setPropuestaPref(pref);
       setHayPrecioObraRentabilidad(pref != null);
       const precioSinIva = pref?.precioSinIvaArsRedondeado ?? 0;
@@ -329,11 +360,59 @@ export function GastosScreen({ presupuestoId }: { presupuestoId: string }) {
     } finally {
       setLoading(false);
     }
-  }, [presupuestoId]);
+  }, [effectivePresupuestoId]);
 
   useEffect(() => {
+    if (presupuestoFijo != null) {
+      setObrasListaLoading(false);
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      setObrasListaLoading(true);
+      setError(null);
+      try {
+        const supabase = createClient();
+        const { data, error: errO } = await supabase
+          .from("presupuestos")
+          .select("id, nombre_cliente, fecha")
+          .eq("presupuesto_aprobado", true)
+          .order("fecha", { ascending: false });
+        if (cancelled) return;
+        if (errO) {
+          setError(errO.message);
+          setObrasOpciones([]);
+        } else {
+          setObrasOpciones(
+            (data ?? []).map((r) => ({
+              id: String((r as { id: unknown }).id),
+              nombre_cliente:
+                (r as { nombre_cliente?: string | null }).nombre_cliente ??
+                null,
+              fecha: (r as { fecha?: string | null }).fecha ?? null,
+            }))
+          );
+        }
+      } catch (e) {
+        if (!cancelled) {
+          setError(e instanceof Error ? e.message : "Error al cargar obras.");
+        }
+      } finally {
+        if (!cancelled) setObrasListaLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [presupuestoFijo]);
+
+  useEffect(() => {
+    if (!effectivePresupuestoId) {
+      setLoading(false);
+      return;
+    }
     void load();
-  }, [load]);
+  }, [effectivePresupuestoId, load]);
 
   function abrirNuevoGasto() {
     const hoy = new Date().toISOString().slice(0, 10);
@@ -364,12 +443,18 @@ export function GastosScreen({ presupuestoId }: { presupuestoId: string }) {
       return;
     }
 
+    const pid = effectivePresupuestoId;
+    if (!pid) {
+      setError("Elegí una obra antes de guardar.");
+      return;
+    }
+
     setSavingDraft(true);
     setError(null);
     try {
       const supabase = createClient();
       const insertPayload: Record<string, unknown> = {
-        presupuesto_id: presupuestoId,
+        presupuesto_id: pid,
         fecha: draft.fecha,
         rubro_id: draft.rubro_id.trim() || null,
         descripcion: draft.descripcion.trim(),
@@ -382,11 +467,13 @@ export function GastosScreen({ presupuestoId }: { presupuestoId: string }) {
       const { error: err } = await supabase
         .from("presupuestos_gastos")
         .insert(insertPayload);
+
       if (err) {
         setError(err.message);
         setSavingDraft(false);
         return;
       }
+
       setDraft(null);
       await load();
     } catch (e) {
@@ -402,6 +489,21 @@ export function GastosScreen({ presupuestoId }: { presupuestoId: string }) {
     setError(null);
     try {
       const supabase = createClient();
+      const { data: rowAdj, error: errSel } = await supabase
+        .from("presupuestos_gastos")
+        .select("adjunto_path")
+        .eq("id", id)
+        .maybeSingle();
+      if (errSel) {
+        setError(errSel.message);
+        setDeletingId(null);
+        return;
+      }
+      const pathAdj =
+        rowAdj && typeof (rowAdj as { adjunto_path?: unknown }).adjunto_path === "string"
+          ? String((rowAdj as { adjunto_path: string }).adjunto_path)
+          : null;
+
       const { error: err } = await supabase
         .from("presupuestos_gastos")
         .delete()
@@ -411,6 +513,7 @@ export function GastosScreen({ presupuestoId }: { presupuestoId: string }) {
         setDeletingId(null);
         return;
       }
+      await deleteGastoAdjuntoStorage(pathAdj);
       setGastos((prev) => prev.filter((g) => g.id !== id));
     } catch (e) {
       setError(e instanceof Error ? e.message : "No se pudo eliminar.");
@@ -431,37 +534,41 @@ export function GastosScreen({ presupuestoId }: { presupuestoId: string }) {
           <RavnLogo sizeClassName="text-xl sm:text-2xl" showTagline={false} />
         </Link>
         <nav className="flex flex-wrap gap-3 font-raleway text-xs font-medium uppercase tracking-wider">
-          <Link
-            href={`/propuesta/${encodeURIComponent(presupuestoId)}`}
-            className="text-ravn-muted underline-offset-4 transition-colors hover:text-ravn-fg hover:underline"
-          >
-            Propuesta
-          </Link>
-          <span className="text-ravn-line" aria-hidden>
-            /
-          </span>
-          <Link
-            href={`/rentabilidad?id=${encodeURIComponent(presupuestoId)}`}
-            className="text-ravn-muted underline-offset-4 transition-colors hover:text-ravn-fg hover:underline"
-          >
-            Rentabilidad
-          </Link>
-          {obraCashflowId ? (
+          {effectivePresupuestoId ? (
             <>
+              <Link
+                href={`/propuesta/${encodeURIComponent(effectivePresupuestoId)}`}
+                className="text-ravn-muted underline-offset-4 transition-colors hover:text-ravn-fg hover:underline"
+              >
+                Propuesta
+              </Link>
               <span className="text-ravn-line" aria-hidden>
                 /
               </span>
               <Link
-                href={`/cashflow/obra/${encodeURIComponent(obraCashflowId)}`}
+                href={`/rentabilidad?id=${encodeURIComponent(effectivePresupuestoId)}`}
                 className="text-ravn-muted underline-offset-4 transition-colors hover:text-ravn-fg hover:underline"
               >
-                Cashflow
+                Rentabilidad
               </Link>
+              {obraCashflowId ? (
+                <>
+                  <span className="text-ravn-line" aria-hidden>
+                    /
+                  </span>
+                  <Link
+                    href={`/cashflow/obra/${encodeURIComponent(obraCashflowId)}`}
+                    className="text-ravn-muted underline-offset-4 transition-colors hover:text-ravn-fg hover:underline"
+                  >
+                    Cashflow
+                  </Link>
+                </>
+              ) : null}
+              <span className="text-ravn-line" aria-hidden>
+                /
+              </span>
             </>
           ) : null}
-          <span className="text-ravn-line" aria-hidden>
-            /
-          </span>
           <span className="text-ravn-fg">Gastos de obra</span>
         </nav>
       </div>
@@ -473,7 +580,60 @@ export function GastosScreen({ presupuestoId }: { presupuestoId: string }) {
       {headerNav}
 
       <main className="mx-auto max-w-5xl px-6 py-10 pb-24 sm:px-10">
-        {loading ? (
+        {presupuestoFijo == null && !obraElegida ? (
+          obrasListaLoading ? (
+            <p className="text-sm text-ravn-muted">
+              Cargando obras aprobadas…
+            </p>
+          ) : (
+            <section className={sectionCls}>
+              <h1 className="font-raleway text-xl font-medium uppercase tracking-tight md:text-2xl">
+                Registrar gasto de obra
+              </h1>
+              <p className="mt-2 max-w-2xl text-sm text-ravn-muted">
+                Elegí la obra (presupuesto aprobado) y después podés cargar el
+                importe, descripción y una foto o audio como comprobante.
+              </p>
+              <div className="mt-8 max-w-xl">
+                <label htmlFor="gastos-obra" className={labelCls}>
+                  Obra
+                </label>
+                <select
+                  id="gastos-obra"
+                  value=""
+                  onChange={(e) => {
+                    const v = e.target.value.trim();
+                    if (v) {
+                      setObraElegida(v);
+                      setDraft(null);
+                      setError(null);
+                    }
+                  }}
+                  className={inputCls}
+                >
+                  <option value="">Seleccioná obra…</option>
+                  {obrasOpciones.map((o) => (
+                    <option key={o.id} value={o.id}>
+                      {(o.nombre_cliente?.trim() || "Sin nombre") +
+                        (o.fecha
+                          ? ` · ${fechaIsoToDisplay(String(o.fecha))}`
+                          : "")}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              {obrasOpciones.length === 0 && !obrasListaLoading ? (
+                <p className="mt-6 text-sm text-ravn-muted">
+                  No hay presupuestos aprobados. Marcá uno en el{" "}
+                  <Link href="/historial" className="underline underline-offset-2">
+                    historial
+                  </Link>
+                  .
+                </p>
+              ) : null}
+            </section>
+          )
+        ) : loading ? (
           <p className="text-sm text-ravn-muted">Cargando panel de gastos…</p>
         ) : !presupuestoAprobado ? (
           <>
@@ -527,6 +687,22 @@ export function GastosScreen({ presupuestoId }: { presupuestoId: string }) {
                 </>
               ) : null}
             </p>
+            {presupuestoFijo == null && effectivePresupuestoId ? (
+              <p className="mt-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setObraElegida(null);
+                    setDraft(null);
+                    setGastos([]);
+                    setError(null);
+                  }}
+                  className="text-xs font-medium uppercase tracking-wider text-ravn-muted underline-offset-4 hover:text-ravn-fg hover:underline"
+                >
+                  Elegir otra obra
+                </button>
+              </p>
+            ) : null}
             {pdfGenerado === false ? (
               <p className="mt-4 max-w-3xl text-xs leading-relaxed text-ravn-muted">
                 Este presupuesto aún no tiene PDF generado. El panel de gastos
@@ -658,9 +834,21 @@ export function GastosScreen({ presupuestoId }: { presupuestoId: string }) {
 
             <section className={`${sectionCls} mt-10`}>
               <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                <h2 className="font-raleway text-xs font-medium uppercase tracking-wider text-ravn-muted">
-                  Registro de gastos
-                </h2>
+                <div className="flex flex-col gap-2">
+                  <h2 className="font-raleway text-xs font-medium uppercase tracking-wider text-ravn-muted">
+                    Registro de gastos
+                  </h2>
+                  <p className="max-w-2xl text-[10px] leading-relaxed text-ravn-muted">
+                    Comprobantes con foto o audio: usá{" "}
+                    <Link
+                      href="/cashflow"
+                      className="text-ravn-fg underline underline-offset-2"
+                    >
+                      Caja / tesorería
+                    </Link>{" "}
+                    (ingreso o egreso → manual, foto o audio).
+                  </p>
+                </div>
                 <button
                   type="button"
                   onClick={abrirNuevoGasto}

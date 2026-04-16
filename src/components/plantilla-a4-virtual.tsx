@@ -7,10 +7,9 @@ import {
   type ReactNode,
 } from "react";
 
-export type PdfPlantillaVisual = "negro" | "beige" | "verde";
+import { LEYENDA_CONDICION_IVA_PDF } from "@/lib/ravn-propuesta-leyendas";
 
-const IVA_LEYENDA_PDF =
-  "Dicho presupuesto NO contempla el impuesto al valor agregado (IVA).";
+export type PdfPlantillaVisual = "negro" | "beige" | "verde";
 
 /**
  * Tipografía medida en los PDF “Presupuesto Black” exportados desde Canva
@@ -70,14 +69,6 @@ const MESES_LARGOS = [
   "diciembre",
 ] as const;
 
-function notasYaMencionanIva(text: string): boolean {
-  const t = text.toLowerCase();
-  return (
-    t.includes("no contempla el impuesto al valor agregado") ||
-    t.includes("impuesto al valor agregado (iva)")
-  );
-}
-
 export type PlantillaA4VirtualProps = {
   plantillaVisual: PdfPlantillaVisual;
   fecha: string;
@@ -93,7 +84,6 @@ export type PlantillaA4VirtualProps = {
   plazos?: string;
   formaPago: string;
   notasCondiciones: string;
-  incluyeIva: boolean;
   validezOferta: string;
 };
 
@@ -594,7 +584,6 @@ export const PlantillaA4Virtual = forwardRef<
     plazos,
     formaPago,
     notasCondiciones,
-    incluyeIva,
     validezOferta,
   } = props;
 
@@ -761,9 +750,7 @@ export const PlantillaA4Virtual = forwardRef<
             <SeccionPagina2 titulo="Notas" lineColor={theme.line}>
               <Fragment>
                 <div className="whitespace-pre-wrap">{notasBody || "—"}</div>
-                {!incluyeIva && !notasYaMencionanIva(notasBody) ? (
-                  <p className="mt-4">{IVA_LEYENDA_PDF}</p>
-                ) : null}
+                <p className="mt-4">{LEYENDA_CONDICION_IVA_PDF}</p>
                 {validezOferta.trim() ? (
                   <p
                     className="mt-5 font-normal"

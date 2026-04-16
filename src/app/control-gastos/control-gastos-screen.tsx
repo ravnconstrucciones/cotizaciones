@@ -424,6 +424,15 @@ export function ControlGastosScreen() {
           </Link>{" "}
           para marcar &quot;Presupuesto aprobado&quot;.
         </p>
+        <p className="mt-3 text-xs text-ravn-muted">
+          <Link
+            href="/gastos/nuevo"
+            className="font-medium uppercase tracking-wider text-ravn-fg underline-offset-2 hover:underline"
+          >
+            Registrar gasto (elegir obra)
+          </Link>
+          : importe, descripción y comprobante en foto o audio.
+        </p>
         <Link
           href="/"
           className="mt-6 inline-flex w-full max-w-md items-center justify-center rounded-none border-2 border-ravn-line bg-ravn-surface px-6 py-3.5 font-raleway text-sm font-medium uppercase tracking-wider text-ravn-fg transition-colors hover:bg-ravn-subtle focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ravn-fg sm:w-auto"

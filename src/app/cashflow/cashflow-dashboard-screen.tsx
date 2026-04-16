@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { CashflowItemModal } from "@/components/cashflow-item-modal";
 import type { CashflowTipo } from "@/lib/cashflow-compute";
 import { formatMoneyInt } from "@/lib/format-currency";
@@ -106,20 +106,23 @@ export function CashflowDashboardScreen() {
     void load();
   }, [load]);
 
-  const obraOpts = [
-    ...(data?.libreta_empresa
-      ? [
-          {
-            id: data.libreta_empresa.obra_id,
-            nombre: data.libreta_empresa.nombre_obra,
-          },
-        ]
-      : []),
-    ...(data?.obras_activas.map((o) => ({
-      id: o.obra_id,
-      nombre: o.nombre_obra,
-    })) ?? []),
-  ];
+  const obraOpts = useMemo(
+    () => [
+      ...(data?.libreta_empresa
+        ? [
+            {
+              id: data.libreta_empresa.obra_id,
+              nombre: data.libreta_empresa.nombre_obra,
+            },
+          ]
+        : []),
+      ...(data?.obras_activas.map((o) => ({
+        id: o.obra_id,
+        nombre: o.nombre_obra,
+      })) ?? []),
+    ],
+    [data]
+  );
 
   const puedeRegistrar = obraOpts.length > 0;
 
@@ -606,6 +609,7 @@ export function CashflowDashboardScreen() {
       </div>
 
       <CashflowItemModal
+        key={modalOpen ? `${presetTipo}-nuevo` : "cerrado"}
         open={modalOpen}
         obraOpciones={obraOpts}
         presetTipo={presetTipo}

@@ -19,6 +19,7 @@ import {
 } from "@/lib/nombre-archivo-pdf";
 import { numeroALetrasImporte } from "@/lib/numero-a-letras";
 import { roundArs2 } from "@/lib/format-currency";
+import { LEYENDA_CONDICION_IVA_PDF } from "@/lib/ravn-propuesta-leyendas";
 import {
   clearPropuestaPrefInDb,
   importeArsParaPropuesta,
@@ -35,8 +36,6 @@ const PlantillaA4Virtual = dynamic(
   { ssr: false, loading: () => null }
 );
 
-const IVA_NOTA_AUTO =
-  "Dicho presupuesto NO contempla el impuesto al valor agregado (IVA)";
 const USD_DISCLAIMER_DEFAULT =
   "En caso de realizar la conversión en ARS se tomará el valor del dólar blue punta venta al momento de gestionar el pago.";
 const NOTAS_DEFAULT =
@@ -124,7 +123,6 @@ export function PropuestaScreen({ presupuestoId }: { presupuestoId: string }) {
   const [plazos, setPlazos] = useState("");
   const [formaPago, setFormaPago] = useState(FORMA_PAGO_DEFAULT);
   const [notasCondiciones, setNotasCondiciones] = useState(NOTAS_DEFAULT);
-  const [incluyeIva, setIncluyeIva] = useState(true);
   const [validezOferta, setValidezOferta] = useState(VALIDEZ_DEFAULT);
   const [incluirCartaPresentacionEstudio, setIncluirCartaPresentacionEstudio] =
     useState(false);
@@ -361,19 +359,6 @@ export function PropuestaScreen({ presupuestoId }: { presupuestoId: string }) {
     }
   }, [presupuestoId]);
 
-  function syncNotasSegunIva(checked: boolean) {
-    setNotasCondiciones((prev) => {
-      const escaped = IVA_NOTA_AUTO.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-      const re = new RegExp(`(\\n\\n)?${escaped}\\.?`, "g");
-      if (checked) {
-        return prev.replace(re, "").trimEnd();
-      }
-      if (prev.includes(IVA_NOTA_AUTO)) return prev;
-      const base = prev.trimEnd();
-      return base ? `${base}\n\n${IVA_NOTA_AUTO}` : IVA_NOTA_AUTO;
-    });
-  }
-
   function aplicarTextoServiciosDesdePresupuesto(
     mapped: (PresupuestoItemRow & { rubroNombre: string | null })[],
     textoGuardado: unknown
@@ -403,7 +388,6 @@ export function PropuestaScreen({ presupuestoId }: { presupuestoId: string }) {
     setPlazos("");
     setFormaPago(FORMA_PAGO_DEFAULT);
     setNotasCondiciones(NOTAS_DEFAULT);
-    setIncluyeIva(true);
     setValidezOferta(VALIDEZ_DEFAULT);
     setNotaPdfManoObra(false);
     setNotaPdfMateriales(false);
@@ -417,8 +401,6 @@ export function PropuestaScreen({ presupuestoId }: { presupuestoId: string }) {
     }
     setRentabilidadPref(pref);
     setMoneda(pref.moneda);
-    setIncluyeIva(pref.incluyeIvaEnImporte);
-    syncNotasSegunIva(pref.incluyeIvaEnImporte);
     if (pref.moneda === "USD") {
       setConversionDisclaimer(
         pref.conversionDisclaimerSugerido ?? USD_DISCLAIMER_DEFAULT
@@ -501,11 +483,6 @@ export function PropuestaScreen({ presupuestoId }: { presupuestoId: string }) {
     } else {
       setConversionDisclaimer((prev) => prev || USD_DISCLAIMER_DEFAULT);
     }
-  }
-
-  function handleIncluyeIvaChange(checked: boolean) {
-    setIncluyeIva(checked);
-    syncNotasSegunIva(checked);
   }
 
   async function persistPropuestaTextoServicios() {
@@ -629,7 +606,6 @@ export function PropuestaScreen({ presupuestoId }: { presupuestoId: string }) {
             plazos={plazos.trim() || undefined}
             formaPago={formaPago}
             notasCondiciones={notasCondicionesParaPdf}
-            incluyeIva={incluyeIva}
             validezOferta={validezOferta}
           />
           <h1 className="font-raleway text-2xl font-medium uppercase tracking-tight md:text-3xl">
@@ -1006,17 +982,10 @@ export function PropuestaScreen({ presupuestoId }: { presupuestoId: string }) {
                   </span>
                 </label>
               </div>
-              <label className="mt-6 flex cursor-pointer items-center gap-3 border border-ravn-line px-4 py-3">
-                <input
-                  type="checkbox"
-                  checked={incluyeIva}
-                  onChange={(e) => handleIncluyeIvaChange(e.target.checked)}
-                  className="h-4 w-4 rounded-none border-ravn-line text-ravn-fg focus:ring-ravn-fg"
-                />
-                <span className="text-sm font-medium uppercase tracking-wider text-ravn-fg">
-                  ¿Incluye IVA?
-                </span>
-              </label>
+              <p className="mt-6 border border-ravn-line px-4 py-3 text-xs leading-relaxed text-ravn-muted">
+                En el PDF, debajo de este texto, se muestra siempre la leyenda:{" "}
+                <span className="text-ravn-fg">{LEYENDA_CONDICION_IVA_PDF}</span>
+              </p>
             </section>
 
             <section className={sectionCls}>

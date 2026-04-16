@@ -19,6 +19,8 @@ type Body = {
   fecha_real?: string | null;
   estado?: string;
   notas?: string;
+  adjunto_path?: string | null;
+  adjunto_kind?: string | null;
 };
 
 export async function PUT(req: Request, ctx: Params) {
@@ -47,6 +49,24 @@ export async function PUT(req: Request, ctx: Params) {
     }
     if (body.notas !== undefined) {
       patch.notas = String(body.notas ?? "").trim();
+    }
+    if (body.adjunto_path !== undefined) {
+      const p = body.adjunto_path;
+      patch.adjunto_path =
+        p === null || p === "" ? null : String(p).trim();
+    }
+    if (body.adjunto_kind !== undefined) {
+      const k = body.adjunto_kind;
+      if (k === null || k === "") {
+        patch.adjunto_kind = null;
+      } else if (k === "foto" || k === "audio") {
+        patch.adjunto_kind = k;
+      } else {
+        return NextResponse.json(
+          { error: "adjunto_kind inválido." },
+          { status: 400 }
+        );
+      }
     }
     if (body.estado !== undefined) {
       const st = String(body.estado);

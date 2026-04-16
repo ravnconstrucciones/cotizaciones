@@ -510,6 +510,7 @@ export function CashflowObraScreen({ obraId }: { obraId: string }) {
       </div>
 
       <CashflowItemModal
+        key={modalOpen ? `${obraId}-${editing?.id ?? presetTipo ?? "nuevo"}` : "cerrado"}
         open={modalOpen}
         obraId={obraId}
         presetTipo={editing ? null : presetTipo}
