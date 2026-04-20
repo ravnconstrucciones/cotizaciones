@@ -136,6 +136,51 @@ export function serieSaldoLibreta(
   }));
 }
 
+export type PuntoSaldoObraChart = {
+  fecha: string;
+  saldo: number;
+  /** Ingresos reales acumulados (cobranzas) hasta cada fecha. */
+  ingresos_acum: number;
+};
+
+/** Saldo de caja + ingresos acumulados en la misma grilla de fechas (avance vs propuesta). */
+export function serieSaldoObraChart(
+  items: CashflowItemRow[],
+  desdeIso: string,
+  hastaIso: string
+): PuntoSaldoObraChart[] {
+  const saldo = serieSaldoLibreta(items, desdeIso, hastaIso);
+  const ing = serieIngresosAcumuladoReales(items, desdeIso, hastaIso);
+  return saldo.map((p, i) => ({
+    fecha: p.fecha,
+    saldo: p.saldo,
+    ingresos_acum: ing[i]?.ingresos_acum ?? 0,
+  }));
+}
+
+/** Ingresos con monto y fecha real acumulados por día (solo cobranzas). */
+export function serieIngresosAcumuladoReales(
+  items: CashflowItemRow[],
+  desdeIso: string,
+  hastaIso: string
+): { fecha: string; ingresos_acum: number }[] {
+  const out: { fecha: string; ingresos_acum: number }[] = [];
+  let f = desdeIso;
+  while (f <= hastaIso) {
+    let acum = 0;
+    for (const it of items) {
+      if (it.tipo !== "ingreso") continue;
+      if (it.monto_real == null || it.fecha_real == null) continue;
+      if (it.fecha_real <= f) {
+        acum = roundArs2(acum + roundArs2(parseNum(it.monto_real)));
+      }
+    }
+    out.push({ fecha: f, ingresos_acum: acum });
+    f = addDaysIso(f, 1);
+  }
+  return out;
+}
+
 /** Serie diaria de saldos acumulados (proyectado vs real), entre fechas inclusive. */
 export function serieSaldoAcumulado(
   items: CashflowItemRow[],

@@ -3,7 +3,7 @@ import {
   addDaysIso,
   parseNum,
   saldoCajaTotal,
-  serieSaldoLibreta,
+  serieSaldoObraChart,
   todayBuenosAires,
   totalesReales,
   type CashflowItemRow,
@@ -186,7 +186,7 @@ export async function GET(_req: Request, ctx: Params) {
     }
     const desde = addDaysIso(minF, -3);
     const hasta = addDaysIso(maxF, 14);
-    const serie_saldo_libreta = serieSaldoLibreta(items, desde, hasta);
+    const serie_saldo_libreta = serieSaldoObraChart(items, desde, hasta);
 
     const nombreObra =
       pres?.nombre_obra?.trim() ||

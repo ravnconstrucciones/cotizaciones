@@ -22,6 +22,7 @@ type MonedaRow = "ARS" | "USD";
 
 type PresupuestoControlRow = {
   id: string;
+  nombre_obra: string | null;
   nombre_cliente: string | null;
   fecha: string | null;
   created_at: string | null;
@@ -212,7 +213,7 @@ export function ControlGastosScreen() {
           supabase
             .from("presupuestos")
             .select(
-              "id, nombre_cliente, fecha, created_at, numero_correlativo, moneda"
+              "id, nombre_obra, nombre_cliente, fecha, created_at, numero_correlativo, moneda"
             )
             .eq("pdf_generado", true)
             .eq("presupuesto_aprobado", true)
@@ -220,21 +221,25 @@ export function ControlGastosScreen() {
         () =>
           supabase
             .from("presupuestos")
-            .select("id, nombre_cliente, fecha, created_at, numero_correlativo")
+            .select(
+              "id, nombre_obra, nombre_cliente, fecha, created_at, numero_correlativo"
+            )
             .eq("pdf_generado", true)
             .eq("presupuesto_aprobado", true)
             .order("created_at", { ascending: false }),
         () =>
           supabase
             .from("presupuestos")
-            .select("id, nombre_cliente, fecha, numero_correlativo, moneda")
+            .select(
+              "id, nombre_obra, nombre_cliente, fecha, numero_correlativo, moneda"
+            )
             .eq("pdf_generado", true)
             .eq("presupuesto_aprobado", true)
             .order("fecha", { ascending: false }),
         () =>
           supabase
             .from("presupuestos")
-            .select("id, nombre_cliente, fecha, numero_correlativo")
+            .select("id, nombre_obra, nombre_cliente, fecha, numero_correlativo")
             .eq("pdf_generado", true)
             .eq("presupuesto_aprobado", true)
             .order("fecha", { ascending: false }),
@@ -265,6 +270,8 @@ export function ControlGastosScreen() {
         rawData as Record<string, unknown>[]
       ).map((row) => ({
         id: String(row.id),
+        nombre_obra:
+          row.nombre_obra != null ? String(row.nombre_obra) : null,
         nombre_cliente:
           row.nombre_cliente != null ? String(row.nombre_cliente) : null,
         fecha: row.fecha != null ? String(row.fecha) : null,
@@ -353,6 +360,60 @@ export function ControlGastosScreen() {
           }
         }
 
+        const { data: vinculosCf, error: errVin } = await supabase
+          .from("presupuestos_gastos")
+          .select("cashflow_item_id")
+          .in("presupuesto_id", ids)
+          .not("cashflow_item_id", "is", null);
+
+        const cashflowIdsYaEnTablaGastos = new Set<string>();
+        if (!errVin && vinculosCf) {
+          for (const r of vinculosCf as { cashflow_item_id?: unknown }[]) {
+            const cid = r.cashflow_item_id;
+            if (cid != null && String(cid).trim() !== "") {
+              cashflowIdsYaEnTablaGastos.add(String(cid));
+            }
+          }
+        }
+
+        const { data: obrasLinks, error: errOb } = await supabase
+          .from("obras")
+          .select("id, presupuesto_id")
+          .in("presupuesto_id", ids);
+
+        if (!errOb && obrasLinks?.length) {
+          const presupuestoPorObra = new Map(
+            obrasLinks.map((o) => [String(o.id), String(o.presupuesto_id)])
+          );
+          const obraIds = obrasLinks.map((o) => String(o.id));
+          const { data: cfRows, error: errCf } = await supabase
+            .from("cashflow_items")
+            .select("id, obra_id, monto_real")
+            .in("obra_id", obraIds)
+            .eq("tipo", "egreso")
+            .is("deleted_at", null)
+            .not("monto_real", "is", null)
+            .not("fecha_real", "is", null);
+
+          if (!errCf && cfRows) {
+            for (const row of cfRows as {
+              id: unknown;
+              obra_id: unknown;
+              monto_real: unknown;
+            }[]) {
+              const cfid = String(row.id ?? "");
+              if (cashflowIdsYaEnTablaGastos.has(cfid)) continue;
+              const pid = presupuestoPorObra.get(String(row.obra_id));
+              if (!pid) continue;
+              const mr = Number(row.monto_real) || 0;
+              gastadoMap.set(
+                pid,
+                roundArs2((gastadoMap.get(pid) ?? 0) + mr)
+              );
+            }
+          }
+        }
+
         setRentabilidadInputsById(inputsMap);
         setGastadoPorId(gastadoMap);
       }
@@ -414,6 +475,12 @@ export function ControlGastosScreen() {
           Presupuestos con PDF generado y marcados como{" "}
           <span className="text-ravn-fg">aprobados</span> en el historial. Desde
           acá entrás a cargar gastos de obra.
+        </p>
+        <p className="mt-2 max-w-2xl text-xs leading-relaxed text-ravn-muted">
+          El total <span className="text-ravn-fg">ejecutado</span> suma los gastos
+          cargados en el panel de obra y los{" "}
+          <span className="text-ravn-fg">egresos de Caja</span> de esa obra con
+          monto y fecha reales (misma lógica que el resumen de tesorería).
         </p>
         <p className="mt-3 text-xs text-ravn-muted">
           <Link
@@ -502,13 +569,20 @@ export function ControlGastosScreen() {
                       </p>
                       <p className="mt-2 text-sm font-light text-ravn-fg md:text-base">
                         <span className="font-normal">
-                          {p.nombre_cliente?.trim() || "—"}
+                          {p.nombre_obra?.trim() ||
+                            p.nombre_cliente?.trim() ||
+                            "—"}
                         </span>
                         <span className="text-ravn-muted"> · </span>
                         <span className="text-ravn-muted">
                           {formatFechaCreacion(p.created_at, p.fecha)}
                         </span>
                       </p>
+                      {p.nombre_obra?.trim() ? (
+                        <p className="mt-1 text-xs text-ravn-muted">
+                          Cliente: {p.nombre_cliente?.trim() || "—"}
+                        </p>
+                      ) : null}
                     </div>
                     <div className="flex w-full shrink-0 flex-col items-stretch gap-3 sm:max-w-md sm:items-end">
                       <div className="text-left sm:text-right">

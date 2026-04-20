@@ -16,6 +16,8 @@ type MonedaRow = "ARS" | "USD";
 
 type PresupuestoHistorialRow = {
   id: string;
+  /** Título propio para distinguir obras (Gastos, Cashflow, listados). */
+  nombre_obra: string | null;
   nombre_cliente: string | null;
   fecha: string | null;
   created_at: string | null;
@@ -79,6 +81,83 @@ function bulkConfirmMessage(n: number): string {
 const checkboxCls =
   "h-4 w-4 shrink-0 cursor-pointer rounded-none border-2 border-ravn-line bg-ravn-surface text-ravn-fg focus:ring-1 focus:ring-ravn-fg";
 
+const tituloObraInputCls =
+  "mt-2 w-full max-w-xl rounded-none border border-ravn-line bg-ravn-surface px-3 py-2 text-sm text-ravn-fg placeholder:text-ravn-muted focus-visible:border-ravn-fg focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ravn-fg disabled:opacity-60";
+
+function TituloObraHistorialEditor({
+  presupuestoId,
+  nombreObraInicial,
+  onSaved,
+  onError,
+}: {
+  presupuestoId: string;
+  nombreObraInicial: string | null;
+  onSaved: (id: string, value: string | null) => void;
+  onError: (msg: string) => void;
+}) {
+  const [value, setValue] = useState(nombreObraInicial ?? "");
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    setValue(nombreObraInicial ?? "");
+  }, [presupuestoId, nombreObraInicial]);
+
+  async function commit() {
+    const trimmed = value.trim();
+    const next = trimmed === "" ? null : trimmed;
+    const prev =
+      nombreObraInicial != null && String(nombreObraInicial).trim() !== ""
+        ? String(nombreObraInicial).trim()
+        : null;
+    if (next === prev) return;
+    setSaving(true);
+    try {
+      const supabase = createClient();
+      const { error } = await supabase
+        .from("presupuestos")
+        .update({ nombre_obra: next })
+        .eq("id", presupuestoId);
+      if (error) throw new Error(error.message);
+      onSaved(presupuestoId, next);
+    } catch (e) {
+      setValue(nombreObraInicial ?? "");
+      onError(e instanceof Error ? e.message : "No se pudo guardar el título.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="max-w-xl">
+      <label
+        htmlFor={`titulo-obra-${presupuestoId}`}
+        className="sr-only"
+      >
+        Título de obra
+      </label>
+      <input
+        id={`titulo-obra-${presupuestoId}`}
+        type="text"
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        onBlur={() => void commit()}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") {
+            e.currentTarget.blur();
+          }
+        }}
+        disabled={saving}
+        placeholder="Título de obra (opcional; se usa en Gastos y Cashflow)"
+        className={tituloObraInputCls}
+        autoComplete="off"
+      />
+      {saving ? (
+        <p className="mt-1 text-[10px] text-ravn-muted">Guardando…</p>
+      ) : null}
+    </div>
+  );
+}
+
 export function HistorialScreen() {
   const [rows, setRows] = useState<PresupuestoHistorialRow[]>([]);
   const [propuestaPrefs, setPropuestaPrefs] = useState<
@@ -109,7 +188,7 @@ export function HistorialScreen() {
           supabase
             .from("presupuestos")
             .select(
-              "id, nombre_cliente, fecha, created_at, numero_correlativo, moneda, presupuesto_aprobado, propuesta_comercial_pref"
+              "id, nombre_obra, nombre_cliente, fecha, created_at, numero_correlativo, moneda, presupuesto_aprobado, propuesta_comercial_pref"
             )
             .eq("pdf_generado", true)
             .order("created_at", { ascending: false }),
@@ -117,7 +196,7 @@ export function HistorialScreen() {
           supabase
             .from("presupuestos")
             .select(
-              "id, nombre_cliente, fecha, created_at, numero_correlativo, presupuesto_aprobado, propuesta_comercial_pref"
+              "id, nombre_obra, nombre_cliente, fecha, created_at, numero_correlativo, presupuesto_aprobado, propuesta_comercial_pref"
             )
             .eq("pdf_generado", true)
             .order("created_at", { ascending: false }),
@@ -125,7 +204,7 @@ export function HistorialScreen() {
           supabase
             .from("presupuestos")
             .select(
-              "id, nombre_cliente, fecha, numero_correlativo, moneda, presupuesto_aprobado, propuesta_comercial_pref"
+              "id, nombre_obra, nombre_cliente, fecha, numero_correlativo, moneda, presupuesto_aprobado, propuesta_comercial_pref"
             )
             .eq("pdf_generado", true)
             .order("fecha", { ascending: false }),
@@ -133,7 +212,7 @@ export function HistorialScreen() {
           supabase
             .from("presupuestos")
             .select(
-              "id, nombre_cliente, fecha, numero_correlativo, presupuesto_aprobado, propuesta_comercial_pref"
+              "id, nombre_obra, nombre_cliente, fecha, numero_correlativo, presupuesto_aprobado, propuesta_comercial_pref"
             )
             .eq("pdf_generado", true)
             .order("fecha", { ascending: false }),
@@ -173,6 +252,8 @@ export function HistorialScreen() {
 
       const presRows: PresupuestoHistorialRow[] = rawList.map((row) => ({
         id: String(row.id),
+        nombre_obra:
+          row.nombre_obra != null ? String(row.nombre_obra) : null,
         nombre_cliente:
           row.nombre_cliente != null ? String(row.nombre_cliente) : null,
         fecha: row.fecha != null ? String(row.fecha) : null,
@@ -312,6 +393,17 @@ export function HistorialScreen() {
       setBulkDeleting(false);
     }
   }, [selected]);
+
+  const actualizarNombreObraLocal = useCallback(
+    (id: string, value: string | null) => {
+      setRows((prev) =>
+        prev.map((r) =>
+          r.id === id ? { ...r, nombre_obra: value } : r
+        )
+      );
+    },
+    []
+  );
 
   const setPresupuestoAprobado = useCallback(
     async (id: string, checked: boolean) => {
@@ -514,10 +606,27 @@ export function HistorialScreen() {
                         >
                           {numeroLabel}
                         </Link>
+                        <TituloObraHistorialEditor
+                          presupuestoId={p.id}
+                          nombreObraInicial={p.nombre_obra}
+                          onSaved={actualizarNombreObraLocal}
+                          onError={(msg) => setError(msg)}
+                        />
                         <p className="mt-2 text-sm font-light leading-relaxed text-ravn-fg md:text-base">
-                          <span className="font-normal">
-                            {p.nombre_cliente?.trim() || "—"}
-                          </span>
+                          {p.nombre_obra?.trim() ? (
+                            <>
+                              <span className="text-[10px] font-medium uppercase tracking-wider text-ravn-muted">
+                                Cliente{" "}
+                              </span>
+                              <span className="font-normal">
+                                {p.nombre_cliente?.trim() || "—"}
+                              </span>
+                            </>
+                          ) : (
+                            <span className="font-normal">
+                              {p.nombre_cliente?.trim() || "—"}
+                            </span>
+                          )}
                           <span className="text-ravn-muted"> · </span>
                           <span className="text-ravn-muted">
                             {formatFechaCreacion(p.created_at, p.fecha)}
@@ -531,12 +640,20 @@ export function HistorialScreen() {
                             Rentabilidad y costos
                           </Link>
                           {p.presupuesto_aprobado ? (
-                            <Link
-                              href={`/obras/${encodeURIComponent(p.id)}/gastos`}
-                              className="text-xs font-medium uppercase tracking-wider text-ravn-muted underline-offset-2 transition-colors hover:text-ravn-fg hover:underline"
-                            >
-                              Gastos de obra
-                            </Link>
+                            <>
+                              <Link
+                                href={`/obras/${encodeURIComponent(p.id)}/gastos`}
+                                className="text-xs font-medium uppercase tracking-wider text-ravn-muted underline-offset-2 transition-colors hover:text-ravn-fg hover:underline"
+                              >
+                                Gastos de obra
+                              </Link>
+                              <Link
+                                href={`/remito/${encodeURIComponent(p.id)}`}
+                                className="text-xs font-medium uppercase tracking-wider text-ravn-muted underline-offset-2 transition-colors hover:text-ravn-fg hover:underline"
+                              >
+                                Generar remito
+                              </Link>
+                            </>
                           ) : null}
                           {p.presupuesto_aprobado &&
                           obraIdPorPresupuestoId.has(p.id) ? (

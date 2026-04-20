@@ -5,7 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { CashflowItemModal } from "@/components/cashflow-item-modal";
 import type { CashflowItemModalInitial } from "@/components/cashflow-item-modal";
 import { CashflowSaldoChart } from "@/components/cashflow-saldo-chart";
-import type { SerieLibretaPunto } from "@/components/cashflow-saldo-chart";
+import type { PuntoSaldoObraChart } from "@/lib/cashflow-compute";
 import type { CashflowTipo } from "@/lib/cashflow-compute";
 import { formatMoneyInt } from "@/lib/format-currency";
 import { VolverAlInicio } from "@/components/volver-al-inicio";
@@ -52,7 +52,7 @@ type ObraJson = {
   };
   items: ItemRow[];
   items_anulados?: ItemAnulado[];
-  serie_saldo_libreta: SerieLibretaPunto[];
+  serie_saldo_libreta: PuntoSaldoObraChart[];
 };
 
 function fmtFecha(iso: string) {
@@ -397,10 +397,18 @@ export function CashflowObraScreen({ obraId }: { obraId: string }) {
                 Saldo acumulado
               </h2>
               <p className="mt-2 text-xs text-ravn-muted">
-                Evolución del saldo según la fecha de cada movimiento registrado.
+                <span className="text-ravn-fg">Saldo caja</span> (ingresos −
+                egresos con fecha real) e{" "}
+                <span className="text-ravn-fg">ingresos acumulados</span>{" "}
+                (cobranzas) en el eje derecho. Si hay total en Rentabilidad,
+                aparece la línea de referencia para ver el avance respecto a la
+                propuesta.
               </p>
               <div className="mt-4 border border-ravn-line p-3 sm:p-4">
-                <CashflowSaldoChart data={chartData} />
+                <CashflowSaldoChart
+                  data={chartData}
+                  referenciaPropuestaArs={data.referencia_propuesta_ars}
+                />
               </div>
             </section>
 

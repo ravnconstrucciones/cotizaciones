@@ -25,6 +25,7 @@ import {
   resolveNumeroComercial,
 } from "@/lib/presupuesto-numero-comercial";
 import { deleteGastoAdjuntoStorage } from "@/lib/gastos-storage";
+import { estadoDesdeTipo } from "@/lib/cashflow-matching";
 import {
   parsePropuestaPrefJsonDesdeMismaFila,
   type PropuestaPrefV1,
@@ -53,6 +54,8 @@ type GastoDbRow = {
   created_at?: string;
   adjunto_path?: string | null;
   adjunto_kind?: string | null;
+  /** Egreso en `cashflow_items` creado al guardar (mismo movimiento en Caja). */
+  cashflow_item_id?: string | null;
 };
 
 type CotizacionItem = {
@@ -69,6 +72,33 @@ type DraftGasto = {
   descripcion: string;
   importeStr: string;
 };
+
+/** Movimiento de Caja con monto/fecha real, misma obra. */
+type MovimientoCajaObra = {
+  id: string;
+  tipo: "ingreso" | "egreso";
+  categoria: string;
+  descripcion: string;
+  monto_real: number;
+  fecha_real: string;
+};
+
+type FilaRegistroObra =
+  | { kind: "gasto"; fecha: string; gasto: GastoDbRow }
+  | { kind: "caja"; fecha: string; mov: MovimientoCajaObra };
+
+function etiquetaCategoriaCashflow(cat: string): string {
+  const m: Record<string, string> = {
+    anticipo: "Anticipo",
+    cuota_avance: "Cuota / avance",
+    material: "Material",
+    mano_de_obra: "Mano de obra",
+    subcontrato: "Subcontrato",
+    gasto_fijo: "Gasto fijo",
+    otro: "Otro",
+  };
+  return m[cat] ?? cat;
+}
 
 function sortRubrosRowsByNumericId(rubros: RubroRow[]): RubroRow[] {
   return [...rubros].sort((a, b) => {
@@ -90,9 +120,19 @@ function fechaIsoToDisplay(iso: string): string {
 
 type ObraOpcion = {
   id: string;
+  nombre_obra: string | null;
   nombre_cliente: string | null;
   fecha: string | null;
 };
+
+function etiquetaObraVisible(
+  nombreObra: string | null | undefined,
+  nombreCliente: string | null | undefined
+): string {
+  const t = nombreObra?.trim();
+  if (t) return t;
+  return nombreCliente?.trim() || "Sin nombre";
+}
 
 export function GastosScreen({
   presupuestoId: presupuestoIdProp,
@@ -115,6 +155,7 @@ export function GastosScreen({
   const [loading, setLoading] = useState(presupuestoFijo != null);
   const [error, setError] = useState<string | null>(null);
   const [nombreCliente, setNombreCliente] = useState("");
+  const [nombreObra, setNombreObra] = useState<string | null>(null);
   const [pdfGenerado, setPdfGenerado] = useState<boolean | null>(null);
   const [correlativo, setCorrelativo] = useState<number>(0);
   const [costoDirecto, setCostoDirecto] = useState(0);
@@ -124,6 +165,10 @@ export function GastosScreen({
   const [draft, setDraft] = useState<DraftGasto | null>(null);
   const [savingDraft, setSavingDraft] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  /** Soft-delete de `cashflow_items` desde fila solo-Caja del registro. */
+  const [deletingCashflowId, setDeletingCashflowId] = useState<string | null>(
+    null
+  );
   const [presupuestoAprobado, setPresupuestoAprobado] = useState(false);
   /** `propuesta_comercial_pref` válido: permite mostrar margen desde precio sin IVA guardado. */
   const [hayPrecioObraRentabilidad, setHayPrecioObraRentabilidad] =
@@ -137,6 +182,42 @@ export function GastosScreen({
   const [casaDolar, setCasaDolar] = useState<string>("oficial");
   const [cotizacionManualStr, setCotizacionManualStr] = useState("");
   const [obraCashflowId, setObraCashflowId] = useState<string | null>(null);
+  const [movimientosCaja, setMovimientosCaja] = useState<MovimientoCajaObra[]>(
+    []
+  );
+
+  /** IDs de Caja ya representados por una fila de esta tabla (no duplicar fila ni suma). */
+  const cashflowIdsVinculadosGastoTabla = useMemo(() => {
+    const s = new Set<string>();
+    for (const g of gastos) {
+      const cid = g.cashflow_item_id;
+      if (cid) s.add(String(cid));
+    }
+    return s;
+  }, [gastos]);
+
+  /** Movimientos de Caja cargados solo en libreta (no generados desde + Nuevo gasto). */
+  const movimientosCajaSoloLibreta = useMemo(
+    () =>
+      movimientosCaja.filter((m) => !cashflowIdsVinculadosGastoTabla.has(m.id)),
+    [movimientosCaja, cashflowIdsVinculadosGastoTabla]
+  );
+
+  const egresosCajaArs = useMemo(() => {
+    let s = 0;
+    for (const m of movimientosCajaSoloLibreta) {
+      if (m.tipo === "egreso") s += m.monto_real;
+    }
+    return roundArs2(s);
+  }, [movimientosCajaSoloLibreta]);
+
+  const ingresosCajaArs = useMemo(() => {
+    let s = 0;
+    for (const m of movimientosCaja) {
+      if (m.tipo === "ingreso") s += m.monto_real;
+    }
+    return roundArs2(s);
+  }, [movimientosCaja]);
 
   const rubrosOrdenados = useMemo(
     () => sortRubrosRowsByNumericId(rubros),
@@ -151,7 +232,7 @@ export function GastosScreen({
     return m;
   }, [rubros]);
 
-  const totalGastado = useMemo(
+  const totalTablaGastosArs = useMemo(
     () =>
       roundArs2(
         gastos.reduce(
@@ -160,6 +241,11 @@ export function GastosScreen({
         )
       ),
     [gastos]
+  );
+
+  const totalGastado = useMemo(
+    () => roundArs2(totalTablaGastosArs + egresosCajaArs),
+    [totalTablaGastosArs, egresosCajaArs]
   );
 
   const cotProp = propuestaPref?.cotizacionVentaArsPorUsd ?? 0;
@@ -191,6 +277,30 @@ export function GastosScreen({
     return roundArs2(m / cotProp);
   }, [esPresupuestoUsd, propuestaPref, costoDirecto, cotProp]);
 
+  const filasRegistroObra = useMemo((): FilaRegistroObra[] => {
+    const out: FilaRegistroObra[] = [];
+    for (const g of gastos) {
+      out.push({
+        kind: "gasto",
+        fecha: String(g.fecha).trim().slice(0, 10),
+        gasto: g,
+      });
+    }
+    for (const m of movimientosCajaSoloLibreta) {
+      out.push({
+        kind: "caja",
+        fecha: String(m.fecha_real).trim().slice(0, 10),
+        mov: m,
+      });
+    }
+    out.sort((a, b) => {
+      const cmp = b.fecha.localeCompare(a.fecha);
+      if (cmp !== 0) return cmp;
+      return 0;
+    });
+    return out;
+  }, [gastos, movimientosCajaSoloLibreta]);
+
   const totalGastadoUsd = useMemo(() => {
     if (!esPresupuestoUsd) return 0;
     let s = 0;
@@ -202,8 +312,19 @@ export function GastosScreen({
       if (cot <= 0) continue;
       s += ars / cot;
     }
+    const cotCaja =
+      cotProp > 0 ? cotProp : ventaEfectivaParaGastos > 0 ? ventaEfectivaParaGastos : 0;
+    if (cotCaja > 0 && egresosCajaArs > 0) {
+      s += egresosCajaArs / cotCaja;
+    }
     return roundArs2(s);
-  }, [esPresupuestoUsd, gastos, cotProp, ventaEfectivaParaGastos]);
+  }, [
+    esPresupuestoUsd,
+    gastos,
+    cotProp,
+    ventaEfectivaParaGastos,
+    egresosCajaArs,
+  ]);
 
   const loadCotizaciones = useCallback(async () => {
     setCotizLoading(true);
@@ -261,7 +382,7 @@ export function GastosScreen({
         supabase
           .from("presupuestos")
           .select(
-            "nombre_cliente, pdf_generado, propuesta_comercial_pref, presupuesto_aprobado"
+            "nombre_obra, nombre_cliente, pdf_generado, propuesta_comercial_pref, presupuesto_aprobado"
           )
           .eq("id", pid)
           .single(),
@@ -273,11 +394,17 @@ export function GastosScreen({
 
       if (errP || !pres) {
         setError(errP?.message ?? "Presupuesto no encontrado.");
+        setNombreCliente("");
+        setNombreObra(null);
         setLoading(false);
         return;
       }
 
       setNombreCliente(String(pres.nombre_cliente ?? ""));
+      const no = (pres as { nombre_obra?: string | null }).nombre_obra;
+      setNombreObra(
+        no != null && String(no).trim() !== "" ? String(no).trim() : null
+      );
       const pg = (pres as { pdf_generado?: boolean }).pdf_generado;
       setPdfGenerado(Boolean(pg));
       const aprobado = Boolean(
@@ -294,6 +421,7 @@ export function GastosScreen({
         setGastos([]);
         setRubros([]);
         setObraCashflowId(null);
+        setMovimientosCaja([]);
         setLoading(false);
         return;
       }
@@ -350,10 +478,43 @@ export function GastosScreen({
       setGastos((gastData ?? []) as GastoDbRow[]);
 
       const { data: obraData, error: errObra } = obraRes;
-      if (!errObra && obraData && (obraData as { id?: string }).id) {
-        setObraCashflowId(String((obraData as { id: string }).id));
+      const oid =
+        !errObra && obraData && (obraData as { id?: string }).id
+          ? String((obraData as { id: string }).id)
+          : null;
+      if (oid) {
+        setObraCashflowId(oid);
+        const { data: cfRows, error: errCf } = await supabase
+          .from("cashflow_items")
+          .select("id, tipo, categoria, descripcion, monto_real, fecha_real")
+          .eq("obra_id", oid)
+          .is("deleted_at", null)
+          .not("monto_real", "is", null)
+          .not("fecha_real", "is", null);
+        const movs: MovimientoCajaObra[] = [];
+        if (!errCf && cfRows) {
+          for (const raw of cfRows as Record<string, unknown>[]) {
+            const tipo = raw.tipo === "ingreso" ? "ingreso" : "egreso";
+            const m = roundArs2(Number(raw.monto_real) || 0);
+            const id = String(raw.id ?? "");
+            const fechaReal = String(raw.fecha_real ?? "").slice(0, 10);
+            const cat = String(raw.categoria ?? "otro");
+            const desc = String(raw.descripcion ?? "");
+            movs.push({
+              id,
+              tipo,
+              categoria: cat,
+              descripcion: desc,
+              monto_real: m,
+              fecha_real: fechaReal,
+            });
+          }
+          movs.sort((a, b) => b.fecha_real.localeCompare(a.fecha_real));
+        }
+        setMovimientosCaja(movs);
       } else {
         setObraCashflowId(null);
+        setMovimientosCaja([]);
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Error al cargar.");
@@ -375,7 +536,7 @@ export function GastosScreen({
         const supabase = createClient();
         const { data, error: errO } = await supabase
           .from("presupuestos")
-          .select("id, nombre_cliente, fecha")
+          .select("id, nombre_obra, nombre_cliente, fecha")
           .eq("presupuesto_aprobado", true)
           .order("fecha", { ascending: false });
         if (cancelled) return;
@@ -386,6 +547,8 @@ export function GastosScreen({
           setObrasOpciones(
             (data ?? []).map((r) => ({
               id: String((r as { id: unknown }).id),
+              nombre_obra:
+                (r as { nombre_obra?: string | null }).nombre_obra ?? null,
               nombre_cliente:
                 (r as { nombre_cliente?: string | null }).nombre_cliente ??
                 null,
@@ -453,23 +616,65 @@ export function GastosScreen({
     setError(null);
     try {
       const supabase = createClient();
+      const descripcion = draft.descripcion.trim();
+      let cashflowItemId: string | null = null;
+
+      if (obraCashflowId) {
+        const { data: cfIns, error: errCf } = await supabase
+          .from("cashflow_items")
+          .insert({
+            obra_id: obraCashflowId,
+            tipo: "egreso",
+            categoria: "otro",
+            descripcion: descripcion || "Gasto de obra",
+            monto_proyectado: importe,
+            fecha_proyectada: draft.fecha,
+            monto_real: importe,
+            fecha_real: draft.fecha,
+            estado: estadoDesdeTipo("egreso"),
+            notas: "RAVN_GASTO_OBRA",
+          })
+          .select("id")
+          .single();
+
+        if (errCf) {
+          setError(errCf.message);
+          setSavingDraft(false);
+          return;
+        }
+        if (cfIns && typeof (cfIns as { id?: unknown }).id !== "undefined") {
+          cashflowItemId = String((cfIns as { id: string }).id);
+        }
+      }
+
       const insertPayload: Record<string, unknown> = {
         presupuesto_id: pid,
         fecha: draft.fecha,
         rubro_id: draft.rubro_id.trim() || null,
-        descripcion: draft.descripcion.trim(),
+        descripcion,
         importe,
       };
       if (esPresupuestoUsd) {
         insertPayload.cotizacion_venta_ars_por_usd = ventaEfectivaParaGastos;
         insertPayload.casa_dolar = casaDolar;
       }
+      if (cashflowItemId) {
+        insertPayload.cashflow_item_id = cashflowItemId;
+      }
+
       const { error: err } = await supabase
         .from("presupuestos_gastos")
         .insert(insertPayload);
 
       if (err) {
-        setError(err.message);
+        if (cashflowItemId) {
+          await supabase.from("cashflow_items").delete().eq("id", cashflowItemId);
+        }
+        setError(
+          err.message.includes("cashflow_item_id")
+            ? `${err.message} Ejecutá en Supabase la migración que agrega presupuestos_gastos.cashflow_item_id.`
+            : err.message
+        );
         setSavingDraft(false);
         return;
       }
@@ -484,14 +689,19 @@ export function GastosScreen({
   }
 
   async function eliminarGasto(id: string) {
-    if (!window.confirm("¿Eliminar este gasto?")) return;
+    if (
+      !window.confirm(
+        "¿Eliminar este gasto? Si tiene egreso vinculado en Caja, también se anulará allí."
+      )
+    )
+      return;
     setDeletingId(id);
     setError(null);
     try {
       const supabase = createClient();
       const { data: rowAdj, error: errSel } = await supabase
         .from("presupuestos_gastos")
-        .select("adjunto_path")
+        .select("adjunto_path, cashflow_item_id")
         .eq("id", id)
         .maybeSingle();
       if (errSel) {
@@ -503,6 +713,26 @@ export function GastosScreen({
         rowAdj && typeof (rowAdj as { adjunto_path?: unknown }).adjunto_path === "string"
           ? String((rowAdj as { adjunto_path: string }).adjunto_path)
           : null;
+      const cfId =
+        rowAdj &&
+        typeof (rowAdj as { cashflow_item_id?: unknown }).cashflow_item_id ===
+          "string" &&
+        String((rowAdj as { cashflow_item_id: string }).cashflow_item_id).trim() !== ""
+          ? String((rowAdj as { cashflow_item_id: string }).cashflow_item_id)
+          : null;
+
+      if (cfId) {
+        const { error: errAn } = await supabase
+          .from("cashflow_items")
+          .update({ deleted_at: new Date().toISOString() })
+          .eq("id", cfId)
+          .is("deleted_at", null);
+        if (errAn) {
+          setError(errAn.message);
+          setDeletingId(null);
+          return;
+        }
+      }
 
       const { error: err } = await supabase
         .from("presupuestos_gastos")
@@ -519,6 +749,35 @@ export function GastosScreen({
       setError(e instanceof Error ? e.message : "No se pudo eliminar.");
     } finally {
       setDeletingId(null);
+    }
+  }
+
+  async function eliminarMovimientoCajaSoloLibreta(cashflowItemId: string) {
+    if (
+      !window.confirm(
+        "¿Anular este movimiento en Caja? Se quitará de este registro y quedará anulado en Caja (mismo efecto que anular en el módulo de Caja)."
+      )
+    )
+      return;
+    setDeletingCashflowId(cashflowItemId);
+    setError(null);
+    try {
+      const res = await fetch(
+        `/cashflow/item/${encodeURIComponent(cashflowItemId)}`,
+        { method: "DELETE" }
+      );
+      const body = (await res.json().catch(() => ({}))) as {
+        error?: string;
+      };
+      if (!res.ok) {
+        setError(body.error ?? "No se pudo anular el movimiento.");
+        return;
+      }
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "No se pudo anular.");
+    } finally {
+      setDeletingCashflowId(null);
     }
   }
 
@@ -614,7 +873,7 @@ export function GastosScreen({
                   <option value="">Seleccioná obra…</option>
                   {obrasOpciones.map((o) => (
                     <option key={o.id} value={o.id}>
-                      {(o.nombre_cliente?.trim() || "Sin nombre") +
+                      {etiquetaObraVisible(o.nombre_obra, o.nombre_cliente) +
                         (o.fecha
                           ? ` · ${fechaIsoToDisplay(String(o.fecha))}`
                           : "")}
@@ -642,13 +901,21 @@ export function GastosScreen({
             </h1>
             <p className="mt-2 max-w-3xl text-sm leading-relaxed text-ravn-muted">
               <span className="font-medium text-ravn-fg">{numeroLabel}</span>
-              {nombreCliente ? (
+              {nombreCliente || nombreObra ? (
                 <>
                   {" "}
-                  · <span className="text-ravn-fg">{nombreCliente}</span>
+                  ·{" "}
+                  <span className="text-ravn-fg">
+                    {etiquetaObraVisible(nombreObra, nombreCliente)}
+                  </span>
                 </>
               ) : null}
             </p>
+            {nombreObra ? (
+              <p className="mt-1 max-w-3xl text-xs text-ravn-muted">
+                Cliente: {nombreCliente || "—"}
+              </p>
+            ) : null}
             <div
               className={`${sectionCls} mt-10 max-w-2xl border-ravn-line bg-ravn-subtle/30`}
             >
@@ -680,13 +947,21 @@ export function GastosScreen({
             </h1>
             <p className="mt-2 max-w-3xl text-sm leading-relaxed text-ravn-muted">
               <span className="font-medium text-ravn-fg">{numeroLabel}</span>
-              {nombreCliente ? (
+              {nombreCliente || nombreObra ? (
                 <>
                   {" "}
-                  · <span className="text-ravn-fg">{nombreCliente}</span>
+                  ·{" "}
+                  <span className="text-ravn-fg">
+                    {etiquetaObraVisible(nombreObra, nombreCliente)}
+                  </span>
                 </>
               ) : null}
             </p>
+            {nombreObra ? (
+              <p className="mt-1 max-w-3xl text-xs text-ravn-muted">
+                Cliente: {nombreCliente || "—"}
+              </p>
+            ) : null}
             {presupuestoFijo == null && effectivePresupuestoId ? (
               <p className="mt-3">
                 <button
@@ -839,14 +1114,27 @@ export function GastosScreen({
                     Registro de gastos
                   </h2>
                   <p className="max-w-2xl text-[10px] leading-relaxed text-ravn-muted">
-                    Comprobantes con foto o audio: usá{" "}
+                    En{" "}
                     <Link
                       href="/cashflow"
                       className="text-ravn-fg underline underline-offset-2"
                     >
                       Caja / tesorería
                     </Link>{" "}
-                    (ingreso o egreso → manual, foto o audio).
+                    cargá ingresos o egresos de esta obra (manual, foto o audio).
+                    Con monto y fecha reales aparecen acá; los{" "}
+                    <span className="text-ravn-fg">egresos</span> suman al total
+                    ejecutado de arriba. Los{" "}
+                    <span className="text-ravn-fg">ingresos</span> se listan pero
+                    no son gasto.
+                  </p>
+                  <p className="mt-2 max-w-2xl text-[10px] leading-relaxed text-ravn-muted">
+                    Cada gasto que guardás con{" "}
+                    <span className="text-ravn-fg">+ NUEVO GASTO</span> genera
+                    también un egreso en Caja para esta obra (mismo importe y
+                    fecha). Los ingresos y egresos cargados solo en Caja aparecen
+                    como filas &quot;Caja&quot;. Para editar esos movimientos usá
+                    el enlace de la última columna.
                   </p>
                 </div>
                 <button
@@ -996,71 +1284,178 @@ export function GastosScreen({
                         </td>
                       </tr>
                     ) : null}
-                    {gastos.length === 0 && !draft ? (
+                    {gastos.length === 0 &&
+                    movimientosCajaSoloLibreta.length === 0 &&
+                    !draft ? (
                       <tr>
                         <td
                           colSpan={esPresupuestoUsd ? 7 : 5}
                           className="px-4 py-10 text-center text-sm text-ravn-muted"
                         >
-                          No hay gastos cargados. Usá{" "}
-                          <span className="text-ravn-fg">+ NUEVO GASTO</span>.
+                          No hay filas todavía. Cargá un gasto con{" "}
+                          <span className="text-ravn-fg">+ NUEVO GASTO</span> o
+                          registrá movimientos en{" "}
+                          <Link
+                            href="/cashflow"
+                            className="text-ravn-fg underline underline-offset-2"
+                          >
+                            Caja
+                          </Link>{" "}
+                          para esta obra.
                         </td>
                       </tr>
                     ) : null}
-                    {gastos.map((g) => {
-                      const rid = g.rubro_id != null ? String(g.rubro_id) : "";
-                      const rubLabel =
-                        rid && nombrePorRubroId.has(rid)
-                          ? nombrePorRubroId.get(rid)!
-                          : "—";
-                      const imp = Number(g.importe) || 0;
-                      const cotG =
-                        Number(g.cotizacion_venta_ars_por_usd) ||
-                        cotProp ||
-                        ventaEfectivaParaGastos;
-                      const usdG =
-                        cotG > 0 ? roundArs2(imp / cotG) : 0;
-                      const busy = deletingId === g.id;
+                    {filasRegistroObra.map((fila) => {
+                      if (fila.kind === "gasto") {
+                        const g = fila.gasto;
+                        const rid =
+                          g.rubro_id != null ? String(g.rubro_id) : "";
+                        const rubLabel =
+                          rid && nombrePorRubroId.has(rid)
+                            ? nombrePorRubroId.get(rid)!
+                            : "—";
+                        const imp = Number(g.importe) || 0;
+                        const cotG =
+                          Number(g.cotizacion_venta_ars_por_usd) ||
+                          cotProp ||
+                          ventaEfectivaParaGastos;
+                        const usdG =
+                          cotG > 0 ? roundArs2(imp / cotG) : 0;
+                        const busy = deletingId === g.id;
+                        return (
+                          <tr key={`gasto-${g.id}`}>
+                            <td
+                              className={`${tdCls} tabular-nums text-ravn-fg`}
+                            >
+                              {fechaIsoToDisplay(String(g.fecha))}
+                            </td>
+                            <td className={`${tdCls} text-ravn-fg`}>
+                              {rubLabel}
+                            </td>
+                            <td className={`${tdCls} text-ravn-fg`}>
+                              {g.descripcion?.trim() || "—"}
+                            </td>
+                            <td
+                              className={`${tdCls} text-right font-medium tabular-nums text-ravn-fg`}
+                            >
+                              {formatMoney(imp)}
+                            </td>
+                            {esPresupuestoUsd ? (
+                              <>
+                                <td
+                                  className={`${tdCls} text-right tabular-nums text-ravn-muted`}
+                                >
+                                  {cotG > 0 ? formatNumber(cotG, 2) : "—"}
+                                </td>
+                                <td
+                                  className={`${tdCls} text-right font-medium tabular-nums text-ravn-fg`}
+                                >
+                                  {formatMoneyMoneda(usdG, "USD")}
+                                </td>
+                              </>
+                            ) : null}
+                            <td className={tdCls}>
+                              <button
+                                type="button"
+                                aria-label="Eliminar gasto"
+                                disabled={busy}
+                                onClick={() => void eliminarGasto(g.id)}
+                                className="rounded-none border border-transparent p-2 text-ravn-muted transition-colors hover:border-ravn-line hover:text-ravn-fg disabled:opacity-40"
+                              >
+                                <Trash2
+                                  className="h-4 w-4"
+                                  strokeWidth={1.5}
+                                />
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      }
+                      const m = fila.mov;
+                      const cotCaja =
+                        cotProp > 0
+                          ? cotProp
+                          : ventaEfectivaParaGastos > 0
+                            ? ventaEfectivaParaGastos
+                            : 0;
+                      const usdMov =
+                        cotCaja > 0
+                          ? roundArs2(m.monto_real / cotCaja)
+                          : 0;
+                      const busyCaja = deletingCashflowId === m.id;
+                      const rubCaja = `Caja · ${
+                        m.tipo === "ingreso" ? "Ingreso" : "Egreso"
+                      } · ${etiquetaCategoriaCashflow(m.categoria)}`;
                       return (
-                        <tr key={g.id}>
-                          <td className={`${tdCls} tabular-nums text-ravn-fg`}>
-                            {fechaIsoToDisplay(String(g.fecha))}
+                        <tr
+                          key={`caja-${m.id}`}
+                          className="bg-ravn-subtle/25 dark:bg-ravn-subtle/15"
+                        >
+                          <td
+                            className={`${tdCls} tabular-nums text-ravn-fg`}
+                          >
+                            {fechaIsoToDisplay(m.fecha_real)}
                           </td>
                           <td className={`${tdCls} text-ravn-fg`}>
-                            {rubLabel}
+                            {rubCaja}
                           </td>
                           <td className={`${tdCls} text-ravn-fg`}>
-                            {g.descripcion?.trim() || "—"}
+                            {m.descripcion?.trim() || "—"}
                           </td>
                           <td
-                            className={`${tdCls} text-right font-medium tabular-nums text-ravn-fg`}
+                            className={`${tdCls} text-right font-medium tabular-nums ${
+                              m.tipo === "ingreso"
+                                ? "text-emerald-700 dark:text-emerald-300"
+                                : "text-ravn-fg"
+                            }`}
                           >
-                            {formatMoney(imp)}
+                            {m.tipo === "ingreso" ? "+" : ""}
+                            {formatMoney(m.monto_real)}
                           </td>
                           {esPresupuestoUsd ? (
                             <>
                               <td
                                 className={`${tdCls} text-right tabular-nums text-ravn-muted`}
                               >
-                                {cotG > 0 ? formatNumber(cotG, 2) : "—"}
+                                {cotCaja > 0 ? formatNumber(cotCaja, 2) : "—"}
                               </td>
                               <td
-                                className={`${tdCls} text-right font-medium tabular-nums text-ravn-fg`}
+                                className={`${tdCls} text-right font-medium tabular-nums ${
+                                  m.tipo === "ingreso"
+                                    ? "text-emerald-700 dark:text-emerald-300"
+                                    : "text-ravn-fg"
+                                }`}
                               >
-                                {formatMoneyMoneda(usdG, "USD")}
+                                {m.tipo === "ingreso" ? "+" : ""}
+                                {formatMoneyMoneda(usdMov, "USD")}
                               </td>
                             </>
                           ) : null}
                           <td className={tdCls}>
-                            <button
-                              type="button"
-                              aria-label="Eliminar gasto"
-                              disabled={busy}
-                              onClick={() => void eliminarGasto(g.id)}
-                              className="rounded-none border border-transparent p-2 text-ravn-muted transition-colors hover:border-ravn-line hover:text-ravn-fg disabled:opacity-40"
-                            >
-                              <Trash2 className="h-4 w-4" strokeWidth={1.5} />
-                            </button>
+                            <div className="flex flex-wrap items-center justify-end gap-2">
+                              <button
+                                type="button"
+                                aria-label="Anular movimiento en Caja"
+                                disabled={busyCaja}
+                                onClick={() =>
+                                  void eliminarMovimientoCajaSoloLibreta(m.id)
+                                }
+                                className="rounded-none border border-transparent p-2 text-ravn-muted transition-colors hover:border-ravn-line hover:text-ravn-fg disabled:opacity-40"
+                              >
+                                <Trash2
+                                  className="h-4 w-4"
+                                  strokeWidth={1.5}
+                                />
+                              </button>
+                              {obraCashflowId ? (
+                                <Link
+                                  href={`/cashflow/obra/${encodeURIComponent(obraCashflowId)}`}
+                                  className="text-[10px] font-medium uppercase tracking-wider text-ravn-muted underline-offset-2 hover:text-ravn-fg hover:underline"
+                                >
+                                  Caja
+                                </Link>
+                              ) : null}
+                            </div>
                           </td>
                         </tr>
                       );
@@ -1068,17 +1463,43 @@ export function GastosScreen({
                   </tbody>
                 </table>
               </div>
-              {gastos.length > 0 ? (
+              {gastos.length > 0 ||
+              egresosCajaArs > 0 ||
+              ingresosCajaArs > 0 ? (
                 <div className="mt-6 space-y-1 text-right text-sm text-ravn-muted">
+                  {gastos.length > 0 ? (
+                    <p>
+                      Suma tabla (ARS):{" "}
+                      <span className="font-medium tabular-nums text-ravn-fg">
+                        {formatMoney(totalTablaGastosArs)}
+                      </span>
+                    </p>
+                  ) : null}
+                  {egresosCajaArs > 0 ? (
+                    <p>
+                      Egresos Caja ya registrados (ARS):{" "}
+                      <span className="font-medium tabular-nums text-ravn-fg">
+                        {formatMoney(egresosCajaArs)}
+                      </span>
+                    </p>
+                  ) : null}
+                  {ingresosCajaArs > 0 ? (
+                    <p>
+                      Ingresos Caja registrados (ARS):{" "}
+                      <span className="font-medium tabular-nums text-emerald-700 dark:text-emerald-300">
+                        +{formatMoney(ingresosCajaArs)}
+                      </span>
+                    </p>
+                  ) : null}
                   <p>
-                    Total gastos (ARS):{" "}
+                    Total ejecutado (ARS):{" "}
                     <span className="font-medium tabular-nums text-ravn-fg">
                       {formatMoney(totalGastado)}
                     </span>
                   </p>
                   {esPresupuestoUsd ? (
                     <p>
-                      Total gastos (USD):{" "}
+                      Total ejecutado (USD):{" "}
                       <span className="font-medium tabular-nums text-ravn-fg">
                         {formatMoneyMoneda(totalGastadoUsd, "USD")}
                       </span>
