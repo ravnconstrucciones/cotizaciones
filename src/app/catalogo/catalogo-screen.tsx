@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { Trash2 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CatalogToast } from "@/components/catalog-toast";
 import { createClient } from "@/lib/supabase/client";
 import { formatNumber, parseFormattedNumber } from "@/lib/format-currency";
@@ -239,6 +239,10 @@ export function CatalogoScreen() {
   const [creating, setCreating] = useState(false);
   const [rubroModalOpen, setRubroModalOpen] = useState(false);
   const [deletingRubroId, setDeletingRubroId] = useState<string | null>(null);
+  const [savingRubroNombreId, setSavingRubroNombreId] = useState<string | null>(
+    null
+  );
+  const rubroNombreAlFocusRef = useRef<Map<string, string>>(new Map());
   const [toast, setToast] = useState<{
     message: string;
     variant: "error" | "success";
@@ -418,6 +422,49 @@ export function CatalogoScreen() {
       });
     } finally {
       setDeletingRubroId(null);
+    }
+  }
+
+  async function handleSaveRubroNombre(rubroId: string, nombre: string) {
+    const nom = nombre.trim();
+    if (!nom) {
+      setToast({
+        variant: "error",
+        message: "El nombre del rubro no puede estar vacío.",
+      });
+      await loadAll();
+      return;
+    }
+    const row = rubros.find((x) => String(x.id) === rubroId);
+    if (!row) return;
+
+    setSavingRubroNombreId(rubroId);
+    try {
+      const supabase = createClient();
+      const { error: err } = await supabase
+        .from("rubros")
+        .update({ nombre: nom })
+        .eq("id", row.id);
+      if (err) {
+        setToast({ variant: "error", message: err.message });
+        await loadAll();
+        return;
+      }
+      setRubros((prev) =>
+        sortRubrosByNumericId(
+          prev.map((r) =>
+            String(r.id) === rubroId ? { ...r, nombre: nom } : r
+          )
+        )
+      );
+    } catch (e) {
+      setToast({
+        variant: "error",
+        message: e instanceof Error ? e.message : "Error al guardar el rubro.",
+      });
+      await loadAll();
+    } finally {
+      setSavingRubroNombreId(null);
     }
   }
 
@@ -824,7 +871,8 @@ export function CatalogoScreen() {
                   ) : (
                     rubrosSorted.map((r) => {
                       const id = String(r.id);
-                      const busy = deletingRubroId === id;
+                      const busy =
+                        deletingRubroId === id || savingRubroNombreId === id;
                       return (
                         <tr
                           key={id}
@@ -833,8 +881,41 @@ export function CatalogoScreen() {
                           <td className="border-r border-ravn-line px-4 py-3 font-mono text-sm tabular-nums text-ravn-fg">
                             {id}
                           </td>
-                          <td className="border-r border-ravn-line px-4 py-3 font-light text-ravn-fg">
-                            {formatRubroName(r.nombre)}
+                          <td className="border-r border-ravn-line px-4 py-3 align-middle">
+                            <input
+                              type="text"
+                              value={r.nombre}
+                              disabled={busy}
+                              title="Editá el nombre y salí del campo para guardar"
+                              onFocus={() => {
+                                rubroNombreAlFocusRef.current.set(id, r.nombre);
+                              }}
+                              onChange={(e) =>
+                                setRubros((prev) =>
+                                  sortRubrosByNumericId(
+                                    prev.map((x) =>
+                                      String(x.id) === id
+                                        ? { ...x, nombre: e.target.value }
+                                        : x
+                                    )
+                                  )
+                                )
+                              }
+                              onBlur={(e) => {
+                                const v = e.target.value.trim();
+                                const orig = (
+                                  rubroNombreAlFocusRef.current.get(id) ?? ""
+                                ).trim();
+                                rubroNombreAlFocusRef.current.delete(id);
+                                if (v === orig) return;
+                                void handleSaveRubroNombre(id, v);
+                              }}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter")
+                                  (e.target as HTMLInputElement).blur();
+                              }}
+                              className="w-full min-w-[12rem] rounded-none border border-ravn-line bg-ravn-surface px-3 py-2 text-sm font-light text-ravn-fg placeholder:text-ravn-muted focus-visible:border-ravn-fg focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ravn-fg disabled:opacity-50"
+                            />
                           </td>
                           <td className="px-2 py-2 text-center align-middle">
                             <button
