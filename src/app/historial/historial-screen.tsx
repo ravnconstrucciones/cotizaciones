@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { AlertTriangle, TrendingDown, TrendingUp, Trash2 } from "lucide-react";
+import { Trash2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { formatTotalDisplay } from "@/lib/format-total-display";
@@ -12,15 +12,6 @@ import {
   parsePropuestaPrefJsonDesdeMismaFila,
   type PropuestaPrefV1,
 } from "@/lib/ravn-propuesta-pref";
-import {
-  formatMoney,
-  parseFormattedNumber,
-  roundArs2,
-} from "@/lib/format-currency";
-import {
-  parseRentabilidadInputsJson,
-  type RentabilidadInputsPersistedV1,
-} from "@/lib/ravn-rentabilidad-inputs";
 type MonedaRow = "ARS" | "USD";
 
 type PresupuestoHistorialRow = {
@@ -42,56 +33,6 @@ type ItemAgg = {
   precio_material_congelado: number;
   precio_mo_congelada: number;
 };
-
-type DesvioData = {
-  costoPrevistoDirecto: number;
-  gastoReal: number;
-  desvio: number;
-  desvioPorc: number;
-  gananciaNeta: number;
-};
-
-function DesvioAlertBadge({ data }: { data: DesvioData }) {
-  const sobreejecucion = data.desvio > 0;
-  const pctAbs = Math.abs(data.desvioPorc).toFixed(1);
-  if (sobreejecucion) {
-    return (
-      <span className="inline-flex items-center gap-1 bg-red-50 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider text-red-700 dark:bg-red-950 dark:text-red-300">
-        <TrendingUp className="h-3 w-3" />
-        +{pctAbs}% sobre ppto · Neto: {formatMoney(data.gananciaNeta)}
-      </span>
-    );
-  }
-  return (
-    <span className="inline-flex items-center gap-1 bg-green-50 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider text-green-700 dark:bg-green-950 dark:text-green-300">
-      <TrendingDown className="h-3 w-3" />
-      -{pctAbs}% vs ppto · Neto: {formatMoney(data.gananciaNeta)}
-    </span>
-  );
-}
-
-function AlertaDesvioHistorico({ desvio }: { desvio: DesvioData }) {
-  const sobreejecucion = desvio.desvio > 0;
-  const pctAbs = Math.abs(desvio.desvioPorc).toFixed(1);
-  return (
-    <div className="mt-1.5 flex items-start gap-1.5 text-[10px] text-ravn-muted">
-      <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0 text-amber-500" />
-      <span>
-        Ref. últ. obra aprobada del cliente:{" "}
-        {sobreejecucion ? (
-          <span className="text-red-600 dark:text-red-400">
-            +{pctAbs}% sobreejecución
-          </span>
-        ) : (
-          <span className="text-green-700 dark:text-green-400">
-            -{pctAbs}% ahorro
-          </span>
-        )}
-        {" · "}neto {formatMoney(desvio.gananciaNeta)}
-      </span>
-    </div>
-  );
-}
 
 function formatFechaCreacion(
   createdAt: string | null | undefined,
@@ -235,12 +176,6 @@ export function HistorialScreen() {
   const [obraIdPorPresupuestoId, setObraIdPorPresupuestoId] = useState<
     Map<string, string>
   >(() => new Map());
-  const [gastosRealesPorId, setGastosRealesPorId] = useState<Map<string, number>>(
-    () => new Map()
-  );
-  const [rentabilidadRawPorId, setRentabilidadRawPorId] = useState<
-    Map<string, RentabilidadInputsPersistedV1 | null>
-  >(() => new Map());
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -371,37 +306,6 @@ export function HistorialScreen() {
       } else {
         setObraIdPorPresupuestoId(new Map());
       }
-
-      // Desvíos: rentabilidad_inputs y gastos reales
-      const { data: rentData } = await supabase
-        .from("presupuestos")
-        .select("id, rentabilidad_inputs")
-        .in("id", ids);
-      const rentMap = new Map<string, RentabilidadInputsPersistedV1 | null>();
-      for (const row of (rentData ?? []) as {
-        id: string;
-        rentabilidad_inputs: unknown;
-      }[]) {
-        rentMap.set(row.id, parseRentabilidadInputsJson(row.rentabilidad_inputs, row.id));
-      }
-      setRentabilidadRawPorId(rentMap);
-
-      const { data: gastosData } = await supabase
-        .from("presupuestos_gastos")
-        .select("presupuesto_id, importe")
-        .in("presupuesto_id", ids);
-      const gastosMap = new Map<string, number>();
-      for (const g of (gastosData ?? []) as {
-        presupuesto_id: string;
-        importe: unknown;
-      }[]) {
-        const prev = gastosMap.get(g.presupuesto_id) ?? 0;
-        gastosMap.set(
-          g.presupuesto_id,
-          roundArs2(prev + (Number(g.importe) || 0))
-        );
-      }
-      setGastosRealesPorId(gastosMap);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Error al cargar el historial.");
     } finally {
@@ -543,41 +447,6 @@ export function HistorialScreen() {
     }
     return m;
   }, [rows, items, propuestaPrefs]);
-
-  const desviosPorId = useMemo(() => {
-    const m = new Map<string, DesvioData>();
-    for (const p of rows) {
-      const inputs = rentabilidadRawPorId.get(p.id);
-      if (!inputs) continue;
-      const costoPrevistoDirecto = roundArs2(
-        parseFormattedNumber(inputs.costoMaterialStr) +
-          parseFormattedNumber(inputs.costoMoStr) +
-          parseFormattedNumber(inputs.cargosAdicionalesStr) +
-          parseFormattedNumber(inputs.costosInternosStr)
-      );
-      if (costoPrevistoDirecto <= 0) continue;
-      const gastoReal = gastosRealesPorId.get(p.id) ?? 0;
-      if (gastoReal <= 0) continue;
-      const totalArs = totalArsMostradoPorId.get(p.id) ?? 0;
-      const desvio = roundArs2(gastoReal - costoPrevistoDirecto);
-      const desvioPorc = (desvio / costoPrevistoDirecto) * 100;
-      const gananciaNeta = roundArs2(totalArs - gastoReal);
-      m.set(p.id, { costoPrevistoDirecto, gastoReal, desvio, desvioPorc, gananciaNeta });
-    }
-    return m;
-  }, [rows, rentabilidadRawPorId, gastosRealesPorId, totalArsMostradoPorId]);
-
-  const desvioUltimaObraAprobadaPorCliente = useMemo(() => {
-    const m = new Map<string, DesvioData>();
-    for (const p of rows) {
-      if (!p.presupuesto_aprobado) continue;
-      const cliente = (p.nombre_cliente ?? "").trim().toLowerCase();
-      if (!cliente || m.has(cliente)) continue;
-      const d = desviosPorId.get(p.id);
-      if (d) m.set(cliente, d);
-    }
-    return m;
-  }, [rows, desviosPorId]);
 
   function toggleAll(checked: boolean) {
     if (checked) {
@@ -796,26 +665,6 @@ export function HistorialScreen() {
                             </Link>
                           ) : null}
                         </p>
-                        {(() => {
-                          const desvio = desviosPorId.get(p.id);
-                          if (desvio) {
-                            return (
-                              <div className="mt-2">
-                                <DesvioAlertBadge data={desvio} />
-                              </div>
-                            );
-                          }
-                          if (!p.presupuesto_aprobado) {
-                            const clienteKey = (p.nombre_cliente ?? "").trim().toLowerCase();
-                            const refDesvio = clienteKey
-                              ? desvioUltimaObraAprobadaPorCliente.get(clienteKey)
-                              : undefined;
-                            if (refDesvio) {
-                              return <AlertaDesvioHistorico desvio={refDesvio} />;
-                            }
-                          }
-                          return null;
-                        })()}
                         {p.presupuesto_aprobado ? (
                           <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:gap-4">
                             <span className="text-xs font-medium uppercase tracking-wider text-ravn-fg">
