@@ -1,30 +1,23 @@
-import {
-  createClient as createSupabaseClient,
-  type SupabaseClient,
-} from "@supabase/supabase-js";
+import { createBrowserClient } from "@supabase/ssr";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
-function createFreshClient(): SupabaseClient {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-
-  if (!url || !key) {
-    throw new Error(
-      "Faltan NEXT_PUBLIC_SUPABASE_URL o NEXT_PUBLIC_SUPABASE_ANON_KEY en el entorno."
-    );
-  }
-
-  return createSupabaseClient(url, key);
-}
-
-/** Una sola instancia en el navegador: menos overhead y conexiones repetidas. */
+/** Una sola instancia en el navegador, con sesión en cookies (compatible con middleware). */
 let browserClient: SupabaseClient | null = null;
 
 export function createClient(): SupabaseClient {
   if (typeof window !== "undefined") {
     if (!browserClient) {
-      browserClient = createFreshClient();
+      browserClient = createBrowserClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+      );
     }
     return browserClient;
   }
-  return createFreshClient();
+
+  // SSR fallback (Route Handlers que usen este cliente)
+  return createBrowserClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  );
 }

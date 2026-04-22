@@ -1,7 +1,20 @@
+"use client";
+
 import Link from "next/link";
 import { RavnLogo } from "@/components/ravn-logo";
+import { createClient } from "@/lib/supabase/client";
+import { useRouter } from "next/navigation";
 
 export default function Home() {
+  const router = useRouter();
+
+  async function handleLogout() {
+    const supabase = createClient();
+    await supabase.auth.signOut();
+    router.push("/login");
+    router.refresh();
+  }
+
   return (
     <main className="flex min-h-[100dvh] min-h-screen flex-col items-center justify-center bg-ravn-surface px-6 py-12 text-ravn-fg sm:px-8">
       <div className="flex w-full max-w-md flex-col items-center gap-12 text-center">
@@ -46,6 +59,13 @@ export default function Home() {
           >
             Cashflow
           </Link>
+
+          <button
+            onClick={handleLogout}
+            className="font-raleway mt-4 inline-flex w-full items-center justify-center rounded-none border border-ravn-line bg-transparent px-8 py-3 text-xs font-normal uppercase tracking-widest text-ravn-fg/40 transition-colors hover:text-ravn-fg/70"
+          >
+            Cerrar sesión
+          </button>
         </nav>
       </div>
     </main>

@@ -5,6 +5,9 @@ out
 *.log
 .DS_Store
 
+# Vercel
+.vercel/
+
 # Supabase CLI cache local
 supabase/.temp/
 
