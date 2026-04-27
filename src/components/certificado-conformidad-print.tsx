@@ -186,7 +186,15 @@ export const CertificadoConformidadPrint = forwardRef<
 
       <div className="mt-10 grid grid-cols-2 gap-8 text-center text-[11px]">
         <div>
-          <div className="h-16 border-b border-black/40" />
+          <div className="relative h-16 border-b border-black/40">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src="/firma-ravn.png"
+              alt="Firma RAVN"
+              className="absolute bottom-1 left-1/2 h-14 w-auto -translate-x-1/2 object-contain"
+              style={{ maxWidth: "90%" }}
+            />
+          </div>
           <p className="mt-2 font-medium">Firma responsable RAVN</p>
         </div>
         <div>
