@@ -54,7 +54,7 @@ const ENJAMBRE: Area[] = [
     ],
   },
   {
-    area: "Diseño",
+    area: "Publicidad · Diseño",
     emoji: "🎨",
     agentes: [
       { nombre: "Creación de webs", icon: Globe, hace: "Genera sitios y landings", conexiones: ["Web"], estado: "conectado" },
