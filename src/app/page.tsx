@@ -60,6 +60,13 @@ export default function Home() {
             Cashflow
           </Link>
 
+          <Link
+            href="/enjambre"
+            className="inline-flex w-full items-center justify-center rounded-none border-2 border-ravn-line bg-ravn-surface px-8 py-4 text-sm font-normal uppercase tracking-wider text-ravn-fg transition-colors hover:bg-ravn-subtle focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ravn-fg"
+          >
+            Enjambre
+          </Link>
+
           <button
             onClick={handleLogout}
             className="font-raleway mt-4 inline-flex w-full items-center justify-center rounded-none border border-ravn-line bg-transparent px-8 py-3 text-xs font-normal uppercase tracking-widest text-ravn-fg/40 transition-colors hover:text-ravn-fg/70"
