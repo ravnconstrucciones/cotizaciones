@@ -77,27 +77,34 @@
 
 ---
 
-## ⚠️ A confirmar contigo (no puedo verlos por dentro)
+## Proyectos confirmados por el dueño
 
-Estos proyectos pueden ir a Construcción o a Publicidad — decime cuál:
-
-- **Chamaco** → ¿obra/inmobiliario o proyecto de agencia?
-- **Mobiliario** → ¿obra/producto o contenido de diseño?
-- **Barrio Glorietas** → ¿inmobiliario? (asumido: 01-Construccion/Inmobiliario)
-- **Daromy 172** → ¿inmobiliario? (asumido: 01-Construccion/Inmobiliario)
+| Proyecto | Destino | Nota |
+|----------|---------|------|
+| **Chamaco** | `03-Personal/Salud/` | Es personal / wellness → coach-wellness |
+| **Mobiliario** | `01-Construccion/Mobiliario/` | Línea de producto propia → construccion |
+| **Barrio Glorietas** | `01-Construccion/Inmobiliario/` | Construcción |
+| **Daromy 172** | `01-Construccion/Inmobiliario/` | **Cruzado**: construcción + diseño. Lo leen también publicidad-webs (taggear `#publicidad`) |
 
 ---
 
-## Cómo ejecutar la reorganización SIN romper enlaces
+## INSTRUCCIONES PARA HERMES (ejecutor local)
 
-Los `[[enlaces]]` de Obsidian se rompen si movés archivos con la terminal.
-**Tres formas seguras (de mejor a más rápida):**
+> El dueño eligió que la reorganización la haga **Hermes en su máquina**.
+> Seguí esto al pie de la letra:
 
-1. **Dentro de Obsidian** (recomendado): activá *Settings → Files & Links →
-   "Automatically update internal links"*, y arrastrá las carpetas según el mapa.
-   Obsidian reescribe los enlaces solo.
-2. **Con tu Hermes local**: pasale este archivo como instrucción. El agente mueve
-   y corrige enlaces con cuidado, paso a paso, mostrándote cada cambio.
-3. **Script** (rápido, pero rompe wikilinks): solo si tus notas casi no usan `[[ ]]`.
+1. **Backup primero.** Copiá la bóveda completa a `{VAULT}-backup-AAAA-MM-DD/` antes de tocar nada.
+2. **Activá** en Obsidian *Settings → Files & Links → "Automatically update internal links"*
+   (o corregí los `[[wikilinks]]` manualmente tras cada movimiento).
+3. **Creá** las carpetas de la "Estructura objetivo".
+4. **Mové** cada carpeta/nota según el "Mapa de migración" + tabla de proyectos confirmados.
+   Mostrá cada movimiento antes de hacerlo y pedí confirmación en bloque.
+5. **Nada se borra.** Lo que no encaje en ninguna categoría → `00-Inbox/` con un tag `#revisar`.
+6. **Daromy 172**: dejarlo en `01-Construccion/Inmobiliario/` y agregar tag `#publicidad`
+   para que la agencia de diseño también lo encuentre.
+7. **Verificá** al final: ningún archivo perdido (contá notas antes/después) y ningún
+   `[[enlace]]` roto (buscá enlaces sin destino).
+8. **Actualizá** la línea `VAULT` en `ENJAMBRE.md` con la ruta real.
 
-> Regla: **nada se borra**. Si algo no encaja, va a `00-Inbox/` para clasificarlo después.
+> Regla de oro: **antes de mover, contar; después de mover, volver a contar.**
+> Si los números no coinciden, frenar y avisar.
