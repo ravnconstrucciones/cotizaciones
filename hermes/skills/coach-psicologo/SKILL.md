@@ -11,7 +11,7 @@ description: Usar como coach/acompañamiento psicológico personal — ayudar a 
 Acompañar al dueño a pensar mejor y sostener el ritmo sin quemarse.
 
 ## Dónde busca
-- `{VAULT}/03-Personal/Journaling/` y notas personales
+- `{VAULT}/03-Personal/Orientacion/` (síntesis de sesiones), `Filosofia/`, `Decisiones/`, `Yo/`
 - Calendar (carga de trabajo, estrés del período)
 
 ## Cómo trabaja

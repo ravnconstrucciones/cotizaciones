@@ -13,11 +13,12 @@ Toda la información del imperio vive en la bóveda de Obsidian.
 > ⚙️ AJUSTAR esta ruta a tu bóveda real:
 **VAULT = `~/Obsidian/RAVN`**
 
-Estructura esperada (ajustar a la tuya):
-- `{VAULT}/01-Construccion/` — clientes, obras, proveedores, presupuestos
-- `{VAULT}/02-Publicidad/` — proyectos web, diseño, código
-- `{VAULT}/03-Personal/` — salud, hábitos, finanzas, journaling
-- `{VAULT}/00-Inbox/` — notas sin clasificar
+Estructura optimizada (ver detalle y migración en `BOVEDA.md`):
+- `{VAULT}/00-Inbox/` — captura sin clasificar
+- `{VAULT}/01-Construccion/` — Clientes · Obras · Proveedores · Presupuestos · Inmobiliario · Workflows · RAVN-Marca
+- `{VAULT}/02-Publicidad/` — Proyectos · Workflows · Recursos
+- `{VAULT}/03-Personal/` — Finanzas · Salud · Orientacion · Filosofia · Decisiones · Aprendizajes · Yo · Estrategia/FODA · Oportunidades
+- `{VAULT}/90-Templates/` · `{VAULT}/91-Sistema/`
 
 **Regla de oro:** ningún agente inventa datos. Si no está en Obsidian (o en la
 fuente conectada), lo dice y pregunta. Todo lo nuevo se ESCRIBE de vuelta en Obsidian.

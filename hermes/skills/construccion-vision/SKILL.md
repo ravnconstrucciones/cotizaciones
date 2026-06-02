@@ -12,7 +12,8 @@ Que las decisiones se tomen con números, no con corazonadas.
 
 ## Dónde busca
 - App RAVN: rentabilidad, cashflow, control de gastos (Supabase)
-- `{VAULT}/01-Construccion/` (obras y clientes)
+- `{VAULT}/01-Construccion/` (obras, clientes, RAVN-Marca)
+- `{VAULT}/03-Personal/Estrategia/FODA/` (visión estratégica del holding)
 
 ## Cómo trabaja
 1. Revisa rentabilidad por obra y flujo de caja del período.

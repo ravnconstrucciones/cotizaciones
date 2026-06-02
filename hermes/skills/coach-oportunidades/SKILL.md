@@ -12,7 +12,7 @@ Que siempre haya un pipeline de oportunidades nuevas evaluadas.
 
 ## Dónde busca
 - Web / deep research (tendencias, licitaciones, nichos)
-- `{VAULT}/03-Personal/Oportunidades/` y las capacidades del imperio
+- `{VAULT}/03-Personal/Oportunidades/` y `{VAULT}/03-Personal/Estrategia/FODA/`
 
 ## Cómo trabaja
 1. Parte de lo que el dueño YA sabe hacer (construcción, web, diseño).
