@@ -101,6 +101,7 @@ export function FinanzasScreen() {
   const [guardando, setGuardando] = useState(false);
   const [guardadoOk, setGuardadoOk] = useState(false);
   const [errorGuardar, setErrorGuardar] = useState<string | null>(null);
+  const [eliminando, setEliminando] = useState<string | null>(null);
 
   const load = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
@@ -119,6 +120,20 @@ export function FinanzasScreen() {
   }, []);
 
   useEffect(() => { void load(); }, [load]);
+
+  async function eliminarGasto(id: string) {
+    setEliminando(id);
+    try {
+      await fetch("/api/finanzas", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id }),
+      });
+      await load(true);
+    } finally {
+      setEliminando(null);
+    }
+  }
 
   async function guardarGasto(e: React.FormEvent) {
     e.preventDefault();
@@ -341,9 +356,19 @@ export function FinanzasScreen() {
                       <div className="text-ravn-muted">{g.categoria}</div>
                     </div>
                   </div>
-                  <span className="tabular-nums font-medium text-ravn-fg">
-                    {formatMoneyInt(g.monto)}
-                  </span>
+                  <div className="flex items-center gap-3">
+                    <span className="tabular-nums font-medium text-ravn-fg">
+                      {formatMoneyInt(g.monto)}
+                    </span>
+                    <button
+                      onClick={() => eliminarGasto(g.id)}
+                      disabled={eliminando === g.id}
+                      className="text-ravn-muted transition-colors hover:text-red-400 disabled:opacity-40"
+                      aria-label="Eliminar"
+                    >
+                      {eliminando === g.id ? "…" : "×"}
+                    </button>
+                  </div>
                 </li>
               ))}
             </ul>

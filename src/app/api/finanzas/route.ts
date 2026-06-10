@@ -107,3 +107,13 @@ export async function POST(req: NextRequest) {
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ ok: true });
 }
+
+export async function DELETE(req: NextRequest) {
+  const sb = createSupabaseAdminClient();
+  const { id } = await req.json();
+  if (!id) return NextResponse.json({ error: "id requerido" }, { status: 400 });
+
+  const { error } = await sb.from("gastos_personales").delete().eq("id", id);
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  return NextResponse.json({ ok: true });
+}
