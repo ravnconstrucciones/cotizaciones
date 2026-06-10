@@ -102,8 +102,8 @@ export function FinanzasScreen() {
   const [guardadoOk, setGuardadoOk] = useState(false);
   const [errorGuardar, setErrorGuardar] = useState<string | null>(null);
 
-  const load = useCallback(async () => {
-    setLoading(true);
+  const load = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true);
     setError(null);
     try {
       const res = await fetch("/api/finanzas", { cache: "no-store" });
@@ -137,7 +137,7 @@ export function FinanzasScreen() {
         setForm({ concepto: "", monto: "", categoria: "Varios" });
         setGuardadoOk(true);
         setTimeout(() => setGuardadoOk(false), 3000);
-        await load();
+        await load(true); // silent refresh — no loading screen
       } else {
         setErrorGuardar(j.error ?? `Error ${res.status}`);
       }
