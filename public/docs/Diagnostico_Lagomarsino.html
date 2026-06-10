@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RAVN · Diagnóstico Técnico — Lagomarsino</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,700;1,700&family=Raleway:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,300&family=Barlow:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  :root { --k:#070707; --w:#f2efe8; --g:#b8c8a0; --dim:#5a5754; --red:#6e1010; }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  .slide { width:1920px; height:1080px; font-family:'Barlow',sans-serif; color:var(--w); background:var(--k); overflow:hidden; position:relative; display:block; margin-bottom:4px; }
+  .serif { font-family:'Cormorant Garamond',serif; font-weight:700; }
+  .label { font-family:'Raleway',sans-serif; font-weight:400; letter-spacing:0.22em; text-transform:uppercase; font-size:24px; color:var(--dim); }
+  .fill { font-family:'Raleway',sans-serif; font-weight:900; text-transform:uppercase; line-height:0.88; letter-spacing:-0.03em; color:var(--w); }
+  .stroke { font-family:'Raleway',sans-serif; font-weight:900; text-transform:uppercase; line-height:0.88; letter-spacing:-0.03em; color:transparent; -webkit-text-stroke:2px var(--w); }
+  .stroke-dim { font-family:'Raleway',sans-serif; font-weight:900; text-transform:uppercase; line-height:0.88; letter-spacing:-0.03em; color:transparent; -webkit-text-stroke:1px #242424; }
+  .topbar { display:flex; justify-content:space-between; align-items:center; padding:36px 80px; position:relative; z-index:10; flex-shrink:0; }
+  .brand { font-family:'Raleway',sans-serif; font-weight:300; font-size:28px; letter-spacing:0.35em; text-transform:uppercase; color:var(--w); }
+  .topbar-label { font-family:'Raleway',sans-serif; font-weight:400; font-size:24px; letter-spacing:0.14em; text-transform:uppercase; color:var(--dim); }
+  .photo { background:#0c0c0c; position:relative; display:flex; align-items:center; justify-content:center; overflow:hidden; }
+  .photo::before { content:''; position:absolute; inset:20px; border:1px solid #1c1c1c; pointer-events:none; z-index:2; }
+  .photo::after { content:''; position:absolute; width:24px; height:24px; border-left:1px solid var(--g); border-top:1px solid var(--g); top:28px; left:28px; pointer-events:none; z-index:2; }
+  .photo .photo-ref { position:absolute; bottom:28px; right:32px; font-family:'Raleway',sans-serif; font-size:24px; letter-spacing:0.12em; color:rgba(242,239,232,0.55); z-index:3; }
+  .photo .photo-date { position:absolute; top:28px; right:32px; font-family:'Raleway',sans-serif; font-size:24px; letter-spacing:0.08em; color:rgba(242,239,232,0.55); z-index:3; }
+  .photo .corner-br { position:absolute; bottom:28px; left:28px; width:24px; height:24px; border-right:1px solid var(--g); border-bottom:1px solid var(--g); z-index:2; }
+  .bcard { padding:22px 26px; display:flex; flex-direction:column; gap:12px; }
+  .bcard.primary { background:#111; border-top:2px solid var(--g); }
+  .bcard.secondary { background:transparent; border-top:1px solid #222; }
+  .bcard .bc-tag { font-family:'Raleway',sans-serif; font-weight:600; font-size:18px; letter-spacing:0.2em; text-transform:uppercase; color:var(--g); }
+  .bcard.secondary .bc-tag { color:var(--dim); }
+  .bcard .bc-name { font-family:'Raleway',sans-serif; font-weight:700; font-size:24px; color:var(--w); line-height:1.15; }
+  .bcard .bc-desc { font-family:'Barlow',sans-serif; font-size:21px; color:var(--dim); line-height:1.45; }
+  .bdg { font-family:'Raleway',sans-serif; font-weight:700; font-size:22px; letter-spacing:0.22em; text-transform:uppercase; padding:7px 18px; display:inline-block; }
+  .bdg-s { background:var(--red); color:var(--w); }
+  .bdg-m { border:1px solid var(--g); color:var(--g); }
+  .bdg-l { border:1px solid #333; color:#555; }
+  body { background:#000; padding:20px; }
+  .slide-wrapper { width:1920px; transform-origin:top left; margin-bottom:8px; }
+  @media screen { body { display:flex; flex-direction:column; align-items:flex-start; } }
+  @media print {
+    @page { size: 1920px 1080px; margin: 0; }
+    body { padding: 0; background: #000; display: block; }
+    .slide-wrapper { page-break-after: always; break-after: page; width: 1920px !important; height: 1080px !important; margin: 0 !important; transform: none !important; }
+    .slide { transform: none !important; width: 1920px !important; height: 1080px !important; }
+  }
+</style>
+</head>
+<body>
+<script>
+  function scaleSlides() {
+    const vw = window.innerWidth - 40;
+    const scale = vw / 1920;
+    document.querySelectorAll('.slide').forEach(s => {
+      s.style.transform = `scale(${scale})`;
+      s.style.transformOrigin = 'top left';
+      s.parentElement.style.height = (1080 * scale) + 'px';
+      s.parentElement.style.width = (1920 * scale) + 'px';
+    });
+  }
+  window.addEventListener('load', scaleSlides);
+  window.addEventListener('resize', scaleSlides);
+</script>
+
+<!-- ══ SLIDE 01 — PORTADA ══ -->
+<div class="slide-wrapper">
+<section class="slide" data-label="01 Portada">
+  <div style="position:absolute;bottom:-60px;right:-20px;font-family:'Raleway',sans-serif;font-weight:900;font-size:580px;line-height:1;color:transparent;-webkit-text-stroke:1px #131313;letter-spacing:-0.04em;pointer-events:none;user-select:none;z-index:0;">D</div>
+  <div class="topbar" style="border-bottom:1px solid #151515;">
+    <span class="brand">RAVN.</span>
+    <span class="topbar-label">REF &nbsp;·&nbsp; 2026-004</span>
+  </div>
+  <div style="position:relative;z-index:1;padding:60px 80px 0;display:flex;flex-direction:column;gap:8px;">
+    <div class="label" style="margin-bottom:24px;">Informe de diagnóstico</div>
+    <div style="font-family:'Raleway',sans-serif;font-weight:900;text-transform:uppercase;line-height:0.88;letter-spacing:-0.03em;color:var(--w);font-size:168px;margin-bottom:16px;">Diagnóstico</div>
+    <div class="stroke" style="font-size:168px;-webkit-text-stroke:3px #f2efe8;">Técnico</div>
+    <div style="border-top:1px solid #222;margin-top:48px;padding-top:36px;display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:0;">
+      <div>
+        <div class="label" style="font-size:20px;margin-bottom:8px;">Cliente</div>
+        <div style="font-family:'Raleway',sans-serif;font-size:30px;font-weight:600;color:var(--w);">Lucila Lagomarsino</div>
+      </div>
+      <div>
+        <div class="label" style="font-size:20px;margin-bottom:8px;">Dirección</div>
+        <div style="font-family:'Raleway',sans-serif;font-size:26px;font-weight:400;color:var(--dim);">Correa 3750</div>
+      </div>
+      <div>
+        <div class="label" style="font-size:20px;margin-bottom:8px;">Fecha</div>
+        <div style="font-family:'Raleway',sans-serif;font-size:30px;font-weight:600;color:var(--w);">08 · 06 · 2026</div>
+      </div>
+      <div>
+        <div class="label" style="font-size:20px;margin-bottom:8px;">Problemas detectados</div>
+        <div style="font-family:'Raleway',sans-serif;font-size:60px;font-weight:900;color:var(--g);line-height:1;">04</div>
+      </div>
+    </div>
+  </div>
+</section>
+</div>
+
+<!-- ══ SLIDE 02 — PROBLEMA 01 ══ -->
+<div class="slide-wrapper">
+<section class="slide" data-label="02 Problema 01" style="display:grid;grid-template-rows:auto 1fr auto;grid-template-columns:1fr;">
+  <div class="topbar" style="border-bottom:1px solid #151515;grid-column:1;grid-row:1;">
+    <span class="brand">RAVN.</span>
+    <span class="topbar-label">Diagnóstico Técnico</span>
+  </div>
+  <div style="display:grid;grid-template-columns:460px 1fr 400px;grid-row:2;min-height:0;overflow:hidden;">
+
+    <!-- Col 1 -->
+    <div style="border-right:1px solid #151515;padding:36px 36px 36px 80px;display:flex;flex-direction:column;justify-content:space-between;position:relative;overflow:hidden;">
+      <div class="stroke-dim" style="position:absolute;font-size:340px;bottom:-60px;left:-20px;letter-spacing:-0.06em;z-index:0;">01</div>
+      <div style="position:relative;z-index:1;display:flex;flex-direction:column;gap:20px;">
+        <div>
+          <div class="label" style="font-size:20px;margin-bottom:16px;">ZONA · Baño / Piso de ducha</div>
+          <div class="fill" style="font-size:44px;line-height:0.94;">Sin barrera hídrica · Losa expuesta al agua en cada uso</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Col 2: Foto -->
+    <div class="photo" style="border-right:1px solid #151515;">
+      <div class="corner-br"></div>
+      <img src="lagomarsino_03.jpg" alt="Piso ducha" style="width:100%;height:100%;object-fit:cover;object-position:center;display:block;">
+      <span class="photo-date">08.06.2026</span>
+      <span class="photo-ref">IMG · 01.A</span>
+    </div>
+
+    <!-- Col 3 -->
+    <div style="display:flex;flex-direction:column;overflow:hidden;">
+      <div style="padding:28px 32px 20px 28px;border-bottom:1px solid #151515;flex-shrink:0;">
+        <div class="label" style="font-size:20px;color:var(--g);margin-bottom:12px;">Diagnóstico</div>
+        <p style="font-size:20px;color:var(--dim);line-height:1.55;font-weight:300;">El piso de la ducha no tiene ningún sistema de impermeabilización. La construcción original de los años 70 no contemplaba barrera hídrica entre la cerámica y la losa: el revestimiento era el único escudo. Con una pieza rota en el sector del desagüe, la losa queda en contacto directo con el agua en cada uso. La filtración hacia el departamento del piso inferior es directa y continua.</p>
+      </div>
+      <div class="bcard primary" style="flex:1;">
+        <div class="bc-tag">Solución</div>
+        <div class="bc-name">Construcción del sistema de impermeabilización desde cero</div>
+        <div class="bc-desc">Retiro del revestimiento cerámico en el sector de ducha. Azotado hidrófugo sobre la losa expuesta. Carpeta de cemento con aditivo hidrófugo ejecutada con pendiente correcta al desagüe. Recolocación del sifón y rejilla de ducha con sello perimetral. Cerámica nueva con adhesivo impermeable (tipo Klaukol Pileta). Pastina impermeable y sellador siliconado en junta piso-pared.</div>
+      </div>
+    </div>
+  </div>
+  <div style="grid-row:3;border-top:1px solid #151515;padding:16px 80px;display:flex;justify-content:space-between;align-items:center;">
+    <span class="label" style="font-size:22px;text-transform:lowercase;letter-spacing:0.08em;">ravnconstrucciones.com.ar</span>
+    <span class="label" style="font-size:22px;">02 / 05</span>
+  </div>
+</section>
+</div>
+
+<!-- ══ SLIDE 03 — PROBLEMA 02 ══ -->
+<div class="slide-wrapper">
+<section class="slide" data-label="03 Problema 02" style="display:grid;grid-template-rows:auto 1fr auto;grid-template-columns:1fr;">
+  <div class="topbar" style="border-bottom:1px solid #151515;grid-column:1;grid-row:1;">
+    <span class="brand">RAVN.</span>
+    <span class="topbar-label">Diagnóstico Técnico</span>
+  </div>
+  <div style="display:grid;grid-template-columns:460px 1fr 400px;grid-row:2;min-height:0;overflow:hidden;">
+
+    <!-- Col 1 -->
+    <div style="border-right:1px solid #151515;padding:36px 36px 36px 80px;display:flex;flex-direction:column;justify-content:space-between;position:relative;overflow:hidden;">
+      <div class="stroke-dim" style="position:absolute;font-size:340px;bottom:-60px;left:-20px;letter-spacing:-0.06em;z-index:0;">02</div>
+      <div style="position:relative;z-index:1;display:flex;flex-direction:column;gap:20px;">
+        <div>
+          <div class="label" style="font-size:20px;margin-bottom:16px;">ZONA · Baño / Paredes sector ducha</div>
+          <div class="fill" style="font-size:44px;line-height:0.94;">Base de paredes sin protección · Capilaridad activa</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Col 2: Foto -->
+    <div class="photo" style="border-right:1px solid #151515;">
+      <div class="corner-br"></div>
+      <img src="lagomarsino_01.jpg" alt="Paredes sector ducha" style="width:100%;height:100%;object-fit:contain;object-position:center;display:block;">
+      <span class="photo-date">08.06.2026</span>
+      <span class="photo-ref">IMG · 02.A</span>
+    </div>
+
+    <!-- Col 3 -->
+    <div style="display:flex;flex-direction:column;overflow:hidden;">
+      <div style="padding:28px 32px 20px 28px;border-bottom:1px solid #151515;flex-shrink:0;">
+        <div class="label" style="font-size:20px;color:var(--g);margin-bottom:12px;">Diagnóstico</div>
+        <p style="font-size:20px;color:var(--dim);line-height:1.55;font-weight:300;">Las paredes de la ducha no tienen protección hídrica en su base. El agua del piso mojado asciende por capilaridad a través del revoque y el ladrillo sin necesidad de contacto directo. Con el tiempo satura la pared desde adentro, desprende terminaciones y puede llegar a la losa. El tabique de mampostería que divide la bañera del sector de ducha presenta la cerámica completamente craquelada, juntas abiertas y moho incrustado. Sin sellado en el encuentro bañera-tabique, cada uso deja pasar agua directamente a la mampostería.</p>
+      </div>
+      <div class="bcard primary" style="flex:1;">
+        <div class="bc-tag">Solución</div>
+        <div class="bc-name">Azotado hidrófugo en base de paredes y revestimiento completo del tabique de bañera</div>
+        <div class="bc-desc">Retiro de la cerámica en los primeros 50 cm de pared en el sector de ducha y en la totalidad del tabique de bañera. Azotado hidrófugo sobre la mampostería expuesta. Nueva cerámica con adhesivo impermeable — el tramo bajo quedará levemente más afuera por el espesor del azotado; se corrige picando el revoque existente o colocando un perfil de terminación en la junta. Pastina impermeable en juntas. Sellador siliconado en el encuentro piso-pared y en el encuentro bañera-tabique — esta junta no va con pastina rígida porque trabaja con el peso durante el uso.</div>
+      </div>
+    </div>
+  </div>
+  <div style="grid-row:3;border-top:1px solid #151515;padding:16px 80px;display:flex;justify-content:space-between;align-items:center;">
+    <span class="label" style="font-size:22px;text-transform:lowercase;letter-spacing:0.08em;">ravnconstrucciones.com.ar</span>
+    <span class="label" style="font-size:22px;">03 / 05</span>
+  </div>
+</section>
+</div>
+
+<!-- ══ SLIDE 04 — PROBLEMA 03 ══ -->
+<div class="slide-wrapper">
+<section class="slide" data-label="04 Problema 03" style="display:grid;grid-template-rows:auto 1fr auto;grid-template-columns:1fr;">
+  <div class="topbar" style="border-bottom:1px solid #151515;grid-column:1;grid-row:1;">
+    <span class="brand">RAVN.</span>
+    <span class="topbar-label">Diagnóstico Técnico</span>
+  </div>
+  <div style="display:grid;grid-template-columns:460px 1fr 400px;grid-row:2;min-height:0;overflow:hidden;">
+
+    <!-- Col 1 -->
+    <div style="border-right:1px solid #151515;padding:36px 36px 36px 80px;display:flex;flex-direction:column;justify-content:space-between;position:relative;overflow:hidden;">
+      <div class="stroke-dim" style="position:absolute;font-size:340px;bottom:-60px;left:-20px;letter-spacing:-0.06em;z-index:0;">03</div>
+      <div style="position:relative;z-index:1;display:flex;flex-direction:column;gap:20px;">
+        <div>
+          <div class="label" style="font-size:20px;margin-bottom:16px;">ZONA · Cielorraso / Departamento inferior</div>
+          <div class="fill" style="font-size:44px;line-height:0.94;">Cielorraso saturado · Moho activo por filtración sostenida</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Col 2: Foto -->
+    <div class="photo" style="border-right:1px solid #151515;">
+      <div class="corner-br"></div>
+      <img src="lagomarsino_04.jpg" alt="Cielorraso piso inferior" style="width:100%;height:100%;object-fit:cover;object-position:center top;display:block;">
+      <span class="photo-date">08.06.2026</span>
+      <span class="photo-ref">IMG · 03.A</span>
+    </div>
+
+    <!-- Col 3 -->
+    <div style="display:flex;flex-direction:column;overflow:hidden;">
+      <div style="padding:28px 32px 20px 28px;border-bottom:1px solid #151515;flex-shrink:0;">
+        <div class="label" style="font-size:20px;color:var(--g);margin-bottom:12px;">Diagnóstico</div>
+        <p style="font-size:20px;color:var(--dim);line-height:1.55;font-weight:300;">El cielorraso del departamento inferior registra el impacto directo de la filtración del baño de arriba. Las placas de yeso cerámico en la zona afectada están saturadas: varias cayeron y las restantes no tienen recuperación. El sustrato expuesto presenta revoque con moho extenso y eflorescencias. Este daño es consecuencia directa — no puede repararse de forma definitiva hasta que la fuente en el piso superior esté completamente resuelta.</p>
+      </div>
+      <div class="bcard primary" style="flex:1;overflow:hidden;">
+        <div class="bc-tag">Solución · Etapa 2 (post resolución del baño de arriba)</div>
+        <div class="bc-name">Retiro de placas, saneamiento y reconstrucción del cielorraso</div>
+        <div class="bc-desc" style="font-size:17px;">Retiro de la totalidad de las placas cerámicas en la zona afectada. Picado del revoque deteriorado hasta sustrato sano. Período de secado mínimo 2 semanas una vez cortada la fuente. Revoque grueso y fino con aditivo hidrófugo en la mezcla. Fijador. Masillado. Manos de pintura correspondientes.</div>
+      </div>
+    </div>
+  </div>
+  <div style="grid-row:3;border-top:1px solid #151515;padding:16px 80px;display:flex;justify-content:space-between;align-items:center;">
+    <span class="label" style="font-size:22px;text-transform:lowercase;letter-spacing:0.08em;">ravnconstrucciones.com.ar</span>
+    <span class="label" style="font-size:22px;">04 / 05</span>
+  </div>
+</section>
+</div>
+
+<!-- ══ SLIDE 05 — PROBLEMA 04 ══ -->
+<div class="slide-wrapper">
+<section class="slide" data-label="05 Problema 04" style="display:grid;grid-template-rows:auto 1fr auto;grid-template-columns:1fr;">
+  <div class="topbar" style="border-bottom:1px solid #151515;grid-column:1;grid-row:1;">
+    <span class="brand">RAVN.</span>
+    <span class="topbar-label">Diagnóstico Técnico</span>
+  </div>
+  <div style="display:grid;grid-template-columns:460px 1fr 400px;grid-row:2;min-height:0;overflow:hidden;">
+
+    <!-- Col 1 -->
+    <div style="border-right:1px solid #151515;padding:36px 36px 36px 80px;display:flex;flex-direction:column;justify-content:space-between;position:relative;overflow:hidden;">
+      <div class="stroke-dim" style="position:absolute;font-size:340px;bottom:-60px;left:-20px;letter-spacing:-0.06em;z-index:0;">04</div>
+      <div style="position:relative;z-index:1;display:flex;flex-direction:column;gap:20px;">
+        <div>
+          <div class="label" style="font-size:20px;margin-bottom:16px;">ZONA · Ventilación / Ambos departamentos</div>
+          <div class="fill" style="font-size:44px;line-height:0.94;">Ventilación pasiva obstruida · Sin extracción activa de vapor</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Col 2: Foto -->
+    <div class="photo" style="border-right:1px solid #151515;">
+      <div class="corner-br"></div>
+      <img src="lagomarsino_05.jpg" alt="Rejilla de ventilación" style="width:100%;height:100%;object-fit:cover;object-position:center;display:block;">
+      <span class="photo-date">08.06.2026</span>
+      <span class="photo-ref">IMG · 04.A</span>
+    </div>
+
+    <!-- Col 3 -->
+    <div style="display:flex;flex-direction:column;overflow:hidden;">
+      <div style="padding:28px 32px 20px 28px;border-bottom:1px solid #151515;flex-shrink:0;">
+        <div class="label" style="font-size:20px;color:var(--g);margin-bottom:12px;">Diagnóstico</div>
+        <p style="font-size:20px;color:var(--dim);line-height:1.55;font-weight:300;">Las rejillas de ventilación de ambos baños están completamente obstruidas — óxido, polvo y telaraña acumulados durante años. Sin extracción activa, el vapor generado en cada uso queda dentro del ambiente y condensa sobre paredes y cielorraso. Esto acelera directamente el deterioro de revoques, aparición de moho y degradación de las terminaciones. La ventilación pasiva existente no tiene capacidad de resolverlo.</p>
+      </div>
+      <div class="bcard primary" style="flex:1;">
+        <div class="bc-tag">Solución</div>
+        <div class="bc-name">Instalación de extractores activos en ambos baños</div>
+        <div class="bc-desc">Reemplazo de las rejillas pasivas existentes por extractores de aire de 4 pulgadas en cada departamento. Los extractores se conectan al conducto de ventilación del edificio ya existente — verificar tiraje antes de instalar.</div>
+      </div>
+    </div>
+  </div>
+  <div style="grid-row:3;border-top:1px solid #151515;padding:16px 80px;display:flex;justify-content:space-between;align-items:center;">
+    <span class="label" style="font-size:22px;text-transform:lowercase;letter-spacing:0.08em;">ravnconstrucciones.com.ar</span>
+    <span class="label" style="font-size:22px;">05 / 05</span>
+  </div>
+</section>
+</div>
+
+</body>
+</html>

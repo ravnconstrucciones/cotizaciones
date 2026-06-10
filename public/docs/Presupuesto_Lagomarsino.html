@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RAVN · Presupuesto — Lagomarsino</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Raleway:wght@100;200;300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #1c1c1a;
+    --fg: #f2efe8;
+    --muted: rgba(242,239,232,0.48);
+    --line: rgba(242,239,232,0.18);
+    --accent: rgba(242,239,232,0.72);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: #111;
+    font-family: 'Raleway', sans-serif;
+    -webkit-font-smoothing: antialiased;
+    color: var(--fg);
+  }
+
+  .page {
+    background: var(--bg);
+    width: 210mm;
+    min-height: 297mm;
+    padding: 14mm 16mm 14mm 16mm;
+    margin: 0 auto 4mm;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+    overflow: hidden;
+  }
+
+  /* ── HEADER ── */
+  .header {
+    display: flex;
+    justify-content: flex-end;
+    margin-bottom: 10mm;
+  }
+  .brand {
+    font-weight: 300;
+    font-size: 15pt;
+    letter-spacing: 0.28em;
+    padding-right: 0.28em;
+    text-transform: uppercase;
+    color: var(--fg);
+  }
+
+  /* ── P1: TITLE ── */
+  .title-propuesta {
+    font-weight: 300;
+    font-size: 48pt;
+    line-height: 1.05;
+    letter-spacing: -0.01em;
+    color: var(--fg);
+    margin-bottom: 9mm;
+  }
+
+  /* ── META BLOCK ── */
+  .meta {
+    display: grid;
+    grid-template-columns: 20mm 1fr;
+    gap: 1.5mm 0;
+    margin-bottom: 9mm;
+  }
+  .meta-label {
+    font-size: 8.5pt;
+    font-weight: 400;
+    color: var(--muted);
+    letter-spacing: 0.04em;
+    padding-top: 0.5mm;
+  }
+  .meta-value {
+    font-size: 9.5pt;
+    font-weight: 400;
+    color: var(--fg);
+    letter-spacing: 0.01em;
+  }
+
+  /* ── SECTION HEADING ── */
+  .section-title {
+    font-size: 13pt;
+    font-weight: 300;
+    color: var(--fg);
+    margin-bottom: 2mm;
+    letter-spacing: 0.01em;
+  }
+  .section-rule {
+    height: 0.3pt;
+    background: var(--line);
+    margin-bottom: 7mm;
+  }
+
+  /* ── BODY TEXT ── */
+  .body {
+    font-size: 9pt;
+    font-weight: 300;
+    line-height: 1.72;
+    color: rgba(242,239,232,0.82);
+    flex: 1;
+  }
+  .body p { margin-bottom: 4.5mm; }
+  .body .etapa-label {
+    font-size: 8pt;
+    font-weight: 600;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 3mm;
+    margin-top: 5mm;
+  }
+  .body .item-title {
+    font-size: 9pt;
+    font-weight: 600;
+    color: var(--fg);
+    margin-bottom: 1.5mm;
+  }
+  .body .item-nota {
+    font-size: 8pt;
+    font-weight: 300;
+    color: var(--muted);
+    font-style: italic;
+    margin-top: 2mm;
+    margin-bottom: 4mm;
+  }
+
+  /* ── P2: IMPORTE ── */
+  .importe-section { margin-bottom: 9mm; }
+  .importe-number {
+    font-size: 48pt;
+    font-weight: 200;
+    letter-spacing: -0.02em;
+    color: var(--fg);
+    line-height: 1;
+    margin: 3mm 0 2mm;
+    font-variant-numeric: tabular-nums;
+  }
+  .importe-letras {
+    font-size: 7.5pt;
+    font-weight: 400;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 4mm;
+  }
+  .importe-nota {
+    font-size: 8pt;
+    font-weight: 300;
+    color: rgba(242,239,232,0.55);
+    line-height: 1.6;
+  }
+
+  /* ── P2: SECTIONS ── */
+  .p2-section { margin-bottom: 7mm; }
+  .p2-section .section-title { margin-bottom: 1.5mm; }
+  .p2-text {
+    font-size: 8.5pt;
+    font-weight: 300;
+    color: rgba(242,239,232,0.75);
+    line-height: 1.68;
+  }
+  .p2-text p { margin-bottom: 2mm; }
+
+  /* ── FOOTER ── */
+  .footer {
+    margin-top: auto;
+    padding-top: 6mm;
+    border-top: 0.3pt solid var(--line);
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+  }
+  .footer-contacts { display: flex; flex-direction: column; gap: 2.5mm; }
+  .footer-contact-row { display: flex; align-items: center; gap: 3mm; }
+  .footer-contact-row svg { flex-shrink: 0; opacity: 0.7; }
+  .footer-contact-text {
+    font-size: 8pt;
+    font-weight: 300;
+    color: rgba(242,239,232,0.7);
+    letter-spacing: 0.02em;
+  }
+  .footer-brand {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  .footer-brand-name {
+    font-size: 11pt;
+    font-weight: 300;
+    letter-spacing: 0.28em;
+    padding-left: 0.28em;
+    text-transform: uppercase;
+    color: var(--fg);
+    line-height: 1;
+  }
+  .footer-brand-sub {
+    font-size: 6pt;
+    font-weight: 400;
+    letter-spacing: 0.28em;
+    padding-left: 0.28em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-top: 1.5mm;
+  }
+
+  /* ── PRINT ── */
+  @media print {
+    @page { size: A4; margin: 0; }
+    body { background: var(--bg); }
+    .page { margin: 0; page-break-after: always; }
+    .page:last-child { page-break-after: avoid; }
+  }
+
+  @media screen {
+    body { padding: 8mm 0; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ══ PÁGINA 1 ══ -->
+<div class="page">
+
+  <div class="header">
+    <span class="brand">R &nbsp;A &nbsp;V &nbsp;N .</span>
+  </div>
+
+  <div class="title-propuesta">Propuesta</div>
+
+  <div class="meta">
+    <span class="meta-label">Cliente</span>
+    <span class="meta-value">Lucila Lagomarsino</span>
+    <span class="meta-label">Fecha</span>
+    <span class="meta-value">9 de junio de 2026</span>
+    <span class="meta-label">Lugar</span>
+    <span class="meta-value">Correa 3750</span>
+  </div>
+
+  <div class="section-title">Servicios Presupuestados</div>
+  <div class="section-rule"></div>
+
+  <div class="body">
+
+    <p>El problema no está en la cerámica sino en lo que hay debajo. La cerámica y la pastina son terminación — no impermeabilizan. Lo que frena el agua es la carpeta impermeable bajo el piso, y esa capa está vencida y rota. Por eso filtra al departamento de abajo. Colocar cerámica nueva sin tratar el sustrato resuelve la estética, pero la filtración vuelve en pocas semanas. La solución definitiva será construir el sistema de impermeabilización desde cero y reparar los daños consecuentes en el departamento inferior.</p>
+
+    <div class="etapa-label">Etapa 1 — Baño · Departamento superior</div>
+
+    <div class="item-title">1 — Impermeabilización del piso de ducha</div>
+    <p>Retiro del revestimiento cerámico en el sector de ducha. Azotado hidrófugo sobre la losa expuesta. Carpeta de cemento con aditivo hidrófugo ejecutada con pendiente correcta al desagüe. Recolocación del sifón y rejilla de ducha con sello perimetral. Cerámica nueva con adhesivo impermeable Weber Superflex. Pastina impermeable y sellador siliconado en junta piso-pared.</p>
+
+    <div class="item-title">2 — Impermeabilización de paredes y tabique de bañera</div>
+    <p>Retiro de la cerámica en los primeros 50 cm de pared en el sector de ducha y en la totalidad del tabique de bañera. Azotado hidrófugo sobre la mampostería expuesta. Nueva cerámica con adhesivo impermeable. Pastina impermeable en juntas. Sellador siliconado en el encuentro piso-pared y en el encuentro bañera-tabique.</p>
+
+    <div class="item-title">3 — Instalación de extractores de aire · Ambos departamentos</div>
+    <p>Reemplazo de las rejillas pasivas por extractores de aire de 4 pulgadas en cada departamento, conectados al conducto de ventilación existente del edificio.</p>
+
+    <div class="etapa-label">Etapa 2 — Cielorraso · Departamento inferior</div>
+
+    <div class="item-title">4 — Reconstrucción del cielorraso</div>
+    <p>Retiro de la totalidad de las placas cerámicas en la zona afectada. Picado del revoque deteriorado hasta sustrato sano. Revoque grueso y fino con aditivo hidrófugo. Fijador. Masillado. Manos de pintura correspondientes.</p>
+    <div class="item-nota">Se ejecuta una vez finalizada la Etapa 1 y transcurrido el período de secado mínimo de 2 semanas.</div>
+
+  </div>
+
+</div>
+
+
+<!-- ══ PÁGINA 2 ══ -->
+<div class="page">
+
+  <div class="header">
+    <span class="brand">R &nbsp;A &nbsp;V &nbsp;N .</span>
+  </div>
+
+  <!-- IMPORTE -->
+  <div class="importe-section">
+    <div class="section-title">Importe</div>
+    <div class="section-rule"></div>
+    <div class="importe-number">$2.900.000</div>
+    <div class="importe-letras">Dos millones novecientos mil pesos</div>
+    <div class="importe-nota">Incluye materiales y mano de obra. El presupuesto no contempla el Impuesto al Valor Agregado (IVA).</div>
+  </div>
+
+  <!-- FORMA DE PAGO -->
+  <div class="p2-section">
+    <div class="section-title">Forma de Pago</div>
+    <div class="section-rule"></div>
+    <div class="p2-text">
+      <p>40% adelanto al inicio de obra — $1.160.000</p>
+      <p>30% al finalizar Etapa 1 — $870.000</p>
+      <p>30% al finalizar Etapa 2 — $870.000</p>
+    </div>
+  </div>
+
+  <!-- PLAZO -->
+  <div class="p2-section">
+    <div class="section-title">Plazo</div>
+    <div class="section-rule"></div>
+    <div class="p2-text">
+      <p>Etapa 1: 4 a 5 días hábiles</p>
+      <p>Período de secado obligatorio: 2 semanas mínimo</p>
+      <p>Etapa 2: 2 a 3 días hábiles adicionales</p>
+    </div>
+  </div>
+
+  <!-- NOTAS -->
+  <div class="p2-section">
+    <div class="section-title">Notas</div>
+    <div class="section-rule"></div>
+    <div class="p2-text">
+      <p>VALIDEZ DE OFERTA: 10 DÍAS CORRIDOS</p>
+      <p>El presupuesto podrá modificarse en base a los cambios que reconvengan.</p>
+    </div>
+  </div>
+
+  <!-- FOOTER -->
+  <div class="footer">
+    <div class="footer-contacts">
+      <div class="footer-contact-row">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#f2efe8" stroke-width="1.4"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+        <span class="footer-contact-text">ravnconstrucciones.com.ar</span>
+      </div>
+      <div class="footer-contact-row">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="#f2efe8"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.435 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+        <span class="footer-contact-text">11 7385-6263</span>
+      </div>
+      <div class="footer-contact-row">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#f2efe8" stroke-width="1.4"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/></svg>
+        <span class="footer-contact-text">contacto@ravnconstrucciones.com.ar</span>
+      </div>
+    </div>
+    <div class="footer-brand">
+      <div class="footer-brand-name">R &nbsp;A &nbsp;V &nbsp;N .</div>
+      <div class="footer-brand-sub">Obra · Diseño</div>
+    </div>
+  </div>
+
+</div>
+
+</body>
+</html>

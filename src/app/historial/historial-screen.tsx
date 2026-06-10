@@ -12,6 +12,7 @@ import {
   parsePropuestaPrefJsonDesdeMismaFila,
   type PropuestaPrefV1,
 } from "@/lib/ravn-propuesta-pref";
+import { DOCUMENTOS_OBRA } from "@/lib/documentos-obra";
 type MonedaRow = "ARS" | "USD";
 
 type PresupuestoHistorialRow = {
@@ -664,6 +665,17 @@ export function HistorialScreen() {
                               Cashflow
                             </Link>
                           ) : null}
+                          {(DOCUMENTOS_OBRA[p.id] ?? []).map((doc) => (
+                            <a
+                              key={doc.url}
+                              href={doc.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-xs font-medium uppercase tracking-wider text-ravn-accent/70 underline-offset-2 transition-colors hover:text-ravn-accent hover:underline"
+                            >
+                              {doc.label}
+                            </a>
+                          ))}
                         </p>
                         {p.presupuesto_aprobado ? (
                           <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:gap-4">
