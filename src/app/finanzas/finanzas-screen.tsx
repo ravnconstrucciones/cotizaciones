@@ -99,6 +99,8 @@ export function FinanzasScreen() {
   const [error, setError] = useState<string | null>(null);
   const [form, setForm] = useState<NuevoGasto>({ concepto: "", monto: "", categoria: "Varios" });
   const [guardando, setGuardando] = useState(false);
+  const [guardadoOk, setGuardadoOk] = useState(false);
+  const [errorGuardar, setErrorGuardar] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -122,16 +124,25 @@ export function FinanzasScreen() {
     e.preventDefault();
     if (!form.concepto || !form.monto) return;
     setGuardando(true);
+    setErrorGuardar(null);
+    setGuardadoOk(false);
     try {
       const res = await fetch("/api/finanzas", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...form, monto: Number(form.monto.replace(/\D/g, "")) }),
+        body: JSON.stringify({ ...form, monto: Number(form.monto) }),
       });
+      const j = await res.json();
       if (res.ok) {
         setForm({ concepto: "", monto: "", categoria: "Varios" });
+        setGuardadoOk(true);
+        setTimeout(() => setGuardadoOk(false), 3000);
         await load();
+      } else {
+        setErrorGuardar(j.error ?? `Error ${res.status}`);
       }
+    } catch (err) {
+      setErrorGuardar(err instanceof Error ? err.message : "Error de red");
     } finally {
       setGuardando(false);
     }
@@ -301,6 +312,16 @@ export function FinanzasScreen() {
             >
               {guardando ? "Guardando…" : "Guardar"}
             </button>
+            {guardadoOk && (
+              <p className="font-raleway text-center text-xs uppercase tracking-widest text-emerald-400">
+                Guardado ✓
+              </p>
+            )}
+            {errorGuardar && (
+              <p className="font-raleway text-center text-xs uppercase tracking-widest text-red-400">
+                Error: {errorGuardar}
+              </p>
+            )}
           </form>
         </div>
 
