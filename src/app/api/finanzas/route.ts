@@ -15,7 +15,7 @@ const LIMITES_SEMANALES: Record<string, number> = {
 };
 
 export async function GET(req: NextRequest) {
-  const sb = createSupabaseServerClient();
+  const sb = createSupabaseAdminClient();
   const hoy = new Date();
   const primerDiaMes = new Date(hoy.getFullYear(), hoy.getMonth(), 1)
     .toISOString()
