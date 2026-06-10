@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { createSupabaseAdminClient, createSupabaseServerClient } from "@/lib/supabase/server";
 
 const PRESUPUESTO_MENSUAL = 707942;
 const PRESUPUESTO_DIARIO = 23600;
@@ -86,7 +86,7 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const sb = createSupabaseServerClient();
+  const sb = createSupabaseAdminClient();
   const body = await req.json();
   const { concepto, monto, categoria, fecha } = body;
 
