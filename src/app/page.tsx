@@ -59,6 +59,12 @@ export default function Home() {
           >
             Cashflow
           </Link>
+          <Link
+            href="/finanzas"
+            className="inline-flex w-full items-center justify-center rounded-none border-2 border-ravn-line bg-ravn-surface px-8 py-4 text-sm font-normal uppercase tracking-wider text-ravn-fg transition-colors hover:bg-ravn-subtle focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ravn-fg"
+          >
+            Finanzas personales
+          </Link>
 
           <button
             onClick={handleLogout}
