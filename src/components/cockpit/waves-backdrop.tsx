@@ -25,7 +25,13 @@ import { GlassFilter } from "./liquid-glass";
 
 const X_GAP = 18;
 const Y_GAP = 22;
-const STROKE = "rgba(34, 211, 238, 0.18)";
+/**
+ * El trazo vive en un token (--cdm-waves-stroke, globals.css): cian 0.18
+ * en oscuro, gris-azul 0.14 en claro. Va por style (no attribute) porque
+ * los presentation attributes de SVG no resuelven var() — así la malla
+ * cambia de tema sola, sin que el JS lea el tema.
+ */
+const STROKE = "var(--cdm-waves-stroke)";
 
 type Punto = {
   x: number;
@@ -100,7 +106,7 @@ export function WavesBackdrop() {
           "path"
         );
         path.setAttribute("fill", "none");
-        path.setAttribute("stroke", STROKE);
+        path.style.stroke = STROKE;
         path.setAttribute("stroke-width", "1");
         svg.appendChild(path);
         paths.push(path);
@@ -258,10 +264,12 @@ export function WavesBackdrop() {
         </div>
       </div>
       {/* Gradiente de presencia: calmo detrás del contenido central,
-          la malla respira con fuerza en los bordes de la pantalla. */}
-      <div className="absolute inset-0 bg-[radial-gradient(105%_80%_at_50%_42%,rgba(5,8,15,0.62)_0%,rgba(5,8,15,0.34)_55%,rgba(5,8,15,0.04)_100%)]" />
-      {/* Vignette de profundidad: las esquinas caen a negro (atmósfera de cabina). */}
-      <div className="absolute inset-0 bg-[radial-gradient(135%_115%_at_50%_50%,transparent_58%,rgba(0,0,0,0.46)_100%)]" />
+          la malla respira con fuerza en los bordes de la pantalla.
+          (.cdm-presencia/.cdm-vignette en globals.css — por tema.) */}
+      <div className="cdm-presencia absolute inset-0" />
+      {/* Vignette de profundidad: esquinas a negro en oscuro (cabina),
+          a bruma gris-azul en claro. */}
+      <div className="cdm-vignette absolute inset-0" />
       <GlassFilter />
     </div>
   );

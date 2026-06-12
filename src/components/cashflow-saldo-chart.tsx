@@ -1,5 +1,6 @@
 "use client";
 
+import { useTheme } from "next-themes";
 import type { PuntoSaldoObraChart } from "@/lib/cashflow-compute";
 import {
   CartesianGrid,
@@ -39,6 +40,20 @@ export function CashflowSaldoChart({
   /** Total propuesta (Rentabilidad): línea horizontal de referencia en el eje de cobranzas. */
   referenciaPropuestaArs?: number | null;
 }) {
+  /**
+   * Recharts pinta fills/strokes como attributes SVG (no resuelven
+   * var()), así que la tinta se decide acá por tema. Antes de montar,
+   * resolvedTheme es undefined → cae al set oscuro (igual en SSR y
+   * primer render: sin mismatch de hydration).
+   */
+  const { resolvedTheme } = useTheme();
+  const claro = resolvedTheme === "light";
+  const ink = claro ? "rgba(15,23,42,0.55)" : "rgba(234,246,251,0.45)";
+  const eje = claro ? "rgba(15,23,42,0.16)" : "rgba(234,246,251,0.14)";
+  const grid = claro ? "rgba(15,23,42,0.07)" : "rgba(234,246,251,0.07)";
+  const cian = claro ? "#0891b2" : "#22d3ee";
+  const verde = claro ? "#047857" : "rgba(52, 211, 153, 0.95)";
+
   if (data.length === 0) return null;
   const thin = data.length > 45;
 
@@ -62,20 +77,20 @@ export function CashflowSaldoChart({
           data={data}
           margin={{ top: 8, right: 8, left: 0, bottom: 0 }}
         >
-          <CartesianGrid stroke="rgba(234,246,251,0.07)" strokeDasharray="3 3" />
+          <CartesianGrid stroke={grid} strokeDasharray="3 3" />
           <XAxis
             dataKey="fecha"
-            tick={{ fill: "rgba(234,246,251,0.45)", fontSize: 10 }}
+            tick={{ fill: ink, fontSize: 10 }}
             tickFormatter={formatTick}
             interval={thin ? "preserveStartEnd" : 0}
             angle={thin ? -35 : 0}
             textAnchor={thin ? "end" : "middle"}
             height={thin ? 50 : 30}
-            stroke="rgba(234,246,251,0.14)"
+            stroke={eje}
           />
           <YAxis
             yAxisId="izq"
-            tick={{ fill: "rgba(234,246,251,0.45)", fontSize: 10 }}
+            tick={{ fill: ink, fontSize: 10 }}
             tickFormatter={(v) =>
               new Intl.NumberFormat("es-AR", {
                 notation: "compact",
@@ -83,12 +98,12 @@ export function CashflowSaldoChart({
               }).format(Number(v))
             }
             width={48}
-            stroke="rgba(234,246,251,0.14)"
+            stroke={eje}
             label={{
               value: "Saldo caja",
               angle: -90,
               position: "insideLeft",
-              fill: "rgba(234,246,251,0.45)",
+              fill: ink,
               fontSize: 10,
             }}
           />
@@ -96,7 +111,7 @@ export function CashflowSaldoChart({
             yAxisId="der"
             orientation="right"
             domain={[0, Math.ceil(maxDer * 1.08)]}
-            tick={{ fill: "rgba(234,246,251,0.45)", fontSize: 10 }}
+            tick={{ fill: ink, fontSize: 10 }}
             tickFormatter={(v) =>
               new Intl.NumberFormat("es-AR", {
                 notation: "compact",
@@ -104,25 +119,29 @@ export function CashflowSaldoChart({
               }).format(Number(v))
             }
             width={52}
-            stroke="rgba(234,246,251,0.14)"
+            stroke={eje}
             label={{
               value: "Cobranzas acum.",
               angle: 90,
               position: "insideRight",
-              fill: "rgba(234,246,251,0.45)",
+              fill: ink,
               fontSize: 10,
             }}
           />
           <Tooltip
             contentStyle={{
-              background: "rgba(10,16,20,0.85)",
-              border: "1px solid rgba(34,211,238,0.3)",
+              background: claro ? "rgba(255,255,255,0.92)" : "rgba(10,16,20,0.85)",
+              border: claro
+                ? "1px solid rgba(8,145,178,0.35)"
+                : "1px solid rgba(34,211,238,0.3)",
               backdropFilter: "blur(8px)",
               borderRadius: 0,
-              color: "#eaf6fb",
+              color: claro ? "#0f172a" : "#eaf6fb",
               fontSize: 11,
             }}
-            cursor={{ stroke: "rgba(34,211,238,0.35)" }}
+            cursor={{
+              stroke: claro ? "rgba(8,145,178,0.4)" : "rgba(34,211,238,0.35)",
+            }}
             formatter={(value, name) => {
               const n = typeof value === "number" ? value : Number(value);
               const label =
@@ -136,7 +155,7 @@ export function CashflowSaldoChart({
             labelFormatter={(iso) => String(iso)}
           />
           <Legend
-            wrapperStyle={{ fontSize: 11, paddingTop: 8, color: "rgba(234,246,251,0.45)" }}
+            wrapperStyle={{ fontSize: 11, paddingTop: 8, color: ink }}
             formatter={(value) =>
               value === "saldo"
                 ? "Saldo caja (neto)"
@@ -149,11 +168,11 @@ export function CashflowSaldoChart({
             <ReferenceLine
               yAxisId="der"
               y={referenciaPropuestaArs!}
-              stroke="rgba(234,246,251,0.25)"
+              stroke={claro ? "rgba(15,23,42,0.25)" : "rgba(234,246,251,0.25)"}
               strokeDasharray="4 4"
               label={{
                 value: "Total propuesta (ref.)",
-                fill: "rgba(234,246,251,0.45)",
+                fill: ink,
                 fontSize: 10,
                 position: "insideTopRight",
               }}
@@ -163,7 +182,7 @@ export function CashflowSaldoChart({
             yAxisId="izq"
             type="monotone"
             dataKey="saldo"
-            stroke="#22d3ee"
+            stroke={cian}
             strokeWidth={1.5}
             dot={false}
             name="saldo"
@@ -172,7 +191,7 @@ export function CashflowSaldoChart({
             yAxisId="der"
             type="monotone"
             dataKey="ingresos_acum"
-            stroke="rgba(52, 211, 153, 0.95)"
+            stroke={verde}
             strokeWidth={1.5}
             dot={false}
             name="ingresos_acum"

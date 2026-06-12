@@ -42,19 +42,24 @@ export function LiquidGlass({
           isolation: "isolate",
         }}
       />
-      {/* Capa 2: tinte off-white muy bajo (nunca el blanco 0.25 del original). */}
+      {/* Capa 2: tinte off-white muy bajo en oscuro; en claro el mismo
+          alpha se multiplica (--cdm-lg-alpha-boost) para que el vidrio
+          sea blanco translúcido visible sobre blanco frío. */}
       <div
         aria-hidden
         className="absolute inset-0 z-10 rounded-[inherit]"
-        style={{ background: `rgba(234, 246, 251, ${tint})` }}
+        style={{
+          background: `rgb(var(--cdm-lg-tint-rgb) / calc(${tint} * var(--cdm-lg-alpha-boost)))`,
+        }}
       />
-      {/* Capa 3: highlights inset al 10–15% — el "borde mojado". */}
+      {/* Capa 3: highlights inset — el "borde mojado" (tokens por tema:
+          blanco brillante arriba / gris-azul abajo en claro). */}
       <div
         aria-hidden
         className="absolute inset-0 z-20 rounded-[inherit]"
         style={{
           boxShadow:
-            "inset 1.5px 1.5px 1px 0 rgba(234, 246, 251, 0.13), inset -1px -1px 1px 1px rgba(234, 246, 251, 0.10)",
+            "inset 1.5px 1.5px 1px 0 var(--cdm-lg-hi-1), inset -1px -1px 1px 1px var(--cdm-lg-hi-2)",
         }}
       />
       <div className="relative z-30 min-w-0 flex-1">{children}</div>

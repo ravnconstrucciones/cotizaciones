@@ -110,7 +110,7 @@ export function SeccionProyecto({
             {/* Capa trasera blureada (profundidad) */}
             <motion.div
               aria-hidden
-              className="absolute z-0 h-[300px] w-[280px] border border-cdm-line/60 bg-[#0d0d0c] md:h-[440px] md:w-[420px]"
+              className="absolute z-0 h-[300px] w-[280px] border border-cdm-line/60 bg-[#0d0d0c] light:bg-[#dde5ee] md:h-[440px] md:w-[420px]"
               style={{
                 top: reverseLayout ? "auto" : "10%",
                 bottom: reverseLayout ? "10%" : "auto",
@@ -243,7 +243,7 @@ export function SeccionProyecto({
         className="absolute bottom-0 left-0 z-0 h-px w-full"
         style={{
           background:
-            "radial-gradient(50% 50% at 50% 50%, rgba(234,246,251,0.18) 0%, rgba(234,246,251,0) 100%)",
+            "radial-gradient(50% 50% at 50% 50%, var(--cdm-hairline) 0%, transparent 100%)",
         }}
       />
     </section>
