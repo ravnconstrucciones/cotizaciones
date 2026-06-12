@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { ThemeProvider } from "@/components/theme-provider";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { AppShell } from "@/components/shell/app-shell";
 import { raleway } from "./raleway-local";
 import "./globals.css";
 
@@ -46,7 +47,7 @@ export default function RootLayout({
         className={`min-h-screen font-sans ${raleway.variable}`}
       >
         <ThemeProvider>
-          {children}
+          <AppShell>{children}</AppShell>
           <ThemeToggle />
         </ThemeProvider>
       </body>
