@@ -10,7 +10,7 @@ create table if not exists public.gastos_personales (
   id uuid primary key default gen_random_uuid(),
   fecha date not null default current_date,   -- NOT NULL en prod (ajuste Tarea 1: 2026-06-12)
   concepto text not null,
-  monto numeric(14, 2) not null,               -- NOT NULL en prod (ajuste Tarea 1: 2026-06-12)
+  monto numeric(12, 2) not null,               -- NOT NULL y numeric(12,2) en prod (verificado contra information_schema 2026-06-12)
   categoria text not null default 'Varios',
   origen text default 'whatsapp',              -- nullable en prod, default 'whatsapp' (ajuste Tarea 1)
   created_at timestamptz default now()         -- nullable en prod (ajuste Tarea 1: 2026-06-12)
