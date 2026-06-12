@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { RavnLogo } from "@/components/ravn-logo";
 import { WavesBackdrop } from "@/components/cockpit/waves-backdrop";
 import { CifraHeroica } from "@/components/cockpit/cifra-heroica";
 import { createClient } from "@/lib/supabase/client";
@@ -715,11 +714,16 @@ export function RentabilidadScreen({
     router.push(`/propuesta?id=${encodeURIComponent(presupuestoIdInicial)}`);
   }
 
+  // Una sola marca "RAVN." por vista (la pone el sidebar) — acá queda solo
+  // el breadcrumb del flujo presupuesto → rentabilidad → propuesta.
   const headerNav = (
     <header className="border-b border-cdm-line px-6 py-5 sm:px-10">
       <div className="mx-auto flex max-w-5xl flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <Link href="/" className="inline-block w-fit" aria-label="Inicio">
-          <RavnLogo sizeClassName="text-xl sm:text-2xl" showTagline={false} />
+        <Link
+          href="/"
+          className="inline-block w-fit text-[10px] uppercase tracking-[0.2em] text-cdm-muted transition-colors hover:text-cdm-fg"
+        >
+          ← Centro de mando
         </Link>
         <nav className="flex flex-wrap gap-3 text-[10px] font-medium uppercase tracking-[0.18em]">
           <Link
