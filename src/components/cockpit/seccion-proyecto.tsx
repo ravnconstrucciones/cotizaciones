@@ -182,9 +182,22 @@ export function SeccionProyecto({
                   {p.instancia ?? "—"}
                 </p>
 
-                {/* ÚLTIMO AVANCE — EN VERDE, presencia fuerte */}
-                <div className="mt-5 border-l-2 border-emerald-400 bg-emerald-400/[0.07] py-2.5 pl-3 pr-2">
-                  <p className="font-mono-hud text-[9px] uppercase tracking-[0.25em] text-emerald-400 light:text-emerald-600">
+                {/* ÚLTIMO AVANCE — EN VERDE, presencia fuerte. El estado
+                    vacío va apagado: que el verde signifique avance real. */}
+                <div
+                  className={`mt-5 border-l-2 py-2.5 pl-3 pr-2 ${
+                    p.ultimoAvance
+                      ? "border-emerald-400 bg-emerald-400/[0.07]"
+                      : "border-cdm-line"
+                  }`}
+                >
+                  <p
+                    className={`font-mono-hud text-[9px] uppercase tracking-[0.25em] ${
+                      p.ultimoAvance
+                        ? "text-emerald-400 light:text-emerald-600"
+                        : "text-cdm-muted"
+                    }`}
+                  >
                     Último avance
                     {p.ultimoAvance && (
                       <span className="ml-2 text-emerald-400/70 light:text-emerald-600/70">
@@ -192,7 +205,13 @@ export function SeccionProyecto({
                       </span>
                     )}
                   </p>
-                  <p className="mt-1 text-[13px] font-medium leading-snug text-emerald-400 light:text-emerald-600">
+                  <p
+                    className={`mt-1 text-[13px] font-medium leading-snug ${
+                      p.ultimoAvance
+                        ? "text-emerald-400 light:text-emerald-600"
+                        : "text-cdm-muted"
+                    }`}
+                  >
                     {p.ultimoAvance?.texto ??
                       "Sin avances todavía — cargá el primero acá abajo."}
                   </p>
