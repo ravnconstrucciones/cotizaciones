@@ -10,9 +10,11 @@ import { importeGastoObraArs } from "@/lib/cashflow-gastos-obra";
 import { DOCUMENTOS_OBRA } from "@/lib/documentos-obra";
 import {
   derivarArtefactosObra,
+  ordenarAvances,
   type ArchivoObraRow,
   type NodoArtefacto,
 } from "@/lib/obra-orbital";
+import type { ObraAvance } from "@/types/centro-mando";
 import { createClient } from "@/lib/supabase/client";
 
 /**
@@ -43,7 +45,7 @@ export function ObraOrbitalScreen({ presupuestoId }: { presupuestoId: string }) 
   const cargar = useCallback(async () => {
     try {
       const supabase = createClient();
-      const [pres, gastos, archivosRes, resumen] = await Promise.all([
+      const [pres, gastos, avances, archivosRes, resumen] = await Promise.all([
         supabase
           .from("presupuestos")
           .select("id, nombre_obra, nombre_cliente")
@@ -53,6 +55,11 @@ export function ObraOrbitalScreen({ presupuestoId }: { presupuestoId: string }) 
           .from("presupuestos_gastos")
           .select("importe")
           .eq("presupuesto_id", presupuestoId),
+        supabase
+          .from("obra_avances")
+          .select("*")
+          .eq("presupuesto_id", presupuestoId)
+          .order("creado_at", { ascending: false }),
         fetch(`/api/obra-archivos?presupuesto_id=${presupuestoId}`, {
           cache: "no-store",
         })
@@ -90,6 +97,7 @@ export function ObraOrbitalScreen({ presupuestoId }: { presupuestoId: string }) 
           presupuestoId,
           docsMapeados: DOCUMENTOS_OBRA[presupuestoId] ?? [],
           archivos: (archivosRes?.archivos ?? []) as ArchivoObraRow[],
+          avances: ordenarAvances((avances.data ?? []) as ObraAvance[]),
           resumen: fila
             ? {
                 ingresos: Number(fila.ingresos_caja) || 0,
@@ -109,9 +117,10 @@ export function ObraOrbitalScreen({ presupuestoId }: { presupuestoId: string }) 
   useEffect(() => {
     void cargar();
   }, [cargar]);
-  // La carpeta respira en vivo: cada gasto o foto nueva (bot) recarga.
+  // La carpeta respira en vivo: cada gasto, foto o avance nuevo (bot) recarga.
   useRealtimeTable("presupuestos_gastos", cargar);
   useRealtimeTable("obra_archivos", cargar);
+  useRealtimeTable("obra_avances", cargar);
 
   const borrarFoto = useCallback(
     async (id: string): Promise<boolean> => {

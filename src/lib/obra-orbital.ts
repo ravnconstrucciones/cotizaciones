@@ -7,14 +7,15 @@
  *
  * "Vivo" (glow) = el nodo tiene contenido real; vacío = orbita tenue.
  * Fuentes: DOCUMENTOS_OBRA (mapeo estático de /docs), obra_archivos
- * (fotos del bot + documentos), /cashflow/resumen (ingresos/egresos/saldo)
- * y presupuestos_gastos (total ejecutado).
+ * (fotos del bot + documentos), /cashflow/resumen (ingresos/egresos/saldo),
+ * presupuestos_gastos (total ejecutado) y obra_avances (Bitácora, Ola B).
  */
 
 export type TipoArtefacto =
   | "presupuesto"
   | "diagnostico"
   | "fotos"
+  | "bitacora"
   | "resumen"
   | "gastos";
 
@@ -32,6 +33,14 @@ export type FotoNodo = {
 
 export type ResumenNodo = { ingresos: number; egresos: number; saldo: number };
 
+/** Avance de la bitácora (fila de obra_avances, ya ordenada). */
+export type AvanceNodo = {
+  id: string;
+  texto: string;
+  instancia: string | null;
+  creadoAt: string;
+};
+
 export type NodoArtefacto = {
   tipo: TipoArtefacto;
   nombre: string;
@@ -43,6 +52,8 @@ export type NodoArtefacto = {
   docs: DocNodo[];
   /** Solo nodo fotos. */
   fotos: FotoNodo[];
+  /** Solo nodo bitácora: historial completo de avances, nuevo → viejo. */
+  avances: AvanceNodo[];
   /** Solo nodo resumen. */
   resumen: ResumenNodo | null;
   /** Solo nodo gastos. */
@@ -94,21 +105,37 @@ function docsDeTipos(
   return docs;
 }
 
+/** Filas de obra_avances → AvanceNodo[], siempre nuevo → viejo. */
+export function ordenarAvances(
+  filas: { id: string; texto: string; instancia: string | null; creado_at: string }[]
+): AvanceNodo[] {
+  return [...filas]
+    .sort((a, b) => b.creado_at.localeCompare(a.creado_at))
+    .map((f) => ({
+      id: f.id,
+      texto: f.texto,
+      instancia: f.instancia?.trim() || null,
+      creadoAt: f.creado_at,
+    }));
+}
+
 export function derivarArtefactosObra(input: {
   presupuestoId: string;
   docsMapeados: DocMapeado[];
   archivos: ArchivoObraRow[];
+  avances: AvanceNodo[];
   resumen: ResumenNodo | null;
   gastado: number;
   cantGastos: number;
 }): NodoArtefacto[] {
-  const { presupuestoId, docsMapeados, archivos, resumen } = input;
+  const { presupuestoId, docsMapeados, archivos, avances, resumen } = input;
   const gastado = Number(input.gastado) || 0;
   const cantGastos = Number(input.cantGastos) || 0;
 
   const base = {
     docs: [] as DocNodo[],
     fotos: [] as FotoNodo[],
+    avances: [] as AvanceNodo[],
     resumen: null as ResumenNodo | null,
     gastado: null as number | null,
     cantGastos: 0,
@@ -168,6 +195,14 @@ export function derivarArtefactosObra(input: {
       vivo: fotos.length > 0,
       detalle: fotos.length > 0 ? plural(fotos.length, "foto") : null,
       fotos,
+    },
+    {
+      ...base,
+      tipo: "bitacora",
+      nombre: "Bitácora",
+      vivo: avances.length > 0,
+      detalle: avances.length > 0 ? plural(avances.length, "avance") : null,
+      avances,
     },
     {
       ...base,

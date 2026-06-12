@@ -8,14 +8,18 @@ import {
   SeccionProyecto,
   type ProyectoCard,
 } from "@/components/cockpit/seccion-proyecto";
+import { createClient } from "@/lib/supabase/client";
+import { useRealtimeTable } from "@/hooks/use-realtime-table";
 import { fetchCompartido } from "@/lib/fetch-compartido";
+import type { ObraAvance, Tarea } from "@/types/centro-mando";
 
 /**
  * Galería de proyectos (/obras): una sección por obra activa alternando
- * el layout (ref. section-with-mockup de 21st.dev), con la mockup card
- * como mini-dashboard vivo. Datos: /cashflow/resumen — que ya trae
- * cliente y fecha del presupuesto (nombre_cliente / fecha_presupuesto),
- * así que acá NO hay segundo fetch (ronda 6, hallazgo de perf).
+ * el layout (ref. section-with-mockup de 21st.dev). Ola B: la mockup card
+ * pasó de mini-dashboard de plata a SEGUIMIENTO (instancia + último avance
+ * en verde + pendientes vinculados + alta de avance) — los gastos viven
+ * SOLO en el orbital. Datos: /cashflow/resumen (obras activas) +
+ * obra_avances + tareas vinculadas (presupuesto_id), con Realtime.
  */
 
 type ObraResumen = {
@@ -24,20 +28,8 @@ type ObraResumen = {
   nombre_obra: string;
   nombre_cliente: string | null;
   fecha_presupuesto: string | null;
-  saldo_caja: number;
-  egresos_caja: number;
-  referencia_propuesta_ars: number | null;
-  margen_al_dia_ars: number | null;
   cobranza_cerrada?: boolean;
   finalizada: boolean;
-};
-
-type MovimientoResumen = {
-  obra_id: string;
-  tipo: "ingreso" | "egreso";
-  descripcion: string;
-  monto_real: number;
-  fecha_real: string;
 };
 
 function estadoDe(o: ObraResumen): { label: string; cls: string } {
@@ -62,23 +54,42 @@ export function ObrasScreen() {
 
   const cargar = useCallback(async () => {
     try {
-      const res = await fetchCompartido("/cashflow/resumen");
+      const supabase = createClient();
+      const [res, avancesRes, tareasRes] = await Promise.all([
+        fetchCompartido("/cashflow/resumen"),
+        supabase
+          .from("obra_avances")
+          .select("*")
+          .order("creado_at", { ascending: false }),
+        supabase
+          .from("tareas")
+          .select("*")
+          .eq("estado", "pendiente")
+          .not("presupuesto_id", "is", null)
+          .order("creado_at", { ascending: true }),
+      ]);
       const j = res.body as {
         error?: string;
         obras_activas?: ObraResumen[];
-        movimientos_recientes?: MovimientoResumen[];
       };
       if (!res.ok) {
         setError(j.error ?? "No se pudo cargar el resumen.");
         return;
       }
       const obras = (j.obras_activas ?? []) as ObraResumen[];
-      const movimientos = (j.movimientos_recientes ?? []) as MovimientoResumen[];
+      const avances = (avancesRes.data ?? []) as ObraAvance[];
+      const tareas = (tareasRes.data ?? []) as Tarea[];
 
       setError(null);
       setProyectos(
         obras.map((o) => {
           const estado = estadoDe(o);
+          // Ya vienen nuevo → viejo: [0] es el último avance; la instancia
+          // actual es la del avance más reciente que declaró una.
+          const deLaObra = avances.filter(
+            (a) => a.presupuesto_id === o.presupuesto_id
+          );
+          const ultimo = deLaObra[0] ?? null;
           return {
             presupuestoId: o.presupuesto_id,
             nombre: o.nombre_obra,
@@ -86,21 +97,20 @@ export function ObrasScreen() {
             estadoLabel: estado.label,
             estadoCls: estado.cls,
             desde: fechaDisplay(o.fecha_presupuesto),
-            saldoCaja: o.saldo_caja,
-            margenAlDia: o.margen_al_dia_ars,
-            pctConsumido:
-              o.referencia_propuesta_ars && o.referencia_propuesta_ars > 0
-                ? (o.egresos_caja / o.referencia_propuesta_ars) * 100
-                : null,
-            movimientos: movimientos
-              .filter((m) => m.obra_id === o.obra_id)
-              .slice(0, 3)
-              .map((m) => ({
-                descripcion: m.descripcion,
-                monto: m.monto_real,
-                tipo: m.tipo,
-                fecha: m.fecha_real,
-              })),
+            instancia:
+              deLaObra.find((a) => a.instancia?.trim())?.instancia?.trim() ??
+              null,
+            ultimoAvance: ultimo
+              ? {
+                  texto: ultimo.texto,
+                  instancia: ultimo.instancia,
+                  creadoAt: ultimo.creado_at,
+                }
+              : null,
+            cantAvances: deLaObra.length,
+            pendientes: tareas
+              .filter((t) => t.presupuesto_id === o.presupuesto_id)
+              .map((t) => ({ id: t.id, texto: t.texto })),
           };
         })
       );
@@ -112,6 +122,25 @@ export function ObrasScreen() {
   useEffect(() => {
     void cargar();
   }, [cargar]);
+  // El seguimiento respira: avance del bot o tarea nueva → la card se actualiza.
+  useRealtimeTable("obra_avances", cargar);
+  useRealtimeTable("tareas", cargar);
+
+  const agregarAvance = useCallback(
+    async (presupuestoId: string, texto: string): Promise<boolean> => {
+      const supabase = createClient();
+      const { error } = await supabase
+        .from("obra_avances")
+        .insert({ presupuesto_id: presupuestoId, texto });
+      if (error) {
+        setError(error.message);
+        return false;
+      }
+      await cargar();
+      return true;
+    },
+    [cargar]
+  );
 
   return (
     <div className="font-grotesk relative min-h-screen bg-cdm-bg text-cdm-fg">
@@ -152,6 +181,7 @@ export function ObrasScreen() {
             key={p.presupuestoId}
             proyecto={p}
             reverseLayout={i % 2 === 1}
+            onAgregarAvance={agregarAvance}
           />
         ))}
       </div>

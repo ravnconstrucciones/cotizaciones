@@ -1,25 +1,27 @@
 "use client";
 
 import Link from "next/link";
+import { useState } from "react";
 import { motion } from "framer-motion";
-import { formatMoneyInt } from "@/lib/format-currency";
 
 /**
  * Sección de proyecto de la galería /obras (ref. section-with-mockup de
  * 21st.dev). El parallax/stagger de framer-motion se conserva tal cual;
- * lo que cambia es el contenido: en vez de imágenes Unsplash, la "mockup
- * card" flotante es un mini-dashboard VIVO de la obra (saldo, margen,
- * últimos gastos, % ejecutado) con la capa trasera blureada de profundidad.
+ * lo que cambia (Ola B) es el contenido de la "mockup card" flotante: ya no
+ * es el mini-dashboard de plata (los gastos viven SOLO en el orbital) sino el
+ * SEGUIMIENTO de la obra — por qué instancia va, el último avance EN VERDE,
+ * los pendientes vinculados y el alta de avance de 1 toque.
  * Radius 0 (ADN RAVN): el único objeto redondeado del cockpit sigue siendo
  * el prompt box.
  */
 
-export type MovimientoCard = {
-  descripcion: string;
-  monto: number;
-  tipo: "ingreso" | "egreso";
-  fecha: string;
+export type AvanceCard = {
+  texto: string;
+  instancia: string | null;
+  creadoAt: string;
 };
+
+export type PendienteCard = { id: string; texto: string };
 
 export type ProyectoCard = {
   presupuestoId: string;
@@ -28,11 +30,12 @@ export type ProyectoCard = {
   estadoLabel: string;
   estadoCls: string;
   desde: string | null;
-  saldoCaja: number;
-  margenAlDia: number | null;
-  /** % del precio de la propuesta ya consumido por egresos (null sin propuesta). */
-  pctConsumido: number | null;
-  movimientos: MovimientoCard[];
+  /** Instancia actual de la obra (la del último avance que la declaró). */
+  instancia: string | null;
+  ultimoAvance: AvanceCard | null;
+  cantAvances: number;
+  /** Tareas pendientes vinculadas a la obra (tareas.presupuesto_id). */
+  pendientes: PendienteCard[];
 };
 
 const containerVariants = {
@@ -49,19 +52,46 @@ const itemVariants = {
   },
 };
 
+/** "hoy", "ayer" o dd/mm — el cuándo del último avance. */
+export function cuandoDisplay(iso: string, ahora: Date = new Date()): string {
+  const d = new Date(iso);
+  const dia = (x: Date) => new Date(x.getFullYear(), x.getMonth(), x.getDate());
+  const dif = Math.round((dia(ahora).getTime() - dia(d).getTime()) / 86400000);
+  if (dif <= 0) return "hoy";
+  if (dif === 1) return "ayer";
+  return `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}`;
+}
+
 export function SeccionProyecto({
   proyecto,
   reverseLayout = false,
+  onAgregarAvance,
 }: {
   proyecto: ProyectoCard;
   reverseLayout?: boolean;
+  /** Insert en obra_avances — devuelve true si salió bien. */
+  onAgregarAvance: (presupuestoId: string, texto: string) => Promise<boolean>;
 }) {
   const p = proyecto;
+  const [nuevo, setNuevo] = useState("");
+  const [guardando, setGuardando] = useState(false);
   const layoutClasses = reverseLayout
     ? "md:grid-cols-2 md:grid-flow-col-dense"
     : "md:grid-cols-2";
   const textOrderClass = reverseLayout ? "md:col-start-2" : "";
   const imageOrderClass = reverseLayout ? "md:col-start-1" : "";
+
+  async function agregar(e: React.FormEvent) {
+    e.preventDefault();
+    const texto = nuevo.trim();
+    if (!texto || guardando) return;
+    setGuardando(true);
+    try {
+      if (await onAgregarAvance(p.presupuestoId, texto)) setNuevo("");
+    } finally {
+      setGuardando(false);
+    }
+  }
 
   return (
     <section className="relative overflow-hidden py-16 md:py-24">
@@ -102,7 +132,7 @@ export function SeccionProyecto({
             </Link>
           </motion.div>
 
-          {/* Mockup card: mini-dashboard vivo de la obra */}
+          {/* Mockup card: el SEGUIMIENTO de la obra (los gastos quedaron en el orbital) */}
           <motion.div
             className={`relative mx-auto mt-10 w-full max-w-[300px] md:mt-0 md:max-w-[440px] ${imageOrderClass}`}
             variants={itemVariants}
@@ -132,14 +162,10 @@ export function SeccionProyecto({
               transition={{ duration: 1.2, ease: "easeOut", delay: 0.1 }}
               viewport={{ once: true, amount: 0.5 }}
             >
-              <Link
-                href={`/obras/${p.presupuestoId}`}
-                className="flex h-full flex-col p-6 md:p-8"
-                aria-label={`Abrir orbital de ${p.nombre}`}
-              >
+              <div className="flex h-full flex-col p-6 md:p-8">
                 <div className="flex items-baseline justify-between gap-2">
                   <span className="text-[9px] uppercase tracking-[0.3em] text-cdm-accent">
-                    Obra en vivo
+                    Seguimiento
                   </span>
                   <span
                     className={`text-[9px] uppercase tracking-[0.15em] ${p.estadoCls}`}
@@ -148,90 +174,95 @@ export function SeccionProyecto({
                   </span>
                 </div>
 
+                {/* Instancia: por dónde va la obra */}
                 <p className="mt-6 text-[10px] uppercase tracking-[0.2em] text-cdm-muted">
-                  Saldo de caja
+                  Instancia
                 </p>
-                <p
-                  className={`font-raleway text-3xl font-medium tabular-nums md:text-4xl ${
-                    p.saldoCaja >= 0 ? "text-cdm-fg" : "text-red-400"
-                  }`}
-                >
-                  {formatMoneyInt(p.saldoCaja)}
+                <p className="font-raleway text-2xl font-black uppercase leading-tight text-cdm-fg md:text-3xl">
+                  {p.instancia ?? "—"}
                 </p>
 
-                <p className="mt-3 text-[11px] text-cdm-muted">
-                  Margen al día:{" "}
-                  {p.margenAlDia == null ? (
-                    "sin propuesta"
-                  ) : (
-                    <span
-                      className={`tabular-nums ${
-                        p.margenAlDia >= 0 ? "text-emerald-400" : "text-red-400"
-                      }`}
-                    >
-                      {formatMoneyInt(p.margenAlDia)}
-                    </span>
-                  )}
-                </p>
-
-                {p.pctConsumido != null && (
-                  <div className="mt-5">
-                    <div className="mb-1 flex items-center justify-between text-[10px]">
-                      <span className="uppercase tracking-[0.15em] text-cdm-muted">
-                        Ejecutado
+                {/* ÚLTIMO AVANCE — EN VERDE, presencia fuerte */}
+                <div className="mt-5 border-l-2 border-emerald-400 bg-emerald-400/[0.07] py-2.5 pl-3 pr-2">
+                  <p className="font-mono-hud text-[9px] uppercase tracking-[0.25em] text-emerald-400 light:text-emerald-600">
+                    Último avance
+                    {p.ultimoAvance && (
+                      <span className="ml-2 text-emerald-400/70 light:text-emerald-600/70">
+                        {cuandoDisplay(p.ultimoAvance.creadoAt)}
                       </span>
-                      <span className="tabular-nums text-cdm-fg/80">
-                        {Math.round(p.pctConsumido)}%
-                      </span>
-                    </div>
-                    <div className="h-1 w-full overflow-hidden bg-cdm-fg/10">
-                      <div
-                        className="h-full bg-gradient-to-r from-cdm-deep to-cdm-accent"
-                        style={{
-                          width: `${Math.min(100, Math.max(0, p.pctConsumido))}%`,
-                        }}
-                      />
-                    </div>
-                  </div>
-                )}
-
-                <div className="mt-6 flex-1 border-t border-cdm-line pt-3">
-                  <p className="text-[9px] uppercase tracking-[0.25em] text-cdm-muted">
-                    Últimos movimientos
+                    )}
                   </p>
-                  {p.movimientos.length === 0 && (
-                    <p className="mt-2 text-[11px] text-cdm-muted">
-                      Sin movimientos todavía.
-                    </p>
-                  )}
-                  <ul className="mt-1 divide-y divide-cdm-line/60">
-                    {p.movimientos.map((m, i) => (
-                      <li
-                        key={i}
-                        className="flex items-baseline justify-between gap-2 py-2"
-                      >
-                        <span className="truncate text-[11px] text-cdm-fg/80">
-                          {m.descripcion || "Movimiento"}
-                        </span>
-                        <span
-                          className={`shrink-0 text-[11px] tabular-nums ${
-                            m.tipo === "ingreso"
-                              ? "text-emerald-400"
-                              : "text-cdm-muted"
-                          }`}
-                        >
-                          {m.tipo === "ingreso" ? "+" : "−"}
-                          {formatMoneyInt(Math.abs(m.monto))}
-                        </span>
-                      </li>
-                    ))}
-                  </ul>
+                  <p className="mt-1 text-[13px] font-medium leading-snug text-emerald-400 light:text-emerald-600">
+                    {p.ultimoAvance?.texto ??
+                      "Sin avances todavía — cargá el primero acá abajo."}
+                  </p>
                 </div>
 
-                <p className="mt-4 text-right text-[9px] uppercase tracking-[0.2em] text-cdm-accent/70">
-                  Ver orbital →
-                </p>
-              </Link>
+                {/* Pendientes vinculados a la obra */}
+                <div className="mt-5 flex-1 border-t border-cdm-line pt-3">
+                  <p className="text-[9px] uppercase tracking-[0.25em] text-cdm-muted">
+                    Pendientes de la obra
+                    {p.pendientes.length > 0 && (
+                      <span className="font-mono-hud ml-2 tabular-nums text-cdm-fg/70">
+                        {p.pendientes.length}
+                      </span>
+                    )}
+                  </p>
+                  {p.pendientes.length === 0 ? (
+                    <p className="mt-2 text-[11px] text-cdm-muted">
+                      Nada pendiente en esta obra.
+                    </p>
+                  ) : (
+                    <ul className="mt-1 divide-y divide-cdm-line/60">
+                      {p.pendientes.slice(0, 4).map((t) => (
+                        <li
+                          key={t.id}
+                          className="flex items-baseline gap-2 py-1.5"
+                        >
+                          <span
+                            aria-hidden
+                            className="h-2 w-2 shrink-0 translate-y-px border border-cdm-line"
+                          />
+                          <span className="min-w-0 truncate text-[11px] text-cdm-fg/80">
+                            {t.texto}
+                          </span>
+                        </li>
+                      ))}
+                      {p.pendientes.length > 4 && (
+                        <li className="py-1.5 text-[10px] uppercase tracking-[0.15em] text-cdm-muted">
+                          +{p.pendientes.length - 4} más
+                        </li>
+                      )}
+                    </ul>
+                  )}
+                </div>
+
+                {/* + avance: alta de 1 toque → obra_avances */}
+                <form onSubmit={agregar} className="mt-4 flex">
+                  <input
+                    type="text"
+                    value={nuevo}
+                    onChange={(e) => setNuevo(e.target.value)}
+                    placeholder="+ avance…"
+                    aria-label={`Nuevo avance en ${p.nombre}`}
+                    className="font-raleway w-full border border-cdm-line bg-transparent px-3 py-1.5 text-[11px] text-cdm-fg placeholder:text-cdm-muted/50 focus:border-emerald-400 focus:outline-none"
+                  />
+                  <button
+                    type="submit"
+                    disabled={!nuevo.trim() || guardando}
+                    className="font-mono-hud shrink-0 border border-l-0 border-cdm-line px-3 text-[10px] uppercase tracking-widest text-emerald-400 transition-colors hover:bg-emerald-400 hover:text-cdm-bg disabled:opacity-30 light:text-emerald-600 light:hover:bg-emerald-600 light:hover:text-white"
+                  >
+                    {guardando ? "…" : "+"}
+                  </button>
+                </form>
+
+                <Link
+                  href={`/obras/${p.presupuestoId}`}
+                  className="mt-4 text-right text-[9px] uppercase tracking-[0.2em] text-cdm-accent/70 transition-colors hover:text-cdm-accent"
+                >
+                  Bitácora completa ({p.cantAvances}) →
+                </Link>
+              </div>
             </motion.div>
           </motion.div>
         </motion.div>

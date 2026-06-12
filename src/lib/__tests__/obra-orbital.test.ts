@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   derivarArtefactosObra,
+  ordenarAvances,
   type ArchivoObraRow,
   type NodoArtefacto,
 } from "@/lib/obra-orbital";
@@ -27,6 +28,7 @@ function derivar(
     presupuestoId: PID,
     docsMapeados: [],
     archivos: [],
+    avances: [],
     resumen: null,
     gastado: 0,
     cantGastos: 0,
@@ -41,12 +43,13 @@ function nodo(nodos: NodoArtefacto[], tipo: string): NodoArtefacto {
 }
 
 describe("derivarArtefactosObra", () => {
-  it("siempre devuelve los 5 artefactos fijos (sin rubros por ningún lado)", () => {
+  it("siempre devuelve los 6 artefactos fijos (sin rubros por ningún lado)", () => {
     const nodos = derivar();
     expect(nodos.map((n) => n.tipo)).toEqual([
       "presupuesto",
       "diagnostico",
       "fotos",
+      "bitacora",
       "resumen",
       "gastos",
     ]);
@@ -156,5 +159,35 @@ describe("derivarArtefactosObra", () => {
     const g = nodo(nodos, "gastos");
     expect(g.vivo).toBe(false);
     expect(g.href).toBe(`/obras/${PID}/gastos`);
+  });
+
+  it("bitácora: vivo con conteo y el historial completo de avances", () => {
+    const avances = ordenarAvances([
+      { id: "a-1", texto: "Demolimos el baño", instancia: "demolición", creado_at: "2026-06-10T10:00:00Z" },
+      { id: "a-2", texto: "Colocamos el porcelanato", instancia: "colocación", creado_at: "2026-06-12T18:00:00Z" },
+    ]);
+    const b = nodo(derivar({ avances }), "bitacora");
+    expect(b.vivo).toBe(true);
+    expect(b.detalle).toBe("2 avances");
+    expect(b.avances.map((a) => a.id)).toEqual(["a-2", "a-1"]);
+  });
+
+  it("bitácora vacía: nodo tenue sin detalle", () => {
+    const b = nodo(derivar(), "bitacora");
+    expect(b.vivo).toBe(false);
+    expect(b.detalle).toBeNull();
+    expect(b.avances).toEqual([]);
+  });
+});
+
+describe("ordenarAvances", () => {
+  it("ordena nuevo → viejo y limpia instancias vacías", () => {
+    const avances = ordenarAvances([
+      { id: "a-1", texto: "Primero", instancia: "  ", creado_at: "2026-06-10T10:00:00Z" },
+      { id: "a-2", texto: "Último", instancia: "pintura", creado_at: "2026-06-12T18:00:00Z" },
+    ]);
+    expect(avances.map((a) => a.id)).toEqual(["a-2", "a-1"]);
+    expect(avances[1].instancia).toBeNull();
+    expect(avances[0].instancia).toBe("pintura");
   });
 });

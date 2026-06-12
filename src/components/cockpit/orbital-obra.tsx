@@ -9,6 +9,7 @@ import {
   ExternalLink,
   FileSearch,
   FileText,
+  NotebookPen,
   Receipt,
   Trash2,
   X,
@@ -34,9 +35,15 @@ const ICONO: Record<TipoArtefacto, React.ElementType> = {
   presupuesto: FileText,
   diagnostico: FileSearch,
   fotos: Camera,
+  bitacora: NotebookPen,
   resumen: CircleDollarSign,
   gastos: Receipt,
 };
+
+function fechaCorta(iso: string): string {
+  const d = new Date(iso);
+  return `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}`;
+}
 
 type OrbitalObraProps = {
   nodos: NodoArtefacto[];
@@ -347,7 +354,9 @@ export function OrbitalObra({
               {abierto && (
                 <Card
                   className={`absolute left-1/2 top-20 -translate-x-1/2 border-cdm-accent/30 bg-cdm-bg/90 shadow-xl shadow-cdm-accent/10 backdrop-blur-lg ${
-                    nodo.tipo === "fotos" ? "w-80" : "w-72"
+                    nodo.tipo === "fotos" || nodo.tipo === "bitacora"
+                      ? "w-80"
+                      : "w-72"
                   }`}
                 >
                   <div className="absolute -top-3 left-1/2 h-3 w-px -translate-x-1/2 bg-cdm-accent/50" />
@@ -414,6 +423,50 @@ export function OrbitalObra({
                         <p className="py-2 text-[10px] uppercase tracking-[0.15em] text-cdm-muted">
                           Sin fotos todavía — mandalas por WhatsApp y se
                           encarpetan solas.
+                        </p>
+                      ))}
+
+                    {/* Bitácora: historial completo de avances, nuevo → viejo,
+                        mono. El último (arriba) en verde — es el que pinta
+                        la card del proyecto. */}
+                    {nodo.tipo === "bitacora" &&
+                      (nodo.avances.length > 0 ? (
+                        <ul className="font-mono-hud max-h-56 space-y-2 overflow-y-auto pr-0.5">
+                          {nodo.avances.map((a, i) => (
+                            <li
+                              key={a.id}
+                              className={`border-l-2 pl-2.5 ${
+                                i === 0
+                                  ? "border-emerald-400"
+                                  : "border-cdm-line"
+                              }`}
+                            >
+                              <p className="text-[9px] uppercase tracking-[0.18em] text-cdm-muted">
+                                <span className="tabular-nums">
+                                  {fechaCorta(a.creadoAt)}
+                                </span>
+                                {a.instancia && (
+                                  <span className="ml-2 text-cdm-accent/80">
+                                    {a.instancia}
+                                  </span>
+                                )}
+                              </p>
+                              <p
+                                className={`mt-0.5 text-[11px] leading-snug ${
+                                  i === 0
+                                    ? "text-emerald-400 light:text-emerald-600"
+                                    : "text-cdm-fg/80"
+                                }`}
+                              >
+                                {a.texto}
+                              </p>
+                            </li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <p className="py-2 text-[10px] uppercase tracking-[0.15em] text-cdm-muted">
+                          Sin avances todavía — cargalos desde la card del
+                          proyecto o por WhatsApp.
                         </p>
                       ))}
 
