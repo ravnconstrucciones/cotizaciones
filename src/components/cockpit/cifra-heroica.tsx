@@ -32,6 +32,9 @@ export function CifraHeroica({
   delay = 0.15,
 }: CifraHeroicaProps) {
   const reducirMovimiento = useReducedMotion();
+  // Bloom suave (iteración 5): si el contenido es texto plano, una copia
+  // difuminada cian respira detrás de la cifra — el dato emana luz.
+  const bloom = typeof children === "string" ? children : undefined;
   return (
     <motion.span
       initial={
@@ -39,7 +42,10 @@ export function CifraHeroica({
       }
       animate={{ backgroundPosition: "-30% 0" }}
       transition={{ duration: 1.3, ease: "easeOut", delay }}
-      className={`font-raleway inline-block font-black tabular-nums ${className ?? ""}`}
+      data-bloom={bloom}
+      className={`font-raleway inline-block font-black tabular-nums ${
+        bloom ? "cdm-bloom-suave" : ""
+      } ${className ?? ""}`}
       style={{
         backgroundImage: `linear-gradient(105deg, ${colorBase} 40%, rgba(255, 255, 255, 0.95) 50%, ${colorBase} 60%)`,
         backgroundSize: "220% 100%",

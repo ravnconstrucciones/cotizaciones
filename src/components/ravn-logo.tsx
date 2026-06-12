@@ -45,8 +45,15 @@ export function RavnLogo({
       aria-label={showTagline ? "RAVN Obra más diseño" : "RAVN"}
     >
       {/* tracking: pl compensa hueco al centrar; en start la R queda en el margen */}
+      {/* Con shimmer la marca además EMANA luz (cdm-bloom: dos copias del
+          texto con blur detrás — bloom volumétrico, no drop-shadow). */}
       <span
-        className={shimmer ? "cdm-shimmer font-light uppercase" : "font-light uppercase"}
+        className={
+          shimmer
+            ? "cdm-shimmer cdm-bloom font-light uppercase"
+            : "font-light uppercase"
+        }
+        data-bloom={shimmer ? "RAVN." : undefined}
         style={{
           letterSpacing: "0.517em",
           paddingLeft: isStart ? 0 : "0.517em",

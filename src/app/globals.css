@@ -26,14 +26,15 @@ html.light {
 }
 
 /* ── Centro de Mando (cockpit Jarvis) — paleta fija, siempre oscura ──
-   Iteración 4: CIAN HOLOGRAMA. El champán/taupe muere en el cockpit;
-   los datos se proyectan en vidrio como un HUD (Iron Man / Tron).
-   El semáforo financiero (emerald/red) y los warnings ámbar NO cambian.
-   Los documentos A4 (propuesta/remito/documento) siguen con la identidad
-   RAVN clásica (Raleway + taupe) — nunca usan estos tokens. */
+   Iteración 5 (IGLOO): la luz sigue siendo CIAN HOLOGRAMA, pero deja de
+   vivir sobre negro plano — el fondo pasa a azul-gris volumétrico con
+   niebla (ver .cdm-niebla). El contenido flota EN una atmósfera, no
+   sobre un fondo. El semáforo financiero (emerald/red) y los warnings
+   ámbar NO cambian. Los documentos A4 (propuesta/remito/documento)
+   siguen con la identidad RAVN clásica — nunca usan estos tokens. */
 :root {
-  --cdm-bg: #060a0d;
-  --cdm-panel: #0a1014;
+  --cdm-bg: #05080f;
+  --cdm-panel: #0a111c;
   --cdm-fg: #eaf6fb;
   --cdm-muted: rgba(234, 246, 251, 0.45);
   --cdm-line: rgba(234, 246, 251, 0.14);
@@ -43,6 +44,8 @@ html.light {
   /* cian profundo: corrientes del shader y arranque de gradientes */
   --cdm-deep: #0e7490;
   --cdm-glow: rgba(34, 211, 238, 0.35);
+  /* acero de la niebla: el azul-gris frío de la atmósfera */
+  --cdm-steel: #243a55;
 }
 
 @theme {
@@ -69,6 +72,9 @@ html.light {
   --font-raleway: var(--font-raleway), ui-sans-serif, system-ui, sans-serif;
   /* Space Grotesk = interfaz del cockpit (mismo patrón que raleway: next/font define la var en body) */
   --font-grotesk: var(--font-grotesk), ui-sans-serif, system-ui, sans-serif;
+  /* IBM Plex Mono = tipografía terminal del HUD: labels ////// SECCIÓN,
+     timestamps, datos secundarios y links [VER] ↑ (iteración 5 — IGLOO) */
+  --font-mono-hud: var(--font-mono-hud), ui-monospace, "SF Mono", Menlo, monospace;
 }
 
 @layer base {
@@ -262,6 +268,139 @@ html.light {
     color: transparent;
     animation: cdm-shimmer-sweep 7s linear infinite;
   }
+
+  /**
+   * Niebla volumétrica (iteración 5 — IGLOO): tres masas de luz fría
+   * (radial-gradient puro, sin filter: blur — más barato) que respiran
+   * lentísimo detrás de la malla Waves. El contenido flota EN este
+   * espacio. Solo anima transform/opacity (compositor, no layout).
+   */
+  .cdm-niebla {
+    position: absolute;
+    pointer-events: none;
+    will-change: transform, opacity;
+  }
+  .cdm-niebla-a {
+    top: -32%;
+    left: 14%;
+    width: 78vw;
+    height: 85vh;
+    background: radial-gradient(
+      ellipse 50% 50% at 50% 50%,
+      rgba(14, 116, 144, 0.22),
+      rgba(14, 116, 144, 0.07) 48%,
+      transparent 72%
+    );
+    animation: cdm-respira 26s ease-in-out infinite alternate;
+  }
+  .cdm-niebla-b {
+    bottom: -38%;
+    left: -20%;
+    width: 72vw;
+    height: 90vh;
+    background: radial-gradient(
+      ellipse 50% 50% at 50% 50%,
+      rgba(36, 58, 85, 0.38),
+      rgba(36, 58, 85, 0.13) 50%,
+      transparent 75%
+    );
+    animation: cdm-respira 34s ease-in-out 5s infinite alternate;
+  }
+  .cdm-niebla-c {
+    top: 10%;
+    right: -24%;
+    width: 62vw;
+    height: 72vh;
+    background: radial-gradient(
+      ellipse 50% 50% at 50% 50%,
+      rgba(34, 211, 238, 0.1),
+      rgba(34, 211, 238, 0.03) 45%,
+      transparent 70%
+    );
+    animation: cdm-respira 22s ease-in-out 11s infinite alternate;
+  }
+
+  /**
+   * Bloom volumétrico (iteración 5): el texto EMANA luz de verdad.
+   * Dos copias del propio texto (attr(data-bloom)) detrás del original,
+   * cada una con su blur — halo interno azul hielo + aura externa cian.
+   * No es drop-shadow: son capas con cuerpo. El elemento debe llevar
+   * data-bloom con el mismo texto y crear stacking context (z-index: 0).
+   */
+  .cdm-bloom {
+    position: relative;
+    z-index: 0;
+  }
+  .cdm-bloom::before,
+  .cdm-bloom::after {
+    content: attr(data-bloom);
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    padding: inherit;
+    pointer-events: none;
+  }
+  .cdm-bloom::before {
+    color: rgba(125, 211, 252, 0.5);
+    filter: blur(7px);
+  }
+  .cdm-bloom::after {
+    color: rgba(34, 211, 238, 0.4);
+    filter: blur(26px);
+  }
+
+  /** Bloom suave: una sola capa, para cifras y elementos de dato. */
+  .cdm-bloom-suave {
+    position: relative;
+    z-index: 0;
+  }
+  .cdm-bloom-suave::after {
+    content: attr(data-bloom);
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    padding: inherit;
+    pointer-events: none;
+    color: rgba(34, 211, 238, 0.26);
+    filter: blur(16px);
+  }
+
+  /**
+   * Botón de vidrio cian (iteración 5): reemplaza los CTA blancos sólidos.
+   * Vidrio con baño cian + texto que emana — la acción primaria del HUD.
+   */
+  .cdm-btn-cian {
+    border: 1px solid rgba(34, 211, 238, 0.5);
+    color: var(--cdm-accent);
+    background: linear-gradient(
+      180deg,
+      rgba(34, 211, 238, 0.16),
+      rgba(34, 211, 238, 0.06)
+    );
+    -webkit-backdrop-filter: blur(10px) saturate(1.3);
+    backdrop-filter: blur(10px) saturate(1.3);
+    box-shadow:
+      inset 0 1px 0 rgba(234, 246, 251, 0.18),
+      0 0 24px -8px rgba(34, 211, 238, 0.45),
+      0 8px 24px -12px rgba(0, 0, 0, 0.6);
+    text-shadow: 0 0 14px rgba(34, 211, 238, 0.55);
+    transition:
+      border-color 0.3s ease,
+      background 0.3s ease,
+      box-shadow 0.3s ease;
+  }
+  .cdm-btn-cian:hover:not(:disabled) {
+    border-color: rgba(34, 211, 238, 0.85);
+    background: linear-gradient(
+      180deg,
+      rgba(34, 211, 238, 0.24),
+      rgba(34, 211, 238, 0.1)
+    );
+    box-shadow:
+      inset 0 1px 0 rgba(234, 246, 251, 0.22),
+      0 0 44px -6px rgba(34, 211, 238, 0.6),
+      0 8px 24px -12px rgba(0, 0, 0, 0.6);
+  }
 }
 
 @keyframes cdm-shimmer-sweep {
@@ -273,10 +412,26 @@ html.light {
   }
 }
 
+/* La niebla respira: lentísimo, apenas perceptible — atmósfera, no efecto. */
+@keyframes cdm-respira {
+  from {
+    opacity: 0.55;
+    transform: scale(1) translateY(0);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1.16) translateY(-2%);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .cdm-shimmer {
     animation: none;
     background-position: 50% 0;
+  }
+  .cdm-niebla {
+    animation: none;
+    opacity: 0.8;
   }
 }
 

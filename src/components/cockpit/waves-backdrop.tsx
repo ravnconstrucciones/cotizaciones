@@ -237,6 +237,14 @@ export function WavesBackdrop() {
 
   return (
     <div aria-hidden className="pointer-events-none fixed inset-0 z-0">
+      {/* Atmósfera (iteración 5 — IGLOO): tres masas de niebla azul-gris
+          que respiran lentísimo DETRÁS de la malla. El negro plano muere:
+          el contenido flota en un espacio con profundidad. */}
+      <div className="absolute inset-0 overflow-hidden">
+        <div className="cdm-niebla cdm-niebla-a" />
+        <div className="cdm-niebla cdm-niebla-b" />
+        <div className="cdm-niebla cdm-niebla-c" />
+      </div>
       <div ref={containerRef} className="absolute inset-0 overflow-hidden">
         <svg ref={svgRef} className="block h-full w-full" />
         {/* Punto del cursor: dot cian + glow chico, movido por refs en el RAF. */}
@@ -250,7 +258,7 @@ export function WavesBackdrop() {
       </div>
       {/* Gradiente de presencia: calmo detrás del contenido central,
           la malla respira con fuerza en los bordes de la pantalla. */}
-      <div className="absolute inset-0 bg-[radial-gradient(105%_80%_at_50%_42%,rgba(6,10,13,0.62)_0%,rgba(6,10,13,0.34)_55%,rgba(6,10,13,0.04)_100%)]" />
+      <div className="absolute inset-0 bg-[radial-gradient(105%_80%_at_50%_42%,rgba(5,8,15,0.62)_0%,rgba(5,8,15,0.34)_55%,rgba(5,8,15,0.04)_100%)]" />
       {/* Vignette de profundidad: las esquinas caen a negro (atmósfera de cabina). */}
       <div className="absolute inset-0 bg-[radial-gradient(135%_115%_at_50%_50%,transparent_58%,rgba(0,0,0,0.46)_100%)]" />
       <GlassFilter />

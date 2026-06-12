@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Space_Grotesk } from "next/font/google";
+import { IBM_Plex_Mono, Space_Grotesk } from "next/font/google";
 import { ThemeProvider } from "@/components/theme-provider";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { AppShell } from "@/components/shell/app-shell";
@@ -18,8 +18,20 @@ const spaceGrotesk = Space_Grotesk({
   display: "swap",
 });
 
+/**
+ * IBM Plex Mono = tipografía terminal del HUD (iteración 5 — IGLOO):
+ * labels de sección `////// PROYECTOS`, timestamps, datos secundarios y
+ * links `[VER] ↑`. Aplicada por scope con `font-mono-hud`.
+ */
+const plexMono = IBM_Plex_Mono({
+  subsets: ["latin", "latin-ext"],
+  weight: ["400", "500", "600"],
+  variable: "--font-mono-hud",
+  display: "swap",
+});
+
 export const viewport: Viewport = {
-  themeColor: "#070707",
+  themeColor: "#05080f",
 };
 
 export const metadata: Metadata = {
@@ -57,7 +69,7 @@ export default function RootLayout({
         <meta name="theme-color" content="#070707" />
       </head>
       <body
-        className={`min-h-screen font-sans ${raleway.variable} ${spaceGrotesk.variable}`}
+        className={`min-h-screen font-sans ${raleway.variable} ${spaceGrotesk.variable} ${plexMono.variable}`}
       >
         <ThemeProvider>
           <AppShell>{children}</AppShell>
