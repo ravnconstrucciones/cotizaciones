@@ -1,7 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { IBM_Plex_Mono, Space_Grotesk } from "next/font/google";
 import { ThemeProvider } from "@/components/theme-provider";
-import { ThemeToggle } from "@/components/theme-toggle";
 import { AppShell } from "@/components/shell/app-shell";
 import { raleway } from "./raleway-local";
 import "./globals.css";
@@ -73,7 +72,6 @@ export default function RootLayout({
       >
         <ThemeProvider>
           <AppShell>{children}</AppShell>
-          <ThemeToggle />
         </ThemeProvider>
       </body>
     </html>
