@@ -5,6 +5,8 @@ import { useCallback, useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { Panel } from "./panel";
 import { CifraHeroica } from "./cifra-heroica";
+import { SkeletonCifra } from "./skeleton-glass";
+import { fetchCompartido } from "@/lib/fetch-compartido";
 import { formatMoneyInt } from "@/lib/format-currency";
 
 type Semaforo = "verde" | "amarillo" | "rojo";
@@ -54,12 +56,14 @@ export function ModuloPlata({ className }: { className?: string }) {
 
   const cargar = useCallback(async () => {
     try {
+      // fetchCompartido: /cashflow/resumen se comparte con ModuloObras
+      // (un solo request) y ambos consumen el prefetch del documento.
       const [resCaja, resFin] = await Promise.all([
-        fetch("/cashflow/resumen", { cache: "no-store" }),
-        fetch("/api/finanzas", { cache: "no-store" }),
+        fetchCompartido("/cashflow/resumen"),
+        fetchCompartido("/api/finanzas"),
       ]);
-      if (resCaja.ok) setCaja((await resCaja.json()) as ResumenCaja);
-      if (resFin.ok) setFin(await resFin.json());
+      if (resCaja.ok) setCaja(resCaja.body as ResumenCaja);
+      if (resFin.ok) setFin(resFin.body as FinanzasResumen);
       if (!resCaja.ok && !resFin.ok) setError("No se pudo cargar la plata.");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Error de red");
@@ -95,20 +99,24 @@ export function ModuloPlata({ className }: { className?: string }) {
             Cashflow del mes (obras)
           </p>
           {/* Display heroico (iteración 3): la plata del mes manda en el panel. */}
-          <p className="mt-1">
-            {caja?.caja_mes ? (
-              <CifraHeroica
-                className="text-[clamp(28px,2.3vw,44px)] leading-none"
-                colorBase={
-                  caja.caja_mes.saldo < 0 ? "#f87171" : "var(--cdm-fg)"
-                }
-              >
-                {formatMoneyInt(caja.caja_mes.saldo)}
-              </CifraHeroica>
-            ) : (
-              <span className="text-2xl font-light text-cdm-muted">—</span>
-            )}
-          </p>
+          {!caja && !error ? (
+            <SkeletonCifra className="mt-2" />
+          ) : (
+            <p className="mt-1">
+              {caja?.caja_mes ? (
+                <CifraHeroica
+                  className="text-[clamp(28px,2.3vw,44px)] leading-none"
+                  colorBase={
+                    caja.caja_mes.saldo < 0 ? "#f87171" : "var(--cdm-fg)"
+                  }
+                >
+                  {formatMoneyInt(caja.caja_mes.saldo)}
+                </CifraHeroica>
+              ) : (
+                <span className="text-2xl font-light text-cdm-muted">—</span>
+              )}
+            </p>
+          )}
           {caja?.caja_mes && (
             <p className="text-[10px] tabular-nums text-cdm-muted">
               <span className="text-emerald-400">

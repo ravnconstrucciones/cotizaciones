@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { Panel } from "./panel";
+import { SkeletonGlass } from "./skeleton-glass";
+import { fetchCompartido } from "@/lib/fetch-compartido";
 import { formatMoneyInt } from "@/lib/format-currency";
 
 type ObraActiva = {
@@ -46,8 +48,11 @@ export function ModuloObras({ className }: { className?: string }) {
 
   const cargar = useCallback(async () => {
     try {
-      const res = await fetch("/cashflow/resumen", { cache: "no-store" });
-      const j = await res.json();
+      // fetchCompartido: comparte el request con ModuloPlata (antes eran
+      // dos hits idénticos a /cashflow/resumen) y consume el prefetch
+      // inline del documento si está fresco (ronda 6).
+      const res = await fetchCompartido("/cashflow/resumen");
+      const j = res.body as ResumenCashflow & { error?: string };
       if (!res.ok) {
         setError(j.error ?? "No se pudo cargar el resumen.");
         return;
@@ -90,7 +95,12 @@ export function ModuloObras({ className }: { className?: string }) {
       }
     >
       {error && <p className="text-[11px] text-red-400">{error}</p>}
-      {!error && !data && <p className="text-[11px] text-cdm-muted">Cargando…</p>}
+      {!error && !data && (
+        <SkeletonGlass
+          filas={5}
+          anchos={["w-3/4", "w-1/2", "w-full", "w-2/3", "w-2/5"]}
+        />
+      )}
       {data && data.obras_activas.length === 0 && (
         <p className="text-[11px] text-cdm-muted">Sin obras activas.</p>
       )}

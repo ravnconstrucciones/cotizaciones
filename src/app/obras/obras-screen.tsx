@@ -3,23 +3,27 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { WavesBackdrop } from "@/components/cockpit/waves-backdrop";
+import { SkeletonGlass } from "@/components/cockpit/skeleton-glass";
 import {
   SeccionProyecto,
   type ProyectoCard,
 } from "@/components/cockpit/seccion-proyecto";
-import { createClient } from "@/lib/supabase/client";
+import { fetchCompartido } from "@/lib/fetch-compartido";
 
 /**
  * Galería de proyectos (/obras): una sección por obra activa alternando
  * el layout (ref. section-with-mockup de 21st.dev), con la mockup card
- * como mini-dashboard vivo. Datos: /cashflow/resumen (caja, margen,
- * movimientos) + presupuestos (cliente y fecha de inicio).
+ * como mini-dashboard vivo. Datos: /cashflow/resumen — que ya trae
+ * cliente y fecha del presupuesto (nombre_cliente / fecha_presupuesto),
+ * así que acá NO hay segundo fetch (ronda 6, hallazgo de perf).
  */
 
 type ObraResumen = {
   obra_id: string;
   presupuesto_id: string;
   nombre_obra: string;
+  nombre_cliente: string | null;
+  fecha_presupuesto: string | null;
   saldo_caja: number;
   egresos_caja: number;
   referencia_propuesta_ars: number | null;
@@ -34,12 +38,6 @@ type MovimientoResumen = {
   descripcion: string;
   monto_real: number;
   fecha_real: string;
-};
-
-type PresupuestoMeta = {
-  id: string;
-  nombre_cliente: string | null;
-  fecha: string | null;
 };
 
 function estadoDe(o: ObraResumen): { label: string; cls: string } {
@@ -64,8 +62,12 @@ export function ObrasScreen() {
 
   const cargar = useCallback(async () => {
     try {
-      const res = await fetch("/cashflow/resumen", { cache: "no-store" });
-      const j = await res.json();
+      const res = await fetchCompartido("/cashflow/resumen");
+      const j = res.body as {
+        error?: string;
+        obras_activas?: ObraResumen[];
+        movimientos_recientes?: MovimientoResumen[];
+      };
       if (!res.ok) {
         setError(j.error ?? "No se pudo cargar el resumen.");
         return;
@@ -73,34 +75,17 @@ export function ObrasScreen() {
       const obras = (j.obras_activas ?? []) as ObraResumen[];
       const movimientos = (j.movimientos_recientes ?? []) as MovimientoResumen[];
 
-      // Cliente + fecha de inicio del presupuesto (no vienen en el resumen).
-      const metaPorId = new Map<string, PresupuestoMeta>();
-      if (obras.length > 0) {
-        const supabase = createClient();
-        const { data } = await supabase
-          .from("presupuestos")
-          .select("id, nombre_cliente, fecha")
-          .in(
-            "id",
-            obras.map((o) => o.presupuesto_id)
-          );
-        for (const p of (data ?? []) as PresupuestoMeta[]) {
-          metaPorId.set(p.id, p);
-        }
-      }
-
       setError(null);
       setProyectos(
         obras.map((o) => {
-          const meta = metaPorId.get(o.presupuesto_id);
           const estado = estadoDe(o);
           return {
             presupuestoId: o.presupuesto_id,
             nombre: o.nombre_obra,
-            cliente: meta?.nombre_cliente?.trim() || null,
+            cliente: o.nombre_cliente?.trim() || null,
             estadoLabel: estado.label,
             estadoCls: estado.cls,
-            desde: fechaDisplay(meta?.fecha ?? null),
+            desde: fechaDisplay(o.fecha_presupuesto),
             saldoCaja: o.saldo_caja,
             margenAlDia: o.margen_al_dia_ars,
             pctConsumido:
@@ -150,9 +135,10 @@ export function ObrasScreen() {
           <p className="px-6 pt-6 text-[11px] text-red-400 md:px-10">{error}</p>
         )}
         {!error && proyectos === null && (
-          <p className="px-6 pt-6 text-[11px] text-cdm-muted md:px-10">
-            Cargando…
-          </p>
+          <div className="grid gap-10 px-6 pt-12 md:grid-cols-2 md:px-10">
+            <SkeletonGlass filas={4} anchos={["w-2/3", "w-1/2", "w-5/6", "w-1/3"]} />
+            <SkeletonGlass filas={4} anchos={["w-3/4", "w-1/2", "w-2/3", "w-2/5"]} />
+          </div>
         )}
         {proyectos !== null && proyectos.length === 0 && (
           <div className="flex min-h-[60vh] items-center justify-center">

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { Panel } from "./panel";
+import { fetchCompartido } from "@/lib/fetch-compartido";
 import type { Referencia } from "@/types/centro-mando";
 
 /** Módulo 9 (teaser): última referencia estética + última frase (spec §4.9). */
@@ -18,9 +19,9 @@ export function ModuloAdn({
 
   const cargar = useCallback(async () => {
     try {
-      const res = await fetch("/api/referencias?limit=20", { cache: "no-store" });
+      const res = await fetchCompartido("/api/referencias?limit=20");
       if (!res.ok) return;
-      const j = (await res.json()) as { referencias: Referencia[] };
+      const j = res.body as { referencias: Referencia[] };
       setUltEstetica(j.referencias.find((r) => r.tipo === "estetica") ?? null);
       setUltFilosofia(j.referencias.find((r) => r.tipo === "filosofia") ?? null);
     } catch {
