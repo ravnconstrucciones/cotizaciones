@@ -77,7 +77,7 @@ export async function GET(req: Request) {
         precio_material_congelado,
         precio_mo_congelada,
         descuento_material_pct,
-        recetas ( nombre_item )
+        recetas:catalogo_recetas ( nombre_item )
       `
       )
       .eq("presupuesto_id", presupuestoId);

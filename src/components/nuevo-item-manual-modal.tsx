@@ -98,7 +98,7 @@ export function NuevoItemManualModal({
     try {
       const supabase = createClient();
       const { data: recetaRow, error: errReceta } = await supabase
-        .from("recetas")
+        .from("catalogo_recetas")
         .insert({
           rubro_id: rubroId,
           nombre_item: desc,

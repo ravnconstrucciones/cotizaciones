@@ -60,7 +60,7 @@ export function NuevoRecetaModal({
     setError(null);
     try {
       const supabase = createClient();
-      const { error: err } = await supabase.from("recetas").insert({
+      const { error: err } = await supabase.from("catalogo_recetas").insert({
         rubro_id: rubroId,
         nombre_item: nombre,
         unidad: u,

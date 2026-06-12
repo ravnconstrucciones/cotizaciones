@@ -77,7 +77,7 @@ export function CrearItemCatalogoModal({
     setSaving(true);
     try {
       const supabase = createClient();
-      const { error: errIns } = await supabase.from("recetas").insert({
+      const { error: errIns } = await supabase.from("catalogo_recetas").insert({
         rubro_id: rubroId,
         nombre_item: desc,
         unidad: u,

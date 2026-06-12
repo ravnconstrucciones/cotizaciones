@@ -265,7 +265,7 @@ export function CatalogoScreen() {
       const supabase = createClient();
       const [rRes, recRes] = await Promise.all([
         supabase.from("rubros").select("id, nombre"),
-        supabase.from("recetas").select("*").order("nombre_item"),
+        supabase.from("catalogo_recetas").select("*").order("nombre_item"),
       ]);
 
       if (rRes.error) {
@@ -320,7 +320,7 @@ export function CatalogoScreen() {
     try {
       const supabase = createClient();
       const { error: err } = await supabase
-        .from("recetas")
+        .from("catalogo_recetas")
         .update(patch)
         .eq("id", id);
       if (err) {
@@ -346,7 +346,7 @@ export function CatalogoScreen() {
     setError(null);
     try {
       const supabase = createClient();
-      const { error: err } = await supabase.from("recetas").delete().eq("id", id);
+      const { error: err } = await supabase.from("catalogo_recetas").delete().eq("id", id);
       if (err) {
         setError(err.message);
         return;
@@ -365,7 +365,7 @@ export function CatalogoScreen() {
       const supabase = createClient();
       let itemCount = 0;
       const { count, error: countErr } = await supabase
-        .from("recetas")
+        .from("catalogo_recetas")
         .select("id", { count: "exact", head: true })
         .eq("rubro_id", rubroId);
 
@@ -381,7 +381,7 @@ export function CatalogoScreen() {
         itemCount = count;
       } else {
         const { data: sample } = await supabase
-          .from("recetas")
+          .from("catalogo_recetas")
           .select("id")
           .eq("rubro_id", rubroId)
           .limit(1);
@@ -488,7 +488,7 @@ export function CatalogoScreen() {
     try {
       const supabase = createClient();
       const { data, error: err } = await supabase
-        .from("recetas")
+        .from("catalogo_recetas")
         .insert({
           rubro_id: draft.rubro_id,
           nombre_item: nombre,

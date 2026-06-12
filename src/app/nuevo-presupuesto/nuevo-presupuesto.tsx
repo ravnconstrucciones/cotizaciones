@@ -550,7 +550,7 @@ export function NuevoPresupuestoScreen() {
       const supabase = createClient();
       const [rubRes, recRes] = await Promise.all([
         supabase.from("rubros").select("id, nombre").order("id", { ascending: true }),
-        supabase.from("recetas").select("*"),
+        supabase.from("catalogo_recetas").select("*"),
       ]);
 
       if (rubRes.error) {
@@ -614,7 +614,7 @@ export function NuevoPresupuestoScreen() {
           precio_material_congelado,
           descuento_material_pct,
           precio_mo_congelada,
-          recetas ( nombre_item, unidad, rubro_id )
+          recetas:catalogo_recetas ( nombre_item, unidad, rubro_id )
         `
         )
         .eq("presupuesto_id", pid)
@@ -975,7 +975,7 @@ export function NuevoPresupuestoScreen() {
             precio_mo_congelada: receta.costo_base_mo_unitario ?? 0,
           })
           .select(
-            "id, presupuesto_id, receta_id, cantidad, precio_material_congelado, descuento_material_pct, precio_mo_congelada, recetas ( nombre_item, unidad, rubro_id )"
+            "id, presupuesto_id, receta_id, cantidad, precio_material_congelado, descuento_material_pct, precio_mo_congelada, recetas:catalogo_recetas ( nombre_item, unidad, rubro_id )"
           )
           .single();
         if (error) {
@@ -1065,7 +1065,7 @@ export function NuevoPresupuestoScreen() {
         .from("presupuestos_items")
         .insert(rows)
         .select(
-          "id, presupuesto_id, receta_id, cantidad, precio_material_congelado, descuento_material_pct, precio_mo_congelada, recetas ( nombre_item, unidad, rubro_id )"
+          "id, presupuesto_id, receta_id, cantidad, precio_material_congelado, descuento_material_pct, precio_mo_congelada, recetas:catalogo_recetas ( nombre_item, unidad, rubro_id )"
         );
       if (error) {
         const tempIds = new Set(nuevosItems.map((i) => i.id));

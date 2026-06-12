@@ -260,7 +260,7 @@ export function PropuestaScreen({ presupuestoId }: { presupuestoId: string }) {
         precio_material_congelado,
         descuento_material_pct,
         precio_mo_congelada,
-        recetas (
+        recetas:catalogo_recetas (
           nombre_item,
           unidad,
           rubro_id,
@@ -290,7 +290,7 @@ export function PropuestaScreen({ presupuestoId }: { presupuestoId: string }) {
             precio_material_congelado,
             descuento_material_pct,
             precio_mo_congelada,
-            recetas ( nombre_item, unidad, rubro_id )
+            recetas:catalogo_recetas ( nombre_item, unidad, rubro_id )
           `
           )
           .eq("presupuesto_id", presupuestoId)
