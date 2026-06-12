@@ -1,9 +1,21 @@
 import type { Metadata, Viewport } from "next";
+import { Inter } from "next/font/google";
 import { ThemeProvider } from "@/components/theme-provider";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { AppShell } from "@/components/shell/app-shell";
 import { raleway } from "./raleway-local";
 import "./globals.css";
+
+/**
+ * Inter = fuente de interfaz del cockpit (texto, datos, labels), aplicada
+ * por scope con `font-inter`. Raleway queda para la marca "RAVN." y los
+ * documentos A4 (que siguen usando font-sans/font-raleway, sin cambios).
+ */
+const inter = Inter({
+  subsets: ["latin", "latin-ext"],
+  variable: "--font-inter",
+  display: "swap",
+});
 
 export const viewport: Viewport = {
   themeColor: "#070707",
@@ -44,7 +56,7 @@ export default function RootLayout({
         <meta name="theme-color" content="#070707" />
       </head>
       <body
-        className={`min-h-screen font-sans ${raleway.variable}`}
+        className={`min-h-screen font-sans ${raleway.variable} ${inter.variable}`}
       >
         <ThemeProvider>
           <AppShell>{children}</AppShell>
