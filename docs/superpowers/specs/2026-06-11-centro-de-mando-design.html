@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RAVN · Centro de Mando — Diseño</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Raleway:wght@300;400;700;900&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --negro:#0a0a0a; --carbon:#111113; --panel:#161618; --linea:#26262a;
+    --blanco:#f0ede6; --taupe:#c8b49a; --gris:#8a8780; --ok:#7fb069; --alerta:#d4a04c;
+  }
+  *{margin:0;padding:0;box-sizing:border-box;border-radius:0!important}
+  body{background:var(--negro);color:var(--blanco);font-family:'Raleway',sans-serif;font-weight:300;line-height:1.7}
+  .wrap{max-width:980px;margin:0 auto;padding:0 48px 120px}
+  header{padding:110px 0 70px;border-bottom:1px solid var(--linea)}
+  .eyebrow{font-size:11px;letter-spacing:.55em;text-transform:uppercase;color:var(--taupe);margin-bottom:28px}
+  h1{font-weight:900;font-size:64px;letter-spacing:-.02em;line-height:1.05}
+  h1 span{color:var(--taupe)}
+  .sub{margin-top:24px;font-size:17px;color:var(--gris);max-width:640px}
+  .meta{margin-top:36px;display:flex;gap:40px;font-size:12px;letter-spacing:.18em;text-transform:uppercase;color:var(--gris)}
+  .meta b{color:var(--blanco);font-weight:700}
+  section{padding:64px 0;border-bottom:1px solid var(--linea)}
+  .num{font-size:12px;letter-spacing:.4em;color:var(--taupe);text-transform:uppercase;margin-bottom:14px}
+  h2{font-weight:700;font-size:30px;margin-bottom:26px;letter-spacing:-.01em}
+  h3{font-weight:700;font-size:16px;margin:34px 0 12px;color:var(--taupe);letter-spacing:.06em;text-transform:uppercase}
+  p{margin-bottom:16px;color:#cfccc4;max-width:760px}
+  strong{font-weight:700;color:var(--blanco)}
+  table{width:100%;border-collapse:collapse;margin:22px 0;font-size:14.5px}
+  th,td{padding:13px 16px;border:1px solid var(--linea);text-align:left;vertical-align:top}
+  th{background:var(--carbon);font-weight:700;font-size:11px;letter-spacing:.22em;text-transform:uppercase;color:var(--taupe)}
+  td{color:#cfccc4}
+  td b{color:var(--blanco);font-weight:700}
+  ul,ol{margin:14px 0 18px 22px;color:#cfccc4;max-width:740px}
+  li{margin-bottom:10px}
+  li::marker{color:var(--taupe)}
+  .grid{display:grid;grid-template-columns:repeat(2,1fr);gap:14px;margin:26px 0}
+  .card{background:var(--panel);border:1px solid var(--linea);padding:26px 28px}
+  .card h4{font-weight:900;font-size:14px;letter-spacing:.14em;text-transform:uppercase;margin-bottom:10px}
+  .card h4 i{font-style:normal;color:var(--taupe);margin-right:10px;font-weight:400}
+  .card p{font-size:13.5px;margin:0;color:var(--gris)}
+  .flow{background:var(--carbon);border:1px solid var(--linea);padding:34px 38px;margin:26px 0;font-size:14px}
+  .flow .paso{display:flex;align-items:baseline;gap:18px;padding:9px 0}
+  .flow .paso:not(:last-child){border-bottom:1px dashed var(--linea)}
+  .flow .n{color:var(--taupe);font-weight:900;font-size:12px;letter-spacing:.1em;min-width:30px}
+  .flow .gate{color:var(--alerta);font-weight:700}
+  .tag{display:inline-block;font-size:10px;font-weight:700;letter-spacing:.2em;text-transform:uppercase;padding:4px 10px;border:1px solid var(--taupe);color:var(--taupe);margin-left:10px;vertical-align:middle}
+  .muerte td:first-child{color:var(--gris);text-decoration:line-through}
+  .exito li{padding-left:6px}
+  .nota{border-left:2px solid var(--taupe);padding:18px 26px;background:var(--carbon);margin:26px 0;max-width:760px}
+  .nota p{margin:0;font-size:14.5px}
+  footer{padding:70px 0 0;text-align:center}
+  footer .r{font-weight:900;font-size:22px;letter-spacing:.5em;color:var(--blanco)}
+  footer p{font-size:11px;letter-spacing:.3em;text-transform:uppercase;color:var(--gris);margin-top:12px;max-width:none}
+  @media(max-width:760px){.wrap{padding:0 22px 80px}h1{font-size:40px}.grid{grid-template-columns:1fr}.meta{flex-direction:column;gap:8px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <div class="eyebrow">Ravn · Documento de diseño</div>
+  <h1>CENTRO DE<br>MANDO<span>.</span></h1>
+  <p class="sub">Una sola app. Una sola base. Un solo login. El Jarvis de Ezequiel: obras, plata, pendientes, cotizaciones, cerebro y actividad — todo vivo, nada suelto, nada perdido.</p>
+  <div class="meta">
+    <div>Fecha <b>11 · 06 · 2026</b></div>
+    <div>Estado <b>Diseño aprobado — spec en revisión</b></div>
+    <div>Decisión madre <b>App RAVN renace como el Centro</b></div>
+  </div>
+</header>
+
+<section>
+  <div class="num">01 — Qué es</div>
+  <h2>Renacimiento, no séptimo sistema</h2>
+  <p>App RAVN muere como la conocés y renace como el Centro de Mando: carcasa, navegación y home nuevas con estética Jarvis sobre la identidad RAVN (negro, off-white, taupe, Raleway, cero border-radius). Las pantallas existentes —presupuestos, cashflow, maestro de precios— viven adentro de la carcasa nueva desde el día uno y se rediseñan por tandas.</p>
+  <p><strong>Mac primero:</strong> el cockpit es tu pantalla de escritorio. <strong>El celular es WhatsApp:</strong> el bot escribe a la misma base. No hay app móvil, no hace falta.</p>
+  <p>Este proyecto unifica las seis piezas sueltas que existen hoy y <strong>mata explícitamente los duplicados</strong> (sección 07).</p>
+</section>
+
+<section>
+  <div class="num">02 — La home cockpit</div>
+  <h2>Una pantalla, todo visible</h2>
+  <div class="grid">
+    <div class="card"><h4><i>▸</i>Barra de comando</h4><p>"Cotizame baño completo en Pilar". La orden va a la cola y la procesa tu Mac con Claude Code headless — tu suscripción, cero API en lo pesado. Progreso en vivo.</p></div>
+    <div class="card"><h4><i>◆</i>Obras</h4><p>Las activas con estado, último gasto y margen al día. Datos que ya viven en la base.</p></div>
+    <div class="card"><h4><i>$</i>Plata</h4><p>Cashflow del mes, gastos de hoy (obra + personales), semáforo.</p></div>
+    <div class="card"><h4><i>□</i>Pendientes</h4><p>La tabla de tareas unificada: lo tuyo, lo del bot, todo en un solo lugar, marcable desde el tablero.</p></div>
+    <div class="card"><h4><i>≋</i>Cotizaciones</h4><p>En proceso con estado vivo + historial con resultado y aprobación.</p></div>
+    <div class="card"><h4><i>⊙</i>Actividad <span class="tag">ex-oficina</span></h4><p>Feed permanente: "bot registró 3 gastos", "daemon terminó cotización", "cerebro actualizó orientación". El 4317 muere; esto lo reemplaza, en la nube.</p></div>
+    <div class="card"><h4><i>▣</i>Archivados</h4><p>Lo que el bot no supo clasificar y no respondiste. Badge si hay algo. Un click → asignás destino → desaparece. Pérdida: cero.</p></div>
+    <div class="card"><h4><i>◎</i>El cerebro</h4><p>Siguiente paso de tu última Orientación, patrones y FODA — leídos del vault, actualizándose solos cada noche.</p></div>
+  </div>
+</section>
+
+<section>
+  <div class="num">03 — WhatsApp</div>
+  <h2>Nada se pierde. Nunca.</h2>
+  <div class="flow">
+    <div class="paso"><span class="n">01</span><span>Todo mensaje genera una fila permanente en <strong>eventos</strong> — antes que cualquier otra cosa.</span></div>
+    <div class="paso"><span class="n">02</span><span>El bot clasifica con Haiku. <strong>Sabe dónde va</strong> → registra y te confirma en una línea.</span></div>
+    <div class="paso"><span class="n">03</span><span><strong>Duda</strong> → te pregunta con opciones numeradas: "¿1) obra Saavedra, 2) personal, 3) otra?"</span></div>
+    <div class="paso"><span class="n">04</span><span>No contestás en unas horas → <strong>Archivados</strong> en el tablero, con aviso. Lo resolvés cuando quieras.</span></div>
+  </div>
+  <p>De paso se arreglan las fragilidades de hoy: el historial que se borra en cada reboot, el vault clonado en /tmp, los rechazos silenciosos de la base, y el código duplicado del bot.</p>
+</section>
+
+<section>
+  <div class="num">04 — Cotizador 2.0</div>
+  <h2>De bueno a arma</h2>
+
+  <h3>El pipeline</h3>
+  <div class="flow">
+    <div class="paso"><span class="n">01</span><span>Orden desde WhatsApp o barra de comando.</span></div>
+    <div class="paso"><span class="n">02</span><span><strong>Ficha de datos primero</strong> — si faltan medidas o contexto, el bot pregunta. Cotización a ciegas: nunca.</span></div>
+    <div class="paso"><span class="n">03</span><span>Tu Mac procesa con Claude Code headless: receta + cantidades + doble precio + checklist + sanidad.</span></div>
+    <div class="paso"><span class="n">04</span><span class="gate">MESA DE REVISIÓN — receta, fuentes con fecha, precios, fórmulas, dudas. Todo sobre la mesa.</span></div>
+    <div class="paso"><span class="n">05</span><span class="gate">TU OK EXPLÍCITO. Sin OK no hay documento. El sistema propone, vos firmás.</span></div>
+    <div class="paso"><span class="n">06</span><span>Documento final (formato Presupuesto oficial) + guardado en base, vault y aviso a tu WhatsApp.</span></div>
+  </div>
+
+  <h3>Las 7 mejoras</h3>
+  <div class="grid">
+    <div class="card"><h4><i>1</i>La IA piensa, el código suma</h4><p>La receta la decide la IA; las cantidades, desperdicios y totales los calcula código exacto con tests. Cero errores aritméticos, para siempre.</p></div>
+    <div class="card"><h4><i>2</i>Recetario paramétrico</h4><p>Recetas tuyas (baño completo, pintura interior…) con fórmulas por m². Cotizar = meter medidas. Cada cotización las refina.</p></div>
+    <div class="card"><h4><i>3</i>Checklist anti-olvidos</h4><p>Flete, volquete, andamios, limpieza, escombros, imprevistos, factor zona. El error nº1 no es el precio mal puesto — es el ítem que faltó.</p></div>
+    <div class="card"><h4><i>4</i>Precios con vencimiento</h4><p>Todo precio tiene fecha y fuente. Vencido → se re-busca solo. SISMAT mensual, dólar diario, top-30 materiales semanal.</p></div>
+    <div class="card"><h4><i>5</i>Calibrado con TUS obras</h4><p>Obra cerrada → cotizado vs gastado real, ítem por ítem → coeficientes ajustados. A los 6 meses conoce tu realidad mejor que cualquier tarifario.</p></div>
+    <div class="card"><h4><i>6</i>Ficha por WhatsApp</h4><p>El sparring se preserva en modo automático: 3-4 preguntas antes de tirar un solo número.</p></div>
+    <div class="card"><h4><i>7</i>Sanidad física</h4><p>¿El adhesivo da ~5kg/m²? ¿El precio por m² cae en banda de mercado? Fuera de banda → no se entrega, se te consulta.</p></div>
+    <div class="card"><h4><i>∞</i>Los 4 loops</h4><p>Memoria · contraste con la realidad · precios frescos · auto-crítica. El motor que mantiene todo vivo sin que lo toques.</p></div>
+  </div>
+
+  <h3>Jerarquía de fuentes — Seia nunca como verdad única</h3>
+  <table>
+    <tr><th>#</th><th>Fuente</th><th>Para qué</th></tr>
+    <tr><td><b>1</b></td><td><b>Fichas técnicas de fabricantes</b> (Weber, Klaukol, Sika, Alba…)</td><td>Rendimientos y consumos oficiales. Máxima autoridad en SU producto.</td></tr>
+    <tr><td><b>2</b></td><td><b>Seia</b> (293 destilados)</td><td>Método, secuencia, criterio de obra, errores típicos.</td></tr>
+    <tr><td><b>3</b></td><td><b>Cruce de internet — SIEMPRE</b></td><td>Mínimo 2 fuentes profesionales independientes. Conflicto → ambas a la mesa y te pregunto. Nunca elijo en silencio.</td></tr>
+    <tr><td><b>4</b></td><td><b>Tarifarios</b> (SISMAT; ref. B si aparece otro vivo)</td><td>Mano de obra y costos de referencia.</td></tr>
+    <tr><td><b>5</b></td><td><b>Tus obras</b></td><td>La fuente que más peso gana con el tiempo.</td></tr>
+  </table>
+  <div class="nota"><p><strong>Si Seia no lo tiene:</strong> ficha de fabricante + 2 fuentes profesionales → receta marcada "investigada — sin validar en obra", con banderas visibles. Recién después de usarla en obra real se promueve a confiable.</p></div>
+</section>
+
+<section>
+  <div class="num">05 — El cerebro</div>
+  <h2>Se actualiza solo</h2>
+  <p>Cada noche, tu Mac corre "procesá mi inbox" con Claude Code headless: rutea lo del día, actualiza FODA y patrones, regenera la Orientación, pushea al vault. A la mañana, el tablero muestra el cerebro fresco. Mac apagada esa noche → corre al prenderse.</p>
+  <p>El 1% kaizen queda disponible como herramienta para cuando estés trabado — no ocupa lugar fijo en el tablero. La salud se gestiona aparte, por decisión tuya.</p>
+</section>
+
+<section>
+  <div class="num">06 — Cimientos y seguridad</div>
+  <h2>Para que no se caiga</h2>
+  <ul>
+    <li><strong>Migración versionada para gastos_personales</strong> — hoy un reset de la base la borra.</li>
+    <li><strong>Auditoría de seguridad (RLS) de todas las tablas</strong> — bot y daemon con usuario dedicado, nunca la llave maestra.</li>
+    <li><strong>Tests en la lógica que toca plata</strong> — motor del cotizador, cashflow, clasificación.</li>
+    <li><strong>Resiliencia:</strong> WhatsApp caído → el tablero sigue · web caída → el bot sigue registrando · Claude falla → reintento y el dato queda en Archivados · Mac apagada → la cola espera y te avisa.</li>
+  </ul>
+</section>
+
+<section>
+  <div class="num">07 — Lo que se muere</div>
+  <h2>Baja explícita y ordenada</h2>
+  <table class="muerte">
+    <tr><th>Pieza</th><th>Reemplazo</th></tr>
+    <tr><td>panel.html local + scripts</td><td><b>Home cockpit</b></td></tr>
+    <tr><td>app.html + servidor 4319</td><td><b>Home cockpit</b></td></tr>
+    <tr><td>launchd 7am (roto desde el 7/6)</td><td><b>Job nocturno del daemon</b></td></tr>
+    <tr><td>oficina.html + servidor 4317</td><td><b>Feed Actividad</b></td></tr>
+    <tr><td>ravn-tu-dia (repo + Vercel)</td><td><b>Centro de Mando</b></td></tr>
+    <tr><td>Código duplicado del bot</td><td><b>Bot consolidado</b></td></tr>
+  </table>
+  <div class="nota"><p><strong>Regla:</strong> nada se borra hasta que su reemplazo esté funcionando verificado. Se mata al final, no al principio.</p></div>
+</section>
+
+<section>
+  <div class="num">08 — Criterio de éxito</div>
+  <h2>Cuándo está terminado</h2>
+  <ol class="exito">
+    <li>Abrís <strong>una</strong> url en la Mac y ves toda tu operación viva, sin tocar nada local.</li>
+    <li>Todo lo que mandás al bot queda registrado o en Archivados — <strong>pérdida: cero</strong>.</li>
+    <li>Una cotización disparada desde el celular llega a mesa de revisión con fuentes fechadas, y <strong>no se emite sin tu OK</strong>.</li>
+    <li>Las piezas viejas están dadas de baja y nada las extraña.</li>
+    <li>El cotizador <strong>mejora solo</strong>: cada obra cerrada ajusta coeficientes, cada cotización deja lecciones.</li>
+  </ol>
+</section>
+
+<footer>
+  <div class="r">RAVN<span style="color:var(--taupe)">.</span></div>
+  <p>Centro de Mando · Documento de diseño · 11 de junio de 2026</p>
+</footer>
+
+</div>
+</body>
+</html>
