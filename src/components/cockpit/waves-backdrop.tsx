@@ -45,9 +45,10 @@ export function WavesBackdrop() {
     const dot = dotRef.current;
     if (!container || !svg) return;
 
-    const reducirMovimiento = window.matchMedia(
-      "(prefers-reduced-motion: reduce)"
-    ).matches;
+    // Pedido de Eze (12/06): la malla animada hacía pesada la página en su máquina.
+    // El modo estático (un solo draw, sin RAF ni mousemove) pasa a ser el default universal;
+    // la atmósfera la siguen dando las masas de niebla CSS, que son baratas.
+    const reducirMovimiento = true;
 
     const noise = createNoise2D();
     const mouse = {
