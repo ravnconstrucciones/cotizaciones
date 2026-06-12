@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { motion } from "framer-motion";
+import { useTheme } from "next-themes";
 import { RavnLogo } from "@/components/ravn-logo";
 import { createClient } from "@/lib/supabase/client";
 import { useRealtimeTable } from "@/hooks/use-realtime-table";
@@ -83,6 +84,32 @@ function NavLink({
         </span>
       ) : null}
     </Link>
+  );
+}
+
+/**
+ * Toggle de tema del cockpit (12/06 — reemplaza al cuadrado flotante que
+ * murió): un comando más de la terminal, al fondo del sidebar junto a
+ * [CERRAR SESIÓN]. El label nombra el DESTINO ([MODO CLARO] te lleva al
+ * claro). Persistencia next-themes estándar; default oscuro. Antes del
+ * mount se asume oscuro — mismo markup en SSR y primer render del
+ * cliente, sin mismatch de hydration.
+ */
+function ToggleTema() {
+  const { resolvedTheme, setTheme } = useTheme();
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+
+  const esClaro = mounted && resolvedTheme === "light";
+  return (
+    <button
+      type="button"
+      onClick={() => setTheme(esClaro ? "dark" : "light")}
+      className="font-mono-hud border-t border-cdm-line px-5 pb-2 pt-3.5 text-left text-[10px] uppercase tracking-[0.08em] text-cdm-muted transition-colors hover:text-cdm-accent"
+      aria-label={esClaro ? "Activar modo oscuro" : "Activar modo claro"}
+    >
+      {esClaro ? "[MODO OSCURO] ↑" : "[MODO CLARO] ↑"}
+    </button>
   );
 }
 
@@ -219,9 +246,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </motion.div>
           </div>
         </nav>
+        <ToggleTema />
         <button
           onClick={cerrarSesion}
-          className="font-mono-hud border-t border-cdm-line px-5 py-4 text-left text-[10px] uppercase tracking-[0.08em] text-cdm-muted transition-colors hover:text-cdm-accent"
+          className="font-mono-hud px-5 pb-4 pt-2 text-left text-[10px] uppercase tracking-[0.08em] text-cdm-muted transition-colors hover:text-cdm-accent"
         >
           [CERRAR SESIÓN] ↑
         </button>
