@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  bucketDeImagen,
   imagenDeEvento,
   resolverDestino,
   textoDeEvento,
@@ -148,6 +149,60 @@ describe("resolverDestino", () => {
     } else {
       throw new Error("debería resolver");
     }
+  });
+
+  it("foto_obra: exige presupuesto_id e imagen guardada", () => {
+    expect(resolverDestino(EVENTO_CON_IMAGEN, "foto_obra").ok).toBe(false);
+    // sin imagen en Storage no hay nada que encarpetar (el media de WhatsApp expira)
+    expect(
+      resolverDestino(EVENTO, "foto_obra", { presupuesto_id: "p-1" }).ok
+    ).toBe(false);
+  });
+
+  it("foto_obra con imagen en referencias: insert + copia al bucket obra-archivos", () => {
+    const r = resolverDestino(EVENTO_CON_IMAGEN, "foto_obra", {
+      presupuesto_id: "p-1",
+    });
+    expect(r.ok).toBe(true);
+    if (r.ok && r.resolucion.accion === "insert") {
+      expect(r.resolucion.tabla).toBe("obra_archivos");
+      expect(r.resolucion.payload).toEqual({
+        presupuesto_id: "p-1",
+        tipo: "foto",
+        titulo: "fachada de hormigón visto",
+        storage_path: `archivados/${EVENTO_CON_IMAGEN.id}.jpg`,
+        evento_id: EVENTO_CON_IMAGEN.id,
+      });
+      expect(r.resolucion.copiarImagen).toEqual({
+        desdeBucket: "referencias",
+        desdePath: "whatsapp/abc123.jpg",
+        haciaBucket: "obra-archivos",
+        haciaPath: `archivados/${EVENTO_CON_IMAGEN.id}.jpg`,
+      });
+    }
+  });
+
+  it("foto_obra ya subida a obra-archivos por el bot: insert directo, sin copia", () => {
+    const evento = {
+      id: "44444444-4444-4444-4444-444444444444",
+      titulo: "Foto de obra",
+      contenido: {
+        texto: "avance contrapiso",
+        imagen_path: "whatsapp/obra-9.jpg",
+        imagen_bucket: "obra-archivos",
+      },
+    };
+    expect(bucketDeImagen(evento)).toBe("obra-archivos");
+    const r = resolverDestino(evento, "foto_obra", { presupuesto_id: "p-2" });
+    expect(r.ok).toBe(true);
+    if (r.ok && r.resolucion.accion === "insert") {
+      expect(r.resolucion.payload.storage_path).toBe("whatsapp/obra-9.jpg");
+      expect(r.resolucion.copiarImagen).toBeUndefined();
+    }
+  });
+
+  it("bucketDeImagen sin anotación cae a referencias (flujo histórico)", () => {
+    expect(bucketDeImagen(EVENTO_CON_IMAGEN)).toBe("referencias");
   });
 
   it("descartar: sin insert", () => {

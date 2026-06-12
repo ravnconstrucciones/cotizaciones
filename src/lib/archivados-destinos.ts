@@ -6,6 +6,7 @@
 export const DESTINOS_ARCHIVADO = [
   "tarea",
   "gasto_obra",
+  "foto_obra",
   "gasto_personal",
   "filosofia",
   "referencia_estetica",
@@ -29,8 +30,23 @@ export type OpcionesResolver = {
 export type ResolucionArchivado =
   | {
       accion: "insert";
-      tabla: "tareas" | "gastos_personales" | "presupuestos_gastos" | "referencias";
+      tabla:
+        | "tareas"
+        | "gastos_personales"
+        | "presupuestos_gastos"
+        | "referencias"
+        | "obra_archivos";
       payload: Record<string, unknown>;
+      /**
+       * foto_obra: la imagen del evento vive en otro bucket (p.ej.
+       * `referencias`) — la ruta la copia a `obra-archivos` ANTES del insert.
+       */
+      copiarImagen?: {
+        desdeBucket: string;
+        desdePath: string;
+        haciaBucket: string;
+        haciaPath: string;
+      };
     }
   | { accion: "descartar" };
 
@@ -44,6 +60,16 @@ export function textoDeEvento(e: EventoArchivado): string {
 export function imagenDeEvento(e: EventoArchivado): string | null {
   const p = e.contenido?.imagen_path;
   return typeof p === "string" && p.trim() ? p.trim() : null;
+}
+
+/**
+ * Bucket donde el bot dejó la imagen del evento. Las fotos de obra ambiguas
+ * ya suben a `obra-archivos` (el bot lo anota en contenido.imagen_bucket);
+ * el resto del flujo histórico sube a `referencias`.
+ */
+export function bucketDeImagen(e: EventoArchivado): string {
+  const b = e.contenido?.imagen_bucket;
+  return typeof b === "string" && b.trim() ? b.trim() : "referencias";
 }
 
 export function resolverDestino(
@@ -102,6 +128,49 @@ export function resolverDestino(
             fecha: new Date().toISOString().slice(0, 10),
             origen: "app",
           },
+        },
+      };
+    }
+    case "foto_obra": {
+      if (!opciones.presupuesto_id) {
+        return { ok: false, error: "presupuesto_id requerido para foto de obra." };
+      }
+      const imagen = imagenDeEvento(evento);
+      if (!imagen) {
+        return {
+          ok: false,
+          error:
+            "el evento no tiene imagen guardada en Storage (la foto original de WhatsApp ya no es accesible desde acá).",
+        };
+      }
+      const bucket = bucketDeImagen(evento);
+      const yaEnCarpeta = bucket === "obra-archivos";
+      const ext = imagen.includes(".")
+        ? imagen.slice(imagen.lastIndexOf(".") + 1).toLowerCase()
+        : "jpg";
+      const storagePath = yaEnCarpeta ? imagen : `archivados/${evento.id}.${ext}`;
+      return {
+        ok: true,
+        resolucion: {
+          accion: "insert",
+          tabla: "obra_archivos",
+          payload: {
+            presupuesto_id: opciones.presupuesto_id,
+            tipo: "foto",
+            titulo: texto,
+            storage_path: storagePath,
+            evento_id: evento.id,
+          },
+          ...(yaEnCarpeta
+            ? {}
+            : {
+                copiarImagen: {
+                  desdeBucket: bucket,
+                  desdePath: imagen,
+                  haciaBucket: "obra-archivos",
+                  haciaPath: storagePath,
+                },
+              }),
         },
       };
     }

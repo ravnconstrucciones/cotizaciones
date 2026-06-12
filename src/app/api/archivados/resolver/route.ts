@@ -53,6 +53,33 @@ export async function POST(req: NextRequest) {
   let destinoId: string | null = null;
 
   if (r.resolucion.accion === "insert") {
+    // foto_obra: la imagen vive en otro bucket (p.ej. referencias) — copiarla
+    // a obra-archivos ANTES del insert para que la fila nunca apunte al vacío.
+    if (r.resolucion.copiarImagen) {
+      const c = r.resolucion.copiarImagen;
+      const { data: blob, error: dlErr } = await sb.storage
+        .from(c.desdeBucket)
+        .download(c.desdePath);
+      if (dlErr || !blob) {
+        return NextResponse.json(
+          { error: `no pude leer la imagen del bucket ${c.desdeBucket}: ${dlErr?.message ?? "vacía"}.` },
+          { status: 500 }
+        );
+      }
+      const { error: upErr } = await sb.storage
+        .from(c.haciaBucket)
+        .upload(c.haciaPath, blob, {
+          contentType: blob.type || "image/jpeg",
+          upsert: true,
+        });
+      if (upErr) {
+        return NextResponse.json(
+          { error: `no pude copiar la imagen a ${c.haciaBucket}: ${upErr.message}.` },
+          { status: 500 }
+        );
+      }
+    }
+
     const { data: fila, error: insErr } = await sb
       .from(r.resolucion.tabla)
       .insert(r.resolucion.payload)

@@ -21,6 +21,7 @@ type ObraOpcion = {
 const DESTINO_LABEL: Record<DestinoArchivado, string> = {
   tarea: "Tarea",
   gasto_obra: "Gasto de obra",
+  foto_obra: "Foto de obra",
   gasto_personal: "Gasto personal",
   filosofia: "Filosofía",
   referencia_estetica: "Ref. estética",
@@ -129,7 +130,7 @@ function FormResolver({
           className={INPUT_CLS}
         />
       )}
-      {destino === "gasto_obra" && (
+      {(destino === "gasto_obra" || destino === "foto_obra") && (
         <select
           value={presupuestoId}
           onChange={(e) => setPresupuestoId(e.target.value)}
