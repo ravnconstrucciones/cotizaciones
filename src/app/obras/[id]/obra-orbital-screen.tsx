@@ -128,23 +128,20 @@ export function ObraOrbitalScreen({ presupuestoId }: { presupuestoId: string }) 
         <div className="flex items-baseline gap-4">
           <Link
             href="/obras"
-            className="text-[10px] uppercase tracking-[0.2em] text-cdm-muted transition-colors hover:text-cdm-fg"
+            className="font-mono-hud text-[10px] uppercase tracking-[0.08em] text-cdm-muted transition-colors hover:text-cdm-accent"
           >
-            ← Proyectos
+            [← PROYECTOS]
           </Link>
-          <h1 className="flex items-center gap-2 text-[11px] uppercase tracking-[0.35em] text-cdm-muted">
-            <span
-              aria-hidden
-              className="h-[5px] w-[5px] bg-cdm-accent shadow-[0_0_8px_rgba(34,211,238,0.9)]"
-            />
+          <h1 className="font-mono-hud flex items-baseline gap-2 text-[11px] font-medium uppercase tracking-[0.22em] text-cdm-muted">
+            <span aria-hidden className="text-cdm-accent/60">{"//////"}</span>
             {nombre}
           </h1>
         </div>
         <Link
           href={`/obras/${presupuestoId}/gastos`}
-          className="text-[10px] uppercase tracking-[0.2em] text-cdm-muted transition-colors hover:text-cdm-fg"
+          className="font-mono-hud text-[10px] uppercase tracking-[0.08em] text-cdm-muted transition-colors hover:text-cdm-accent"
         >
-          Gastos →
+          [GASTOS] ↑
         </Link>
       </header>
 

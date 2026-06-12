@@ -32,9 +32,11 @@ function ListaMini({
 export function ModuloCerebro({
   cerebro,
   className,
+  colapsable,
 }: {
   cerebro: CerebroData;
   className?: string;
+  colapsable?: boolean;
 }) {
   const hayPatrones =
     cerebro.patrones.potencian.length > 0 || cerebro.patrones.frenan.length > 0;
@@ -46,7 +48,7 @@ export function ModuloCerebro({
   const vacio = !cerebro.orientacion && !hayPatrones && !hayFoda;
 
   return (
-    <Panel titulo="El cerebro" className={className}>
+    <Panel titulo="El cerebro" className={className} colapsable={colapsable}>
       {cerebro.error && <p className="mb-3 text-[11px] text-amber-300">{cerebro.error}</p>}
       {vacio && (
         <div className="flex h-24 items-center justify-center border border-dashed border-cdm-line">

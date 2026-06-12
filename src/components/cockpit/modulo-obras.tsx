@@ -76,15 +76,15 @@ export function ModuloObras({ className }: { className?: string }) {
         <span className="flex items-baseline gap-3">
           <Link
             href="/obras"
-            className="text-[9px] uppercase tracking-[0.2em] text-cdm-muted hover:text-cdm-fg"
+            className="font-mono-hud text-[9px] uppercase tracking-[0.08em] text-cdm-muted transition-colors hover:text-cdm-accent"
           >
-            Proyectos →
+            [PROYECTOS] ↑
           </Link>
           <Link
             href="/cashflow"
-            className="text-[9px] uppercase tracking-[0.2em] text-cdm-muted hover:text-cdm-fg"
+            className="font-mono-hud text-[9px] uppercase tracking-[0.08em] text-cdm-muted transition-colors hover:text-cdm-accent"
           >
-            Cashflow →
+            [CASHFLOW] ↑
           </Link>
         </span>
       }

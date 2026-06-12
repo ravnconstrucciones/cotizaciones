@@ -15,9 +15,9 @@ function fmtFecha(iso: string): string {
 }
 
 const CHIP_ACTIVO =
-  "border-cdm-accent bg-cdm-accent text-cdm-bg";
+  "border-cdm-accent/70 bg-cdm-accent/15 text-cdm-accent shadow-[0_0_18px_-4px_rgba(34,211,238,0.5)]";
 const CHIP_IDLE =
-  "border-cdm-line text-cdm-muted hover:text-cdm-fg";
+  "border-cdm-line text-cdm-muted hover:border-cdm-accent/30 hover:text-cdm-fg";
 
 /** Vista ADN (spec §7.2): el lineamiento estético y filosófico de Ravn, captura a captura. */
 export function AdnScreen() {
@@ -81,30 +81,27 @@ export function AdnScreen() {
         <div className="relative pb-3">
           {/* Línea de horizonte detrás del header — mismo lenguaje que historial/obras. */}
           <span aria-hidden className="cdm-horizon absolute inset-x-0 bottom-0" />
-          <h1 className="flex items-center gap-2 text-[11px] uppercase tracking-[0.35em] text-cdm-muted">
-            <span
-              aria-hidden
-              className="h-[5px] w-[5px] bg-cdm-accent shadow-[0_0_8px_rgba(34,211,238,0.9)]"
-            />
+          <h1 className="font-mono-hud flex items-baseline gap-2 text-[11px] font-medium uppercase tracking-[0.22em] text-cdm-muted">
+            <span aria-hidden className="text-cdm-accent/60">{"//////"}</span>
             ADN
           </h1>
         </div>
-        <p className="mt-4 text-sm text-cdm-muted">
+        <p className="mt-5 max-w-xl text-sm leading-relaxed text-cdm-muted">
           La filosofía y la estética de Ravn construyéndose solas, captura a captura.
         </p>
 
-        <div className="mt-6 flex gap-2">
+        <div className="font-mono-hud mt-8 flex gap-2">
           {(["estetica", "filosofia"] as const).map((v) => (
             <button
               key={v}
               onClick={() => setVista(v)}
-              className={`border px-4 py-1.5 text-[10px] uppercase tracking-[0.2em] transition-colors ${
+              className={`cdm-chip cursor-pointer border px-4 py-1.5 text-[10px] uppercase tracking-[0.12em] transition-colors ${
                 vista === v ? CHIP_ACTIVO : CHIP_IDLE
               }`}
             >
               {v === "estetica"
-                ? `Estética (${esteticas.length})`
-                : `Filosofía (${filosofia.length})`}
+                ? `[ESTÉTICA] ${esteticas.length}`
+                : `[FILOSOFÍA] ${filosofia.length}`}
             </button>
           ))}
         </div>
@@ -146,14 +143,17 @@ export function AdnScreen() {
                 </span>
               </div>
             ) : (
-              <div className="mt-6 columns-2 gap-3 md:columns-3 xl:columns-4">
+              {/* Moodboard (iteración 5): grilla flotante en la niebla —
+                  sin cajas duras; cada captura levita con sombra ambiental
+                  y sube apenas al hover. */}
+              <div className="mt-10 columns-2 gap-5 md:columns-3 xl:columns-4">
                 {filtradas.map((r, i) => (
                   <motion.figure
                     key={r.id}
-                    initial={{ opacity: 0, y: 16 }}
+                    initial={{ opacity: 0, y: 24 }}
                     animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.35, delay: Math.min(i * 0.03, 0.6) }}
-                    className="mb-3 break-inside-avoid border border-cdm-line bg-cdm-panel"
+                    transition={{ duration: 0.7, delay: Math.min(i * 0.05, 0.9), ease: [0.22, 1, 0.36, 1] }}
+                    className="mb-5 break-inside-avoid bg-cdm-panel/50 shadow-[0_28px_60px_-24px_rgba(0,0,0,0.85),0_0_30px_-18px_rgba(34,211,238,0.25)] backdrop-blur-sm transition-transform duration-300 hover:-translate-y-1"
                   >
                     {r.imagen_url ? (
                       /* eslint-disable-next-line @next/next/no-img-element */
@@ -183,7 +183,7 @@ export function AdnScreen() {
                             {e}
                           </button>
                         ))}
-                        <span className="ml-auto flex items-center gap-1.5 text-[9px] tabular-nums text-cdm-muted">
+                        <span className="font-mono-hud ml-auto flex items-center gap-1.5 text-[9px] tabular-nums text-cdm-muted">
                           {r.evento_id ? <AvatarBot className="h-5 w-5" /> : null}
                           {fmtFecha(r.creado_at)}
                         </span>
@@ -200,18 +200,15 @@ export function AdnScreen() {
             {sinClasificar.length > 0 && (
               <section className="mt-10">
                 <div className="flex items-baseline justify-between gap-3">
-                  <h2 className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.25em] text-amber-300">
-                    <span
-                      aria-hidden
-                      className="h-[5px] w-[5px] bg-amber-300 shadow-[0_0_8px_rgba(252,211,77,0.8)]"
-                    />
+                  <h2 className="font-mono-hud flex items-baseline gap-2 text-[10px] font-medium uppercase tracking-[0.2em] text-amber-300">
+                    <span aria-hidden className="text-amber-300/70">{"//////"}</span>
                     Sin clasificar ({sinClasificar.length})
                   </h2>
                   <Link
                     href="/archivados"
-                    className="text-[9px] uppercase tracking-[0.2em] text-cdm-muted transition-colors hover:text-cdm-fg"
+                    className="font-mono-hud text-[9px] uppercase tracking-[0.08em] text-cdm-muted transition-colors hover:text-cdm-accent"
                   >
-                    Resolver en Archivados →
+                    [RESOLVER EN ARCHIVADOS] ↑
                   </Link>
                 </div>
                 <div className="mt-4 columns-2 gap-3 md:columns-3 xl:columns-4">
@@ -262,35 +259,62 @@ export function AdnScreen() {
           </>
         )}
 
+        {/* Filosofía (iteración 5 — la content page de IGLOO): las frases
+            flotan EN la atmósfera como bloques terminal con aire enorme.
+            Entrada con fade lento al scrollear, índice mono, cero cajas. */}
         {!error && !cargando && vista === "filosofia" && (
-          <div className="mx-auto mt-8 max-w-2xl space-y-6">
+          <div className="mx-auto mt-24 max-w-3xl pb-24">
+            <motion.p
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ duration: 1.2, ease: "easeOut" }}
+              className="font-mono-hud text-[10px] uppercase tracking-[0.3em] text-cdm-accent/70"
+            >
+              <span aria-hidden className="mr-2 text-cdm-accent/40">
+                {"//////"}
+              </span>
+              Filosofía
+            </motion.p>
+
             {filosofia.length === 0 && (
-              <div className="flex h-32 items-center justify-center border border-dashed border-cdm-line">
-                <span className="px-4 text-center text-[10px] uppercase tracking-[0.2em] text-cdm-muted/60">
+              <div className="mt-16 flex h-32 items-center justify-center border border-dashed border-cdm-line">
+                <span className="font-mono-hud px-4 text-center text-[10px] uppercase tracking-[0.2em] text-cdm-muted/60">
                   Mandale una frase al bot — acá nace la filosofía
                 </span>
               </div>
             )}
-            {filosofia.map((r, i) => (
-              <motion.blockquote
-                key={r.id}
-                initial={{ opacity: 0, y: 12 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.35, delay: Math.min(i * 0.04, 0.6) }}
-                className="border-l-2 border-cdm-accent pl-4"
-              >
-                <p className="text-sm italic leading-relaxed text-cdm-fg/90">
-                  &ldquo;{r.texto}&rdquo;
-                </p>
-                <footer className="mt-1.5 flex items-center gap-1.5 text-[9px] uppercase tracking-[0.2em] text-cdm-muted">
-                  {r.evento_id ? <AvatarBot className="h-5 w-5" /> : null}
-                  <span>
-                    {r.fuente ? `${r.fuente} · ` : ""}
-                    {fmtFecha(r.creado_at)}
+
+            <div className="mt-20 space-y-32">
+              {filosofia.map((r, i) => (
+                <motion.blockquote
+                  key={r.id}
+                  initial={{ opacity: 0, y: 28 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  viewport={{ once: true, margin: "-60px" }}
+                  transition={{ duration: 1.1, ease: [0.22, 1, 0.36, 1] }}
+                  className={
+                    i % 2 === 1 ? "lg:translate-x-16" : "lg:-translate-x-4"
+                  }
+                >
+                  <span
+                    aria-hidden
+                    className="font-mono-hud text-[10px] tabular-nums tracking-[0.2em] text-cdm-accent/50"
+                  >
+                    {String(i + 1).padStart(2, "0")} {"////"}
                   </span>
-                </footer>
-              </motion.blockquote>
-            ))}
+                  <p className="font-mono-hud mt-5 text-lg leading-[1.9] text-cdm-fg/90 md:text-xl">
+                    &ldquo;{r.texto}&rdquo;
+                  </p>
+                  <footer className="font-mono-hud mt-5 flex items-center gap-2 text-[9px] uppercase tracking-[0.16em] text-cdm-muted/70">
+                    {r.evento_id ? <AvatarBot className="h-5 w-5" /> : null}
+                    <span>
+                      {r.fuente ? `${r.fuente} · ` : ""}
+                      {fmtFecha(r.creado_at)}
+                    </span>
+                  </footer>
+                </motion.blockquote>
+              ))}
+            </div>
           </div>
         )}
       </div>

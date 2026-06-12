@@ -133,18 +133,15 @@ export function ObrasScreen() {
       <WavesBackdrop />
 
       <header className="relative z-10 flex items-baseline justify-between px-6 pt-6 md:px-10">
-        <h1 className="flex items-center gap-2 text-[11px] uppercase tracking-[0.35em] text-cdm-muted">
-          <span
-            aria-hidden
-            className="h-[5px] w-[5px] bg-cdm-accent shadow-[0_0_8px_rgba(34,211,238,0.9)]"
-          />
+        <h1 className="font-mono-hud flex items-baseline gap-2 text-[11px] font-medium uppercase tracking-[0.22em] text-cdm-muted">
+          <span aria-hidden className="text-cdm-accent/60">{"//////"}</span>
           Proyectos
         </h1>
         <Link
           href="/"
-          className="text-[10px] uppercase tracking-[0.2em] text-cdm-muted transition-colors hover:text-cdm-fg"
+          className="font-mono-hud text-[10px] uppercase tracking-[0.08em] text-cdm-muted transition-colors hover:text-cdm-accent"
         >
-          ← Centro de mando
+          [← CENTRO DE MANDO]
         </Link>
       </header>
 

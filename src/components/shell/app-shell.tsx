@@ -155,7 +155,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         >
           {grupos.map((g) => (
             <div key={g.titulo} className="mb-8">
-              <p className="px-5 pb-2.5 text-[9px] uppercase tracking-[0.28em] text-cdm-accent/60">
+              <p className="font-mono-hud px-5 pb-2.5 text-[9px] uppercase tracking-[0.24em] text-cdm-accent/60">
+                <span aria-hidden className="mr-1.5 text-cdm-accent/35">
+                  {"//////"}
+                </span>
                 {g.titulo}
               </p>
               {g.items.map((item) => (
@@ -177,11 +180,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               aria-expanded={herramientasAbiertas}
               className="group flex w-full items-baseline justify-between px-5 py-1.5 text-left"
             >
-              <span className="text-[9px] uppercase tracking-[0.28em] text-cdm-muted/50 transition-colors group-hover:text-cdm-muted">
+              <span className="font-mono-hud text-[9px] uppercase tracking-[0.24em] text-cdm-muted/50 transition-colors group-hover:text-cdm-muted">
+                <span aria-hidden className="mr-1.5 text-cdm-muted/30">
+                  {"//////"}
+                </span>
                 Herramientas
               </span>
               <span className="flex items-baseline gap-1.5">
-                <span className="text-[8px] uppercase tracking-[0.18em] text-cdm-muted/35">
+                <span className="font-mono-hud text-[8px] uppercase tracking-[0.12em] text-cdm-muted/35">
                   edición manual
                 </span>
                 <motion.span
@@ -215,9 +221,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </nav>
         <button
           onClick={cerrarSesion}
-          className="border-t border-cdm-line px-5 py-4 text-left text-[10px] uppercase tracking-[0.2em] text-cdm-muted transition-colors hover:text-cdm-fg"
+          className="font-mono-hud border-t border-cdm-line px-5 py-4 text-left text-[10px] uppercase tracking-[0.08em] text-cdm-muted transition-colors hover:text-cdm-accent"
         >
-          Cerrar sesión
+          [CERRAR SESIÓN] ↑
         </button>
       </aside>
 

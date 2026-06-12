@@ -215,11 +215,8 @@ export function RevisionScreen({ id }: { id: string }) {
           <span aria-hidden className="cdm-horizon absolute inset-x-0 bottom-0" />
           <div className="flex items-start justify-between gap-4">
             <div>
-              <p className="flex items-center gap-2 text-[10px] uppercase tracking-[0.35em] text-cdm-muted">
-                <span
-                  aria-hidden
-                  className="h-[5px] w-[5px] bg-cdm-accent shadow-[0_0_8px_rgba(34,211,238,0.9)]"
-                />
+              <p className="font-mono-hud flex items-baseline gap-2 text-[10px] font-medium uppercase tracking-[0.22em] text-cdm-muted">
+                <span aria-hidden className="text-cdm-accent/60">{"//////"}</span>
                 Mesa de revisión
               </p>
               <h1 className="mt-2 text-2xl font-light">{detalle.titulo}</h1>

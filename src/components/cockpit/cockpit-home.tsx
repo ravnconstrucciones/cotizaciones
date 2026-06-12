@@ -19,28 +19,29 @@ const stagger = {
 };
 
 /**
- * Home cockpit (spec §4): una pantalla, sin scroll en desktop (cada módulo
- * scrollea adentro). En < lg degrada a una columna con scroll normal.
- * Skin futurista: malla Waves de fondo (WavesBackdrop, z-0) + contenido en z-10
- * con Space Grotesk como fuente de interfaz (Raleway queda solo para la marca).
+ * Home cockpit — iteración 5 (IGLOO): restricción brutal. Dos niveles:
+ *   1. Lo que manda: prompt box + Obras / Plata / Pendientes en grande.
+ *   2. El resto del sistema: tiles colapsados de una línea (se expanden
+ *      al click — la funcionalidad completa sigue ahí).
+ * La pantalla RESPIRA: márgenes generosos, aire entre niveles, atmósfera
+ * de niebla detrás (WavesBackdrop). En < lg degrada a una columna.
  */
 export function CockpitHome({ cerebro }: { cerebro: CerebroData }) {
   return (
-    <div className="font-grotesk relative flex min-h-screen flex-col gap-3 bg-cdm-bg p-4 text-cdm-fg lg:h-screen lg:overflow-hidden">
+    <div className="font-grotesk relative flex min-h-screen flex-col gap-7 bg-cdm-bg px-5 pb-10 pt-6 text-cdm-fg lg:px-10 lg:pt-8">
       <WavesBackdrop />
 
       {/* pr-14: la fecha no debe quedar debajo del theme-toggle fijo (right-4). */}
-      <div className="relative z-10 flex items-baseline justify-between px-1 pb-2 pr-14">
+      <div className="relative z-10 flex items-baseline justify-between px-1 pb-3 pr-14">
         {/* Línea de horizonte: luz cian a ancho completo detrás del header. */}
         <span aria-hidden className="cdm-horizon absolute inset-x-0 bottom-0" />
-        <h1 className="flex items-center gap-2 text-[11px] uppercase tracking-[0.35em] text-cdm-muted">
-          <span
-            aria-hidden
-            className="h-[5px] w-[5px] bg-cdm-accent shadow-[0_0_8px_rgba(34,211,238,0.9)]"
-          />
+        <h1 className="font-mono-hud text-[11px] font-medium uppercase tracking-[0.22em] text-cdm-muted">
+          <span aria-hidden className="mr-2 text-cdm-accent/60">
+            {"//////"}
+          </span>
           Centro de mando
         </h1>
-        <span className="text-[10px] uppercase tracking-[0.2em] text-cdm-muted/60">
+        <span className="font-mono-hud text-[10px] uppercase tracking-[0.12em] text-cdm-muted/60">
           {new Date().toLocaleDateString("es-AR", {
             weekday: "long",
             day: "numeric",
@@ -51,20 +52,39 @@ export function CockpitHome({ cerebro }: { cerebro: CerebroData }) {
 
       <CommandBar />
 
+      {/* Nivel 1 — lo que manda: tres módulos en grande, con aire. */}
       <motion.div
         variants={stagger}
         initial="hidden"
         animate="visible"
-        className="relative z-10 grid min-h-0 flex-1 grid-cols-1 gap-3 lg:grid-cols-12 lg:grid-rows-2"
+        className="relative z-10 grid grid-cols-1 gap-5 lg:h-[46vh] lg:min-h-[340px] lg:grid-cols-3"
       >
-        <ModuloObras className="lg:col-span-3" />
-        <ModuloPlata className="lg:col-span-3" />
-        <ModuloPendientes className="lg:col-span-3" />
-        <ModuloCotizaciones className="lg:col-span-3" />
-        <ModuloActividad className="lg:col-span-4" />
-        <ModuloCerebro cerebro={cerebro} className="lg:col-span-4" />
-        <ModuloArchivados className="lg:col-span-2" />
-        <ModuloAdn className="lg:col-span-2" />
+        <ModuloObras />
+        <ModuloPlata />
+        <ModuloPendientes />
+      </motion.div>
+
+      {/* Nivel 2 — el resto del sistema, replegado en la niebla. */}
+      <div className="relative z-10 mt-1 px-1">
+        <p className="font-mono-hud text-[9px] uppercase tracking-[0.3em] text-cdm-muted/50">
+          <span aria-hidden className="mr-2 text-cdm-accent/30">
+            {"//////"}
+          </span>
+          Sistemas
+        </p>
+      </div>
+      <motion.div
+        variants={stagger}
+        initial="hidden"
+        animate="visible"
+        transition={{ delayChildren: 0.25 }}
+        className="relative z-10 -mt-4 grid grid-cols-1 items-start gap-3 sm:grid-cols-2 xl:grid-cols-5"
+      >
+        <ModuloCotizaciones colapsable />
+        <ModuloActividad colapsable />
+        <ModuloCerebro cerebro={cerebro} colapsable />
+        <ModuloArchivados colapsable />
+        <ModuloAdn colapsable />
       </motion.div>
     </div>
   );

@@ -8,7 +8,13 @@ import { Panel } from "./panel";
 import type { Evento } from "@/types/centro-mando";
 
 /** Módulo 7: ítems sin clasificar esperando a Eze — nada se pierde (spec §4.7). */
-export function ModuloArchivados({ className }: { className?: string }) {
+export function ModuloArchivados({
+  className,
+  colapsable,
+}: {
+  className?: string;
+  colapsable?: boolean;
+}) {
   const [filas, setFilas] = useState<Evento[]>([]);
   const [total, setTotal] = useState(0);
 
@@ -33,9 +39,10 @@ export function ModuloArchivados({ className }: { className?: string }) {
     <Panel
       titulo="Archivados"
       className={className}
+      colapsable={colapsable}
       accion={
         total > 0 ? (
-          <span className="bg-cdm-accent px-1.5 text-[10px] font-bold tabular-nums text-cdm-bg">
+          <span className="font-mono-hud bg-cdm-accent px-1.5 text-[10px] font-bold tabular-nums text-cdm-bg shadow-[0_0_14px_rgba(34,211,238,0.5)]">
             {total}
           </span>
         ) : undefined
@@ -56,9 +63,9 @@ export function ModuloArchivados({ className }: { className?: string }) {
           </ul>
           <Link
             href="/archivados"
-            className="mt-3 inline-block text-[9px] uppercase tracking-[0.2em] text-cdm-accent hover:text-cdm-fg"
+            className="font-mono-hud mt-3 inline-block text-[9px] uppercase tracking-[0.08em] text-cdm-accent transition-colors hover:text-cdm-fg"
           >
-            Resolver →
+            [RESOLVER] ↑
           </Link>
         </>
       )}

@@ -6,7 +6,13 @@ import { Panel } from "./panel";
 import type { Referencia } from "@/types/centro-mando";
 
 /** Módulo 9 (teaser): última referencia estética + última frase (spec §4.9). */
-export function ModuloAdn({ className }: { className?: string }) {
+export function ModuloAdn({
+  className,
+  colapsable,
+}: {
+  className?: string;
+  colapsable?: boolean;
+}) {
   const [ultEstetica, setUltEstetica] = useState<Referencia | null>(null);
   const [ultFilosofia, setUltFilosofia] = useState<Referencia | null>(null);
 
@@ -30,12 +36,13 @@ export function ModuloAdn({ className }: { className?: string }) {
     <Panel
       titulo="ADN"
       className={className}
+      colapsable={colapsable}
       accion={
         <Link
           href="/adn"
-          className="text-[9px] uppercase tracking-[0.2em] text-cdm-muted hover:text-cdm-fg"
+          className="font-mono-hud text-[9px] uppercase tracking-[0.08em] text-cdm-muted transition-colors hover:text-cdm-accent"
         >
-          Ver todo →
+          [VER] ↑
         </Link>
       }
     >

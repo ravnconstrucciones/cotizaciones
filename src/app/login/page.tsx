@@ -122,7 +122,7 @@ export default function LoginPage() {
             disabled={loading}
             whileHover={reducirMovimiento ? undefined : { y: -1 }}
             whileTap={reducirMovimiento ? undefined : { scale: 0.985 }}
-            className="mt-2 inline-flex w-full items-center justify-center rounded-none border border-cdm-fg bg-cdm-fg px-8 py-4 text-sm font-semibold uppercase tracking-[0.18em] text-cdm-bg transition-shadow duration-300 hover:shadow-[0_0_36px_-4px_rgba(34,211,238,0.55)] disabled:opacity-50"
+            className="cdm-btn-cian mt-2 inline-flex w-full items-center justify-center rounded-none px-8 py-4 text-sm font-semibold uppercase tracking-[0.18em] disabled:opacity-50"
           >
             {loading ? "Ingresando..." : "Ingresar"}
           </motion.button>

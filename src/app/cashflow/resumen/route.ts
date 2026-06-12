@@ -15,6 +15,7 @@ type PresRow = {
   presupuesto_aprobado: boolean | null;
   propuesta_comercial_pref?: unknown;
   libreta_caja_empresa?: boolean | null;
+  fecha?: string | null;
 };
 
 type ObraJoin = {

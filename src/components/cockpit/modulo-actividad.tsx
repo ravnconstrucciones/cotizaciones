@@ -24,7 +24,13 @@ function fmtHora(iso: string): string {
 }
 
 /** Módulo 6 (ex-oficina): feed de `eventos` — todo lo que hizo el sistema (spec §4.6). */
-export function ModuloActividad({ className }: { className?: string }) {
+export function ModuloActividad({
+  className,
+  colapsable,
+}: {
+  className?: string;
+  colapsable?: boolean;
+}) {
   const [eventos, setEventos] = useState<Evento[]>([]);
   const [error, setError] = useState<string | null>(null);
 
@@ -52,12 +58,13 @@ export function ModuloActividad({ className }: { className?: string }) {
     <Panel
       titulo="Actividad"
       className={className}
+      colapsable={colapsable}
       accion={
         <Link
           href="/actividad"
-          className="text-[9px] uppercase tracking-[0.2em] text-cdm-muted hover:text-cdm-fg"
+          className="font-mono-hud text-[9px] uppercase tracking-[0.08em] text-cdm-muted transition-colors hover:text-cdm-accent"
         >
-          Ver todo →
+          [VER] ↑
         </Link>
       }
     >
@@ -76,10 +83,10 @@ export function ModuloActividad({ className }: { className?: string }) {
               exit={{ opacity: 0 }}
               className="flex items-baseline gap-2 text-[11px]"
             >
-              <span className="shrink-0 tabular-nums text-cdm-muted">
+              <span className="font-mono-hud shrink-0 tabular-nums text-cdm-muted">
                 {fmtHora(e.creado_at)}
               </span>
-              <span className="shrink-0 border border-cdm-line px-1 text-[8px] uppercase tracking-widest text-cdm-accent">
+              <span className="font-mono-hud shrink-0 border border-cdm-line px-1 text-[8px] uppercase tracking-widest text-cdm-accent">
                 {ORIGEN_TAG[e.origen]}
               </span>
               <span className="truncate text-cdm-fg/85">{e.titulo}</span>

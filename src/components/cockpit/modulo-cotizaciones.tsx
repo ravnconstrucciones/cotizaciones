@@ -16,7 +16,13 @@ const ESTADO_UI: Record<EstadoCotizacion, { label: string; cls: string }> = {
 };
 
 /** Módulo 5: cotizaciones en proceso + historial con estado de aprobación (spec §4.5). */
-export function ModuloCotizaciones({ className }: { className?: string }) {
+export function ModuloCotizaciones({
+  className,
+  colapsable,
+}: {
+  className?: string;
+  colapsable?: boolean;
+}) {
   const [filas, setFilas] = useState<CotizacionResumen[]>([]);
   const [error, setError] = useState<string | null>(null);
 
@@ -40,8 +46,21 @@ export function ModuloCotizaciones({ className }: { className?: string }) {
   }, [cargar]);
   useRealtimeTable("cotizaciones", cargar);
 
+  const enRevision = filas.filter((f) => f.estado === "en_revision").length;
+
   return (
-    <Panel titulo="Cotizaciones" className={className}>
+    <Panel
+      titulo="Cotizaciones"
+      className={className}
+      colapsable={colapsable}
+      accion={
+        enRevision > 0 ? (
+          <span className="font-mono-hud text-[9px] uppercase tracking-[0.08em] text-amber-300">
+            {enRevision} en revisión
+          </span>
+        ) : undefined
+      }
+    >
       {error && <p className="text-[11px] text-red-400">{error}</p>}
       {!error && filas.length === 0 && (
         <p className="text-[11px] text-cdm-muted">

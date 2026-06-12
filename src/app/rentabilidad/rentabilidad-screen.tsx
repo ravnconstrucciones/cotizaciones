@@ -721,9 +721,9 @@ export function RentabilidadScreen({
       <div className="mx-auto flex max-w-5xl flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <Link
           href="/"
-          className="inline-block w-fit text-[10px] uppercase tracking-[0.2em] text-cdm-muted transition-colors hover:text-cdm-fg"
+          className="font-mono-hud inline-block w-fit text-[10px] uppercase tracking-[0.08em] text-cdm-muted transition-colors hover:text-cdm-accent"
         >
-          ← Centro de mando
+          [← CENTRO DE MANDO]
         </Link>
         <nav className="flex flex-wrap gap-3 text-[10px] font-medium uppercase tracking-[0.18em]">
           <Link
@@ -780,8 +780,8 @@ export function RentabilidadScreen({
           <div className="mx-auto max-w-2xl px-6 py-16 sm:px-10">
             <div className="relative pb-3">
               <span aria-hidden className="cdm-horizon absolute inset-x-0 bottom-0" />
-              <h1 className="flex items-center gap-2 text-[11px] uppercase tracking-[0.35em] text-cdm-muted">
-                <span aria-hidden className="h-[5px] w-[5px] bg-cdm-accent shadow-[0_0_8px_rgba(34,211,238,0.9)]" />
+              <h1 className="font-mono-hud flex items-baseline gap-2 text-[11px] font-medium uppercase tracking-[0.22em] text-cdm-muted">
+                <span aria-hidden className="text-cdm-accent/60">{"//////"}</span>
                 Rentabilidad
               </h1>
             </div>
@@ -824,8 +824,8 @@ export function RentabilidadScreen({
         <div className="mx-auto max-w-5xl px-6 py-10 pb-24 sm:px-10">
           <div className="relative pb-3">
             <span aria-hidden className="cdm-horizon absolute inset-x-0 bottom-0" />
-            <h1 className="flex items-center gap-2 text-[11px] uppercase tracking-[0.35em] text-cdm-muted">
-              <span aria-hidden className="h-[5px] w-[5px] bg-cdm-accent shadow-[0_0_8px_rgba(34,211,238,0.9)]" />
+            <h1 className="font-mono-hud flex items-baseline gap-2 text-[11px] font-medium uppercase tracking-[0.22em] text-cdm-muted">
+              <span aria-hidden className="text-cdm-accent/60">{"//////"}</span>
               Rentabilidad
             </h1>
           </div>

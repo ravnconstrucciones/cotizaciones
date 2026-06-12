@@ -1309,11 +1309,8 @@ export function NuevoPresupuestoScreen() {
           <div className="relative flex flex-col justify-end px-10 py-4 sm:py-5">
             {/* Línea de horizonte detrás del header (iteración 3). */}
             <span aria-hidden className="cdm-horizon absolute inset-x-0 bottom-0" />
-            <h1 className="flex items-center gap-2 text-[11px] uppercase tracking-[0.35em] text-cdm-muted">
-              <span
-                aria-hidden
-                className="h-[5px] w-[5px] bg-cdm-accent shadow-[0_0_8px_rgba(34,211,238,0.9)]"
-              />
+            <h1 className="font-mono-hud flex items-baseline gap-2 text-[11px] font-medium uppercase tracking-[0.22em] text-cdm-muted">
+              <span aria-hidden className="text-cdm-accent/60">{"//////"}</span>
               Nuevo presupuesto
             </h1>
           </div>
@@ -1389,7 +1386,7 @@ export function NuevoPresupuestoScreen() {
                 disabled={creating || !!presupuestoId}
                 whileHover={{ y: -1 }}
                 whileTap={{ scale: 0.985 }}
-                className="rounded-none border border-cdm-fg bg-cdm-fg px-8 py-3.5 text-sm font-semibold uppercase tracking-[0.18em] text-cdm-bg transition-shadow duration-300 hover:shadow-[0_0_36px_-4px_rgba(34,211,238,0.55)] disabled:cursor-not-allowed disabled:opacity-40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cdm-accent"
+                className="cdm-btn-cian rounded-none px-8 py-3.5 text-sm font-semibold uppercase tracking-[0.18em] disabled:cursor-not-allowed disabled:opacity-40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cdm-accent"
               >
                 {creating ? "Creando…" : "Iniciar / Crear presupuesto"}
               </motion.button>
@@ -1834,7 +1831,7 @@ export function NuevoPresupuestoScreen() {
                 </Link>
                 <Link
                   href={`/propuesta?id=${encodeURIComponent(presupuestoId)}`}
-                  className="inline-flex w-fit items-center justify-center rounded-none border border-cdm-fg bg-cdm-fg px-6 py-3 text-sm font-semibold uppercase tracking-wider text-cdm-bg transition-shadow duration-300 hover:shadow-[0_0_32px_-4px_rgba(34,211,238,0.5)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cdm-accent"
+                  className="cdm-btn-cian inline-flex w-fit items-center justify-center rounded-none px-6 py-3 text-sm font-semibold uppercase tracking-wider focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cdm-accent"
                 >
                   Continuar a propuesta comercial
                 </Link>

@@ -218,11 +218,8 @@ export function CashflowObraScreen({ obraId }: { obraId: string }) {
         {/* Header con línea de horizonte */}
         <div className="relative pb-3">
           <span aria-hidden className="cdm-horizon absolute inset-x-0 bottom-0" />
-          <h1 className="flex items-center gap-2 text-[11px] uppercase tracking-[0.35em] text-cdm-muted">
-            <span
-              aria-hidden
-              className="h-[5px] w-[5px] bg-cdm-accent shadow-[0_0_8px_rgba(34,211,238,0.9)]"
-            />
+          <h1 className="font-mono-hud flex items-baseline gap-2 text-[11px] font-medium uppercase tracking-[0.22em] text-cdm-muted">
+            <span aria-hidden className="text-cdm-accent/60">{"//////"}</span>
             Cashflow
           </h1>
         </div>

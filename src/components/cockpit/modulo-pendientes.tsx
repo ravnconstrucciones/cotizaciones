@@ -74,7 +74,7 @@ export function ModuloPendientes({ className }: { className?: string }) {
       className={className}
       accion={
         tareas.length > 0 ? (
-          <span className="text-[9px] tabular-nums text-cdm-muted">
+          <span className="font-mono-hud text-[9px] tabular-nums text-cdm-muted">
             {tareas.length}
           </span>
         ) : undefined
