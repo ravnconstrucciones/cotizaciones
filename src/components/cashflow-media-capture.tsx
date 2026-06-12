@@ -8,10 +8,10 @@ import {
 } from "@/lib/gastos-storage";
 
 const labelCls =
-  "mb-2 block text-xs font-medium uppercase tracking-wider text-ravn-muted";
+  "mb-2 block text-xs font-medium uppercase tracking-wider text-cdm-muted";
 
 const iconBtn =
-  "flex h-11 w-11 shrink-0 items-center justify-center rounded-none border border-ravn-line bg-ravn-surface text-ravn-fg transition-colors hover:border-ravn-fg hover:bg-ravn-subtle focus-visible:outline focus-visible:ring-1 focus-visible:ring-ravn-fg disabled:opacity-40";
+  "flex h-11 w-11 shrink-0 items-center justify-center border border-cdm-line bg-transparent text-cdm-fg transition-colors hover:border-cdm-accent/30 hover:bg-cdm-fg/[0.04] hover:text-cdm-accent focus-visible:outline focus-visible:ring-1 focus-visible:ring-cdm-accent disabled:opacity-40";
 
 type Props = {
   /** Solo cámara, solo micrófono, o ambos (por defecto). */
@@ -142,7 +142,7 @@ export function CashflowMediaCapture({
             />
             <button
               type="button"
-              className={iconBtn}
+              className={`${iconBtn} cursor-pointer`}
               aria-label="Sacar foto o elegir imagen"
               title="Foto"
               onClick={() => fotoInputRef.current?.click()}
@@ -154,7 +154,7 @@ export function CashflowMediaCapture({
         {(variant === "audio" || variant === "ambos") && (
           <button
             type="button"
-            className={`${iconBtn} ${grabando ? "border-red-500/60 bg-red-950/20 text-red-400" : ""}`}
+            className={`${iconBtn} cursor-pointer ${grabando ? "border-red-400/60 bg-red-400/10 text-red-400" : ""}`}
             aria-label={grabando ? "Detener grabación" : "Grabar audio"}
             title={grabando ? "Detener" : "Grabar audio"}
             onClick={() => void toggleGrabacion()}
@@ -170,13 +170,13 @@ export function CashflowMediaCapture({
       ) : null}
       {adjuntoFile ? (
         <div className="flex flex-col gap-1">
-          <span className="break-all text-[10px] text-ravn-muted">
+          <span className="break-all text-[10px] text-cdm-muted">
             {adjuntoKind === "foto" ? "Foto" : "Audio"}: {adjuntoFile.name}
           </span>
           <button
             type="button"
             onClick={onClear}
-            className="w-fit text-[10px] font-medium uppercase tracking-wider text-ravn-muted underline-offset-2 hover:text-ravn-fg hover:underline"
+            className="cursor-pointer w-fit text-[10px] font-medium uppercase tracking-wider text-cdm-muted underline-offset-2 hover:text-cdm-fg hover:underline"
           >
             Quitar
           </button>

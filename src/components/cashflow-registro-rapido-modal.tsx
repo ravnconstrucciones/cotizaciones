@@ -5,7 +5,10 @@ import { parseFormattedNumber, roundArs2 } from "@/lib/format-currency";
 import type { QuickTipoRegistro } from "@/lib/cashflow-matching";
 
 const fieldCls =
-  "w-full rounded-none border border-ravn-line bg-ravn-surface px-4 py-3 text-sm text-ravn-fg placeholder:text-ravn-muted focus-visible:border-ravn-fg focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ravn-fg";
+  "w-full border-0 border-b border-cdm-line bg-transparent px-1 py-2 text-sm text-cdm-fg placeholder:text-cdm-muted/50 transition-[border-color,box-shadow] duration-200 focus-visible:border-cdm-accent focus-visible:outline-none focus-visible:shadow-[0_12px_24px_-16px_rgba(34,211,238,0.6)]";
+
+const selectCls =
+  "w-full border border-cdm-line bg-cdm-panel/60 px-3 py-2 text-sm text-cdm-fg focus:border-cdm-accent focus:outline-none";
 
 function hoyInput(): string {
   const p = new Intl.DateTimeFormat("en-CA", {
@@ -96,30 +99,30 @@ export function CashflowRegistroRapidoModal({
 
   return (
     <div
-      className="fixed inset-0 z-[60] flex items-end justify-center bg-black/50 p-0 sm:items-center sm:p-6"
+      className="fixed inset-0 z-[60] flex items-end justify-center bg-black/60 p-0 backdrop-blur-sm sm:items-center sm:p-6"
       role="dialog"
       aria-modal
       aria-labelledby="reg-rapido-title"
     >
-      <div className="flex w-full max-w-md flex-col border border-ravn-line bg-ravn-surface shadow-lg">
-        <div className="border-b border-ravn-line px-5 py-4">
+      <div className="cdm-glass font-grotesk flex w-full max-w-md flex-col">
+        <div className="border-b border-cdm-line px-5 py-4">
           <h2
             id="reg-rapido-title"
-            className="font-raleway text-base font-semibold uppercase tracking-wide text-ravn-accent"
+            className="text-base font-semibold uppercase tracking-wide text-cdm-accent"
           >
             Registrar movimiento
           </h2>
-          <p className="mt-2 text-xs text-ravn-muted">
+          <p className="mt-2 text-xs text-cdm-muted">
             Siempre agrega una línea nueva en la libreta de caja de la obra.
           </p>
         </div>
-        <div className="space-y-4 px-5 py-5">
+        <div className="space-y-5 px-5 py-5">
           <div>
-            <span className="mb-2 block text-xs font-medium uppercase tracking-wider text-ravn-muted">
+            <span className="mb-2 block text-xs font-medium uppercase tracking-wider text-cdm-muted">
               Tipo
             </span>
             <select
-              className={fieldCls}
+              className={selectCls}
               value={quick}
               onChange={(e) =>
                 setQuick(e.target.value as QuickTipoRegistro)
@@ -133,7 +136,7 @@ export function CashflowRegistroRapidoModal({
             </select>
           </div>
           <div>
-            <span className="mb-2 block text-xs font-medium uppercase tracking-wider text-ravn-muted">
+            <span className="mb-2 block text-xs font-medium uppercase tracking-wider text-cdm-muted">
               Descripción (opcional)
             </span>
             <input
@@ -144,7 +147,7 @@ export function CashflowRegistroRapidoModal({
             />
           </div>
           <div>
-            <span className="mb-2 block text-xs font-medium uppercase tracking-wider text-ravn-muted">
+            <span className="mb-2 block text-xs font-medium uppercase tracking-wider text-cdm-muted">
               Monto real (ARS)
             </span>
             <input
@@ -155,24 +158,24 @@ export function CashflowRegistroRapidoModal({
             />
           </div>
           <div>
-            <span className="mb-2 block text-xs font-medium uppercase tracking-wider text-ravn-muted">
+            <span className="mb-2 block text-xs font-medium uppercase tracking-wider text-cdm-muted">
               Fecha
             </span>
             <input
               type="date"
-              className={fieldCls}
+              className={selectCls}
               value={fecha}
               onChange={(e) => setFecha(e.target.value)}
             />
           </div>
           {err ? (
-            <p className="text-sm text-red-600 dark:text-red-400">{err}</p>
+            <p className="text-sm text-red-400">{err}</p>
           ) : null}
         </div>
-        <div className="flex flex-col gap-3 border-t border-ravn-line px-5 py-4 sm:flex-row sm:justify-end">
+        <div className="flex flex-col gap-3 border-t border-cdm-line px-5 py-4 sm:flex-row sm:justify-end">
           <button
             type="button"
-            className="rounded-none border-2 border-ravn-line px-6 py-3 text-xs font-semibold uppercase tracking-wider text-ravn-fg hover:bg-ravn-subtle"
+            className="cdm-chip cursor-pointer border border-cdm-line px-6 py-3 text-xs font-semibold uppercase tracking-wider text-cdm-muted transition-colors hover:border-cdm-accent/30 hover:text-cdm-fg"
             onClick={onClose}
             disabled={busy}
           >
@@ -180,7 +183,7 @@ export function CashflowRegistroRapidoModal({
           </button>
           <button
             type="button"
-            className="rounded-none border-2 border-ravn-accent bg-ravn-accent px-6 py-3 text-xs font-semibold uppercase tracking-wider text-ravn-accent-contrast hover:opacity-90 disabled:opacity-50"
+            className="cdm-chip cursor-pointer border border-cdm-accent/60 bg-cdm-accent/15 px-6 py-3 text-xs font-semibold uppercase tracking-wider text-cdm-accent shadow-[0_0_18px_-6px_rgba(34,211,238,0.55)] transition-colors hover:bg-cdm-accent/25 disabled:opacity-50"
             onClick={() => void guardar()}
             disabled={busy}
           >

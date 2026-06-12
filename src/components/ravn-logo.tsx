@@ -8,6 +8,12 @@ type RavnLogoProps = {
    * `start`: alineado al margen izquierdo (sidebar, cabeceras).
    */
   align?: "center" | "start";
+  /**
+   * Shimmer sutil sobre "RAVN." (gradiente taupe animado lento) — la firma
+   * del cockpit. SOLO para pantallas de la app (sidebar, login); los
+   * documentos A4 no lo reciben nunca.
+   */
+  shimmer?: boolean;
 };
 
 /**
@@ -23,6 +29,7 @@ export function RavnLogo({
   sizeClassName = "text-3xl sm:text-4xl md:text-5xl",
   showTagline = true,
   align = "center",
+  shimmer = false,
 }: RavnLogoProps) {
   const isStart = align === "start";
   return (
@@ -38,8 +45,15 @@ export function RavnLogo({
       aria-label={showTagline ? "RAVN Obra más diseño" : "RAVN"}
     >
       {/* tracking: pl compensa hueco al centrar; en start la R queda en el margen */}
+      {/* Con shimmer la marca además EMANA luz (cdm-bloom: dos copias del
+          texto con blur detrás — bloom volumétrico, no drop-shadow). */}
       <span
-        className="font-light uppercase"
+        className={
+          shimmer
+            ? "cdm-shimmer cdm-bloom font-light uppercase"
+            : "font-light uppercase"
+        }
+        data-bloom={shimmer ? "RAVN." : undefined}
         style={{
           letterSpacing: "0.517em",
           paddingLeft: isStart ? 0 : "0.517em",

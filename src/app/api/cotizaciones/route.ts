@@ -1,227 +1,54 @@
-import { NextResponse } from "next/server";
-import { CRONISTA_DOLAR_URL } from "@/lib/cotizacion-labels";
+import { NextRequest, NextResponse } from "next/server";
+import { createSupabaseAdminClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
 
-const DOLARAPI = "https://dolarapi.com/v1/dolares";
-const BLUELYTICS = "https://api.bluelytics.app.ar/v2/latest";
-const CRIPTOYA_DOLAR = "https://criptoya.com/api/dolar";
+const ESTADOS = ["borrador", "en_revision", "aprobada", "rechazada", "documento_emitido"];
 
-const FETCH_MS = 18_000;
-
-const JSON_HEADERS = {
-  Accept: "application/json",
-  "User-Agent": "RAVN/1.0 (cotizaciones; referencia presupuestos)",
-} as const;
-
-type CotizacionRow = {
-  moneda?: string;
-  casa: string;
-  nombre: string;
-  compra: number;
-  venta: number;
-  fechaActualizacion?: string;
-};
-
-function withTimeout(ms: number): { signal: AbortSignal; cancel: () => void } {
-  const c = new AbortController();
-  const t = setTimeout(() => c.abort(), ms);
-  return {
-    signal: c.signal,
-    cancel: () => clearTimeout(t),
-  };
+/** GET /api/cotizaciones[?estado=en_revision] — lista para el tablero. */
+export async function GET(req: NextRequest) {
+  const sb = createSupabaseAdminClient();
+  const estado = req.nextUrl.searchParams.get("estado");
+  let q = sb
+    .from("cotizaciones")
+    .select("id, creado_at, titulo, zona, estado, total_min, total_max, presupuesto_id, trabajo_id")
+    .order("creado_at", { ascending: false })
+    .limit(200);
+  if (estado && ESTADOS.includes(estado)) q = q.eq("estado", estado);
+  const { data, error } = await q;
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  return NextResponse.json({ cotizaciones: data ?? [] });
 }
 
-async function fetchJson(url: string): Promise<unknown | null> {
-  const { signal, cancel } = withTimeout(FETCH_MS);
-  try {
-    const res = await fetch(url, {
-      cache: "no-store",
-      headers: JSON_HEADERS,
-      signal,
-    });
-    if (!res.ok) return null;
-    return (await res.json()) as unknown;
-  } catch {
-    return null;
-  } finally {
-    cancel();
+/**
+ * POST /api/cotizaciones — crea una cotización desde el tablero (borrador o
+ * en_revision si ya viene con desglose). El daemon NO usa esta ruta: inserta
+ * directo por REST de Supabase (el middleware exige sesión para /api/*).
+ */
+export async function POST(req: NextRequest) {
+  const body = await req.json().catch(() => null);
+  if (!body || typeof body.titulo !== "string" || !body.titulo.trim()) {
+    return NextResponse.json({ error: "titulo requerido" }, { status: 400 });
   }
-}
-
-function mapBluelytics(data: unknown): CotizacionRow[] {
-  if (!data || typeof data !== "object") return [];
-  const o = data as Record<string, unknown>;
-  const oficial = o.oficial as Record<string, number> | undefined;
-  const blue = o.blue as Record<string, number> | undefined;
-  const out: CotizacionRow[] = [];
-  if (oficial && typeof oficial.value_sell === "number") {
-    out.push({
-      moneda: "USD",
-      casa: "oficial",
-      nombre: "Oficial",
-      compra: Number(oficial.value_buy) || 0,
-      venta: Number(oficial.value_sell) || 0,
-    });
-  }
-  if (blue && typeof blue.value_sell === "number") {
-    out.push({
-      moneda: "USD",
-      casa: "blue",
-      nombre: "Blue",
-      compra: Number(blue.value_buy) || 0,
-      venta: Number(blue.value_sell) || 0,
-    });
-  }
-  return out;
-}
-
-function num(x: unknown): number {
-  return typeof x === "number" && Number.isFinite(x) ? x : 0;
-}
-
-function mepVentaFrom(obj: Record<string, unknown> | undefined): number {
-  if (!obj) return 0;
-  const al30 = obj.al30 as Record<string, unknown> | undefined;
-  if (!al30) return 0;
-  const h24 = al30["24hs"] as Record<string, unknown> | undefined;
-  const ci = al30.ci as Record<string, unknown> | undefined;
-  return num(h24?.price) || num(ci?.price);
-}
-
-/** Mapea la respuesta de CriptoYa al mismo esquema de casas que DolarAPI / etiquetas Cronista. */
-function mapCriptoYa(data: unknown): CotizacionRow[] {
-  if (!data || typeof data !== "object") return [];
-  const j = data as Record<string, unknown>;
-  const out: CotizacionRow[] = [];
-
-  const push = (
-    casa: string,
-    nombre: string,
-    compra: number,
-    venta: number
-  ) => {
-    const v = venta > 0 ? venta : compra;
-    const c = compra > 0 ? compra : v;
-    if (v <= 0 && c <= 0) return;
-    out.push({ moneda: "USD", casa, nombre, compra: c, venta: v > 0 ? v : c });
-  };
-
-  const oficial = j.oficial as Record<string, unknown> | undefined;
-  if (oficial) {
-    const ask = num(oficial.ask) || num(oficial.price);
-    const bid = num(oficial.bid) || num(oficial.price);
-    push("oficial", "Oficial", bid || ask, ask || bid);
-  }
-
-  const blue = j.blue as Record<string, unknown> | undefined;
-  if (blue) {
-    push("blue", "Blue", num(blue.bid), num(blue.ask));
-  }
-
-  const tarjeta = j.tarjeta as Record<string, unknown> | undefined;
-  if (tarjeta) {
-    const p = num(tarjeta.price);
-    if (p > 0) push("tarjeta", "Tarjeta", p, p);
-  }
-
-  const mayorista = j.mayorista as Record<string, unknown> | undefined;
-  if (mayorista) {
-    const p = num(mayorista.price);
-    if (p > 0) push("mayorista", "Mayorista", p, p);
-  }
-
-  const mep = j.mep as Record<string, unknown> | undefined;
-  const mepV = mepVentaFrom(mep);
-  if (mepV > 0) push("bolsa", "MEP (Bolsa)", mepV, mepV);
-
-  const ccl = j.ccl as Record<string, unknown> | undefined;
-  const cclV = mepVentaFrom(ccl);
-  if (cclV > 0) push("contadoconliqui", "CCL", cclV, cclV);
-
-  const cripto = j.cripto as Record<string, unknown> | undefined;
-  const usdt = cripto?.usdt as Record<string, unknown> | undefined;
-  if (usdt) {
-    const ask = num(usdt.ask);
-    const bid = num(usdt.bid);
-    if (ask > 0 || bid > 0) push("cripto", "Cripto (USDT)", bid, ask);
-  }
-
-  return out;
-}
-
-function normalizeDolarApiRows(data: unknown): CotizacionRow[] {
-  if (!Array.isArray(data)) return [];
-  const rows = data as CotizacionRow[];
-  return rows.filter(
-    (r) =>
-      r &&
-      typeof r.casa === "string" &&
-      typeof r.venta === "number" &&
-      r.venta > 0
-  );
-}
-
-async function fetchDolarApi(): Promise<CotizacionRow[] | null> {
-  const data = await fetchJson(DOLARAPI);
-  const rows = normalizeDolarApiRows(data);
-  return rows.length > 0 ? rows : null;
-}
-
-async function fetchBluelyticsRows(): Promise<CotizacionRow[] | null> {
-  const data = await fetchJson(BLUELYTICS);
-  const rows = mapBluelytics(data);
-  return rows.length > 0 ? rows : null;
-}
-
-async function fetchCriptoYaRows(): Promise<CotizacionRow[] | null> {
-  const data = await fetchJson(CRIPTOYA_DOLAR);
-  const rows = mapCriptoYa(data);
-  return rows.length > 0 ? rows : null;
-}
-
-export async function GET() {
-  try {
-    let cotizaciones = await fetchDolarApi();
-    let fuente = "DolarAPI";
-
-    if (!cotizaciones || cotizaciones.length === 0) {
-      cotizaciones = await fetchBluelyticsRows();
-      fuente = "Bluelytics";
-    }
-
-    if (!cotizaciones || cotizaciones.length === 0) {
-      cotizaciones = await fetchCriptoYaRows();
-      fuente = "CriptoYa";
-    }
-
-    if (!cotizaciones || cotizaciones.length === 0) {
-      return NextResponse.json(
-        {
-          error:
-            "No se pudieron obtener cotizaciones automáticas. Ingresá la cotización venta manualmente en la pantalla.",
-          cronistaUrl: CRONISTA_DOLAR_URL,
-          cotizaciones: [],
-        },
-        { status: 200 }
-      );
-    }
-
-    return NextResponse.json({
-      cronistaUrl: CRONISTA_DOLAR_URL,
-      referencia: `Valores vía ${fuente}; contrastar con El Cronista antes de cerrar.`,
-      fuente,
-      cotizaciones,
-    });
-  } catch {
-    return NextResponse.json(
-      {
-        error:
-          "No hubo conexión con los proveedores de cotización. Ingresá la cotización venta manualmente o reintentá.",
-        cronistaUrl: CRONISTA_DOLAR_URL,
-        cotizaciones: [],
-      },
-      { status: 200 }
-    );
-  }
+  const estado = body.estado === "en_revision" ? "en_revision" : "borrador";
+  const sb = createSupabaseAdminClient();
+  const { data, error } = await sb
+    .from("cotizaciones")
+    .insert({
+      titulo: body.titulo.trim(),
+      zona: typeof body.zona === "string" ? body.zona : null,
+      estado,
+      receta_id: body.receta_id ?? null,
+      trabajo_id: body.trabajo_id ?? null,
+      presupuesto_id: body.presupuesto_id ?? null,
+      ficha: body.ficha ?? {},
+      desglose: body.desglose ?? {},
+      revision: body.revision ?? null,
+      total_min: typeof body.total_min === "number" ? body.total_min : null,
+      total_max: typeof body.total_max === "number" ? body.total_max : null,
+    })
+    .select("id")
+    .single();
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  return NextResponse.json({ id: data.id }, { status: 201 });
 }

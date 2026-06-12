@@ -1,5 +1,10 @@
 @import "tailwindcss";
 
+/* Variante `light:` (espejo del `dark:` de Tailwind, scoped a la clase
+   que aplica next-themes en <html>). Para los ajustes puntuales de
+   utilidades que el set de tokens claro no puede cubrir solo. */
+@custom-variant light (&:where(html.light, html.light *));
+
 /* Default dark (SSR / antes de next-themes); mismo token que html.dark */
 /* Blanco de marca: #fef7f2 (crema) en lugar de #fff */
 :root,
@@ -25,6 +30,62 @@ html.light {
   --ravn-subtle: rgba(24, 24, 23, 0.08);
 }
 
+/* ── Centro de Mando (cockpit Jarvis) — paleta fija, siempre oscura ──
+   Iteración 5 (IGLOO): la luz sigue siendo CIAN HOLOGRAMA, pero deja de
+   vivir sobre negro plano — el fondo pasa a azul-gris volumétrico con
+   niebla (ver .cdm-niebla). El contenido flota EN una atmósfera, no
+   sobre un fondo. El semáforo financiero (emerald/red) y los warnings
+   ámbar NO cambian. Los documentos A4 (propuesta/remito/documento)
+   siguen con la identidad RAVN clásica — nunca usan estos tokens. */
+:root {
+  --cdm-bg: #05080f;
+  --cdm-panel: #0a111c;
+  --cdm-fg: #eaf6fb;
+  --cdm-muted: rgba(234, 246, 251, 0.45);
+  --cdm-line: rgba(234, 246, 251, 0.14);
+  /* acento holograma + azul hielo secundario */
+  --cdm-accent: #22d3ee;
+  --cdm-accent-2: #7dd3fc;
+  /* cian profundo: corrientes del shader y arranque de gradientes */
+  --cdm-deep: #0e7490;
+  --cdm-glow: rgba(34, 211, 238, 0.35);
+  /* acero de la niebla: el azul-gris frío de la atmósfera */
+  --cdm-steel: #243a55;
+  /* malla Waves (el JS pinta con esta var — theme-aware sin leer el tema) */
+  --cdm-waves-stroke: rgba(34, 211, 238, 0.18);
+  /* hairline divisoria (línea de luz off-white en oscuro / tinta en claro) */
+  --cdm-hairline: rgba(234, 246, 251, 0.18);
+  /* LiquidGlass (capas inline del componente): tinte + highlights por tema */
+  --cdm-lg-tint-rgb: 234 246 251;
+  --cdm-lg-alpha-boost: 1;
+  --cdm-lg-hi-1: rgba(234, 246, 251, 0.13);
+  --cdm-lg-hi-2: rgba(234, 246, 251, 0.1);
+}
+
+/* ── MODO CLARO (pedido Eze 12/06): el MISMO cockpit con otra luz.
+   Referencia: visionOS — vidrio esmerilado sobre blanco frío. Base
+   #f5f7fa (ni beige ni blanco 100 puro), niebla gris-azul que respira
+   igual, cian recalibrado a #0891b2/#0e7490 para contraste AA. El bloom
+   sobre claro casi no existe: la luz pasa a ser sombra cian tenue. */
+html.light {
+  --cdm-bg: #f5f7fa;
+  --cdm-panel: #ffffff;
+  --cdm-fg: #0f172a;
+  --cdm-muted: rgba(15, 23, 42, 0.55);
+  --cdm-line: rgba(15, 23, 42, 0.12);
+  --cdm-accent: #0891b2;
+  --cdm-accent-2: #0e7490;
+  --cdm-deep: #0e7490;
+  --cdm-glow: rgba(8, 145, 178, 0.4);
+  --cdm-steel: #dde5ee;
+  --cdm-waves-stroke: rgba(100, 116, 139, 0.14);
+  --cdm-hairline: rgba(15, 23, 42, 0.16);
+  --cdm-lg-tint-rgb: 255 255 255;
+  --cdm-lg-alpha-boost: 6;
+  --cdm-lg-hi-1: rgba(255, 255, 255, 0.95);
+  --cdm-lg-hi-2: rgba(148, 163, 184, 0.25);
+}
+
 @theme {
   --color-ravn-surface: var(--ravn-surface);
   --color-ravn-fg: var(--ravn-fg);
@@ -33,12 +94,25 @@ html.light {
   --color-ravn-accent: var(--ravn-accent);
   --color-ravn-accent-contrast: var(--ravn-accent-contrast);
   --color-ravn-subtle: var(--ravn-subtle);
+  --color-cdm-bg: var(--cdm-bg);
+  --color-cdm-panel: var(--cdm-panel);
+  --color-cdm-fg: var(--cdm-fg);
+  --color-cdm-muted: var(--cdm-muted);
+  --color-cdm-line: var(--cdm-line);
+  --color-cdm-accent: var(--cdm-accent);
+  --color-cdm-accent-2: var(--cdm-accent-2);
+  --color-cdm-deep: var(--cdm-deep);
 
   /* compat: theme-toggle y código que aún usa ravn-ink */
   --color-ravn-ink: var(--ravn-fg);
 
   --font-sans: var(--font-raleway), ui-sans-serif, system-ui, sans-serif;
   --font-raleway: var(--font-raleway), ui-sans-serif, system-ui, sans-serif;
+  /* Space Grotesk = interfaz del cockpit (mismo patrón que raleway: next/font define la var en body) */
+  --font-grotesk: var(--font-grotesk), ui-sans-serif, system-ui, sans-serif;
+  /* IBM Plex Mono = tipografía terminal del HUD: labels ////// SECCIÓN,
+     timestamps, datos secundarios y links [VER] ↑ (iteración 5 — IGLOO) */
+  --font-mono-hud: var(--font-mono-hud), ui-monospace, "SF Mono", Menlo, monospace;
 }
 
 @layer base {
@@ -49,6 +123,10 @@ html.light {
 
 .font-raleway {
   font-family: var(--font-raleway), ui-sans-serif, system-ui, sans-serif;
+}
+
+.font-grotesk {
+  font-family: var(--font-grotesk), "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
 }
 
 /* compat: antes Public Sans; todo Raleway */
@@ -65,6 +143,632 @@ html.light {
   [data-no-spinner] {
     -moz-appearance: textfield;
     appearance: textfield;
+  }
+
+  /**
+   * Panel HUD del cockpit (iteración 4 — vidrio de verdad): superficie
+   * translúcida sobre la malla Waves con blur profundo + saturación,
+   * borde 1px gradiente CIAN notorio (border-image funciona porque los
+   * paneles mantienen radius 0 — ADN RAVN), reflejo superior inset,
+   * baño interno cian en la base y sombra ambiental honda que lo
+   * despega del fondo. Los datos parecen proyectados en el vidrio.
+   */
+  .cdm-glass {
+    position: relative;
+    border: 1px solid transparent;
+    border-image: linear-gradient(
+        165deg,
+        rgba(34, 211, 238, 0.52),
+        rgba(125, 211, 252, 0.2) 40%,
+        rgba(34, 211, 238, 0.09) 85%
+      )
+      1;
+    background:
+      linear-gradient(180deg, rgba(234, 246, 251, 0.05), transparent 30%),
+      color-mix(in srgb, var(--cdm-panel) 66%, transparent);
+    -webkit-backdrop-filter: blur(24px) saturate(1.35);
+    backdrop-filter: blur(24px) saturate(1.35);
+    box-shadow:
+      0 32px 80px -28px rgba(0, 0, 0, 0.85),
+      0 0 34px -16px rgba(34, 211, 238, 0.22),
+      inset 0 1px 0 rgba(234, 246, 251, 0.1),
+      inset 0 -28px 48px -34px rgba(34, 211, 238, 0.14);
+    transition: box-shadow 0.35s ease;
+  }
+  .cdm-glass:hover {
+    box-shadow:
+      0 32px 80px -28px rgba(0, 0, 0, 0.85),
+      0 0 58px -10px rgba(34, 211, 238, 0.32),
+      inset 0 1px 0 rgba(234, 246, 251, 0.15),
+      inset 0 -28px 48px -34px rgba(34, 211, 238, 0.2);
+  }
+  .cdm-glass::before,
+  .cdm-glass::after {
+    content: "";
+    position: absolute;
+    width: 8px;
+    height: 8px;
+    pointer-events: none;
+  }
+  .cdm-glass::before {
+    top: -1px;
+    left: -1px;
+    border-top: 1px solid var(--cdm-glow);
+    border-left: 1px solid var(--cdm-glow);
+  }
+  .cdm-glass::after {
+    right: -1px;
+    bottom: -1px;
+    border-bottom: 1px solid var(--cdm-glow);
+    border-right: 1px solid var(--cdm-glow);
+  }
+
+  /**
+   * Prompt box del cockpit (referencia: "AI Prompt Box" de 21st.dev):
+   * EXCEPCIÓN deliberada de radius — es EL objeto que flota sobre el
+   * sistema rígido. Borde luminoso sutil + glow cian al focus.
+   */
+  .cdm-prompt {
+    border: 1px solid rgba(34, 211, 238, 0.28);
+    /* Superficie liquid glass (LiquidGlass pone blur + tinte + highlights);
+       acá queda el velo base bajo para que la malla Waves respire a través,
+       más borde y glow holográfico de foco. */
+    background: color-mix(in srgb, var(--cdm-panel) 45%, transparent);
+    box-shadow:
+      0 12px 48px rgba(0, 0, 0, 0.55),
+      0 0 24px -12px rgba(34, 211, 238, 0.3),
+      inset 0 1px 0 rgba(234, 246, 251, 0.08);
+    transition:
+      border-color 0.3s ease,
+      box-shadow 0.3s ease;
+  }
+  .cdm-prompt:focus-within {
+    border-color: rgba(34, 211, 238, 0.65);
+    box-shadow:
+      0 12px 48px rgba(0, 0, 0, 0.55),
+      0 0 44px rgba(34, 211, 238, 0.22),
+      inset 0 1px 0 rgba(234, 246, 251, 0.1);
+  }
+
+  /**
+   * Chip/badge/botón de vidrio (iteración 4): la pieza chica del HUD.
+   * Lleva blur + tinte + reflejo inset en una sola clase (sin wrapper),
+   * para los chips de estado, badges y botones primarios del cockpit.
+   * El borde lo pone el caller (color semántico o cian).
+   */
+  .cdm-chip {
+    -webkit-backdrop-filter: blur(8px) saturate(1.3);
+    backdrop-filter: blur(8px) saturate(1.3);
+    background-color: rgba(234, 246, 251, 0.04);
+    box-shadow:
+      inset 0 1px 0 rgba(234, 246, 251, 0.12),
+      inset 0 -1px 1px rgba(34, 211, 238, 0.08),
+      0 4px 14px -6px rgba(0, 0, 0, 0.6);
+  }
+
+  /**
+   * Scrollbar fino del textarea del prompt box. El componente original de
+   * 21st.dev inyectaba esto con un <style> al document — acá vive en la
+   * hoja global, que es donde corresponde.
+   */
+  .cdm-textarea {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(34, 211, 238, 0.3) transparent;
+  }
+  .cdm-textarea::-webkit-scrollbar {
+    width: 5px;
+  }
+  .cdm-textarea::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .cdm-textarea::-webkit-scrollbar-thumb {
+    background: rgba(34, 211, 238, 0.3);
+    border-radius: 9999px;
+  }
+  .cdm-textarea::-webkit-scrollbar-thumb:hover {
+    background: rgba(34, 211, 238, 0.5);
+  }
+
+  /**
+   * Línea de horizonte: 1px de luz cian a ancho completo detrás del header
+   * de cada pantalla del cockpit. Se posiciona desde el caller
+   * (normalmente `absolute inset-x-0 bottom-0` dentro de un header relative).
+   */
+  .cdm-horizon {
+    height: 1px;
+    background: linear-gradient(
+      90deg,
+      transparent 0%,
+      rgba(34, 211, 238, 0.4) 18%,
+      rgba(34, 211, 238, 0.85) 50%,
+      rgba(34, 211, 238, 0.4) 82%,
+      transparent 100%
+    );
+    box-shadow: 0 0 18px rgba(34, 211, 238, 0.3);
+  }
+
+  /**
+   * Shimmer de la marca "RAVN." — gradiente animado lento sobre el texto.
+   * CSS keyframes (no Framer) a propósito: es un loop ambiente infinito y
+   * RavnLogo debe seguir siendo server-compatible (lo usan los docs A4,
+   * que NUNCA reciben esta clase).
+   */
+  .cdm-shimmer {
+    background-image: linear-gradient(
+      110deg,
+      var(--cdm-fg) 38%,
+      var(--cdm-accent) 50%,
+      var(--cdm-fg) 62%
+    );
+    background-size: 250% 100%;
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    animation: cdm-shimmer-sweep 7s linear infinite;
+  }
+
+  /**
+   * Niebla volumétrica (iteración 5 — IGLOO): tres masas de luz fría
+   * (radial-gradient puro, sin filter: blur — más barato) que respiran
+   * lentísimo detrás de la malla Waves. El contenido flota EN este
+   * espacio. Solo anima transform/opacity (compositor, no layout).
+   */
+  .cdm-niebla {
+    position: absolute;
+    pointer-events: none;
+    will-change: transform, opacity;
+  }
+  .cdm-niebla-a {
+    top: -32%;
+    left: 14%;
+    width: 78vw;
+    height: 85vh;
+    background: radial-gradient(
+      ellipse 50% 50% at 50% 50%,
+      rgba(14, 116, 144, 0.22),
+      rgba(14, 116, 144, 0.07) 48%,
+      transparent 72%
+    );
+    animation: cdm-respira 26s ease-in-out infinite alternate;
+  }
+  .cdm-niebla-b {
+    bottom: -38%;
+    left: -20%;
+    width: 72vw;
+    height: 90vh;
+    background: radial-gradient(
+      ellipse 50% 50% at 50% 50%,
+      rgba(36, 58, 85, 0.38),
+      rgba(36, 58, 85, 0.13) 50%,
+      transparent 75%
+    );
+    animation: cdm-respira 34s ease-in-out 5s infinite alternate;
+  }
+  .cdm-niebla-c {
+    top: 10%;
+    right: -24%;
+    width: 62vw;
+    height: 72vh;
+    background: radial-gradient(
+      ellipse 50% 50% at 50% 50%,
+      rgba(34, 211, 238, 0.1),
+      rgba(34, 211, 238, 0.03) 45%,
+      transparent 70%
+    );
+    animation: cdm-respira 22s ease-in-out 11s infinite alternate;
+  }
+
+  /**
+   * Capas de presencia del fondo Waves (antes gradientes hardcodeados en
+   * el JSX del componente — acá viven por tema). Presencia: calma el
+   * centro detrás del contenido. Vignette: las esquinas caen — cabina
+   * en oscuro, bruma fría en claro.
+   */
+  .cdm-presencia {
+    background: radial-gradient(
+      105% 80% at 50% 42%,
+      rgba(5, 8, 15, 0.62) 0%,
+      rgba(5, 8, 15, 0.34) 55%,
+      rgba(5, 8, 15, 0.04) 100%
+    );
+  }
+  .cdm-vignette {
+    background: radial-gradient(
+      135% 115% at 50% 50%,
+      transparent 58%,
+      rgba(0, 0, 0, 0.46) 100%
+    );
+  }
+
+  /**
+   * Bloom volumétrico (iteración 5): el texto EMANA luz de verdad.
+   * Dos copias del propio texto (attr(data-bloom)) detrás del original,
+   * cada una con su blur — halo interno azul hielo + aura externa cian.
+   * No es drop-shadow: son capas con cuerpo. El elemento debe llevar
+   * data-bloom con el mismo texto y crear stacking context (z-index: 0).
+   */
+  .cdm-bloom {
+    position: relative;
+    z-index: 0;
+  }
+  .cdm-bloom::before,
+  .cdm-bloom::after {
+    content: attr(data-bloom);
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    padding: inherit;
+    pointer-events: none;
+  }
+  .cdm-bloom::before {
+    color: rgba(125, 211, 252, 0.5);
+    filter: blur(7px);
+  }
+  .cdm-bloom::after {
+    color: rgba(34, 211, 238, 0.4);
+    filter: blur(26px);
+  }
+
+  /** Bloom suave: una sola capa, para cifras y elementos de dato. */
+  .cdm-bloom-suave {
+    position: relative;
+    z-index: 0;
+  }
+  .cdm-bloom-suave::after {
+    content: attr(data-bloom);
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    padding: inherit;
+    pointer-events: none;
+    color: rgba(34, 211, 238, 0.26);
+    filter: blur(16px);
+  }
+
+  /**
+   * Botón de vidrio cian (iteración 5): reemplaza los CTA blancos sólidos.
+   * Vidrio con baño cian + texto que emana — la acción primaria del HUD.
+   */
+  .cdm-btn-cian {
+    border: 1px solid rgba(34, 211, 238, 0.5);
+    color: var(--cdm-accent);
+    background: linear-gradient(
+      180deg,
+      rgba(34, 211, 238, 0.16),
+      rgba(34, 211, 238, 0.06)
+    );
+    -webkit-backdrop-filter: blur(10px) saturate(1.3);
+    backdrop-filter: blur(10px) saturate(1.3);
+    box-shadow:
+      inset 0 1px 0 rgba(234, 246, 251, 0.18),
+      0 0 24px -8px rgba(34, 211, 238, 0.45),
+      0 8px 24px -12px rgba(0, 0, 0, 0.6);
+    text-shadow: 0 0 14px rgba(34, 211, 238, 0.55);
+    transition:
+      border-color 0.3s ease,
+      background 0.3s ease,
+      box-shadow 0.3s ease;
+  }
+  .cdm-btn-cian:hover:not(:disabled) {
+    border-color: rgba(34, 211, 238, 0.85);
+    background: linear-gradient(
+      180deg,
+      rgba(34, 211, 238, 0.24),
+      rgba(34, 211, 238, 0.1)
+    );
+    box-shadow:
+      inset 0 1px 0 rgba(234, 246, 251, 0.22),
+      0 0 44px -6px rgba(34, 211, 238, 0.6),
+      0 8px 24px -12px rgba(0, 0, 0, 0.6);
+  }
+
+  /**
+   * Pulso de carga (ronda 6 — muerte del loader feo): la marca RAVN.
+   * RESPIRA mientras el sistema carga. Anima solo opacity (compositor).
+   * Se aplica sobre el wrapper del RavnLogo en CargandoCockpit.
+   */
+  .cdm-pulso-carga {
+    animation: cdm-pulso-carga 2.2s ease-in-out infinite;
+  }
+
+  /**
+   * Skeleton glass del cockpit: barra de vidrio con barrido cian tenue.
+   * Mismo lenguaje que .cdm-glass pero en miniatura — el dato "se está
+   * proyectando" en el panel. El caller pone alto/ancho con utilidades.
+   */
+  .cdm-skeleton {
+    position: relative;
+    overflow: hidden;
+    background: rgba(234, 246, 251, 0.045);
+    box-shadow: inset 0 1px 0 rgba(234, 246, 251, 0.06);
+  }
+  .cdm-skeleton::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+      100deg,
+      transparent 20%,
+      rgba(34, 211, 238, 0.1) 45%,
+      rgba(125, 211, 252, 0.16) 50%,
+      rgba(34, 211, 238, 0.1) 55%,
+      transparent 80%
+    );
+    transform: translateX(-100%);
+    animation: cdm-skeleton-barrido 1.8s ease-in-out infinite;
+  }
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   MODO CLARO — piel de vidrio sobre blanco frío (visionOS).
+   Mismo lenguaje, otra luz: cada clase .cdm-* gana su versión clara.
+   El oscuro NO se toca: estas reglas solo aplican bajo html.light.
+   ════════════════════════════════════════════════════════════════════ */
+
+/* Panel HUD claro: vidrio esmerilado de verdad — blanco translúcido con
+   blur fuerte, borde que arranca blanco brillante arriba y cae a
+   gris-azul abajo, sombra ambiental difusa (nunca negra dura) y un baño
+   cian apenas perceptible en la base. */
+html.light .cdm-glass {
+  border-image: linear-gradient(
+      165deg,
+      rgba(255, 255, 255, 0.98),
+      rgba(255, 255, 255, 0.55) 35%,
+      rgba(100, 116, 139, 0.4) 100%
+    )
+    1;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.85), rgba(255, 255, 255, 0.25) 32%),
+    rgba(255, 255, 255, 0.42);
+  -webkit-backdrop-filter: blur(28px) saturate(1.6);
+  backdrop-filter: blur(28px) saturate(1.6);
+  box-shadow:
+    0 24px 56px -24px rgba(51, 65, 85, 0.28),
+    0 4px 14px -8px rgba(51, 65, 85, 0.14),
+    inset 0 1px 0 rgba(255, 255, 255, 1),
+    inset 0 -24px 40px -32px rgba(8, 145, 178, 0.08);
+}
+html.light .cdm-glass:hover {
+  box-shadow:
+    0 24px 56px -24px rgba(51, 65, 85, 0.32),
+    0 0 32px -12px rgba(8, 145, 178, 0.22),
+    inset 0 1px 0 rgba(255, 255, 255, 1),
+    inset 0 -24px 40px -32px rgba(8, 145, 178, 0.12);
+}
+
+/* Prompt box claro: vidrio blanco con foco cian profundo (anillo suave,
+   no glow — el bloom no existe sobre blanco). */
+html.light .cdm-prompt {
+  border-color: rgba(8, 145, 178, 0.3);
+  background: rgba(255, 255, 255, 0.55);
+  box-shadow:
+    0 16px 40px -18px rgba(51, 65, 85, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.95);
+}
+html.light .cdm-prompt:focus-within {
+  border-color: rgba(8, 145, 178, 0.6);
+  box-shadow:
+    0 16px 40px -18px rgba(51, 65, 85, 0.3),
+    0 0 0 3px rgba(8, 145, 178, 0.12),
+    inset 0 1px 0 rgba(255, 255, 255, 1);
+}
+
+/* Chip de vidrio claro. */
+html.light .cdm-chip {
+  background-color: rgba(255, 255, 255, 0.6);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.95),
+    inset 0 -1px 1px rgba(8, 145, 178, 0.06),
+    0 2px 10px -4px rgba(51, 65, 85, 0.22);
+}
+
+/* Scrollbar del prompt en claro: cian profundo. */
+html.light .cdm-textarea {
+  scrollbar-color: rgba(8, 145, 178, 0.35) transparent;
+}
+html.light .cdm-textarea::-webkit-scrollbar-thumb {
+  background: rgba(8, 145, 178, 0.35);
+}
+html.light .cdm-textarea::-webkit-scrollbar-thumb:hover {
+  background: rgba(8, 145, 178, 0.55);
+}
+
+/* Línea de horizonte clara: cian profundo, resplandor mínimo. */
+html.light .cdm-horizon {
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(8, 145, 178, 0.35) 18%,
+    rgba(8, 145, 178, 0.75) 50%,
+    rgba(8, 145, 178, 0.35) 82%,
+    transparent 100%
+  );
+  box-shadow: 0 0 12px rgba(8, 145, 178, 0.18);
+}
+
+/* Niebla clara: masas gris-azul (#e8edf3 / #dde5ee de referencia) que
+   respiran igual que las oscuras — bruma fría, no manchas. */
+html.light .cdm-niebla-a {
+  background: radial-gradient(
+    ellipse 50% 50% at 50% 50%,
+    rgba(221, 229, 238, 0.95),
+    rgba(221, 229, 238, 0.4) 48%,
+    transparent 72%
+  );
+}
+html.light .cdm-niebla-b {
+  background: radial-gradient(
+    ellipse 50% 50% at 50% 50%,
+    rgba(203, 215, 229, 0.85),
+    rgba(203, 215, 229, 0.35) 50%,
+    transparent 75%
+  );
+}
+html.light .cdm-niebla-c {
+  background: radial-gradient(
+    ellipse 50% 50% at 50% 50%,
+    rgba(8, 145, 178, 0.08),
+    rgba(8, 145, 178, 0.025) 45%,
+    transparent 70%
+  );
+}
+
+/* Presencia y vignette claras: el centro se aquieta hacia el blanco frío,
+   las esquinas caen a bruma gris-azul (nunca a negro). */
+html.light .cdm-presencia {
+  background: radial-gradient(
+    105% 80% at 50% 42%,
+    rgba(245, 247, 250, 0.78) 0%,
+    rgba(245, 247, 250, 0.42) 55%,
+    rgba(245, 247, 250, 0.05) 100%
+  );
+}
+html.light .cdm-vignette {
+  background: radial-gradient(
+    135% 115% at 50% 50%,
+    transparent 58%,
+    rgba(100, 116, 139, 0.18) 100%
+  );
+}
+
+/* Bloom en claro: la emanación casi desaparece — queda una sombra cian
+   tenue que sugiere la luz sin ensuciar el blanco. */
+html.light .cdm-bloom::before {
+  color: rgba(8, 145, 178, 0.2);
+  filter: blur(6px);
+}
+html.light .cdm-bloom::after {
+  color: rgba(8, 145, 178, 0.08);
+  filter: blur(18px);
+}
+html.light .cdm-bloom-suave::after {
+  color: rgba(8, 145, 178, 0.12);
+}
+
+/* Botón cian claro: vidrio con baño cian profundo, texto AA, sin
+   text-shadow (el glow es lenguaje del oscuro). */
+html.light .cdm-btn-cian {
+  border-color: rgba(8, 145, 178, 0.45);
+  color: var(--cdm-accent-2);
+  background: linear-gradient(
+    180deg,
+    rgba(8, 145, 178, 0.12),
+    rgba(8, 145, 178, 0.05)
+  );
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    0 8px 22px -10px rgba(8, 145, 178, 0.35),
+    0 12px 28px -16px rgba(51, 65, 85, 0.25);
+  text-shadow: none;
+}
+html.light .cdm-btn-cian:hover:not(:disabled) {
+  border-color: rgba(8, 145, 178, 0.75);
+  background: linear-gradient(
+    180deg,
+    rgba(8, 145, 178, 0.18),
+    rgba(8, 145, 178, 0.08)
+  );
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.95),
+    0 8px 28px -8px rgba(8, 145, 178, 0.45),
+    0 12px 28px -16px rgba(51, 65, 85, 0.25);
+}
+
+/* Skeleton claro: barra gris-azul con barrido cian profundo. */
+html.light .cdm-skeleton {
+  background: rgba(15, 23, 42, 0.05);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7);
+}
+html.light .cdm-skeleton::after {
+  background: linear-gradient(
+    100deg,
+    transparent 20%,
+    rgba(8, 145, 178, 0.08) 45%,
+    rgba(8, 145, 178, 0.14) 50%,
+    rgba(8, 145, 178, 0.08) 55%,
+    transparent 80%
+  );
+}
+
+/* Semáforo financiero en claro: los emerald/red/amber 200–400 del oscuro
+   no llegan a AA sobre blanco — remap global a tonos profundos (mismos
+   matices, otra luz). El oscuro no se toca: las clases siguen intactas. */
+html.light :is(.text-emerald-400, .text-emerald-300) {
+  color: #047857; /* emerald-700 */
+}
+html.light :is(.text-red-400, .text-red-300, .text-red-200) {
+  color: #dc2626; /* red-600 */
+}
+html.light
+  :is(
+    .text-amber-300,
+    .text-amber-200,
+    .text-amber-300\/90,
+    .text-amber-300\/70
+  ) {
+  color: #b45309; /* amber-700 */
+}
+
+@keyframes cdm-shimmer-sweep {
+  0% {
+    background-position: 130% 0;
+  }
+  100% {
+    background-position: -150% 0;
+  }
+}
+
+/* La niebla respira: lentísimo, apenas perceptible — atmósfera, no efecto. */
+@keyframes cdm-respira {
+  from {
+    opacity: 0.55;
+    transform: scale(1) translateY(0);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1.16) translateY(-2%);
+  }
+}
+
+/* La marca respira mientras carga: el bloom sube y baja con ella. */
+@keyframes cdm-pulso-carga {
+  0%,
+  100% {
+    opacity: 0.55;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+/* Barrido del skeleton glass: luz cian que cruza la barra. */
+@keyframes cdm-skeleton-barrido {
+  0% {
+    transform: translateX(-100%);
+  }
+  60%,
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cdm-shimmer {
+    animation: none;
+    background-position: 50% 0;
+  }
+  .cdm-niebla {
+    animation: none;
+    opacity: 0.8;
+  }
+  .cdm-pulso-carga {
+    animation: none;
+    opacity: 0.85;
+  }
+  .cdm-skeleton::after {
+    animation: none;
+    transform: translateX(0);
+    opacity: 0.4;
   }
 }
 

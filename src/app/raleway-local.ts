@@ -66,6 +66,16 @@ export const raleway = localFont({
       weight: "700",
       style: "normal",
     },
+    {
+      path: "../fonts/raleway/raleway-latin-ext-900-normal.woff2",
+      weight: "900",
+      style: "normal",
+    },
+    {
+      path: "../fonts/raleway/raleway-latin-900-normal.woff2",
+      weight: "900",
+      style: "normal",
+    },
   ],
   variable: "--font-raleway",
   display: "swap",

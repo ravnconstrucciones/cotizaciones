@@ -15,6 +15,7 @@ type PresRow = {
   presupuesto_aprobado: boolean | null;
   propuesta_comercial_pref?: unknown;
   libreta_caja_empresa?: boolean | null;
+  fecha?: string | null;
 };
 
 type ObraJoin = {
@@ -74,6 +75,7 @@ type ObraRow = {
   id: string;
   presupuesto_id: string;
   cobranza_cerrada_at?: string | null;
+  finalizada_at?: string | null;
   monto_total_a_cobrar_ars?: string | number | null;
   presupuestos: PresRow | PresRow[] | null;
 };
@@ -91,65 +93,73 @@ export async function GET() {
     const supabase = createSupabaseAdminClient();
     const hoy = todayBuenosAires();
 
-    await supabase
-      .from("cashflow_items")
-      .update({ estado: "vencido" })
-      .eq("tipo", "ingreso")
-      .eq("estado", "pendiente")
-      .is("monto_real", null)
-      .is("fecha_real", null)
-      .is("deleted_at", null)
-      .lt("fecha_proyectada", hoy);
+    // Las tres operaciones son independientes — las lanzamos en paralelo.
+    const [, itemsResult, obrasResult] = await Promise.all([
+      supabase
+        .from("cashflow_items")
+        .update({ estado: "vencido" })
+        .eq("tipo", "ingreso")
+        .eq("estado", "pendiente")
+        .is("monto_real", null)
+        .is("fecha_real", null)
+        .is("deleted_at", null)
+        .lt("fecha_proyectada", hoy),
 
-    const { data, error } = await supabase
-      .from("cashflow_items")
-      .select(
+      supabase
+        .from("cashflow_items")
+        .select(
+          `
+          id,
+          obra_id,
+          tipo,
+          categoria,
+          descripcion,
+          monto_proyectado,
+          fecha_proyectada,
+          monto_real,
+          fecha_real,
+          estado,
+          notas,
+          obras (
+            id,
+            presupuesto_id,
+            presupuestos (
+              id,
+              nombre_obra,
+              nombre_cliente,
+              presupuesto_aprobado
+            )
+          )
         `
-        id,
-        obra_id,
-        tipo,
-        categoria,
-        descripcion,
-        monto_proyectado,
-        fecha_proyectada,
-        monto_real,
-        fecha_real,
-        estado,
-        notas,
-        obras (
+        )
+        .is("deleted_at", null),
+
+      supabase.from("obras").select(`
           id,
           presupuesto_id,
+          cobranza_cerrada_at,
+          finalizada_at,
+          monto_total_a_cobrar_ars,
           presupuestos (
             id,
             nombre_obra,
             nombre_cliente,
-            presupuesto_aprobado
+            presupuesto_aprobado,
+            propuesta_comercial_pref,
+            libreta_caja_empresa,
+            fecha
           )
-        )
-      `
-      )
-      .is("deleted_at", null);
+        `),
+    ]);
 
+    const { data, error } = itemsResult;
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
     const rows = (data ?? []) as unknown as JoinedRow[];
 
-    const { data: obrasData, error: errObras } = await supabase.from("obras").select(`
-        id,
-        presupuesto_id,
-        cobranza_cerrada_at,
-        monto_total_a_cobrar_ars,
-        presupuestos (
-          id,
-          nombre_obra,
-          nombre_cliente,
-          presupuesto_aprobado,
-          propuesta_comercial_pref,
-          libreta_caja_empresa
-        )
-      `);
+    const { data: obrasData, error: errObras } = obrasResult;
     if (errObras) {
       return NextResponse.json({ error: errObras.message }, { status: 500 });
     }
@@ -188,15 +198,45 @@ export async function GET() {
     }
 
     const presIdsAll = obrasAprobadasTodas.map((o) => o.presupuesto_id);
+    const obraIdsSaldoArr = [...saldoObraIds];
+
+    // RT2: presupuestos_gastos y anulados_recientes son independientes entre sí
+    // (ambos solo necesitan datos de RT1). Antes eran secuenciales (+~350ms).
+    // Los lanzamos en paralelo — elimina un round-trip completo del critical path.
+    const [gastosResult, anuladosResult] = await Promise.all([
+      presIdsAll.length > 0
+        ? supabase
+            .from("presupuestos_gastos")
+            .select("id, presupuesto_id, fecha, descripcion, importe")
+            .in("presupuesto_id", presIdsAll)
+        : Promise.resolve({ data: [] as GastoDb[], error: null }),
+      obraIdsSaldoArr.length > 0
+        ? supabase
+            .from("cashflow_items")
+            .select(
+              "id, obra_id, tipo, descripcion, monto_real, fecha_real, deleted_at"
+            )
+            .in("obra_id", obraIdsSaldoArr)
+            .not("deleted_at", "is", null)
+            .order("deleted_at", { ascending: false })
+            .limit(25)
+        : Promise.resolve({
+            data: [] as {
+              id: string;
+              obra_id: string;
+              tipo: string;
+              descripcion: string | null;
+              monto_real: unknown;
+              fecha_real: string | null;
+              deleted_at: string;
+            }[],
+            error: null,
+          }),
+    ]);
+
     let gastosRows: GastoDb[] = [];
-    if (presIdsAll.length > 0) {
-      const { data: gData, error: gErr } = await supabase
-        .from("presupuestos_gastos")
-        .select("id, presupuesto_id, fecha, descripcion, importe")
-        .in("presupuesto_id", presIdsAll);
-      if (!gErr && gData) {
-        gastosRows = gData as GastoDb[];
-      }
+    if (!gastosResult.error && gastosResult.data) {
+      gastosRows = gastosResult.data as unknown as GastoDb[];
     }
 
     const gastosTotalPorObraId = new Map<string, number>();
@@ -251,6 +291,9 @@ export async function GET() {
         obra_id: o.id,
         presupuesto_id: o.presupuesto_id,
         nombre_obra: nombre,
+        // Expuestos para evitar un segundo fetch desde el cliente.
+        nombre_cliente: p?.nombre_cliente?.trim() ?? null,
+        fecha_presupuesto: p?.fecha ? String(p.fecha).slice(0, 10) : null,
         ingresos_caja: tr.ingresos,
         egresos_libreta_ars: egLib,
         egresos_gastos_obra_ars: egGastos,
@@ -260,6 +303,12 @@ export async function GET() {
         pendiente_ingreso_referencia_ars,
         saldo_por_cobrar_ars,
         cobranza_cerrada: cobCerrada,
+        finalizada: Boolean(o.finalizada_at),
+        // Margen al día (spec §4.2): propuesta − gastado real acumulado.
+        margen_al_dia_ars:
+          referencia_propuesta_ars != null
+            ? roundArs2(referencia_propuesta_ars - egTotal)
+            : null,
       };
     });
     obrasActivas.sort((a, b) =>
@@ -290,6 +339,35 @@ export async function GET() {
     const egresosLibGlob = totGlob.egresos;
     const egresosTotGlob = roundArs2(egresosLibGlob + gastosGlobalArs);
     const saldoGlob = roundArs2(ingresosGlob - egresosTotGlob);
+
+    // ── Centro de Mando (spec §4.3): cashflow del mes + gastos de obra de hoy ──
+    // Mismas obras que el saldo global (saldoObraIds). Fecha de un item de
+    // libreta = fecha_real ?? fecha_proyectada (igual que movimientos_recientes).
+    const mesActual = hoy.slice(0, 7); // YYYY-MM
+    let ingresosMes = 0;
+    let egresosLibMes = 0;
+    let egresosLibHoy = 0;
+    for (const it of sliceSaldo) {
+      if (it.monto_real == null) continue;
+      const f = it.fecha_real ?? it.fecha_proyectada;
+      if (it.tipo === "ingreso") {
+        if (f.startsWith(mesActual)) ingresosMes = roundArs2(ingresosMes + it.monto_real);
+      } else {
+        if (f.startsWith(mesActual)) egresosLibMes = roundArs2(egresosLibMes + it.monto_real);
+        if (f === hoy) egresosLibHoy = roundArs2(egresosLibHoy + it.monto_real);
+      }
+    }
+    let gastosObraMes = 0;
+    let gastosObraHoy = 0;
+    for (const g of gastosRows) {
+      const oid = obraIdPorPresupuestoId.get(g.presupuesto_id);
+      if (!oid || !saldoObraIds.has(oid)) continue;
+      const f = String(g.fecha).slice(0, 10);
+      const add = importeGastoObraArs(g);
+      if (f.startsWith(mesActual)) gastosObraMes = roundArs2(gastosObraMes + add);
+      if (f === hoy) gastosObraHoy = roundArs2(gastosObraHoy + add);
+    }
+    const egresosMes = roundArs2(egresosLibMes + gastosObraMes);
 
     let libreta_empresa: {
       obra_id: string;
@@ -330,7 +408,7 @@ export async function GET() {
         r.monto_real != null &&
         String(r.monto_real).trim() !== ""
     );
-    const obraIdsSaldoArr = [...saldoObraIds];
+    // anuladosResult ya se resolvió en el Promise.all de RT2 de arriba.
     let movimientos_anulados_recientes: {
       id: string;
       obra_id: string;
@@ -341,41 +419,30 @@ export async function GET() {
       fecha_real: string;
       deleted_at: string;
     }[] = [];
-    if (obraIdsSaldoArr.length > 0) {
-      const { data: rawAnul, error: errAnul } = await supabase
-        .from("cashflow_items")
-        .select(
-          "id, obra_id, tipo, descripcion, monto_real, fecha_real, deleted_at"
-        )
-        .in("obra_id", obraIdsSaldoArr)
-        .not("deleted_at", "is", null)
-        .order("deleted_at", { ascending: false })
-        .limit(25);
-      if (!errAnul && rawAnul) {
-        movimientos_anulados_recientes = (
-          rawAnul as {
-            id: string;
-            obra_id: string;
-            tipo: string;
-            descripcion: string | null;
-            monto_real: unknown;
-            fecha_real: string | null;
-            deleted_at: string;
-          }[]
-        ).map((r) => ({
-          id: String(r.id),
-          obra_id: String(r.obra_id),
-          nombre_obra: nombrePorObraId.get(String(r.obra_id)) ?? "Obra",
-          tipo: r.tipo === "egreso" ? ("egreso" as const) : ("ingreso" as const),
-          descripcion: String(r.descripcion ?? ""),
-          monto_real:
-            r.monto_real == null ? 0 : roundArs2(parseNum(r.monto_real)),
-          fecha_real: r.fecha_real
-            ? String(r.fecha_real).slice(0, 10)
-            : "",
-          deleted_at: String(r.deleted_at),
-        }));
-      }
+    if (!anuladosResult.error && anuladosResult.data) {
+      movimientos_anulados_recientes = (
+        anuladosResult.data as {
+          id: string;
+          obra_id: string;
+          tipo: string;
+          descripcion: string | null;
+          monto_real: unknown;
+          fecha_real: string | null;
+          deleted_at: string;
+        }[]
+      ).map((r) => ({
+        id: String(r.id),
+        obra_id: String(r.obra_id),
+        nombre_obra: nombrePorObraId.get(String(r.obra_id)) ?? "Obra",
+        tipo: r.tipo === "egreso" ? ("egreso" as const) : ("ingreso" as const),
+        descripcion: String(r.descripcion ?? ""),
+        monto_real:
+          r.monto_real == null ? 0 : roundArs2(parseNum(r.monto_real)),
+        fecha_real: r.fecha_real
+          ? String(r.fecha_real).slice(0, 10)
+          : "",
+        deleted_at: String(r.deleted_at),
+      }));
     }
 
     type MovLin = {
@@ -446,7 +513,7 @@ export async function GET() {
       })
       .slice(0, 50);
 
-    return NextResponse.json({
+    const payload = NextResponse.json({
       fecha_referencia: hoy,
       saldo_caja_total: saldoGlob,
       total_por_cobrar_clientes_ars,
@@ -457,11 +524,26 @@ export async function GET() {
         egresos: egresosTotGlob,
         saldo: saldoGlob,
       },
+      caja_mes: {
+        mes: mesActual,
+        ingresos: ingresosMes,
+        egresos: egresosMes,
+        saldo: roundArs2(ingresosMes - egresosMes),
+      },
+      gastos_obra_hoy_ars: roundArs2(egresosLibHoy + gastosObraHoy),
       obras_activas: obrasActivas,
       libreta_empresa,
       movimientos_recientes,
       movimientos_anulados_recientes,
     });
+    // El middleware exige sesión, así que este endpoint nunca llega a CDN pública.
+    // private + stale-while-revalidate hace que el browser sirva caché al instante
+    // mientras revalida en background — elimina el "Cargando…" en navegaciones repetidas.
+    payload.headers.set(
+      "Cache-Control",
+      "private, max-age=15, stale-while-revalidate=60"
+    );
+    return payload;
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Error";
     return NextResponse.json({ error: msg }, { status: 500 });

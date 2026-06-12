@@ -4,6 +4,7 @@ import Link from "next/link";
 import { Trash2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CatalogToast } from "@/components/catalog-toast";
+import { SkeletonGlass } from "@/components/cockpit/skeleton-glass";
 import { createClient } from "@/lib/supabase/client";
 import { formatNumber, parseFormattedNumber } from "@/lib/format-currency";
 import { formatRubroName } from "@/lib/format-rubro-name";
@@ -727,9 +728,9 @@ export function CatalogoScreen() {
 
           <div className="mt-10 overflow-x-auto rounded-none border border-ravn-line border-b-0">
             {loading ? (
-              <p className="p-8 font-light text-ravn-muted">
-                Cargando catálogo…
-              </p>
+              <div className="p-8">
+                <SkeletonGlass filas={5} anchos={["w-full", "w-3/4", "w-2/3", "w-5/6", "w-1/2"]} />
+              </div>
             ) : (
               <table className="w-full min-w-[720px] border-collapse text-left text-sm">
                 <thead>
@@ -844,7 +845,9 @@ export function CatalogoScreen() {
 
           <div className="mt-10 overflow-x-auto rounded-none border border-ravn-line border-b-0">
             {loading ? (
-              <p className="p-8 font-light text-ravn-muted">Cargando rubros…</p>
+              <div className="p-8">
+                <SkeletonGlass filas={4} anchos={["w-2/3", "w-1/2", "w-3/4", "w-2/5"]} />
+              </div>
             ) : (
               <table className="w-full min-w-[480px] border-collapse text-left text-sm">
                 <thead>

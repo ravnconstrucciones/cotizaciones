@@ -14,10 +14,13 @@ import { parseFormattedNumber, roundArs2 } from "@/lib/format-currency";
 import { adjuntoKindDesdeFile } from "@/lib/gastos-storage";
 
 const fieldCls =
-  "w-full rounded-none border border-ravn-line bg-ravn-surface px-4 py-3 text-sm text-ravn-fg placeholder:text-ravn-muted focus-visible:border-ravn-fg focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ravn-fg";
+  "w-full border-0 border-b border-cdm-line bg-transparent px-1 py-2 text-sm text-cdm-fg placeholder:text-cdm-muted/50 transition-[border-color,box-shadow] duration-200 focus-visible:border-cdm-accent focus-visible:outline-none focus-visible:shadow-[0_12px_24px_-16px_rgba(34,211,238,0.6)]";
+
+const selectCls =
+  "w-full border border-cdm-line bg-cdm-panel/60 px-3 py-2 text-sm text-cdm-fg focus:border-cdm-accent focus:outline-none";
 
 const labelCls =
-  "mb-2 block text-xs font-medium uppercase tracking-wider text-ravn-muted";
+  "mb-2 block text-xs font-medium uppercase tracking-wider text-cdm-muted";
 
 export type CashflowObraOption = { id: string; nombre: string };
 
@@ -409,10 +412,10 @@ export function CashflowItemModal({
       key={m}
       type="button"
       onClick={() => setModo(m)}
-      className={`flex-1 rounded-none border-2 px-3 py-3 text-[10px] font-semibold uppercase tracking-wider transition-colors sm:py-3.5 ${
+      className={`cdm-chip cursor-pointer flex-1 border px-3 py-3 text-[10px] font-semibold uppercase tracking-wider transition-colors sm:py-3.5 ${
         entradaModo === m
-          ? "border-ravn-accent bg-ravn-accent/15 text-ravn-fg"
-          : "border-ravn-line bg-ravn-surface text-ravn-muted hover:border-ravn-fg/40 hover:text-ravn-fg"
+          ? "border-cdm-accent/60 bg-cdm-accent/15 text-cdm-accent shadow-[0_0_18px_-6px_rgba(34,211,238,0.55)]"
+          : "border-cdm-line text-cdm-muted hover:border-cdm-accent/30 hover:text-cdm-fg"
       }`}
     >
       {label}
@@ -421,20 +424,20 @@ export function CashflowItemModal({
 
   return (
     <div
-      className="fixed inset-0 z-[60] flex items-end justify-center bg-black/50 p-0 sm:items-center sm:p-6"
+      className="fixed inset-0 z-[60] flex items-end justify-center bg-black/60 p-0 backdrop-blur-sm sm:items-center sm:p-6"
       role="dialog"
       aria-modal
       aria-labelledby="cashflow-item-title"
     >
-      <div className="flex max-h-[92dvh] w-full max-w-lg flex-col border border-ravn-line bg-ravn-surface shadow-lg sm:max-h-[85vh]">
-        <div className="border-b border-ravn-line px-5 py-4">
+      <div className="cdm-glass font-grotesk flex max-h-[92dvh] w-full max-w-lg flex-col sm:max-h-[85vh]">
+        <div className="border-b border-cdm-line px-5 py-4">
           <h2
             id="cashflow-item-title"
-            className="font-raleway text-base font-semibold uppercase tracking-wide text-ravn-accent"
+            className="text-base font-semibold uppercase tracking-wide text-cdm-accent"
           >
             {titulo}
           </h2>
-          <p className="mt-2 text-xs text-ravn-muted">
+          <p className="mt-2 text-xs text-cdm-muted">
             {esAlta
               ? "Manual: cargá los datos. Foto o audio: primero el comprobante; intentamos rellenar monto y concepto y después elegís obra o libreta empresa."
               : "Libreta de caja: un solo monto y fecha; impacta el saldo al guardar."}
@@ -447,7 +450,7 @@ export function CashflowItemModal({
                 <div>
                   <span className={labelCls}>Obra</span>
                   <select
-                    className={fieldCls}
+                    className={selectCls}
                     value={selectedObraId}
                     onChange={(e) => setSelectedObraId(e.target.value)}
                   >
@@ -462,7 +465,7 @@ export function CashflowItemModal({
               <div className={selectorObras ? "mt-5" : ""}>
                 <span className={labelCls}>Tipo</span>
                 <select
-                  className={fieldCls}
+                  className={selectCls}
                   value={tipo}
                   disabled={tipoBloqueado}
                   onChange={(e) => {
@@ -499,7 +502,7 @@ export function CashflowItemModal({
                   <span className={labelCls}>Fecha</span>
                   <input
                     type="date"
-                    className={fieldCls}
+                    className={selectCls}
                     value={fecha}
                     onChange={(e) => setFecha(e.target.value)}
                   />
@@ -515,7 +518,7 @@ export function CashflowItemModal({
                   {modoPill("foto", "Foto")}
                   {modoPill("audio", "Audio")}
                 </div>
-                <p className="mt-2 text-[10px] leading-relaxed text-ravn-muted">
+                <p className="mt-2 text-[10px] leading-relaxed text-cdm-muted">
                   Con foto o audio, el comprobante va primero: leemos monto y texto
                   con IA (podés corregir después) y recién al final elegís obra o
                   libreta empresa.
@@ -523,7 +526,7 @@ export function CashflowItemModal({
               </div>
 
               {(entradaModo === "foto" || entradaModo === "audio") && (
-                <div className="mt-6 border border-ravn-line border-dashed bg-ravn-subtle/20 px-4 py-4">
+                <div className="mt-6 border border-dashed border-cdm-line bg-cdm-fg/[0.02] px-4 py-4">
                   <CashflowMediaCapture
                     variant={entradaModo === "foto" ? "foto" : "audio"}
                     adjuntoFile={adjuntoFile}
@@ -533,7 +536,7 @@ export function CashflowItemModal({
                     onError={(msg) => setError(msg)}
                   />
                   {adjuntoFile && extrayendo ? (
-                    <p className="mt-3 text-xs text-ravn-accent">
+                    <p className="mt-3 text-xs text-cdm-accent">
                       Leyendo comprobante…
                     </p>
                   ) : null}
@@ -545,7 +548,7 @@ export function CashflowItemModal({
                   <div className="mt-6">
                     <span className={labelCls}>Tipo</span>
                     <select
-                      className={fieldCls}
+                      className={selectCls}
                       value={tipo}
                       disabled={tipoBloqueado}
                       onChange={(e) => {
@@ -582,7 +585,7 @@ export function CashflowItemModal({
                       <span className={labelCls}>Fecha</span>
                       <input
                         type="date"
-                        className={fieldCls}
+                        className={selectCls}
                         value={fecha}
                         onChange={(e) => setFecha(e.target.value)}
                       />
@@ -590,7 +593,7 @@ export function CashflowItemModal({
                   </div>
                 </>
               ) : (
-                <p className="mt-6 text-xs text-ravn-muted">
+                <p className="mt-6 text-xs text-cdm-muted">
                   Subí o grabá el comprobante; cuando termine la lectura vas a
                   poder revisar los datos y elegir obra.
                 </p>
@@ -598,10 +601,10 @@ export function CashflowItemModal({
 
               {datosVisibles &&
               (necesitaElegirObra && selectorObras ? (
-                <div className="mt-6 border-t border-ravn-line pt-6">
+                <div className="mt-6 border-t border-cdm-line pt-6">
                   <span className={labelCls}>Obra o libreta empresa</span>
                   <select
-                    className={fieldCls}
+                    className={selectCls}
                     value={selectedObraId}
                     onChange={(e) => setSelectedObraId(e.target.value)}
                   >
@@ -611,13 +614,13 @@ export function CashflowItemModal({
                       </option>
                     ))}
                   </select>
-                  <p className="mt-2 text-[10px] text-ravn-muted">
+                  <p className="mt-2 text-[10px] text-cdm-muted">
                     Elegí la obra de cliente o &quot;Empresa (gastos
                     generales)&quot; para movimientos de cuenta empresa.
                   </p>
                 </div>
               ) : obraFija ? (
-                <p className="mt-5 text-xs text-ravn-muted">
+                <p className="mt-5 text-xs text-cdm-muted">
                   Se guardará en la obra de esta pantalla.
                 </p>
               ) : null)}
@@ -625,15 +628,15 @@ export function CashflowItemModal({
           )}
 
           {error ? (
-            <p className="mt-4 text-sm text-red-600 dark:text-red-400">
+            <p className="mt-4 text-sm text-red-400">
               {error}
             </p>
           ) : null}
         </div>
-        <div className="flex flex-col gap-3 border-t border-ravn-line px-5 py-4 sm:flex-row sm:justify-end">
+        <div className="flex flex-col gap-3 border-t border-cdm-line px-5 py-4 sm:flex-row sm:justify-end">
           <button
             type="button"
-            className="rounded-none border-2 border-ravn-line px-6 py-3 text-xs font-semibold uppercase tracking-wider text-ravn-fg transition-colors hover:bg-ravn-subtle"
+            className="cdm-chip cursor-pointer border border-cdm-line px-6 py-3 text-xs font-semibold uppercase tracking-wider text-cdm-muted transition-colors hover:border-cdm-accent/30 hover:text-cdm-fg"
             onClick={onClose}
             disabled={saving}
           >
@@ -641,7 +644,7 @@ export function CashflowItemModal({
           </button>
           <button
             type="button"
-            className="rounded-none border-2 border-ravn-accent bg-ravn-accent px-6 py-3 text-xs font-semibold uppercase tracking-wider text-ravn-accent-contrast transition-opacity hover:opacity-90 disabled:opacity-50"
+            className="cdm-chip cursor-pointer border border-cdm-accent/60 bg-cdm-accent/15 px-6 py-3 text-xs font-semibold uppercase tracking-wider text-cdm-accent shadow-[0_0_18px_-6px_rgba(34,211,238,0.55)] transition-colors hover:bg-cdm-accent/25 disabled:opacity-50"
             onClick={() => void submit()}
             disabled={saving || (esAlta && extrayendo && (entradaModo === "foto" || entradaModo === "audio"))}
           >

@@ -32,6 +32,17 @@ export async function middleware(request: NextRequest) {
   const isLoginPage = request.nextUrl.pathname.startsWith("/login");
 
   if (!user && !isLoginPage) {
+    const isPreviewAutoLogin =
+      process.env.PREVIEW_AUTO_LOGIN === "true" &&
+      process.env.VERCEL_ENV !== "production";
+
+    if (isPreviewAutoLogin) {
+      const url = request.nextUrl.clone();
+      url.pathname = "/api/auto-login";
+      url.search = `?next=${encodeURIComponent(request.nextUrl.pathname)}`;
+      return NextResponse.redirect(url);
+    }
+
     const url = request.nextUrl.clone();
     url.pathname = "/login";
     return NextResponse.redirect(url);
@@ -48,6 +59,6 @@ export async function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+    "/((?!_next/static|_next/image|favicon.ico|api/auto-login|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
   ],
 };

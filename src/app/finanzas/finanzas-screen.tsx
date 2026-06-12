@@ -3,6 +3,9 @@
 import { useCallback, useEffect, useState } from "react";
 import { formatMoneyInt } from "@/lib/format-currency";
 import { VolverAlInicio } from "@/components/volver-al-inicio";
+import { WavesBackdrop } from "@/components/cockpit/waves-backdrop";
+import { CargandoCockpit } from "@/components/cockpit/cargando-cockpit";
+import { CifraHeroica } from "@/components/cockpit/cifra-heroica";
 
 type Semaforo = "verde" | "amarillo" | "rojo";
 
@@ -59,7 +62,7 @@ const CATEGORIAS_ORDEN = [
 function BarraProgreso({ pct, semaforo }: { pct: number; semaforo: Semaforo }) {
   const width = Math.min(pct * 100, 100);
   return (
-    <div className="h-1 w-full bg-ravn-subtle">
+    <div className="h-1 w-full bg-cdm-fg/10">
       <div
         className={`h-1 transition-all ${SEMAFORO_BG[semaforo]}`}
         style={{ width: `${width}%` }}
@@ -164,18 +167,15 @@ export function FinanzasScreen() {
   }
 
   if (loading) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-ravn-surface text-ravn-muted">
-        <span className="font-raleway text-xs uppercase tracking-widest">Cargando…</span>
-      </div>
-    );
+    return <CargandoCockpit label="Finanzas" />;
   }
 
   if (error || !data) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-ravn-surface text-red-400">
-        <span className="font-raleway text-xs uppercase tracking-widest">{error ?? "Sin datos"}</span>
-      </div>
+      <main className="font-grotesk relative flex min-h-screen items-center justify-center bg-cdm-bg text-red-400">
+        <WavesBackdrop />
+        <span className="relative z-10 text-xs uppercase tracking-widest">{error ?? "Sin datos"}</span>
+      </main>
     );
   }
 
@@ -184,29 +184,38 @@ export function FinanzasScreen() {
   const presupuestoEsperado = data.presupuesto_diario * data.dias_transcurridos;
 
   return (
-    <div className="min-h-screen bg-ravn-surface text-ravn-fg">
-      <div className="mx-auto max-w-lg px-4 py-8">
+    <main className="font-grotesk relative min-h-screen bg-cdm-bg px-4 pb-24 pt-14 text-cdm-fg sm:px-8">
+      <WavesBackdrop />
+      <div className="relative z-10 mx-auto w-full max-w-lg">
         <VolverAlInicio />
 
-        <h1 className="font-raleway mt-6 text-xs uppercase tracking-widest text-ravn-muted">
-          Finanzas personales
-        </h1>
+        {/* Header con horizonte */}
+        <div className="relative pb-3">
+          <span aria-hidden className="cdm-horizon absolute inset-x-0 bottom-0" />
+          <h1 className="font-mono-hud flex items-baseline gap-2 text-[11px] font-medium uppercase tracking-[0.22em] text-cdm-muted">
+            <span aria-hidden className="text-cdm-accent/60">{"//////"}</span>
+            Finanzas personales
+          </h1>
+        </div>
 
         {/* Semáforo del día */}
-        <div className="mt-6 border border-ravn-line p-5">
+        <div className="cdm-glass mt-6 p-5">
           <div className="flex items-baseline justify-between">
-            <span className="font-raleway text-[10px] uppercase tracking-widest text-ravn-muted">
+            <span className="text-[10px] uppercase tracking-widest text-cdm-muted">
               Hoy
             </span>
-            <span className={`font-raleway text-[10px] font-semibold uppercase tracking-widest ${SEMAFORO_COLOR[data.semaforo_dia]}`}>
+            <span className={`text-[10px] font-semibold uppercase tracking-widest ${SEMAFORO_COLOR[data.semaforo_dia]}`}>
               {SEMAFORO_LABEL[data.semaforo_dia]}
             </span>
           </div>
           <div className="mt-2 flex items-baseline gap-2">
-            <span className="tabular-nums text-2xl font-light">
+            <CifraHeroica
+              className="text-[clamp(28px,2.2vw,40px)] leading-none"
+              colorBase={data.semaforo_dia === "rojo" ? "#f87171" : "var(--cdm-fg)"}
+            >
               {formatMoneyInt(data.gastado_hoy)}
-            </span>
-            <span className="text-xs text-ravn-muted">
+            </CifraHeroica>
+            <span className="text-xs text-cdm-muted">
               / {formatMoneyInt(data.presupuesto_diario)} diario
             </span>
           </div>
@@ -216,20 +225,24 @@ export function FinanzasScreen() {
         </div>
 
         {/* Resumen del mes */}
-        <div className="mt-3 border border-ravn-line p-5">
+        <div className="cdm-glass mt-3 p-5">
           <div className="flex items-baseline justify-between">
-            <span className="font-raleway text-[10px] uppercase tracking-widest text-ravn-muted">
+            <span className="text-[10px] uppercase tracking-widest text-cdm-muted">
               Junio — {data.dias_transcurridos}/{data.dias_en_mes} días
             </span>
-            <span className={`font-raleway text-[10px] font-semibold uppercase tracking-widest ${SEMAFORO_COLOR[data.semaforo_mes]}`}>
+            <span className={`text-[10px] font-semibold uppercase tracking-widest ${SEMAFORO_COLOR[data.semaforo_mes]}`}>
               {SEMAFORO_LABEL[data.semaforo_mes]}
             </span>
           </div>
           <div className="mt-2 flex items-baseline gap-2">
-            <span className="tabular-nums text-2xl font-light">
+            <CifraHeroica
+              className="text-[clamp(28px,2.2vw,40px)] leading-none"
+              colorBase={data.semaforo_mes === "rojo" ? "#f87171" : "var(--cdm-fg)"}
+              delay={0.25}
+            >
               {formatMoneyInt(data.total_mes)}
-            </span>
-            <span className="text-xs text-ravn-muted">
+            </CifraHeroica>
+            <span className="text-xs text-cdm-muted">
               / {formatMoneyInt(data.presupuesto_mensual)}
             </span>
           </div>
@@ -238,20 +251,20 @@ export function FinanzasScreen() {
           </div>
           <dl className="mt-4 grid grid-cols-2 gap-x-4 gap-y-2 text-[11px]">
             <div>
-              <dt className="text-ravn-muted">Disponible</dt>
+              <dt className="text-cdm-muted">Disponible</dt>
               <dd className={`tabular-nums font-medium ${data.disponible >= 0 ? "text-emerald-400" : "text-red-400"}`}>
                 {formatMoneyInt(data.disponible)}
               </dd>
             </div>
             <div>
-              <dt className="text-ravn-muted">Proyección fin de mes</dt>
+              <dt className="text-cdm-muted">Proyección fin de mes</dt>
               <dd className={`tabular-nums font-medium ${data.proyeccion <= data.presupuesto_mensual ? "text-emerald-400" : "text-amber-300"}`}>
                 {formatMoneyInt(data.proyeccion)}
               </dd>
             </div>
             <div>
-              <dt className="text-ravn-muted">Presupuesto esperado a hoy</dt>
-              <dd className="tabular-nums font-medium text-ravn-fg">
+              <dt className="text-cdm-muted">Presupuesto esperado a hoy</dt>
+              <dd className="tabular-nums font-medium text-cdm-fg">
                 {formatMoneyInt(presupuestoEsperado)}
               </dd>
             </div>
@@ -259,8 +272,8 @@ export function FinanzasScreen() {
         </div>
 
         {/* Por categoría */}
-        <div className="mt-3 border border-ravn-line p-5">
-          <h2 className="font-raleway text-[10px] uppercase tracking-widest text-ravn-muted">
+        <div className="cdm-glass mt-3 p-5">
+          <h2 className="text-[10px] uppercase tracking-widest text-cdm-muted">
             Por categoría — semana
           </h2>
           <ul className="mt-4 space-y-3">
@@ -273,10 +286,10 @@ export function FinanzasScreen() {
               return (
                 <li key={cat}>
                   <div className="flex items-baseline justify-between text-[11px]">
-                    <span className="text-ravn-fg">{cat}</span>
+                    <span className="text-cdm-fg">{cat}</span>
                     <span className="tabular-nums">
                       <span className={SEMAFORO_COLOR[sem]}>{formatMoneyInt(monto)}</span>
-                      <span className="text-ravn-muted"> / {formatMoneyInt(limite)}</span>
+                      <span className="text-cdm-muted"> / {formatMoneyInt(limite)}</span>
                     </span>
                   </div>
                   <div className="mt-1">
@@ -286,14 +299,14 @@ export function FinanzasScreen() {
               );
             })}
             {Object.keys(data.por_categoria).length === 0 && (
-              <li className="text-[11px] text-ravn-muted">Sin gastos cargados este mes.</li>
+              <li className="text-[11px] text-cdm-muted">Sin gastos cargados este mes.</li>
             )}
           </ul>
         </div>
 
         {/* Cargar gasto manual */}
-        <div className="mt-3 border border-ravn-line p-5">
-          <h2 className="font-raleway text-[10px] uppercase tracking-widest text-ravn-muted">
+        <div className="cdm-glass mt-3 p-5">
+          <h2 className="text-[10px] uppercase tracking-widest text-cdm-muted">
             Cargar gasto
           </h2>
           <form onSubmit={guardarGasto} className="mt-4 space-y-3">
@@ -302,19 +315,19 @@ export function FinanzasScreen() {
               placeholder="Concepto"
               value={form.concepto}
               onChange={(e) => setForm((f) => ({ ...f, concepto: e.target.value }))}
-              className="font-raleway w-full border border-ravn-line bg-ravn-surface px-4 py-3 text-sm text-ravn-fg placeholder:text-ravn-muted/50 focus:border-ravn-fg focus:outline-none"
+              className="w-full border-0 border-b border-cdm-line bg-transparent px-1 py-2 text-sm text-cdm-fg placeholder:text-cdm-muted/50 transition-[border-color,box-shadow] duration-200 focus-visible:border-cdm-accent focus-visible:outline-none focus-visible:shadow-[0_12px_24px_-16px_rgba(34,211,238,0.6)]"
             />
             <input
               type="number"
               placeholder="Monto"
               value={form.monto}
               onChange={(e) => setForm((f) => ({ ...f, monto: e.target.value }))}
-              className="font-raleway w-full border border-ravn-line bg-ravn-surface px-4 py-3 text-sm text-ravn-fg placeholder:text-ravn-muted/50 focus:border-ravn-fg focus:outline-none"
+              className="w-full border-0 border-b border-cdm-line bg-transparent px-1 py-2 text-sm text-cdm-fg placeholder:text-cdm-muted/50 transition-[border-color,box-shadow] duration-200 focus-visible:border-cdm-accent focus-visible:outline-none focus-visible:shadow-[0_12px_24px_-16px_rgba(34,211,238,0.6)]"
             />
             <select
               value={form.categoria}
               onChange={(e) => setForm((f) => ({ ...f, categoria: e.target.value }))}
-              className="font-raleway w-full border border-ravn-line bg-ravn-surface px-4 py-3 text-sm text-ravn-fg focus:border-ravn-fg focus:outline-none"
+              className="w-full border border-cdm-line bg-cdm-panel/60 px-4 py-3 text-sm text-cdm-fg focus:border-cdm-accent focus:outline-none"
             >
               {CATEGORIAS_ORDEN.map((c) => (
                 <option key={c} value={c}>{c}</option>
@@ -323,17 +336,17 @@ export function FinanzasScreen() {
             <button
               type="submit"
               disabled={guardando || !form.concepto || !form.monto}
-              className="font-raleway w-full border-2 border-ravn-accent bg-ravn-accent px-8 py-3 text-sm uppercase tracking-wider text-ravn-accent-contrast transition-opacity hover:opacity-85 disabled:opacity-40"
+              className="cdm-chip w-full cursor-pointer border border-cdm-accent/60 bg-cdm-accent/15 px-8 py-3 text-sm uppercase tracking-wider text-cdm-accent shadow-[0_0_18px_-6px_rgba(34,211,238,0.55)] transition-colors hover:bg-cdm-accent/25 disabled:opacity-40"
             >
               {guardando ? "Guardando…" : "Guardar"}
             </button>
             {guardadoOk && (
-              <p className="font-raleway text-center text-xs uppercase tracking-widest text-emerald-400">
+              <p className="text-center text-xs uppercase tracking-widest text-emerald-400">
                 Guardado ✓
               </p>
             )}
             {errorGuardar && (
-              <p className="font-raleway text-center text-xs uppercase tracking-widest text-red-400">
+              <p className="text-center text-xs uppercase tracking-widest text-red-400">
                 Error: {errorGuardar}
               </p>
             )}
@@ -342,28 +355,28 @@ export function FinanzasScreen() {
 
         {/* Últimos gastos */}
         {data.ultimos_gastos.length > 0 && (
-          <div className="mt-3 border border-ravn-line p-5">
-            <h2 className="font-raleway text-[10px] uppercase tracking-widest text-ravn-muted">
+          <div className="cdm-glass mt-3 p-5">
+            <h2 className="text-[10px] uppercase tracking-widest text-cdm-muted">
               Últimos gastos
             </h2>
-            <ul className="mt-4 divide-y divide-ravn-line">
+            <ul className="mt-4 divide-y divide-cdm-line">
               {data.ultimos_gastos.map((g) => (
                 <li key={g.id} className="flex items-center justify-between py-2 text-[11px]">
                   <div className="flex items-center gap-3">
-                    <span className="tabular-nums text-ravn-muted">{fmtFecha(g.fecha)}</span>
+                    <span className="tabular-nums text-cdm-muted">{fmtFecha(g.fecha)}</span>
                     <div>
-                      <div className="text-ravn-fg">{g.concepto}</div>
-                      <div className="text-ravn-muted">{g.categoria}</div>
+                      <div className="text-cdm-fg">{g.concepto}</div>
+                      <div className="text-cdm-muted">{g.categoria}</div>
                     </div>
                   </div>
                   <div className="flex items-center gap-3">
-                    <span className="tabular-nums font-medium text-ravn-fg">
+                    <span className="tabular-nums font-medium text-cdm-fg">
                       {formatMoneyInt(g.monto)}
                     </span>
                     <button
                       onClick={() => eliminarGasto(g.id)}
                       disabled={eliminando === g.id}
-                      className="text-ravn-muted transition-colors hover:text-red-400 disabled:opacity-40"
+                      className="cursor-pointer text-cdm-muted transition-colors hover:text-red-400 disabled:opacity-40"
                       aria-label="Eliminar"
                     >
                       {eliminando === g.id ? "…" : "×"}
@@ -375,6 +388,6 @@ export function FinanzasScreen() {
           </div>
         )}
       </div>
-    </div>
+    </main>
   );
 }

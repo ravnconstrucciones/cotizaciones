@@ -9,6 +9,9 @@ import type { PuntoSaldoObraChart } from "@/lib/cashflow-compute";
 import type { CashflowTipo } from "@/lib/cashflow-compute";
 import { formatMoneyInt } from "@/lib/format-currency";
 import { VolverAlInicio } from "@/components/volver-al-inicio";
+import { WavesBackdrop } from "@/components/cockpit/waves-backdrop";
+import { SkeletonGlass } from "@/components/cockpit/skeleton-glass";
+import { CifraHeroica } from "@/components/cockpit/cifra-heroica";
 
 type ItemRow = {
   id: string;
@@ -208,20 +211,31 @@ export function CashflowObraScreen({ obraId }: { obraId: string }) {
   }
 
   return (
-    <div className="min-h-[100dvh] bg-ravn-surface px-4 py-10 pb-32 text-ravn-fg sm:px-8">
-      <div className="mx-auto w-full max-w-4xl">
+    <main className="font-grotesk relative min-h-screen bg-cdm-bg px-4 pb-32 pt-14 text-cdm-fg sm:px-8">
+      <WavesBackdrop />
+      <div className="relative z-10 mx-auto w-full max-w-4xl">
         <VolverAlInicio />
-        <div className="mt-6 flex flex-col gap-4 border-b border-ravn-line pb-8">
+
+        {/* Header con línea de horizonte */}
+        <div className="relative pb-3">
+          <span aria-hidden className="cdm-horizon absolute inset-x-0 bottom-0" />
+          <h1 className="font-mono-hud flex items-baseline gap-2 text-[11px] font-medium uppercase tracking-[0.22em] text-cdm-muted">
+            <span aria-hidden className="text-cdm-accent/60">{"//////"}</span>
+            Cashflow
+          </h1>
+        </div>
+
+        <div className="mt-6 flex flex-col gap-4">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
             <div>
-              <p className="text-[10px] font-medium uppercase tracking-[0.2em] text-ravn-muted">
+              <p className="text-[10px] font-medium uppercase tracking-[0.2em] text-cdm-muted">
                 Caja por obra
               </p>
-              <h1 className="mt-2 font-raleway text-xl font-semibold uppercase tracking-wide text-ravn-accent sm:text-2xl">
+              <p className="mt-2 text-xl font-semibold uppercase tracking-wide text-cdm-fg sm:text-2xl">
                 {data?.nombre_obra ?? "Obra"}
-              </h1>
+              </p>
               {data?.finalizada_at ? (
-                <p className="mt-2 text-xs font-medium uppercase tracking-wider text-amber-200">
+                <p className="mt-2 text-xs font-medium uppercase tracking-wider text-amber-300">
                   Obra finalizada
                 </p>
               ) : null}
@@ -229,20 +243,20 @@ export function CashflowObraScreen({ obraId }: { obraId: string }) {
                 <p className="mt-3 flex flex-wrap gap-x-4 gap-y-2 text-xs">
                   <Link
                     href={`/propuesta/${encodeURIComponent(data.presupuesto_id)}`}
-                    className="font-medium uppercase tracking-wider text-ravn-muted underline-offset-2 hover:text-ravn-fg hover:underline"
+                    className="font-medium uppercase tracking-wider text-cdm-muted underline-offset-2 hover:text-cdm-fg hover:underline"
                   >
                     Propuesta
                   </Link>
                   <Link
                     href={`/obras/${encodeURIComponent(data.presupuesto_id)}/gastos`}
-                    className="font-medium uppercase tracking-wider text-ravn-muted underline-offset-2 hover:text-ravn-fg hover:underline"
+                    className="font-medium uppercase tracking-wider text-cdm-muted underline-offset-2 hover:text-cdm-fg hover:underline"
                   >
                     Gastos de obra
                   </Link>
                   {data.ultimo_cierre ? (
                     <Link
                       href={`/cashflow/obra/${encodeURIComponent(obraId)}/cierre`}
-                      className="font-medium uppercase tracking-wider text-ravn-muted underline-offset-2 hover:text-ravn-fg hover:underline"
+                      className="font-medium uppercase tracking-wider text-cdm-muted underline-offset-2 hover:text-cdm-fg hover:underline"
                     >
                       Resumen de cierre
                     </Link>
@@ -257,14 +271,14 @@ export function CashflowObraScreen({ obraId }: { obraId: string }) {
                     <button
                       type="button"
                       onClick={() => openNuevo("ingreso")}
-                      className="inline-flex items-center justify-center rounded-none border-2 border-emerald-800/80 bg-emerald-950/50 px-3 py-3 text-[10px] font-semibold uppercase tracking-wider text-emerald-100 transition-colors hover:bg-emerald-900/50"
+                      className="cdm-chip cursor-pointer inline-flex items-center justify-center border border-emerald-400/40 bg-emerald-400/10 px-3 py-3 text-[10px] font-semibold uppercase tracking-wider text-emerald-400 transition-colors hover:bg-emerald-400/20"
                     >
                       + Ingreso
                     </button>
                     <button
                       type="button"
                       onClick={() => openNuevo("egreso")}
-                      className="inline-flex items-center justify-center rounded-none border-2 border-red-900/60 bg-red-950/40 px-3 py-3 text-[10px] font-semibold uppercase tracking-wider text-red-100 transition-colors hover:bg-red-900/40"
+                      className="cdm-chip cursor-pointer inline-flex items-center justify-center border border-red-400/40 bg-red-400/10 px-3 py-3 text-[10px] font-semibold uppercase tracking-wider text-red-400 transition-colors hover:bg-red-400/20"
                     >
                       − Egreso
                     </button>
@@ -274,7 +288,7 @@ export function CashflowObraScreen({ obraId }: { obraId: string }) {
                       type="button"
                       disabled={finalizando}
                       onClick={() => void finalizarObra()}
-                      className="inline-flex w-full items-center justify-center rounded-none border border-ravn-line px-6 py-3 text-xs font-semibold uppercase tracking-wider text-ravn-muted transition-colors hover:border-ravn-fg hover:text-ravn-fg disabled:opacity-50"
+                      className="cdm-chip cursor-pointer inline-flex w-full items-center justify-center border border-cdm-line px-6 py-3 text-xs font-semibold uppercase tracking-wider text-cdm-muted transition-colors hover:border-cdm-accent/30 hover:text-cdm-fg disabled:opacity-50"
                     >
                       {finalizando ? "…" : "Finalizar obra"}
                     </button>
@@ -286,125 +300,140 @@ export function CashflowObraScreen({ obraId }: { obraId: string }) {
         </div>
 
         {loading ? (
-          <p className="mt-12 text-sm text-ravn-muted">Cargando…</p>
+          <div className="mt-10 flex flex-col gap-10">
+            <div className="cdm-glass grid gap-4 p-5 sm:grid-cols-2">
+              <SkeletonGlass filas={2} anchos={["w-1/2", "w-2/3"]} />
+              <SkeletonGlass filas={2} anchos={["w-1/2", "w-2/3"]} />
+            </div>
+            <div className="cdm-glass p-5">
+              <SkeletonGlass filas={4} anchos={["w-3/4", "w-1/2", "w-2/3", "w-2/5"]} />
+            </div>
+          </div>
         ) : error ? (
-          <p className="mt-12 text-sm text-red-600 dark:text-red-400">{error}</p>
+          <p className="mt-12 text-sm text-red-400">{error}</p>
         ) : data ? (
           <div className="mt-10 flex flex-col gap-10">
-            <div className="grid gap-4 border border-ravn-line p-5 sm:grid-cols-2">
+            {/* Saldo caja + Resultado */}
+            <div className="cdm-glass grid gap-4 p-5 sm:grid-cols-2">
               <div>
-                <p className="text-[10px] font-medium uppercase tracking-[0.14em] text-ravn-muted">
+                <p className="text-[10px] font-medium uppercase tracking-[0.14em] text-cdm-muted">
                   Saldo total caja
                 </p>
-                <p className="mt-2 text-lg font-semibold tabular-nums">
+                <CifraHeroica
+                  className="mt-2 text-[clamp(28px,2.2vw,40px)] leading-none"
+                  colorBase={data.saldo_caja >= 0 ? "#34d399" : "#f87171"}
+                >
                   {formatMoneyInt(data.saldo_caja)}
-                </p>
-                <p className="mt-2 text-[11px] font-light leading-snug text-ravn-muted">
+                </CifraHeroica>
+                <p className="mt-2 text-[11px] leading-snug text-cdm-muted">
                   Ingresos registrados menos egresos registrados (todas las
                   líneas con monto y fecha).
                 </p>
               </div>
               <div>
-                <p className="text-[10px] font-medium uppercase tracking-[0.14em] text-ravn-muted">
+                <p className="text-[10px] font-medium uppercase tracking-[0.14em] text-cdm-muted">
                   Resultado
                 </p>
-                <p className="mt-2 text-lg font-semibold tabular-nums">
+                <p className="mt-2 text-lg font-semibold tabular-nums text-cdm-fg">
                   {data.resultado.segun_caja === "ganando"
                     ? "Ganando"
                     : "Perdiendo"}{" "}
-                  <span className="text-ravn-muted">·</span>{" "}
+                  <span className="text-cdm-muted">·</span>{" "}
                   {formatMoneyInt(Math.abs(data.resultado.monto_neto))}
                 </p>
               </div>
             </div>
 
+            {/* Totales */}
             <div className="grid gap-4 sm:grid-cols-3">
-              <div className="border border-ravn-line px-4 py-3">
-                <p className="text-[10px] uppercase tracking-wider text-ravn-muted">
+              <div className="cdm-glass px-4 py-3">
+                <p className="text-[10px] uppercase tracking-wider text-cdm-muted">
                   Ingresos
                 </p>
-                <p className="mt-1 tabular-nums text-base font-medium">
+                <p className="mt-1 tabular-nums text-base font-medium text-cdm-fg">
                   {formatMoneyInt(data.totales_caja.ingresos)}
                 </p>
               </div>
-              <div className="border border-ravn-line px-4 py-3">
-                <p className="text-[10px] uppercase tracking-wider text-ravn-muted">
+              <div className="cdm-glass px-4 py-3">
+                <p className="text-[10px] uppercase tracking-wider text-cdm-muted">
                   Egresos
                 </p>
-                <p className="mt-1 tabular-nums text-base font-medium">
+                <p className="mt-1 tabular-nums text-base font-medium text-cdm-fg">
                   {formatMoneyInt(data.totales_caja.egresos)}
                 </p>
               </div>
-              <div className="border border-ravn-line px-4 py-3">
-                <p className="text-[10px] uppercase tracking-wider text-ravn-muted">
+              <div className="cdm-glass px-4 py-3">
+                <p className="text-[10px] uppercase tracking-wider text-cdm-muted">
                   Fecha consulta
                 </p>
-                <p className="mt-1 text-sm">{fmtFecha(data.fecha_referencia)}</p>
+                <p className="mt-1 text-sm text-cdm-fg">{fmtFecha(data.fecha_referencia)}</p>
               </div>
             </div>
 
+            {/* Cobranzas vs propuesta */}
             {data.referencia_propuesta_ars != null ? (
-              <div className="border border-ravn-accent/30 bg-ravn-subtle/30 p-4 text-xs">
-                <p className="font-medium uppercase tracking-wider text-ravn-muted">
+              <div className="cdm-glass p-4 text-xs">
+                <p className="font-medium uppercase tracking-wider text-cdm-muted">
                   Cobranzas vs total propuesta (Rentabilidad)
                 </p>
-                <p className="mt-2 leading-relaxed text-ravn-muted">
-                  <span className="text-ravn-fg">Ingresos cargados en caja</span>{" "}
+                <p className="mt-2 leading-relaxed text-cdm-muted">
+                  <span className="text-cdm-fg">Ingresos cargados en caja</span>{" "}
                   son lo que ya registraste como cobrado.{" "}
-                  <span className="text-ravn-fg">Importe propuesta</span> es el
+                  <span className="text-cdm-fg">Importe propuesta</span> es el
                   total guardado en Rentabilidad (misma moneda / IVA que elegiste
                   ahí).
                 </p>
-                <ul className="mt-3 space-y-1 tabular-nums text-ravn-fg">
+                <ul className="mt-3 space-y-1 tabular-nums text-cdm-fg">
                   <li className="flex flex-wrap justify-between gap-2">
-                    <span className="text-ravn-muted">Ingresos en caja</span>
+                    <span className="text-cdm-muted">Ingresos en caja</span>
                     <span className="font-medium">
                       {formatMoneyInt(data.totales_caja.ingresos)}
                     </span>
                   </li>
                   <li className="flex flex-wrap justify-between gap-2">
-                    <span className="text-ravn-muted">Importe propuesta (ref.)</span>
+                    <span className="text-cdm-muted">Importe propuesta (ref.)</span>
                     <span className="font-medium">
                       {formatMoneyInt(data.referencia_propuesta_ars)}
                     </span>
                   </li>
-                  <li className="flex flex-wrap justify-between gap-2 border-t border-ravn-line/60 pt-2">
-                    <span className="text-ravn-muted">
+                  <li className="flex flex-wrap justify-between gap-2 border-t border-cdm-line pt-2">
+                    <span className="text-cdm-muted">
                       Diferencia (ref. − ingresos caja)
                     </span>
-                    <span className="font-medium text-amber-200/90">
+                    <span className="font-medium text-amber-300">
                       {formatMoneyInt(data.pendiente_ingreso_referencia_ars ?? 0)}
                     </span>
                   </li>
                 </ul>
-                <p className="mt-2 text-[11px] leading-snug text-ravn-muted">
+                <p className="mt-2 text-[11px] leading-snug text-cdm-muted">
                   Positivo ≈ pendiente orientativo de cobro respecto al total de
                   propuesta; no reemplaza el detalle de cuotas ni facturación.
                 </p>
               </div>
             ) : (
-              <p className="text-xs text-ravn-muted">
+              <p className="text-xs text-cdm-muted">
                 Guardá el importe en Rentabilidad para comparar acá la propuesta
                 con los ingresos que cargás en caja.
               </p>
             )}
 
+            {/* Gráfico saldo */}
             <section aria-labelledby="grafico-saldo">
               <h2
                 id="grafico-saldo"
-                className="font-raleway text-sm font-semibold uppercase tracking-wide text-ravn-accent"
+                className="text-[11px] uppercase tracking-[0.35em] text-cdm-muted"
               >
                 Saldo acumulado
               </h2>
-              <p className="mt-2 text-xs text-ravn-muted">
-                <span className="text-ravn-fg">Saldo caja</span> (ingresos −
+              <p className="mt-2 text-xs text-cdm-muted">
+                <span className="text-cdm-fg">Saldo caja</span> (ingresos −
                 egresos con fecha real) e{" "}
-                <span className="text-ravn-fg">ingresos acumulados</span>{" "}
+                <span className="text-cdm-fg">ingresos acumulados</span>{" "}
                 (cobranzas) en el eje derecho. Si hay total en Rentabilidad,
                 aparece la línea de referencia para ver el avance respecto a la
                 propuesta.
               </p>
-              <div className="mt-4 border border-ravn-line p-3 sm:p-4">
+              <div className="cdm-glass mt-4 p-3 sm:p-4">
                 <CashflowSaldoChart
                   data={chartData}
                   referenciaPropuestaArs={data.referencia_propuesta_ars}
@@ -412,17 +441,18 @@ export function CashflowObraScreen({ obraId }: { obraId: string }) {
               </div>
             </section>
 
+            {/* Tabla movimientos */}
             <section aria-labelledby="tabla-movs">
               <h2
                 id="tabla-movs"
-                className="font-raleway text-sm font-semibold uppercase tracking-wide text-ravn-accent"
+                className="text-[11px] uppercase tracking-[0.35em] text-cdm-muted"
               >
                 Movimientos
               </h2>
-              <div className="mt-4 overflow-x-auto border border-ravn-line">
+              <div className="cdm-glass mt-4 overflow-x-auto">
                 <table className="w-full min-w-[480px] border-collapse text-left text-sm">
                   <thead>
-                    <tr className="border-b border-ravn-line bg-ravn-subtle/30 text-[10px] font-medium uppercase tracking-wider text-ravn-muted">
+                    <tr className="border-b border-cdm-line text-[10px] font-medium uppercase tracking-wider text-cdm-muted">
                       <th className="px-3 py-3">Tipo</th>
                       <th className="px-3 py-3">Concepto</th>
                       <th className="px-3 py-3 text-right">Monto</th>
@@ -437,29 +467,29 @@ export function CashflowObraScreen({ obraId }: { obraId: string }) {
                       return (
                         <tr
                           key={row.id}
-                          className="border-b border-ravn-line last:border-b-0"
+                          className="border-b border-cdm-line last:border-b-0"
                         >
-                          <td className="px-3 py-3 capitalize">{row.tipo}</td>
-                          <td className="max-w-[14rem] truncate px-3 py-3">
+                          <td className="px-3 py-3 capitalize text-cdm-fg">{row.tipo}</td>
+                          <td className="max-w-[14rem] truncate px-3 py-3 text-cdm-fg">
                             {row.descripcion || "—"}
                           </td>
-                          <td className="px-3 py-3 text-right tabular-nums">
+                          <td className="px-3 py-3 text-right tabular-nums text-cdm-fg">
                             {formatMoneyInt(m)}
                           </td>
-                          <td className="px-3 py-3 tabular-nums text-xs">
+                          <td className="px-3 py-3 tabular-nums text-xs text-cdm-muted">
                             {fmtFecha(f)}
                           </td>
                           <td className="px-3 py-3 text-right">
                             <button
                               type="button"
-                              className="mr-2 text-[10px] font-semibold uppercase tracking-wider text-ravn-muted underline-offset-2 hover:text-ravn-fg hover:underline"
+                              className="mr-2 cursor-pointer text-[10px] font-semibold uppercase tracking-wider text-cdm-muted underline-offset-2 hover:text-cdm-fg hover:underline"
                               onClick={() => openEdit(row)}
                             >
                               Editar
                             </button>
                             <button
                               type="button"
-                              className="text-[10px] font-semibold uppercase tracking-wider text-red-400 underline-offset-2 hover:underline"
+                              className="cursor-pointer text-[10px] font-semibold uppercase tracking-wider text-red-400 underline-offset-2 hover:underline"
                               onClick={() => void eliminar(row.id)}
                             >
                               Anular
@@ -473,29 +503,30 @@ export function CashflowObraScreen({ obraId }: { obraId: string }) {
               </div>
             </section>
 
+            {/* Anulados */}
             {(data.items_anulados ?? []).length > 0 ? (
               <section aria-labelledby="anulados">
                 <h2
                   id="anulados"
-                  className="font-raleway text-sm font-semibold uppercase tracking-wide text-ravn-muted"
+                  className="text-[11px] uppercase tracking-[0.35em] text-cdm-muted"
                 >
                   Anulados recientes
                 </h2>
-                <p className="mt-2 text-xs text-ravn-muted">
+                <p className="mt-2 text-xs text-cdm-muted">
                   No suman al saldo. Restaurá si fue un error.
                 </p>
-                <ul className="mt-4 space-y-2 border border-ravn-line p-4 text-sm">
+                <ul className="cdm-glass mt-4 space-y-2 p-4 text-sm">
                   {(data.items_anulados ?? []).map((a) => (
                     <li
                       key={a.id}
-                      className="flex flex-col gap-2 border-b border-ravn-line/50 pb-3 last:border-b-0 last:pb-0 sm:flex-row sm:items-center sm:justify-between"
+                      className="flex flex-col gap-2 border-b border-cdm-line pb-3 last:border-b-0 last:pb-0 sm:flex-row sm:items-center sm:justify-between"
                     >
                       <div>
-                        <p className="text-xs uppercase text-ravn-muted">
+                        <p className="text-xs uppercase text-cdm-muted">
                           {a.tipo} · {fmtFecha(a.deleted_at)}
                         </p>
-                        <p className="mt-1">{a.descripcion || "—"}</p>
-                        <p className="mt-1 tabular-nums text-ravn-fg">
+                        <p className="mt-1 text-cdm-fg">{a.descripcion || "—"}</p>
+                        <p className="mt-1 tabular-nums text-cdm-fg">
                           {a.monto_real != null
                             ? formatMoneyInt(a.monto_real)
                             : "—"}
@@ -504,7 +535,7 @@ export function CashflowObraScreen({ obraId }: { obraId: string }) {
                       <button
                         type="button"
                         onClick={() => void restaurar(a.id)}
-                        className="shrink-0 self-start rounded-none border border-ravn-line px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-ravn-fg hover:bg-ravn-subtle sm:self-center"
+                        className="cdm-chip cursor-pointer shrink-0 self-start border border-emerald-400/40 px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-emerald-400 transition-colors hover:bg-emerald-400/10 sm:self-center"
                       >
                         Restaurar
                       </button>
@@ -527,14 +558,14 @@ export function CashflowObraScreen({ obraId }: { obraId: string }) {
         onSaved={() => void load()}
       />
 
-      <div className="fixed bottom-0 left-0 right-0 z-40 border-t border-ravn-line bg-ravn-surface/95 px-4 py-3 backdrop-blur-sm sm:hidden">
+      <div className="fixed bottom-0 left-0 right-0 z-40 border-t border-cdm-line bg-cdm-bg/95 px-4 py-3 backdrop-blur-sm sm:hidden">
         <Link
           href="/cashflow"
-          className="block text-center text-xs font-medium uppercase tracking-wider text-ravn-muted underline-offset-2 hover:text-ravn-fg hover:underline"
+          className="block text-center text-xs font-medium uppercase tracking-wider text-cdm-muted underline-offset-2 hover:text-cdm-fg hover:underline"
         >
           Volver al cashflow general
         </Link>
       </div>
-    </div>
+    </main>
   );
 }

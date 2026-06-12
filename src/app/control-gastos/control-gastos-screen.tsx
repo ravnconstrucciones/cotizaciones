@@ -17,6 +17,10 @@ import {
   type PropuestaPrefV1,
 } from "@/lib/ravn-propuesta-pref";
 import { parseRentabilidadInputsJson } from "@/lib/ravn-rentabilidad-inputs";
+import { WavesBackdrop } from "@/components/cockpit/waves-backdrop";
+import { CargandoCockpit } from "@/components/cockpit/cargando-cockpit";
+import { CifraHeroica } from "@/components/cockpit/cifra-heroica";
+import { VolverAlInicio } from "@/components/volver-al-inicio";
 
 type MonedaRow = "ARS" | "USD";
 
@@ -156,14 +160,14 @@ function BarraGastoSobreTotalAlCliente({
   const over = base > 0 && g > base;
   return (
     <div
-      className="mt-2 w-full max-w-[20rem] overflow-hidden rounded-full border border-ravn-line bg-ravn-subtle py-1 pl-1 pr-1.5 sm:ml-auto"
+      className="mt-2 w-full max-w-[20rem] overflow-hidden border border-cdm-line bg-cdm-fg/10 py-1 pl-1 pr-1.5 sm:ml-auto"
       role="img"
       aria-label={`Gastos sobre total al cliente: ${Math.round(pct)} por ciento`}
     >
-      <div className="h-2.5 overflow-hidden rounded-full bg-ravn-surface/70 dark:bg-ravn-surface/40">
+      <div className="h-2.5 overflow-hidden bg-cdm-panel/60">
         <div
-          className={`h-full rounded-full transition-[width] duration-300 ${
-            over ? "bg-[#6b1c1c] dark:bg-[#8b2e2e]" : "bg-ravn-accent"
+          className={`h-full transition-[width] duration-300 ${
+            over ? "bg-[#6b1c1c] dark:bg-[#8b2e2e]" : "bg-cdm-accent"
           }`}
           style={{ width: `${pct}%` }}
         />
@@ -465,62 +469,70 @@ export function ControlGastosScreen() {
     return m;
   }, [rows, items, rentabilidadInputsById, gastadoPorId]);
 
+  if (loading) {
+    return <CargandoCockpit label="Control de gastos" />;
+  }
+
+  if (error) {
+    return (
+      <main className="font-grotesk relative flex min-h-screen items-center justify-center bg-cdm-bg text-red-400">
+        <WavesBackdrop />
+        <span className="relative z-10 text-xs uppercase tracking-widest">{error}</span>
+      </main>
+    );
+  }
+
   return (
-    <div className="relative min-h-screen bg-ravn-surface px-8 pb-32 pr-20 pt-16 text-ravn-fg">
-      <div className="mx-auto max-w-4xl">
-        <h1 className="font-raleway text-2xl font-medium uppercase tracking-tight md:text-3xl">
-          Control de gastos
-        </h1>
-        <p className="mt-2 max-w-2xl text-sm text-ravn-muted">
+    <main className="font-grotesk relative min-h-screen bg-cdm-bg px-4 pb-24 pt-14 text-cdm-fg sm:px-8">
+      <WavesBackdrop />
+      <div className="relative z-10 mx-auto w-full max-w-4xl">
+        <VolverAlInicio />
+
+        {/* Header con horizonte */}
+        <div className="relative pb-3">
+          <span aria-hidden className="cdm-horizon absolute inset-x-0 bottom-0" />
+          <h1 className="font-mono-hud flex items-baseline gap-2 text-[11px] font-medium uppercase tracking-[0.22em] text-cdm-muted">
+            <span aria-hidden className="text-cdm-accent/60">{"//////"}</span>
+            Control de gastos
+          </h1>
+        </div>
+
+        <p className="mt-4 max-w-2xl text-sm text-cdm-muted">
           Presupuestos con PDF generado y marcados como{" "}
-          <span className="text-ravn-fg">aprobados</span> en el historial. Desde
+          <span className="text-cdm-fg">aprobados</span> en el historial. Desde
           acá entrás a cargar gastos de obra.
         </p>
-        <p className="mt-2 max-w-2xl text-xs leading-relaxed text-ravn-muted">
-          El total <span className="text-ravn-fg">ejecutado</span> suma los gastos
+        <p className="mt-2 max-w-2xl text-xs leading-relaxed text-cdm-muted">
+          El total <span className="text-cdm-fg">ejecutado</span> suma los gastos
           cargados en el panel de obra y los{" "}
-          <span className="text-ravn-fg">egresos de Caja</span> de esa obra con
+          <span className="text-cdm-fg">egresos de Caja</span> de esa obra con
           monto y fecha reales (misma lógica que el resumen de tesorería).
         </p>
-        <p className="mt-3 text-xs text-ravn-muted">
+        <p className="mt-3 text-xs text-cdm-muted">
           <Link
             href="/historial"
-            className="font-medium uppercase tracking-wider text-ravn-fg underline-offset-2 hover:underline"
+            className="font-medium uppercase tracking-wider text-cdm-fg underline-offset-2 hover:underline"
           >
             Ir al historial
           </Link>{" "}
           para marcar &quot;Presupuesto aprobado&quot;.
         </p>
-        <p className="mt-3 text-xs text-ravn-muted">
+        <p className="mt-3 text-xs text-cdm-muted">
           <Link
             href="/gastos/nuevo"
-            className="font-medium uppercase tracking-wider text-ravn-fg underline-offset-2 hover:underline"
+            className="font-medium uppercase tracking-wider text-cdm-fg underline-offset-2 hover:underline"
           >
             Registrar gasto (elegir obra)
           </Link>
           : importe, descripción y comprobante en foto o audio.
         </p>
-        <Link
-          href="/"
-          className="mt-6 inline-flex w-full max-w-md items-center justify-center rounded-none border-2 border-ravn-line bg-ravn-surface px-6 py-3.5 font-raleway text-sm font-medium uppercase tracking-wider text-ravn-fg transition-colors hover:bg-ravn-subtle focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ravn-fg sm:w-auto"
-        >
-          Volver al inicio
-        </Link>
 
-        {loading ? (
-          <p className="mt-12 text-sm font-light text-ravn-muted">
-            Cargando…
-          </p>
-        ) : error ? (
-          <p className="mt-12 text-sm text-red-600 dark:text-red-400">
-            {error}
-          </p>
-        ) : rows.length === 0 ? (
-          <p className="mt-12 text-sm font-light text-ravn-muted">
+        {rows.length === 0 ? (
+          <p className="mt-12 text-sm text-cdm-muted">
             No hay presupuestos aprobados para control de gastos. Abrí el{" "}
             <Link
               href="/historial"
-              className="text-ravn-fg underline underline-offset-2"
+              className="text-cdm-fg underline underline-offset-2"
             >
               historial
             </Link>
@@ -529,10 +541,10 @@ export function ControlGastosScreen() {
           </p>
         ) : (
           <ul
-            className="mt-12 border border-ravn-line bg-ravn-surface"
+            className="cdm-glass mt-12"
             aria-label="Presupuestos aprobados"
           >
-            {rows.map((p) => {
+            {rows.map((p, i) => {
               const correlativo = p.numero_correlativo;
               const numeroLabel =
                 correlativo != null && Number.isFinite(Number(correlativo))
@@ -560,40 +572,42 @@ export function ControlGastosScreen() {
               return (
                 <li
                   key={p.id}
-                  className="border-b border-ravn-line px-6 py-6 last:border-b-0 md:px-8 md:py-7"
+                  className={`px-6 py-6 md:px-8 md:py-7 ${i > 0 ? "border-t border-cdm-line" : ""}`}
                 >
                   <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                     <div className="min-w-0">
-                      <p className="font-raleway text-base font-semibold uppercase tracking-wide text-ravn-accent md:text-lg">
+                      <p className="text-base font-semibold uppercase tracking-wide text-cdm-accent md:text-lg">
                         {numeroLabel}
                       </p>
-                      <p className="mt-2 text-sm font-light text-ravn-fg md:text-base">
+                      <p className="mt-2 text-sm font-light text-cdm-fg md:text-base">
                         <span className="font-normal">
                           {p.nombre_obra?.trim() ||
                             p.nombre_cliente?.trim() ||
                             "—"}
                         </span>
-                        <span className="text-ravn-muted"> · </span>
-                        <span className="text-ravn-muted">
+                        <span className="text-cdm-muted"> · </span>
+                        <span className="text-cdm-muted">
                           {formatFechaCreacion(p.created_at, p.fecha)}
                         </span>
                       </p>
                       {p.nombre_obra?.trim() ? (
-                        <p className="mt-1 text-xs text-ravn-muted">
+                        <p className="mt-1 text-xs text-cdm-muted">
                           Cliente: {p.nombre_cliente?.trim() || "—"}
                         </p>
                       ) : null}
                     </div>
                     <div className="flex w-full shrink-0 flex-col items-stretch gap-3 sm:max-w-md sm:items-end">
                       <div className="text-left sm:text-right">
-                        <p className="text-[10px] font-medium uppercase tracking-[0.14em] text-ravn-muted">
+                        <p className="text-[10px] font-medium uppercase tracking-[0.14em] text-cdm-muted">
                           Total al cliente
                         </p>
                         {totalClienteFmt != null ? (
                           <>
-                            <p className="mt-0.5 text-lg font-medium tabular-nums text-ravn-fg md:text-xl">
+                            <CifraHeroica
+                              className="text-[clamp(28px,2.2vw,40px)] leading-none"
+                            >
                               {totalClienteFmt}
-                            </p>
+                            </CifraHeroica>
                             {totalClienteArs > 0 && pref != null ? (
                               <>
                                 <BarraGastoSobreTotalAlCliente
@@ -601,14 +615,14 @@ export function ControlGastosScreen() {
                                   totalClienteArs={totalClienteArs}
                                 />
                                 <div className="mt-2 text-left sm:text-right">
-                                  <p className="text-[10px] font-medium uppercase tracking-[0.14em] text-ravn-muted">
+                                  <p className="text-[10px] font-medium uppercase tracking-[0.14em] text-cdm-muted">
                                     Ganancia neta
                                   </p>
                                   <p
                                     className={`mt-0.5 text-base font-semibold tabular-nums md:text-lg ${
                                       restanteFrenteClienteArs < 0
                                         ? "text-[#6b1c1c] dark:text-[#f87171]"
-                                        : "text-ravn-fg"
+                                        : "text-cdm-fg"
                                     }`}
                                   >
                                     {formatoRestanteFrenteAlCliente(
@@ -617,7 +631,7 @@ export function ControlGastosScreen() {
                                     )}
                                   </p>
                                   {restanteFrenteClienteArs < 0 ? (
-                                    <p className="mt-1 max-w-[14rem] text-right text-[10px] font-normal normal-case leading-snug text-ravn-muted sm:ml-auto">
+                                    <p className="mt-1 max-w-[14rem] text-right text-[10px] font-normal normal-case leading-snug text-cdm-muted sm:ml-auto">
                                       Gastaste más que el total cotizado al
                                       cliente (en esta vista se comparan montos
                                       en pesos).
@@ -628,11 +642,11 @@ export function ControlGastosScreen() {
                             ) : null}
                           </>
                         ) : (
-                          <p className="mt-1 max-w-xs text-sm font-light leading-snug text-ravn-muted">
+                          <p className="mt-1 max-w-xs text-sm font-light leading-snug text-cdm-muted">
                             Sin total guardado: abrí{" "}
                             <Link
                               href={`/rentabilidad?id=${encodeURIComponent(p.id)}`}
-                              className="text-ravn-fg underline underline-offset-2"
+                              className="text-cdm-fg underline underline-offset-2"
                             >
                               Rentabilidad
                             </Link>{" "}
@@ -640,24 +654,24 @@ export function ControlGastosScreen() {
                           </p>
                         )}
                         {pdfEnUsd ? (
-                          <p className="mt-1 text-[10px] text-ravn-muted">
+                          <p className="mt-1 text-[10px] text-cdm-muted">
                             PDF en USD
                           </p>
                         ) : null}
                       </div>
-                      <dl className="w-full max-w-[18rem] space-y-1.5 text-right text-[11px] leading-snug text-ravn-muted sm:max-w-xs">
+                      <dl className="w-full max-w-[18rem] space-y-1.5 text-right text-[11px] leading-snug text-cdm-muted sm:max-w-xs">
                         <div>
                           <div className="flex flex-col gap-0.5 sm:flex-row sm:justify-end sm:gap-2">
                             <dt className="shrink-0 font-medium uppercase tracking-wide">
                               Gastos previstos
                             </dt>
-                            <dd className="tabular-nums text-ravn-fg">
+                            <dd className="tabular-nums text-cdm-fg">
                               {formatMoney(
                                 resumenGastosPorId.get(p.id)?.previstos ?? 0
                               )}
                             </dd>
                           </div>
-                          <p className="mt-0.5 max-w-[18rem] text-right text-[10px] font-normal normal-case leading-snug text-ravn-muted sm:max-w-xs">
+                          <p className="mt-0.5 max-w-[18rem] text-right text-[10px] font-normal normal-case leading-snug text-cdm-muted sm:max-w-xs">
                             Costo directo + costos internos + cargos (sin cupo
                             de contingencia).
                           </p>
@@ -666,7 +680,7 @@ export function ControlGastosScreen() {
                           <dt className="shrink-0 font-medium uppercase tracking-wide">
                             Gastos ejecutados
                           </dt>
-                          <dd className="tabular-nums text-ravn-fg">
+                          <dd className="tabular-nums text-cdm-fg">
                             {formatMoney(
                               resumenGastosPorId.get(p.id)?.ejecutados ?? 0
                             )}
@@ -677,7 +691,7 @@ export function ControlGastosScreen() {
                             <dt className="shrink-0 font-medium uppercase tracking-wide">
                               Cuánto te queda de imprevistos
                             </dt>
-                            <dd className="tabular-nums text-ravn-fg">
+                            <dd className="tabular-nums text-cdm-fg">
                               {formatMoney(
                                 resumenGastosPorId.get(p.id)
                                   ?.restanteImprevistos ?? 0
@@ -686,9 +700,9 @@ export function ControlGastosScreen() {
                           </div>
                           {(resumenGastosPorId.get(p.id)?.contingenciaCalculada ??
                             0) > 0 ? (
-                            <p className="max-w-[16rem] text-right text-[10px] font-normal normal-case leading-snug text-ravn-muted">
+                            <p className="max-w-[16rem] text-right text-[10px] font-normal normal-case leading-snug text-cdm-muted">
                               Contingencia calculada (sobre costo directo):{" "}
-                              <span className="tabular-nums text-ravn-fg">
+                              <span className="tabular-nums text-cdm-fg">
                                 {formatMoney(
                                   resumenGastosPorId.get(p.id)
                                     ?.contingenciaCalculada ?? 0
@@ -700,7 +714,7 @@ export function ControlGastosScreen() {
                       </dl>
                       <Link
                         href={`/obras/${encodeURIComponent(p.id)}/gastos`}
-                        className="inline-flex items-center justify-center rounded-none border-2 border-ravn-accent bg-ravn-accent px-6 py-3 text-center text-xs font-semibold uppercase tracking-[0.14em] text-ravn-accent-contrast transition-opacity hover:opacity-90"
+                        className="cdm-chip inline-flex cursor-pointer items-center justify-center border border-cdm-accent/60 bg-cdm-accent/15 px-6 py-3 text-center text-xs font-semibold uppercase tracking-[0.14em] text-cdm-accent shadow-[0_0_18px_-6px_rgba(34,211,238,0.55)] transition-colors hover:bg-cdm-accent/25"
                       >
                         Ingresar gastos
                       </Link>
@@ -712,6 +726,6 @@ export function ControlGastosScreen() {
           </ul>
         )}
       </div>
-    </div>
+    </main>
   );
 }

@@ -2,8 +2,10 @@
 
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
+import { motion } from "framer-motion";
 import { NuevoRecetaModal } from "@/components/nuevo-receta-modal";
-import { RavnLogo } from "@/components/ravn-logo";
+import { WavesBackdrop } from "@/components/cockpit/waves-backdrop";
+import { CifraHeroica } from "@/components/cockpit/cifra-heroica";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import {
@@ -22,30 +24,23 @@ import type {
 
 type StatusMessage = { type: "error" | "success"; text: string } | null;
 
-function fieldClass(disabled?: boolean, inverted?: boolean) {
-  if (inverted) {
-    return [
-      "w-full rounded-none border border-ravn-line bg-ravn-surface px-4 py-3 text-sm text-ravn-fg",
-      "placeholder:text-ravn-muted",
-      "transition-[border-color] duration-150",
-      "focus-visible:border-ravn-fg focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ravn-fg",
-      disabled ? "cursor-not-allowed opacity-50" : "",
-    ].join(" ");
-  }
+/**
+ * Input del cockpit (iteración 3): fondo transparente, borde inferior 1px
+ * que se enciende taupe al focus con un lavado de glow debajo. El parámetro
+ * `inverted` se conserva por compatibilidad con los call sites.
+ */
+function fieldClass(disabled?: boolean, _inverted?: boolean) {
   return [
-    "w-full rounded-none border border-ravn-line bg-ravn-surface px-4 py-3 text-sm text-ravn-fg",
-    "placeholder:text-ravn-muted",
-    "transition-[border-color] duration-150",
-    "focus-visible:border-ravn-fg focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ravn-fg",
-    disabled ? "cursor-not-allowed opacity-50" : "",
+    "w-full rounded-none border-0 border-b border-cdm-line bg-transparent px-1 py-2.5 text-sm text-cdm-fg",
+    "placeholder:text-cdm-muted/50",
+    "transition-[border-color,box-shadow] duration-200",
+    "focus-visible:border-cdm-accent focus-visible:outline-none focus-visible:shadow-[0_12px_24px_-16px_rgba(34,211,238,0.6)]",
+    disabled ? "cursor-not-allowed opacity-40" : "",
   ].join(" ");
 }
 
-function labelClass(inverted?: boolean) {
-  return [
-    "mb-2 block text-xs font-medium uppercase tracking-wider",
-    inverted ? "text-ravn-muted" : "text-ravn-muted",
-  ].join(" ");
+function labelClass(_inverted?: boolean) {
+  return "mb-2 block text-[10px] font-medium uppercase tracking-[0.22em] text-cdm-muted";
 }
 
 function sortRubroIdsNumerically(ids: string[]): string[] {
@@ -216,14 +211,14 @@ function PesosAmountInput({
   const formatted = formatNumber(v, 2);
   const displayVal = !focused ? formatted : editVal;
   const baseInput = [
-    "min-w-0 flex-1 border-0 border-none bg-transparent py-1.5 text-center text-sm tabular-nums text-ravn-fg outline-none",
+    "min-w-0 flex-1 border-0 border-none bg-transparent py-1.5 text-center text-sm tabular-nums text-cdm-fg outline-none",
     "focus:border-none focus:outline-none focus:ring-0 focus:ring-offset-0",
     "disabled:opacity-50 read-only:cursor-default",
   ].join(" ");
 
   const pesoMark = (
     <span
-      className="shrink-0 min-w-[1.75rem] text-center text-sm font-semibold tabular-nums text-ravn-fg"
+      className="shrink-0 min-w-[1.75rem] text-center text-sm font-semibold tabular-nums text-cdm-accent"
       aria-hidden
     >
       $
@@ -335,7 +330,7 @@ function FormattedNumberInput({
   return (
     <div className="flex min-w-0 w-full items-center">
       <span
-        className="shrink-0 min-w-[1.75rem] text-center text-sm font-semibold tabular-nums text-ravn-fg"
+        className="shrink-0 min-w-[1.75rem] text-center text-sm font-semibold tabular-nums text-cdm-accent"
         aria-hidden
       >
         $
@@ -363,7 +358,7 @@ function ChevronIcon({
       strokeWidth="2"
       strokeLinecap="round"
       strokeLinejoin="round"
-      className={`transition-transform ${expanded ? "rotate-90" : ""} ${className ?? ""}`}
+      className={`transition-transform duration-300 ease-out ${expanded ? "rotate-90" : ""} ${className ?? ""}`}
       aria-hidden
     >
       <path d="M9 18l6-6-6-6" />
@@ -1140,44 +1135,35 @@ export function NuevoPresupuestoScreen() {
 
   return (
     <>
-    <div className="flex h-[100dvh] min-h-0 overflow-hidden bg-ravn-surface">
+    <div className="font-grotesk relative flex h-[100dvh] min-h-0 overflow-hidden bg-cdm-bg text-cdm-fg">
+      <WavesBackdrop />
       <aside
-        className="relative flex h-full min-h-0 flex-shrink-0 flex-col border-r border-ravn-line bg-ravn-surface font-raleway"
+        className="relative z-10 flex h-full min-h-0 flex-shrink-0 flex-col border-r border-cdm-line bg-cdm-bg/70 backdrop-blur-xl"
         style={{ width: sidebarWidth, minWidth: 200, maxWidth: 480 }}
       >
         <div
           role="separator"
           aria-orientation="vertical"
-          className="absolute -right-0 top-0 z-20 h-full w-1 cursor-col-resize hover:bg-ravn-subtle"
+          className="absolute -right-0 top-0 z-20 h-full w-1 cursor-col-resize transition-colors hover:bg-cdm-accent/40"
           onMouseDown={(e) => {
             e.preventDefault();
             setIsResizing(true);
           }}
         />
-        <div className="flex flex-col justify-end border-b border-ravn-line px-6 py-3 sm:py-4">
-          <Link
-            href="/"
-            className="block w-full"
-            aria-label="Volver al inicio"
-          >
-            <RavnLogo
-              sizeClassName="text-base sm:text-lg"
-              showTagline={false}
-              align="start"
-            />
-          </Link>
-          <h2 className="mt-2 text-xs font-medium uppercase tracking-wider text-ravn-muted sm:mt-3">
+        <div className="flex flex-col justify-end border-b border-cdm-line px-6 py-4">
+          {/* La marca vive en la carcasa (sidebar del shell) — acá solo el rol del panel. */}
+          <h2 className="text-[10px] font-semibold uppercase tracking-[0.3em] text-cdm-accent">
             Rubros
           </h2>
         </div>
         <nav className="flex min-h-0 flex-1 flex-col overflow-hidden">
           <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-4">
           {catalogLoading ? (
-            <p className="font-light text-ravn-muted">Cargando…</p>
+            <p className="font-light text-cdm-muted">Cargando…</p>
           ) : catalogError ? (
-            <p className="text-sm text-ravn-fg">{catalogError}</p>
+            <p className="text-sm text-cdm-fg">{catalogError}</p>
           ) : rubrosSidebarOrdenados.length === 0 ? (
-            <p className="text-sm font-light text-ravn-muted">
+            <p className="text-sm font-light text-cdm-muted">
               No hay rubros en la base. Cargalos desde Catálogo.
             </p>
           ) : (
@@ -1198,23 +1184,23 @@ export function NuevoPresupuestoScreen() {
                 return (
                   <div
                     key={rubroId}
-                    className="rounded-sm border border-ravn-line bg-ravn-surface"
+                    className="border border-cdm-line bg-cdm-panel/55 transition-[border-color,box-shadow] duration-300 hover:border-cdm-accent/40 hover:shadow-[0_0_26px_-10px_rgba(34,211,238,0.35)]"
                   >
                     <button
                       type="button"
                       onClick={() => toggleRubroExpanded(rubroId)}
-                      className="flex w-full min-w-0 items-center justify-between gap-2 px-3 py-2.5 text-left text-sm font-medium text-ravn-fg transition-colors hover:bg-ravn-subtle font-raleway"
+                      className="flex w-full min-w-0 items-center justify-between gap-2 px-3 py-2.5 text-left text-[13px] font-medium text-cdm-fg transition-colors hover:bg-cdm-fg/[0.04]"
                     >
                       <span className="flex min-w-0 items-center gap-2">
                         <ChevronIcon
                           expanded={isExpanded}
-                          className="shrink-0"
+                          className="shrink-0 text-cdm-accent"
                         />
                         <span className="truncate">{label}</span>
                       </span>
                       {(itemCountByRubro.get(rubroId) ?? 0) > 0 ? (
                         <span
-                          className="shrink-0 rounded-sm bg-ravn-accent px-2 py-0.5 text-xs font-bold text-ravn-accent-contrast tabular-nums"
+                          className="shrink-0 bg-cdm-accent px-2 py-0.5 text-xs font-bold tabular-nums text-cdm-bg shadow-[0_0_12px_rgba(34,211,238,0.45)]"
                           aria-label={`${itemCountByRubro.get(rubroId)} ítems en el presupuesto`}
                         >
                           {itemCountByRubro.get(rubroId)}
@@ -1222,7 +1208,7 @@ export function NuevoPresupuestoScreen() {
                       ) : null}
                     </button>
                     {isExpanded && (
-                      <div className="overflow-hidden border-t border-ravn-line p-3">
+                      <div className="overflow-hidden border-t border-cdm-line p-3">
                         <div className="mb-3 flex min-w-0 gap-2">
                           <button
                             type="button"
@@ -1234,7 +1220,7 @@ export function NuevoPresupuestoScreen() {
                               agregandoTodosRubro === rubroId ||
                               sinRecetasEnCatalogo
                             }
-                            className="flex min-w-0 flex-1 items-center justify-center gap-1 truncate rounded-none border border-ravn-accent bg-ravn-accent px-2 py-2 text-xs font-medium text-ravn-accent-contrast transition-opacity hover:opacity-80 disabled:opacity-50"
+                            className="flex min-w-0 flex-1 items-center justify-center gap-1 truncate rounded-none border border-cdm-accent/40 bg-cdm-accent/10 px-2 py-2 text-xs font-medium text-cdm-accent transition-all duration-200 hover:bg-cdm-accent hover:text-cdm-bg hover:shadow-[0_0_20px_rgba(34,211,238,0.35)] disabled:opacity-40"
                           >
                             <CheckIcon className="shrink-0" />
                             <span className="truncate">Agregar todos</span>
@@ -1248,7 +1234,7 @@ export function NuevoPresupuestoScreen() {
                               !presupuestoId ||
                               quitandoTodosRubro === rubroId
                             }
-                            className="flex min-w-0 flex-1 items-center justify-center gap-1 truncate rounded-none border border-ravn-line bg-ravn-surface px-2 py-2 text-xs font-medium text-ravn-fg transition-colors hover:bg-ravn-subtle disabled:opacity-50"
+                            className="flex min-w-0 flex-1 items-center justify-center gap-1 truncate rounded-none border border-cdm-line bg-transparent px-2 py-2 text-xs font-medium text-cdm-muted transition-colors hover:border-cdm-fg/40 hover:text-cdm-fg disabled:opacity-40"
                           >
                             <TrashIcon className="shrink-0" />
                             <span className="truncate">Quitar todos</span>
@@ -1256,7 +1242,7 @@ export function NuevoPresupuestoScreen() {
                         </div>
                         <ul className="max-h-48 space-y-1 overflow-y-auto">
                           {sinRecetasEnCatalogo ? (
-                            <li className="px-2 py-2 text-xs font-light text-ravn-muted">
+                            <li className="px-2 py-2 text-xs font-light text-cdm-muted">
                               No hay ítems en el catálogo para este rubro.
                             </li>
                           ) : (
@@ -1268,7 +1254,7 @@ export function NuevoPresupuestoScreen() {
                               return (
                                 <li
                                   key={rid}
-                                  className="flex items-center gap-2 rounded-none px-2 py-1.5 hover:bg-ravn-subtle"
+                                  className="flex items-center gap-2 rounded-none px-2 py-1.5 transition-colors hover:bg-cdm-fg/[0.04]"
                                 >
                                   <input
                                     type="checkbox"
@@ -1281,11 +1267,11 @@ export function NuevoPresupuestoScreen() {
                                       )
                                     }
                                     disabled={!presupuestoId}
-                                    className="h-4 w-4 rounded border-ravn-line text-ravn-fg focus:ring-ravn-fg"
+                                    className="h-4 w-4 cursor-pointer accent-cdm-accent"
                                   />
                                   <label
                                     htmlFor={`receta-${rid}`}
-                                    className="cursor-pointer flex-1 truncate text-sm font-light text-ravn-fg"
+                                    className="cursor-pointer flex-1 truncate text-[13px] font-light text-cdm-fg"
                                   >
                                     {receta.nombre_item}
                                   </label>
@@ -1294,7 +1280,7 @@ export function NuevoPresupuestoScreen() {
                             })
                           )}
                         </ul>
-                        <p className="mt-2 text-xs text-ravn-muted">
+                        <p className="mt-2 text-xs text-cdm-muted">
                           Casillero = agregar/quitar ítem. Agregar todos = todos del rubro.
                         </p>
                       </div>
@@ -1305,12 +1291,12 @@ export function NuevoPresupuestoScreen() {
             </div>
           )}
           </div>
-          <div className="shrink-0 border-t border-ravn-line p-4">
+          <div className="shrink-0 border-t border-cdm-line p-4">
             <button
               type="button"
               onClick={() => setNuevoItemModalOpen(true)}
               disabled={catalogLoading}
-              className="w-full rounded-none border border-ravn-line bg-ravn-surface py-3 text-sm font-medium uppercase tracking-wider text-ravn-fg transition-colors hover:bg-ravn-subtle disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ravn-fg"
+              className="w-full rounded-none border border-cdm-line bg-transparent py-3 text-xs font-medium uppercase tracking-[0.18em] text-cdm-muted transition-all duration-200 hover:border-cdm-accent/50 hover:text-cdm-fg hover:shadow-[0_0_24px_-10px_rgba(34,211,238,0.4)] disabled:cursor-not-allowed disabled:opacity-40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cdm-accent"
             >
               + Agregar Nuevo Ítem
             </button>
@@ -1318,10 +1304,13 @@ export function NuevoPresupuestoScreen() {
         </nav>
       </aside>
 
-      <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-ravn-surface text-ravn-fg">
-        <div className="z-10 flex shrink-0 flex-col bg-ravn-surface">
-          <div className="flex flex-col justify-end px-10 py-3 sm:py-4">
-            <h1 className="font-raleway text-lg font-medium uppercase tracking-tight text-ravn-fg sm:text-xl">
+      <main className="relative z-10 flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden text-cdm-fg">
+        <div className="z-10 flex shrink-0 flex-col">
+          <div className="relative flex flex-col justify-end px-10 py-4 sm:py-5">
+            {/* Línea de horizonte detrás del header (iteración 3). */}
+            <span aria-hidden className="cdm-horizon absolute inset-x-0 bottom-0" />
+            <h1 className="font-mono-hud flex items-baseline gap-2 text-[11px] font-medium uppercase tracking-[0.22em] text-cdm-muted">
+              <span aria-hidden className="text-cdm-accent/60">{"//////"}</span>
               Nuevo presupuesto
             </h1>
           </div>
@@ -1331,17 +1320,17 @@ export function NuevoPresupuestoScreen() {
               role="status"
               className={
                 banner.type === "error"
-                  ? "mx-10 mt-3 rounded-none border border-ravn-accent bg-ravn-accent px-4 py-3 text-sm text-ravn-accent-contrast"
-                  : "mx-10 mt-3 rounded-none border border-ravn-line bg-ravn-surface px-4 py-3 text-sm text-ravn-fg"
+                  ? "mx-10 mt-3 rounded-none border border-red-400/40 bg-red-500/10 px-4 py-3 text-sm text-red-300"
+                  : "mx-10 mt-3 rounded-none border border-cdm-accent/40 bg-cdm-accent/10 px-4 py-3 text-sm text-cdm-accent"
               }
             >
               {banner.text}
             </div>
           ) : null}
 
-          <div className="px-10 pb-5 pt-2">
-            <section className="rounded-none border border-ravn-line bg-ravn-surface p-5 sm:p-6">
-              <h2 className="font-raleway text-xs font-medium uppercase tracking-wider text-ravn-muted">
+          <div className="px-10 pb-5 pt-4">
+            <section className="cdm-glass p-5 sm:p-6">
+              <h2 className="text-[10px] font-semibold uppercase tracking-[0.25em] text-cdm-accent">
                 Cabecera
               </h2>
             <div className="mt-5 grid gap-4 md:grid-cols-3">
@@ -1390,14 +1379,17 @@ export function NuevoPresupuestoScreen() {
               </div>
             </div>
             <div className="mt-6">
-              <button
+              {/* CTA protagonista: off-white sólido + glow taupe al hover. */}
+              <motion.button
                 type="button"
                 onClick={() => void handleCrearPresupuesto()}
                 disabled={creating || !!presupuestoId}
-                className="rounded-none border-2 border-ravn-accent bg-ravn-accent px-6 py-3 text-sm font-medium uppercase tracking-wider text-ravn-accent-contrast transition-opacity hover:opacity-80 disabled:cursor-not-allowed disabled:opacity-40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ravn-fg"
+                whileHover={{ y: -1 }}
+                whileTap={{ scale: 0.985 }}
+                className="cdm-btn-cian rounded-none px-8 py-3.5 text-sm font-semibold uppercase tracking-[0.18em] disabled:cursor-not-allowed disabled:opacity-40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cdm-accent"
               >
                 {creating ? "Creando…" : "Iniciar / Crear presupuesto"}
-              </button>
+              </motion.button>
             </div>
           </section>
           </div>
@@ -1414,9 +1406,9 @@ export function NuevoPresupuestoScreen() {
           >
           {presupuestoId && rubroSeleccionado ? (
             <section
-              className={`mb-8 rounded-none border border-ravn-line bg-ravn-surface p-5 sm:p-6 ${itemsBloqueados ? "opacity-60" : ""}`}
+              className={`cdm-glass mb-8 p-5 sm:p-6 ${itemsBloqueados ? "opacity-60" : ""}`}
             >
-              <h2 className="font-raleway text-xs font-medium uppercase tracking-wider text-ravn-muted">
+              <h2 className="text-[10px] font-semibold uppercase tracking-[0.25em] text-cdm-accent">
                 Ítems —{" "}
                 {formatRubroName(
                   rubroLabels.get(rubroSeleccionado) ?? rubroSeleccionado
@@ -1446,7 +1438,7 @@ export function NuevoPresupuestoScreen() {
                   <label htmlFor="cantidad" className={labelClass(true)}>
                     Cantidad{" "}
                     {recetaSeleccionada?.unidad ? (
-                      <span className="font-normal text-ravn-muted">
+                      <span className="font-normal text-cdm-muted">
                         ({recetaSeleccionada.unidad})
                       </span>
                     ) : null}
@@ -1523,7 +1515,7 @@ export function NuevoPresupuestoScreen() {
                       catalogError !== null ||
                       !recetaId
                     }
-                    className="rounded-none border-2 border-ravn-line bg-ravn-surface px-4 py-3 text-sm font-medium uppercase tracking-wider text-ravn-fg transition-colors hover:bg-ravn-accent hover:text-ravn-accent-contrast disabled:cursor-not-allowed disabled:opacity-40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ravn-fg"
+                    className="rounded-none border border-cdm-accent/50 bg-cdm-accent/10 px-4 py-3 text-sm font-medium uppercase tracking-wider text-cdm-accent transition-all duration-200 hover:bg-cdm-accent hover:text-cdm-bg hover:shadow-[0_0_24px_rgba(34,211,238,0.35)] disabled:cursor-not-allowed disabled:opacity-40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cdm-accent"
                   >
                     {adding ? "…" : "Agregar ítem"}
                   </button>
@@ -1534,17 +1526,17 @@ export function NuevoPresupuestoScreen() {
 
           <section className="mb-8 sm:mb-10">
             <div className="mb-4 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-              <h2 className="font-raleway text-xs font-medium uppercase tracking-wider text-ravn-muted">
+              <h2 className="text-[10px] font-semibold uppercase tracking-[0.25em] text-cdm-accent">
                 Líneas del presupuesto
               </h2>
               {presupuestoId && itemsLoading ? (
-                <span className="text-xs text-ravn-muted">
+                <span className="text-xs text-cdm-muted">
                   Actualizando tabla…
                 </span>
               ) : null}
             </div>
 
-            <div className="w-full max-w-full min-w-0 rounded-none border border-ravn-line bg-ravn-surface">
+            <div className="cdm-glass w-full max-w-full min-w-0">
               <div
                 className="w-full max-w-full min-w-0 overflow-x-auto overscroll-x-contain [-webkit-overflow-scrolling:touch]"
                 role="region"
@@ -1555,36 +1547,36 @@ export function NuevoPresupuestoScreen() {
                 y este contenedor hace scroll horizontal — sin recortar titulares.
               */}
               <table className="w-max min-w-full border-separate border-spacing-0 text-center text-sm table-auto [min-width:max(100%,106rem)]">
-                <thead className="font-raleway">
-                  <tr className="border-b border-t border-ravn-line text-xs font-medium uppercase tracking-normal text-ravn-muted">
-                    <th className="sticky top-0 left-0 z-[25] box-border min-w-[5.5rem] border-b border-r border-t border-ravn-line bg-ravn-surface px-3 py-3 text-center font-medium whitespace-normal leading-snug">
+                <thead>
+                  <tr className="border-b border-t border-cdm-line text-[10px] font-medium uppercase tracking-[0.12em] text-cdm-muted">
+                    <th className="sticky top-0 left-0 z-[25] box-border min-w-[5.5rem] border-b border-r border-t border-cdm-line bg-cdm-panel px-3 py-3 text-center font-medium whitespace-normal leading-snug">
                       Acción
                     </th>
-                    <th className="sticky top-0 z-[24] box-border min-w-[12rem] border-b border-r border-t border-ravn-line bg-ravn-surface px-3 py-3 text-left font-medium leading-snug shadow-[4px_0_14px_-6px_rgba(24,24,23,0.12)] [left:5.5rem] sm:min-w-[15rem] md:min-w-[18rem]">
+                    <th className="sticky top-0 z-[24] box-border min-w-[12rem] border-b border-r border-t border-cdm-line bg-cdm-panel px-3 py-3 text-left font-medium leading-snug shadow-[4px_0_14px_-6px_rgba(0,0,0,0.55)] [left:5.5rem] sm:min-w-[15rem] md:min-w-[18rem]">
                       Rubro / Detalle
                     </th>
-                    <th className="sticky top-0 z-20 min-w-[6.25rem] border-b border-r border-t border-ravn-line bg-ravn-surface px-3 py-3 text-center font-medium whitespace-normal leading-snug">
+                    <th className="sticky top-0 z-20 min-w-[6.25rem] border-b border-r border-t border-cdm-line bg-cdm-panel px-3 py-3 text-center font-medium whitespace-normal leading-snug">
                       Unidad
                     </th>
-                    <th className="sticky top-0 z-20 min-w-[7.5rem] border-b border-r border-t border-ravn-line bg-ravn-surface px-3 py-3 text-center font-medium whitespace-normal leading-snug">
+                    <th className="sticky top-0 z-20 min-w-[7.5rem] border-b border-r border-t border-cdm-line bg-cdm-panel px-3 py-3 text-center font-medium whitespace-normal leading-snug">
                       Cantidad
                     </th>
-                    <th className="sticky top-0 z-20 min-w-[14rem] border-b border-r border-t border-ravn-line bg-ravn-surface px-3 py-3 text-center font-medium leading-snug whitespace-normal">
+                    <th className="sticky top-0 z-20 min-w-[14rem] border-b border-r border-t border-cdm-line bg-cdm-panel px-3 py-3 text-center font-medium leading-snug whitespace-normal">
                       Precio Material
                     </th>
-                    <th className="sticky top-0 z-20 min-w-[7.5rem] border-b border-r border-t border-ravn-line bg-ravn-surface px-2 py-3 text-center font-medium leading-snug whitespace-normal">
+                    <th className="sticky top-0 z-20 min-w-[7.5rem] border-b border-r border-t border-cdm-line bg-cdm-panel px-2 py-3 text-center font-medium leading-snug whitespace-normal">
                       Desc. %
                     </th>
-                    <th className="sticky top-0 z-20 min-w-[14.5rem] border-b border-r border-t border-ravn-line bg-ravn-surface px-3 py-3 text-center font-medium leading-snug whitespace-normal">
+                    <th className="sticky top-0 z-20 min-w-[14.5rem] border-b border-r border-t border-cdm-line bg-cdm-panel px-3 py-3 text-center font-medium leading-snug whitespace-normal">
                       Subtotal materiales
                     </th>
-                    <th className="sticky top-0 z-20 min-w-[12rem] border-b border-r border-t border-ravn-line bg-ravn-surface px-3 py-3 text-center font-medium leading-snug whitespace-normal">
+                    <th className="sticky top-0 z-20 min-w-[12rem] border-b border-r border-t border-cdm-line bg-cdm-panel px-3 py-3 text-center font-medium leading-snug whitespace-normal">
                       Precio M.O.
                     </th>
-                    <th className="sticky top-0 z-20 min-w-[13rem] border-b border-r border-t border-ravn-line bg-ravn-surface px-3 py-3 text-center font-medium leading-snug whitespace-normal">
+                    <th className="sticky top-0 z-20 min-w-[13rem] border-b border-r border-t border-cdm-line bg-cdm-panel px-3 py-3 text-center font-medium leading-snug whitespace-normal">
                       Subtotal M.O.
                     </th>
-                    <th className="sticky top-0 z-20 min-w-[12rem] border-b border-l border-r border-t border-ravn-line bg-ravn-surface px-3 py-3 text-center text-xs font-semibold leading-snug text-ravn-fg sm:text-sm whitespace-normal">
+                    <th className="sticky top-0 z-20 min-w-[12rem] border-b border-l border-r border-t border-cdm-line bg-cdm-panel px-3 py-3 text-center text-[10px] font-semibold leading-snug text-cdm-accent whitespace-normal">
                       Total Ítem
                     </th>
                   </tr>
@@ -1594,7 +1586,7 @@ export function NuevoPresupuestoScreen() {
                     <tr>
                       <td
                         colSpan={10}
-                        className="border-b border-ravn-line bg-ravn-surface px-5 py-10 text-center font-light text-ravn-muted sm:py-12"
+                        className="border-b border-cdm-line bg-transparent px-5 py-10 text-center font-light text-cdm-muted sm:py-12"
                       >
                         Creá un presupuesto para ver las líneas aquí.
                       </td>
@@ -1603,7 +1595,7 @@ export function NuevoPresupuestoScreen() {
                     <tr>
                       <td
                         colSpan={10}
-                        className="border-b border-ravn-line bg-ravn-surface px-5 py-10 text-center font-light text-ravn-muted sm:py-12"
+                        className="border-b border-cdm-line bg-transparent px-5 py-10 text-center font-light text-cdm-muted sm:py-12"
                       >
                         Aún no hay ítems. Elegí un rubro y agregá líneas.
                       </td>
@@ -1638,11 +1630,11 @@ export function NuevoPresupuestoScreen() {
                       const isDeleting = deletingItemId === row.id;
                       const isUpdating = updatingItemId === row.id;
                       const inputClass =
-                        "w-full min-w-0 border-0 border-none bg-transparent px-2 py-1.5 text-center text-sm font-light tabular-nums text-ravn-fg outline-none focus:border-none focus:outline-none focus:ring-0 focus:ring-offset-0 whitespace-nowrap";
+                        "w-full min-w-0 border-0 border-none bg-transparent px-2 py-1.5 text-center text-sm font-light tabular-nums text-cdm-fg outline-none focus:border-none focus:outline-none focus:ring-0 focus:ring-offset-0 whitespace-nowrap";
 
                       return (
-                        <tr key={row.id}>
-                          <td className="sticky left-0 z-[15] box-border min-w-[5.5rem] border-b border-r border-ravn-line bg-ravn-surface p-0 align-middle">
+                        <tr key={row.id} className="transition-colors hover:bg-cdm-fg/[0.025]">
+                          <td className="sticky left-0 z-[15] box-border min-w-[5.5rem] border-b border-r border-cdm-line bg-cdm-panel p-0 align-middle">
                             <div className="flex min-h-[2.75rem] items-center justify-center px-1">
                               <button
                                 type="button"
@@ -1650,18 +1642,18 @@ export function NuevoPresupuestoScreen() {
                                   void handleEliminarItem(row.id)
                                 }
                                 disabled={isDeleting}
-                                className="shrink-0 rounded-none p-1 text-ravn-muted transition-colors hover:bg-ravn-accent hover:text-ravn-accent-contrast focus-visible:outline focus-visible:outline-1 focus-visible:outline-ravn-fg disabled:opacity-50"
+                                className="shrink-0 rounded-none p-1 text-cdm-muted transition-colors hover:bg-red-500/15 hover:text-red-300 focus-visible:outline focus-visible:outline-1 focus-visible:outline-cdm-accent disabled:opacity-50"
                                 title="Eliminar ítem"
                               >
                                 <TrashIcon />
                               </button>
                             </div>
                           </td>
-                          <td className="sticky z-[14] min-w-[12rem] border-b border-r border-ravn-line bg-ravn-surface px-3 py-1.5 text-left font-light text-ravn-fg leading-snug shadow-[4px_0_14px_-6px_rgba(24,24,23,0.08)] [left:5.5rem] sm:min-w-[15rem] md:min-w-[18rem]">
+                          <td className="sticky z-[14] min-w-[12rem] border-b border-r border-cdm-line bg-cdm-panel px-3 py-1.5 text-left font-light text-cdm-fg leading-snug shadow-[4px_0_14px_-6px_rgba(0,0,0,0.5)] [left:5.5rem] sm:min-w-[15rem] md:min-w-[18rem]">
                             <span className="block break-words">
                               {rubroDisplay ? (
                                 <>
-                                  <span className="mb-0.5 block text-[11px] font-medium uppercase tracking-wide text-ravn-muted">
+                                  <span className="mb-0.5 block text-[10px] font-medium uppercase tracking-[0.14em] text-cdm-accent/80">
                                     {rubroDisplay}
                                   </span>
                                   <span>{nombre}</span>
@@ -1671,10 +1663,10 @@ export function NuevoPresupuestoScreen() {
                               )}
                             </span>
                           </td>
-                          <td className="min-w-[6.25rem] border-b border-r border-ravn-line bg-ravn-surface px-3 py-1.5 text-center font-light text-ravn-muted leading-snug">
+                          <td className="min-w-[6.25rem] border-b border-r border-cdm-line bg-transparent px-3 py-1.5 text-center font-light text-cdm-muted leading-snug">
                             {unidad}
                           </td>
-                          <td className="min-w-[7.5rem] border-b border-r border-ravn-line bg-ravn-surface p-0">
+                          <td className="min-w-[7.5rem] border-b border-r border-cdm-line bg-transparent p-0">
                             <FormattedNumberInput
                               value={row.cantidad}
                               decimals={2}
@@ -1690,7 +1682,7 @@ export function NuevoPresupuestoScreen() {
                               className={inputClass}
                             />
                           </td>
-                          <td className="min-w-[14rem] overflow-visible whitespace-nowrap border-b border-r border-ravn-line bg-ravn-surface p-0">
+                          <td className="min-w-[14rem] overflow-visible whitespace-nowrap border-b border-r border-cdm-line bg-transparent p-0">
                             <FormattedNumberInput
                               value={row.precio_material_congelado}
                               decimals={2}
@@ -1707,7 +1699,7 @@ export function NuevoPresupuestoScreen() {
                               className={inputClass}
                             />
                           </td>
-                          <td className="min-w-[7.5rem] border-b border-r border-ravn-line bg-ravn-surface p-0">
+                          <td className="min-w-[7.5rem] border-b border-r border-cdm-line bg-transparent p-0">
                             <FormattedNumberInput
                               value={pctLine}
                               decimals={2}
@@ -1723,7 +1715,7 @@ export function NuevoPresupuestoScreen() {
                               className={inputClass}
                             />
                           </td>
-                          <td className="min-w-[14.5rem] overflow-visible whitespace-nowrap border-b border-r border-ravn-line bg-ravn-surface p-0">
+                          <td className="min-w-[14.5rem] overflow-visible whitespace-nowrap border-b border-r border-cdm-line bg-transparent p-0">
                             <PesosAmountInput
                               amount={subtotalMaterial}
                               disabled={isUpdating || facMat <= 0}
@@ -1740,7 +1732,7 @@ export function NuevoPresupuestoScreen() {
                               onBlur={() => persistRow(row.id)}
                             />
                           </td>
-                          <td className="min-w-[12rem] overflow-visible whitespace-nowrap border-b border-r border-ravn-line bg-ravn-surface p-0">
+                          <td className="min-w-[12rem] overflow-visible whitespace-nowrap border-b border-r border-cdm-line bg-transparent p-0">
                             <FormattedNumberInput
                               value={row.precio_mo_congelada}
                               decimals={2}
@@ -1757,7 +1749,7 @@ export function NuevoPresupuestoScreen() {
                               className={inputClass}
                             />
                           </td>
-                          <td className="min-w-[13rem] overflow-visible whitespace-nowrap border-b border-r border-ravn-line bg-ravn-surface p-0">
+                          <td className="min-w-[13rem] overflow-visible whitespace-nowrap border-b border-r border-cdm-line bg-transparent p-0">
                             <PesosAmountInput
                               amount={subtotalMo}
                               disabled={isUpdating}
@@ -1772,7 +1764,7 @@ export function NuevoPresupuestoScreen() {
                               onBlur={() => persistRow(row.id)}
                             />
                           </td>
-                          <td className="min-w-[12rem] overflow-visible whitespace-nowrap border-b border-l border-r border-ravn-line bg-ravn-surface p-0">
+                          <td className="min-w-[12rem] overflow-visible whitespace-nowrap border-b border-l border-r border-cdm-line bg-cdm-fg/[0.03] p-0">
                             <PesosAmountInput
                               amount={totalItem}
                               readOnly
@@ -1787,33 +1779,34 @@ export function NuevoPresupuestoScreen() {
               </table>
               </div>
               {presupuestoId && items.length > 0 ? (
-                <div className="w-full max-w-full border-t border-ravn-line bg-ravn-surface px-0 py-3">
-                  <div className="flex w-full max-w-full flex-col gap-4 px-3">
+                <div className="w-full max-w-full border-t border-cdm-line px-0 py-4">
+                  <div className="flex w-full max-w-full flex-col gap-4 px-4">
                     <div className="grid grid-cols-1 items-end gap-4 sm:grid-cols-2 sm:gap-8">
                       <div className="flex min-w-0 flex-col gap-1.5">
-                        <p className="text-xs font-medium uppercase tracking-wider text-ravn-muted">
+                        <p className="text-[10px] font-medium uppercase tracking-[0.22em] text-cdm-muted">
                           Total materiales
                         </p>
-                        <p className="w-full min-w-0 rounded-none border border-ravn-line bg-ravn-surface px-3 py-2 text-right text-sm font-bold tabular-nums text-ravn-fg">
+                        <p className="font-raleway w-full min-w-0 text-right text-xl font-bold tabular-nums text-cdm-fg">
                           {formatMoney(totales.material)}
                         </p>
                       </div>
                       <div className="flex min-w-0 flex-col gap-1.5">
-                        <p className="text-xs font-medium uppercase tracking-wider text-ravn-muted">
+                        <p className="text-[10px] font-medium uppercase tracking-[0.22em] text-cdm-muted">
                           Total mano de obra
                         </p>
-                        <p className="w-full min-w-0 rounded-none border border-ravn-line bg-ravn-surface px-3 py-2 text-right text-sm font-bold tabular-nums text-ravn-fg">
+                        <p className="font-raleway w-full min-w-0 text-right text-xl font-bold tabular-nums text-cdm-fg">
                           {formatMoney(totales.mo)}
                         </p>
                       </div>
                     </div>
-                    <div className="flex flex-wrap items-baseline justify-end gap-x-3 gap-y-1 border-t border-ravn-line pt-3">
-                      <span className="text-xs font-medium uppercase tracking-wider text-ravn-muted">
+                    {/* Total general en display heroico: el número que manda en la pantalla. */}
+                    <div className="flex flex-wrap items-baseline justify-end gap-x-4 gap-y-2 border-t border-cdm-line pt-4">
+                      <span className="text-[10px] font-medium uppercase tracking-[0.24em] text-cdm-muted">
                         Total general
                       </span>
-                      <span className="whitespace-nowrap text-lg font-bold tabular-nums text-ravn-fg">
+                      <CifraHeroica className="whitespace-nowrap text-[clamp(32px,3.4vw,56px)] leading-none">
                         {formatMoney(totales.total)}
-                      </span>
+                      </CifraHeroica>
                     </div>
                   </div>
                 </div>
@@ -1825,20 +1818,20 @@ export function NuevoPresupuestoScreen() {
 
           {presupuestoId ? (
             <div
-              className="shrink-0 border-t border-ravn-line bg-ravn-surface px-10 py-4"
+              className="shrink-0 border-t border-cdm-line bg-cdm-bg/80 px-10 py-4 backdrop-blur-xl"
               role="region"
               aria-label="Acciones del presupuesto"
             >
               <div className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-center sm:gap-6">
                 <Link
                   href={`/rentabilidad?id=${encodeURIComponent(presupuestoId)}`}
-                  className="inline-flex w-fit items-center justify-center rounded-none border-2 border-ravn-line bg-ravn-surface px-6 py-3 text-sm font-medium uppercase tracking-wider text-ravn-fg transition-colors hover:bg-ravn-subtle focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ravn-fg"
+                  className="inline-flex w-fit items-center justify-center rounded-none border border-cdm-line bg-transparent px-6 py-3 text-sm font-medium uppercase tracking-wider text-cdm-fg transition-colors hover:border-cdm-accent/50 hover:text-cdm-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cdm-accent"
                 >
                   Rentabilidad y costos
                 </Link>
                 <Link
                   href={`/propuesta?id=${encodeURIComponent(presupuestoId)}`}
-                  className="inline-flex w-fit items-center justify-center rounded-none border-2 border-ravn-accent bg-ravn-accent px-6 py-3 text-sm font-medium uppercase tracking-wider text-ravn-accent-contrast transition-opacity hover:opacity-80 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ravn-fg"
+                  className="cdm-btn-cian inline-flex w-fit items-center justify-center rounded-none px-6 py-3 text-sm font-semibold uppercase tracking-wider focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cdm-accent"
                 >
                   Continuar a propuesta comercial
                 </Link>
@@ -1846,7 +1839,7 @@ export function NuevoPresupuestoScreen() {
                   type="button"
                   onClick={() => void handleDesestimarPresupuesto()}
                   disabled={desestimando}
-                  className="w-fit rounded-none border-2 border-ravn-line bg-ravn-surface px-5 py-2.5 text-sm font-medium uppercase tracking-wider text-ravn-fg transition-colors hover:bg-ravn-subtle disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ravn-fg"
+                  className="w-fit rounded-none border border-cdm-line/60 bg-transparent px-5 py-2.5 text-sm font-medium uppercase tracking-wider text-cdm-muted transition-colors hover:border-red-400/40 hover:text-red-300 disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cdm-accent"
                 >
                   {desestimando ? "Desestimando…" : "Desestimar presupuesto"}
                 </button>

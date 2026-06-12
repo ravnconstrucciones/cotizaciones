@@ -6,6 +6,7 @@ import {
   type CashflowItemRow,
 } from "@/lib/cashflow-compute";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
+import { correrContrasteObra } from "@/lib/cotizador/contraste-obra";
 
 type Params = { params: Promise<{ obra_id: string }> };
 
@@ -159,7 +160,14 @@ export async function POST(_req: Request, ctx: Params) {
       return NextResponse.json({ error: eFin.message }, { status: 500 });
     }
 
-    return NextResponse.json({ ok: true, cierre: payload });
+    // Loop de oro del cotizador (Frente D): contraste cotizado vs gastado real.
+    // Best-effort — nunca bloquea el cierre de la obra.
+    const lecciones = await correrContrasteObra(
+      createSupabaseAdminClient(),
+      presupuestoId
+    );
+
+    return NextResponse.json({ ok: true, cierre: payload, lecciones_contraste: lecciones });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Error";
     return NextResponse.json({ error: msg }, { status: 500 });

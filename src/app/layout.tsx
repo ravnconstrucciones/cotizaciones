@@ -1,11 +1,36 @@
 import type { Metadata, Viewport } from "next";
+import { IBM_Plex_Mono, Space_Grotesk } from "next/font/google";
 import { ThemeProvider } from "@/components/theme-provider";
-import { ThemeToggle } from "@/components/theme-toggle";
+import { AppShell } from "@/components/shell/app-shell";
 import { raleway } from "./raleway-local";
 import "./globals.css";
 
+/**
+ * Space Grotesk = fuente de interfaz del cockpit (texto, datos, labels),
+ * aplicada por scope con `font-grotesk` (mismo patrón que tenía Inter).
+ * Raleway queda para la marca "RAVN." y los documentos A4 (que siguen
+ * usando font-sans/font-raleway, sin cambios).
+ */
+const spaceGrotesk = Space_Grotesk({
+  subsets: ["latin", "latin-ext"],
+  variable: "--font-grotesk",
+  display: "swap",
+});
+
+/**
+ * IBM Plex Mono = tipografía terminal del HUD (iteración 5 — IGLOO):
+ * labels de sección `////// PROYECTOS`, timestamps, datos secundarios y
+ * links `[VER] ↑`. Aplicada por scope con `font-mono-hud`.
+ */
+const plexMono = IBM_Plex_Mono({
+  subsets: ["latin", "latin-ext"],
+  weight: ["400", "500", "600"],
+  variable: "--font-mono-hud",
+  display: "swap",
+});
+
 export const viewport: Viewport = {
-  themeColor: "#070707",
+  themeColor: "#05080f",
 };
 
 export const metadata: Metadata = {
@@ -43,11 +68,10 @@ export default function RootLayout({
         <meta name="theme-color" content="#070707" />
       </head>
       <body
-        className={`min-h-screen font-sans ${raleway.variable}`}
+        className={`min-h-screen font-sans ${raleway.variable} ${spaceGrotesk.variable} ${plexMono.variable}`}
       >
         <ThemeProvider>
-          {children}
-          <ThemeToggle />
+          <AppShell>{children}</AppShell>
         </ThemeProvider>
       </body>
     </html>
