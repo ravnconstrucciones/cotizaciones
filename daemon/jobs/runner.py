@@ -17,6 +17,7 @@ from jobslib import (DIR_JOBS, LOCK, STATE, cargar_cfg, cargar_estado, errores_h
                      ultima_ok, vencio_diario, vencio_mensual, vencio_semanal)
 import job_dolar
 import job_inbox
+import job_maestro
 import job_sismat
 import job_top30
 
@@ -27,10 +28,11 @@ MAX_ERRORES_DIA = 3
 LOCK_VIEJO = 5400
 
 JOBS = [
-    ("dolar",  job_dolar.correr,  lambda u, a: vencio_diario(u, a, hora_minima=8)),
-    ("sismat", job_sismat.correr, lambda u, a: vencio_mensual(u, a, dia_minimo=2, hora_minima=8)),
-    ("top30",  job_top30.correr,  lambda u, a: vencio_semanal(u, a, hora_minima=8)),
-    ("inbox",  job_inbox.correr,  lambda u, a: vencio_diario(u, a, hora_minima=2)),
+    ("dolar",   job_dolar.correr,   lambda u, a: vencio_diario(u, a, hora_minima=8)),
+    ("sismat",  job_sismat.correr,  lambda u, a: vencio_mensual(u, a, dia_minimo=2, hora_minima=8)),
+    ("maestro", job_maestro.correr, lambda u, a: vencio_mensual(u, a, dia_minimo=2, hora_minima=9)),
+    ("top30",   job_top30.correr,   lambda u, a: vencio_semanal(u, a, hora_minima=8)),
+    ("inbox",   job_inbox.correr,   lambda u, a: vencio_diario(u, a, hora_minima=2)),
 ]
 
 
