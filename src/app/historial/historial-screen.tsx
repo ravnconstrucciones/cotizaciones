@@ -534,7 +534,7 @@ export function HistorialScreen() {
   }, [someSelected, allSelected]);
 
   return (
-    <div className="font-inter relative min-h-screen bg-cdm-bg px-8 pb-32 pr-20 pt-14 text-cdm-fg">
+    <div className="font-grotesk relative min-h-screen bg-cdm-bg px-8 pb-32 pr-20 pt-14 text-cdm-fg">
       <WavesBackdrop />
       <div className="relative z-10 mx-auto max-w-4xl">
         <div className="relative pb-3">

@@ -121,7 +121,7 @@ export function ObraOrbitalScreen({ presupuestoId }: { presupuestoId: string }) 
   useRealtimeTable("presupuestos_gastos", cargar);
 
   return (
-    <div className="font-inter relative flex h-dvh flex-col bg-cdm-bg p-4 text-cdm-fg">
+    <div className="font-grotesk relative flex h-dvh flex-col bg-cdm-bg p-4 text-cdm-fg">
       <WavesBackdrop />
 
       <header className="relative z-10 flex items-baseline justify-between gap-3 px-1">

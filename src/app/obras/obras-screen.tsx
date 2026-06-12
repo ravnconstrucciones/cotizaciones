@@ -129,7 +129,7 @@ export function ObrasScreen() {
   }, [cargar]);
 
   return (
-    <div className="font-inter relative min-h-screen bg-cdm-bg text-cdm-fg">
+    <div className="font-grotesk relative min-h-screen bg-cdm-bg text-cdm-fg">
       <WavesBackdrop />
 
       <header className="relative z-10 flex items-baseline justify-between px-6 pt-6 md:px-10">

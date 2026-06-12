@@ -49,7 +49,7 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="font-inter relative flex min-h-[100dvh] flex-col items-center justify-center overflow-hidden bg-cdm-bg px-6 py-12 text-cdm-fg">
+    <main className="font-grotesk relative flex min-h-[100dvh] flex-col items-center justify-center overflow-hidden bg-cdm-bg px-6 py-12 text-cdm-fg">
       <WavesBackdrop />
 
       <div className="relative z-10 flex w-full max-w-sm flex-col items-center gap-10">
