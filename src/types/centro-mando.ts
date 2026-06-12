@@ -99,6 +99,28 @@ export type Tarea = {
   origen: string;
   nota: string | null;
   creado_at: string;
+  /** Obra a la que pertenece (Ola B) — null = pendiente general de la home. */
+  presupuesto_id: string | null;
+};
+
+/** Tabla `calendario_eventos` (Ola B): agenda del módulo SEMANA de la home. */
+export type CalendarioEvento = {
+  id: string;
+  titulo: string;
+  fecha: string;
+  hora: string | null;
+  fuente: "mac" | "manual";
+  uid_externo: string | null;
+  creado_at: string;
+};
+
+/** Tabla `obra_avances` (Ola B): bitácora de seguimiento de cada obra. */
+export type ObraAvance = {
+  id: string;
+  presupuesto_id: string;
+  texto: string;
+  instancia: string | null;
+  creado_at: string;
 };
 
 /** Lectura del vault para el módulo "El cerebro" (lib server-side src/lib/vault.ts). */

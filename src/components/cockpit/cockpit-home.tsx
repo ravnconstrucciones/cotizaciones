@@ -8,6 +8,7 @@ import { WavesBackdrop } from "./waves-backdrop";
 import { ModuloObras } from "./modulo-obras";
 import { ModuloPlata } from "./modulo-plata";
 import { ModuloPendientes } from "./modulo-pendientes";
+import { ModuloSemana } from "./modulo-semana";
 import { ModuloCotizaciones } from "./modulo-cotizaciones";
 import { ModuloActividad } from "./modulo-actividad";
 import { ModuloArchivados } from "./modulo-archivados";
@@ -56,6 +57,19 @@ export function CockpitHome({ cerebro }: { cerebro: CerebroData }) {
       </div>
 
       <CommandBar />
+
+      {/* La SEMANA (Ola B): banda horizontal lunes→domingo bajo la barra de
+          comando — el "qué tengo que hacer" antes que los sistemas. Banda y
+          no tile del nivel 1 para que los 7 días tengan ancho real y la fila
+          principal (Obras/Plata/Pendientes) conserve su jerarquía. */}
+      <motion.div
+        initial={animar ? { opacity: 0, y: 12 } : false}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.35, ease: "easeOut" }}
+        className="relative z-10"
+      >
+        <ModuloSemana />
+      </motion.div>
 
       {/* Nivel 1 — lo que manda: tres módulos en grande, con aire. */}
       <motion.div
