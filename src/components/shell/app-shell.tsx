@@ -10,6 +10,8 @@ import { useRealtimeTable } from "@/hooks/use-realtime-table";
 
 /** Rutas SIN carcasa (login, vistas de impresión/PDF y landing pública). */
 const SIN_CARCASA = ["/login", "/propuesta", "/remito", "/landing"];
+/** Sufijos de ruta que también omiten carcasa (documentos A4 de cotizaciones). */
+const SIN_CARCASA_SUFIJO = ["/documento"];
 
 type NavItem = { href: string; label: string };
 
@@ -87,7 +89,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }, [cargarBadge, pathname]);
   useRealtimeTable("eventos", cargarBadge);
 
-  if (SIN_CARCASA.some((p) => pathname.startsWith(p))) return <>{children}</>;
+  if (
+    SIN_CARCASA.some((p) => pathname.startsWith(p)) ||
+    SIN_CARCASA_SUFIJO.some((s) => pathname.endsWith(s))
+  )
+    return <>{children}</>;
 
   async function cerrarSesion() {
     const supabase = createClient();
