@@ -118,6 +118,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <RavnLogo
               align="start"
               showTagline={false}
+              shimmer
               sizeClassName="text-xl"
               className="drop-shadow-[0_0_18px_rgba(200,180,154,0.30)]"
             />
@@ -155,7 +156,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       {/* Barra superior compacta < lg (el móvil real es WhatsApp) */}
       <header className="font-inter flex items-center justify-between border-b border-cdm-line bg-cdm-bg/80 px-4 py-3 backdrop-blur-xl lg:hidden print:hidden">
         <Link href="/" aria-label="Inicio">
-          <RavnLogo align="start" showTagline={false} sizeClassName="text-base" />
+          <RavnLogo
+            align="start"
+            showTagline={false}
+            shimmer
+            sizeClassName="text-base"
+          />
         </Link>
         <Link
           href="/archivados"
