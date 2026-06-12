@@ -20,6 +20,9 @@ type MaestroItemRow = {
   costo_materiales_m2: number;
   ganancia_monto_m2: number;
   sort_order: number;
+  sismat_costo_mo: number | null;
+  sismat_match: string | null;
+  sismat_actualizado: string | null;
 };
 
 function baseCostoM2(mo: number, mat: number): number {
@@ -92,6 +95,55 @@ function MoneyM2Cell({
   );
 }
 
+/** Días transcurridos desde una fecha ISO; null si la fecha es inválida. */
+function diasDesde(fechaIso: string | null | undefined): number | null {
+  if (!fechaIso) return null;
+  const d = new Date(fechaIso);
+  if (Number.isNaN(d.getTime())) return null;
+  return Math.floor((Date.now() - d.getTime()) / 86_400_000);
+}
+
+/** Formatea una fecha ISO a dd/mm/aaaa. */
+function formatFechaCorta(fechaIso: string | null | undefined): string {
+  if (!fechaIso) return "—";
+  const [y, m, d] = fechaIso.slice(0, 10).split("-");
+  return `${d}/${m}/${y}`;
+}
+
+/** Delta % entre tu costo_mo y el tarifario SISMAT. */
+function deltaPct(costo: number, sismat: number): number {
+  if (sismat <= 0) return 0;
+  return Math.round(((costo - sismat) / sismat) * 100);
+}
+
+/** Chip de frescura del tarifario SISMAT. */
+function BadgeSismat({ fechaIso }: { fechaIso: string | null }) {
+  const dias = diasDesde(fechaIso);
+  if (dias === null) {
+    return (
+      <span className="inline-flex items-center gap-1.5 rounded-full border border-cdm-line/40 bg-cdm-line/20 px-2.5 py-1 text-[9px] font-semibold uppercase tracking-[0.14em] text-cdm-muted">
+        SISMAT · sin datos
+      </span>
+    );
+  }
+  const vencido = dias > 35;
+  return (
+    <span
+      className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[9px] font-semibold uppercase tracking-[0.14em] ${
+        vencido
+          ? "border-amber-300/30 bg-amber-300/10 text-amber-200"
+          : "border-emerald-400/30 bg-emerald-400/10 text-emerald-300"
+      }`}
+    >
+      <span
+        aria-hidden
+        className={`h-1.5 w-1.5 rounded-full ${vencido ? "bg-amber-300" : "bg-emerald-400"}`}
+      />
+      SISMAT · {vencido ? "desactualizado" : "actualizado"} {formatFechaCorta(fechaIso)}
+    </span>
+  );
+}
+
 export function MaestroPreciosScreen() {
   const [items, setItems] = useState<MaestroItemRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -104,6 +156,7 @@ export function MaestroPreciosScreen() {
   const [diasLaborablesStr, setDiasLaborablesStr] = useState("22");
   const [gestionLoaded, setGestionLoaded] = useState(false);
   const [savingGestion, setSavingGestion] = useState(false);
+  const [sismatUltimaSync, setSismatUltimaSync] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -114,13 +167,13 @@ export function MaestroPreciosScreen() {
         supabase
           .from("maestro_precios_items")
           .select(
-            "id, nombre_trabajo, costo_mo_m2, costo_materiales_m2, ganancia_monto_m2, sort_order"
+            "id, nombre_trabajo, costo_mo_m2, costo_materiales_m2, ganancia_monto_m2, sort_order, sismat_costo_mo, sismat_match, sismat_actualizado"
           )
           .order("sort_order", { ascending: true })
           .order("created_at", { ascending: true }),
         supabase
           .from("maestro_precios_gestion")
-          .select("ganancia_mensual_estimada_ars, dias_laborables_mes")
+          .select("ganancia_mensual_estimada_ars, dias_laborables_mes, sismat_ultima_sync")
           .eq("id", 1)
           .maybeSingle(),
       ]);
@@ -138,6 +191,9 @@ export function MaestroPreciosScreen() {
             costo_materiales_m2: Math.round(Number(r.costo_materiales_m2) || 0),
             ganancia_monto_m2: Math.round(Number(r.ganancia_monto_m2) || 0),
             sort_order: Number(r.sort_order) || 0,
+            sismat_costo_mo: r.sismat_costo_mo != null ? Math.round(Number(r.sismat_costo_mo)) : null,
+            sismat_match: r.sismat_match != null ? String(r.sismat_match) : null,
+            sismat_actualizado: r.sismat_actualizado != null ? String(r.sismat_actualizado) : null,
           }))
         );
       }
@@ -147,6 +203,7 @@ export function MaestroPreciosScreen() {
           const g = gestRes.data as {
             ganancia_mensual_estimada_ars?: unknown;
             dias_laborables_mes?: unknown;
+            sismat_ultima_sync?: unknown;
           };
           setGananciaMensualStr(
             formatNumber(
@@ -157,9 +214,13 @@ export function MaestroPreciosScreen() {
           setDiasLaborablesStr(
             String(Math.max(1, Math.round(Number(g.dias_laborables_mes) || 22)))
           );
+          setSismatUltimaSync(
+            g.sismat_ultima_sync != null ? String(g.sismat_ultima_sync) : null
+          );
         } else {
           setGananciaMensualStr(formatNumber(0, 0));
           setDiasLaborablesStr("22");
+          setSismatUltimaSync(null);
         }
         setGestionLoaded(true);
       } else {
@@ -266,6 +327,9 @@ export function MaestroPreciosScreen() {
             costo_materiales_m2: Math.round(Number(r.costo_materiales_m2) || 0),
             ganancia_monto_m2: Math.round(Number(r.ganancia_monto_m2) || 0),
             sort_order: Number(r.sort_order) || 0,
+            sismat_costo_mo: null,
+            sismat_match: null,
+            sismat_actualizado: null,
           },
         ]);
       }
@@ -364,9 +428,12 @@ export function MaestroPreciosScreen() {
         </Link>
       </header>
 
-      <h1 className="font-raleway text-2xl font-medium uppercase tracking-tight">
-        Maestro de precios
-      </h1>
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <h1 className="font-raleway text-2xl font-medium uppercase tracking-tight">
+          Maestro de precios
+        </h1>
+        <BadgeSismat fechaIso={sismatUltimaSync} />
+      </div>
       <p className="mt-2 max-w-2xl text-sm text-ravn-muted">
         M.O. y materiales en $/m²; ganancia en $/m² (al lado, % equivalente).
         Precio final = suma de los tres.
@@ -405,7 +472,7 @@ export function MaestroPreciosScreen() {
           {loading ? (
             <p className="p-8 font-light text-ravn-muted">Cargando…</p>
           ) : (
-            <table className="w-full min-w-[860px] border-collapse text-left text-sm">
+            <table className="w-full min-w-[1020px] border-collapse text-left text-sm">
               <thead>
                 <tr className="border-b border-t border-ravn-line bg-ravn-surface text-xs font-medium uppercase tracking-wider text-ravn-muted">
                   <th className="border-r border-ravn-line px-4 py-3">
@@ -423,6 +490,12 @@ export function MaestroPreciosScreen() {
                       Equiv. %
                     </span>
                   </th>
+                  <th className="border-r border-ravn-line px-3 py-3 text-right min-w-[8rem]">
+                    <span className="block">SISMAT MO</span>
+                    <span className="mt-0.5 block text-[10px] font-normal normal-case tracking-normal text-ravn-muted">
+                      vs tu costo
+                    </span>
+                  </th>
                   <th className="w-[7rem] min-w-[6.5rem] max-w-[8rem] border-r border-ravn-line px-2 py-3 text-right">
                     Precio final ($/m²)
                   </th>
@@ -433,7 +506,7 @@ export function MaestroPreciosScreen() {
                 {items.length === 0 ? (
                   <tr>
                     <td
-                      colSpan={6}
+                      colSpan={7}
                       className="border-b border-ravn-line px-4 py-10 text-center font-light text-ravn-muted"
                     >
                       No hay trabajos cargados. Usá{" "}
@@ -537,6 +610,41 @@ export function MaestroPreciosScreen() {
                               ) : null}
                             </div>
                           </div>
+                        </td>
+                        {/* ---- columna SISMAT ---- */}
+                        <td
+                          className="border-r border-ravn-line px-3 py-3 align-middle text-right"
+                          title={
+                            row.sismat_match
+                              ? `Match: "${row.sismat_match}"`
+                              : "Sin match SISMAT"
+                          }
+                        >
+                          {row.sismat_costo_mo != null ? (
+                            <div className="flex flex-col items-end gap-0.5">
+                              <span className="text-sm tabular-nums text-ravn-muted">
+                                {formatMoneyInt(row.sismat_costo_mo)}
+                              </span>
+                              {row.costo_mo_m2 > 0 ? (
+                                (() => {
+                                  const d = deltaPct(row.costo_mo_m2, row.sismat_costo_mo);
+                                  const positivo = d >= 0;
+                                  return (
+                                    <span
+                                      className={`text-[11px] font-semibold tabular-nums ${
+                                        positivo ? "text-emerald-400" : "text-red-400"
+                                      }`}
+                                    >
+                                      {positivo ? "+" : ""}
+                                      {d}%
+                                    </span>
+                                  );
+                                })()
+                              ) : null}
+                            </div>
+                          ) : (
+                            <span className="text-xs text-ravn-muted/50">—</span>
+                          )}
                         </td>
                         <td className="w-[7rem] min-w-[6.5rem] max-w-[8rem] border-r border-ravn-line px-2 py-3 text-right text-sm font-medium tabular-nums text-ravn-fg">
                           {formatMoneyInt(finalM2)}
