@@ -6,6 +6,7 @@ import { CommandBar } from "./command-bar";
 import { Panel } from "./panel";
 import { ModuloObras } from "./modulo-obras";
 import { ModuloPlata } from "./modulo-plata";
+import { ModuloPendientes } from "./modulo-pendientes";
 
 const stagger = {
   hidden: {},
@@ -52,7 +53,7 @@ export function CockpitHome({ cerebro }: { cerebro: CerebroData }) {
       >
         <ModuloObras className="lg:col-span-3" />
         <ModuloPlata className="lg:col-span-3" />
-        <Placeholder titulo="Pendientes" className="lg:col-span-3" />
+        <ModuloPendientes className="lg:col-span-3" />
         <Placeholder titulo="Cotizaciones" className="lg:col-span-3" />
         <Placeholder titulo="Actividad" className="lg:col-span-4" />
         <Placeholder titulo="El cerebro" className="lg:col-span-4" />
