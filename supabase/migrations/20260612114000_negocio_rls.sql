@@ -41,3 +41,40 @@ begin
     );
   end loop;
 end $$;
+
+-- legacy sin uso en app/bot — se cierran a anon por higiene.
+-- Guard to_regclass: pueden no existir en entornos limpios (base nueva).
+do $$
+declare
+  t text;
+  p record;
+begin
+  foreach t in array array['detalles_presupuesto','gastos_reales'] loop
+    if to_regclass('public.' || t) is not null then
+      execute format('alter table public.%I enable row level security', t);
+      execute format('revoke all on public.%I from anon', t);
+      for p in
+        select policyname from pg_policies
+        where schemaname = 'public' and tablename = t
+      loop
+        execute format('drop policy if exists %I on public.%I', p.policyname, t);
+      end loop;
+      execute format(
+        'create policy %I on public.%I for select to authenticated using (true)',
+        t || '_select_auth', t
+      );
+      execute format(
+        'create policy %I on public.%I for insert to authenticated with check (not public.es_bot())',
+        t || '_insert_no_bot', t
+      );
+      execute format(
+        'create policy %I on public.%I for update to authenticated using (not public.es_bot()) with check (not public.es_bot())',
+        t || '_update_no_bot', t
+      );
+      execute format(
+        'create policy %I on public.%I for delete to authenticated using (not public.es_bot())',
+        t || '_delete_no_bot', t
+      );
+    end if;
+  end loop;
+end $$;

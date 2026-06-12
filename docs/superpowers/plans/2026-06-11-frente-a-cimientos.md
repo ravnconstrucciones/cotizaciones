@@ -1372,7 +1372,14 @@ Expected: `Finished supabase link.` Si pide la contraseña de la base y no la te
 Run: `supabase migration list`
 Expected: las 20 migraciones viejas con timestamp en la columna `Local` y `Remote` vacía (más las 16 nuevas igual). Si alguna vieja YA figura en Remote, excluila del repair del paso siguiente.
 
-- [ ] **Step 3: Marcar las 20 viejas como aplicadas (sin ejecutarlas)**
+- [ ] **Step 3: Marcar las 19 viejas como aplicadas (sin ejecutarlas)**
+
+> **IMPORTANTE — `20260522120000_inmobiliario_schema` NO va en este repair.**
+> Hallazgo Tarea 1: esta migración NO está aplicada en prod (las tablas `inmobiliario_*` no existen).
+> `db push` la va a aplicar de verdad en la misma corrida que las 16 nuevas (crea las tablas `inmobiliario_*`),
+> y la migración `20260612112000_inmobiliario_rls.sql` las endurece en la misma pasada.
+> El Expected de Step 4 pasa de "16 migraciones nuevas" a "17 migraciones nuevas"
+> (`20260522120000` + `20260612100000`…`20260612115000`).
 
 ```bash
 supabase migration repair --status applied \
@@ -1380,10 +1387,10 @@ supabase migration repair --status applied \
   20260402220000 20260403010000 20260412120000 20260412180000 \
   20260412190000 20260415120000 20260415140000 20260415160000 \
   20260415170000 20260415180000 20260415190000 20260415210000 \
-  20260415220000 20260417230000 20260419140000 20260522120000
+  20260415220000 20260417230000 20260419140000
 ```
 
-Expected: `Repaired migration history: [...] => applied` (una línea por timestamp).
+Expected: `Repaired migration history: [...] => applied` (una línea por timestamp, 19 en total).
 
 - [ ] **Step 4: Dry-run y push**
 
@@ -1391,7 +1398,7 @@ Expected: `Repaired migration history: [...] => applied` (una línea por timesta
 supabase db push --dry-run
 ```
 
-Expected: lista EXACTAMENTE las 16 migraciones nuevas (`20260612100000` … `20260612115000`), ninguna vieja.
+Expected: lista EXACTAMENTE 17 migraciones: `20260522120000_inmobiliario_schema` (que no estaba aplicada en prod — hallazgo Tarea 1) más las 16 nuevas (`20260612100000` … `20260612115000`). Ninguna otra vieja.
 
 ```bash
 supabase db push
@@ -1454,6 +1461,8 @@ Mergear/pushear la rama a `main` según el flujo de la sesión (Vercel deploya a
 - Ir a **Nuevo Presupuesto → pestaña Cashflow → preview de planificación** de una obra existente → el resumen de ítems proyectados se genera sin error (el embed de `planificar-preview/route.ts` funciona con el alias).
 
 Si el plan se ejecuta en una rama que no se mergea todavía, NO corras esta tarea hasta que el merge esté listo — coordiná con Eze.
+
+> **Nota B3 (PostgREST schema cache):** Si los embeds `recetas:catalogo_recetas` devuelven 404 justo después del push (la app levanta pero los joins fallan), correr en el SQL Editor: `notify pgrst, 'reload schema';` (schema cache stale de PostgREST — se propaga en segundos sin reiniciar el servicio).
 
 ---
 

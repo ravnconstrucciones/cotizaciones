@@ -21,8 +21,7 @@ begin
      )
   then
     alter table public.recetas rename to catalogo_recetas;
+    comment on table public.catalogo_recetas is
+      'Catálogo de ítems para presupuestos (ex tabla `recetas`, renombrada 2026-06-12 para liberar el nombre al recetario del cotizador). Las FKs (p. ej. presupuestos_items.receta_id) siguen apuntando acá: el rename no rompe constraints.';
   end if;
 end $$;
-
-comment on table public.catalogo_recetas is
-  'Catálogo de ítems para presupuestos (ex tabla `recetas`, renombrada 2026-06-12 para liberar el nombre al recetario del cotizador). Las FKs (p. ej. presupuestos_items.receta_id) siguen apuntando acá: el rename no rompe constraints.';
