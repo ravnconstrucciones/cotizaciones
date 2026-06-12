@@ -53,6 +53,20 @@ Un solo lugar — el Jarvis de Ezequiel — donde vive absolutamente todo: obras
 - **El vault sigue siendo el cerebro narrativo** (Obsidian/iCloud + repo GitHub `boveda`). El tablero lo lee server-side vía GitHub API con caché (~5 min). No se duplica el contenido en la base; la base guarda lo transaccional.
 - **El daemon Mac** (`~/.ravn-cotizador/daemon.py`, ya existe) se mantiene y se amplía: es el músculo pesado. Levanta trabajos de la cola y corre Claude Code headless con la suscripción. Si la Mac está apagada, el trabajo espera en cola y el bot avisa.
 
+### 3.1 El motor — uno solo, tres puertas
+
+El motor de TODO el trabajo inteligente pesado es el mismo: **Claude Code corriendo en la Mac de Eze** (suscripción, no API). Lo que cambia es la puerta de entrada:
+
+| Puerta | Cómo llega | Quién lo procesa |
+|---|---|---|
+| **WhatsApp** (celular) | Bot clasifica con Haiku (barato). Registro simple → directo a la base. Trabajo pesado → `trabajos_cola`. | Daemon Mac → Claude Code headless |
+| **Barra de comando** (tablero) | La orden va a `trabajos_cola`. Progreso en vivo en el tablero. | Daemon Mac → Claude Code headless |
+| **Terminal** (Claude Code en sesión) | Conversación directa con Claude. | Claude Code interactivo |
+
+`trabajos_cola` acepta cualquier tipo de orden, no solo cotizaciones: **cotizar**, **redactar documento** ("armame el detalle de trabajos realizados de la obra Saavedra con el formato oficial" → el daemon lo genera con el template, lo guarda y avisa), **consulta**, **orden libre**. Si el trabajo necesita más datos, pregunta de vuelta por la misma puerta por la que entró (WhatsApp o tablero).
+
+**Cuándo usar la terminal directa:** desarrollo del sistema mismo, sparring profundo y proyectos grandes (como este diseño). Para el día a día operativo —cotizar, redactar, registrar, consultar— la puerta es la app o WhatsApp, y el motor es el mismo de todos modos. No hay dos cerebros: hay un cerebro con tres entradas.
+
 ## 4. Home cockpit (módulos)
 
 Una pantalla, sin scroll en desktop:
