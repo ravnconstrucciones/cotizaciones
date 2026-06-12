@@ -231,12 +231,12 @@ La tabla existe en producción SIN migración (riesgo de pérdida señalado en e
 
 create table if not exists public.gastos_personales (
   id uuid primary key default gen_random_uuid(),
+  fecha date not null default current_date,   -- NOT NULL en prod (ajuste Tarea 1: 2026-06-12)
   concepto text not null,
-  monto numeric(14, 2),                -- nullable: el bot inserta monto || null
+  monto numeric(14, 2) not null,               -- NOT NULL en prod (ajuste Tarea 1: 2026-06-12)
   categoria text not null default 'Varios',
-  fecha date default (current_date),   -- nullable: el bot manda null explícito a veces
-  origen text not null default 'app',  -- 'app' | 'whatsapp'
-  created_at timestamptz not null default now()
+  origen text default 'whatsapp',              -- nullable en prod, default 'whatsapp' (ajuste Tarea 1)
+  created_at timestamptz default now()         -- nullable en prod (ajuste Tarea 1: 2026-06-12)
 );
 
 create index if not exists gastos_personales_fecha_idx
