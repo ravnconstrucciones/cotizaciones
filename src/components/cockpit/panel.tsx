@@ -34,7 +34,7 @@ export function Panel({
   const [abierto, setAbierto] = useState(!colapsable);
 
   const labelMono = (
-    <h2 className="font-mono-hud text-[10px] font-medium uppercase tracking-[0.2em] text-cdm-accent">
+    <h2 className="font-mono-hud min-w-0 truncate text-[10px] font-medium uppercase tracking-[0.2em] text-cdm-accent">
       <span aria-hidden className="mr-2 text-cdm-accent/45">
         {"//////"}
       </span>
@@ -60,16 +60,16 @@ export function Panel({
           >
             {labelMono}
           </button>
-          <span className="flex shrink-0 items-center gap-3">
+          <span className="flex shrink-0 items-center gap-2.5">
             {accion}
             <button
               type="button"
               onClick={() => setAbierto((v) => !v)}
               aria-expanded={abierto}
               aria-label={abierto ? `Colapsar ${titulo}` : `Expandir ${titulo}`}
-              className="font-mono-hud cursor-pointer text-[9px] uppercase tracking-[0.08em] text-cdm-muted transition-colors hover:text-cdm-accent"
+              className="font-mono-hud cursor-pointer text-[10px] text-cdm-muted transition-colors hover:text-cdm-accent"
             >
-              {abierto ? "[CERRAR] ↓" : "[ABRIR] ↑"}
+              {abierto ? "[−]" : "[+]"}
             </button>
           </span>
         </header>

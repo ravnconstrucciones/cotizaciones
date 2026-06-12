@@ -1,11 +1,18 @@
 "use client";
 
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import { WavesBackdrop } from "@/components/cockpit/waves-backdrop";
 import { AvatarBot } from "@/components/cockpit/avatar-bot";
 import type { Referencia, SinClasificar } from "@/types/centro-mando";
+
+/** Monolito 3D: lazy, solo cliente — el objeto de la página de filosofía. */
+const Monolito3D = dynamic(
+  () => import("@/components/cockpit/monolito-3d"),
+  { ssr: false }
+);
 
 type Vista = "estetica" | "filosofia";
 
@@ -77,6 +84,15 @@ export function AdnScreen() {
   return (
     <div className="font-grotesk relative min-h-screen bg-cdm-bg px-4 pb-24 pt-14 text-cdm-fg sm:px-8">
       <WavesBackdrop />
+      {/* En filosofía el monolito acompaña las frases desde la derecha,
+          hundido en la niebla. En estética no compite con el moodboard. */}
+      {vista === "filosofia" && (
+        <Monolito3D
+          className="fixed inset-0 z-[5] hidden lg:block"
+          posicion="derecha"
+          opacidad={0.75}
+        />
+      )}
       <div className="relative z-10 mx-auto max-w-6xl">
         <div className="relative pb-3">
           {/* Línea de horizonte detrás del header — mismo lenguaje que historial/obras. */}
@@ -143,9 +159,8 @@ export function AdnScreen() {
                 </span>
               </div>
             ) : (
-              {/* Moodboard (iteración 5): grilla flotante en la niebla —
-                  sin cajas duras; cada captura levita con sombra ambiental
-                  y sube apenas al hover. */}
+              /* Moodboard (iteración 5): grilla flotante en la niebla — sin
+                 cajas duras; cada captura levita con sombra ambiental. */
               <div className="mt-10 columns-2 gap-5 md:columns-3 xl:columns-4">
                 {filtradas.map((r, i) => (
                   <motion.figure

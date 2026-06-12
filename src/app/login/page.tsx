@@ -1,11 +1,18 @@
 "use client";
 
 import { useState } from "react";
+import dynamic from "next/dynamic";
 import { motion, useReducedMotion } from "framer-motion";
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
 import { RavnLogo } from "@/components/ravn-logo";
 import { WavesBackdrop } from "@/components/cockpit/waves-backdrop";
+
+/** Monolito 3D: lazy, solo cliente — la primera impresión del cockpit. */
+const Monolito3D = dynamic(
+  () => import("@/components/cockpit/monolito-3d"),
+  { ssr: false }
+);
 
 /**
  * Login (iteración 3 — primera impresión): la malla Waves también vive acá
@@ -51,6 +58,12 @@ export default function LoginPage() {
   return (
     <main className="font-grotesk relative flex min-h-[100dvh] flex-col items-center justify-center overflow-hidden bg-cdm-bg px-6 py-12 text-cdm-fg">
       <WavesBackdrop />
+      {/* El monolito flota a la derecha del form, hundido en la niebla. */}
+      <Monolito3D
+        className="fixed inset-0 z-[5] hidden md:block"
+        posicion="derecha"
+        opacidad={0.85}
+      />
 
       <div className="relative z-10 flex w-full max-w-sm flex-col items-center gap-10">
         <motion.div

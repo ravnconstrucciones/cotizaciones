@@ -55,8 +55,11 @@ export function ModuloCotizaciones({
       colapsable={colapsable}
       accion={
         enRevision > 0 ? (
-          <span className="font-mono-hud text-[9px] uppercase tracking-[0.08em] text-amber-300">
-            {enRevision} en revisión
+          <span
+            title={`${enRevision} en revisión`}
+            className="font-mono-hud border border-amber-300/50 px-1.5 text-[10px] font-bold tabular-nums text-amber-300 shadow-[0_0_12px_-2px_rgba(252,211,77,0.45)]"
+          >
+            {enRevision}
           </span>
         ) : undefined
       }
