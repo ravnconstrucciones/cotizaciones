@@ -6,6 +6,7 @@ import { formatMoneyInt } from "@/lib/format-currency";
 import { VolverAlInicio } from "@/components/volver-al-inicio";
 import { WavesBackdrop } from "@/components/cockpit/waves-backdrop";
 import { CifraHeroica } from "@/components/cockpit/cifra-heroica";
+import { SkeletonGlass } from "@/components/cockpit/skeleton-glass";
 
 type CierrePayload = {
   generado_en: string;
@@ -98,7 +99,9 @@ export function CashflowCierreScreen({ obraId }: { obraId: string }) {
         </p>
 
         {loading ? (
-          <p className="mt-8 text-sm text-cdm-muted">Cargando…</p>
+          <div className="cdm-glass mt-10 px-5 py-6">
+            <SkeletonGlass filas={3} anchos={["w-1/2", "w-2/3", "w-1/3"]} />
+          </div>
         ) : error ? (
           <p className="mt-8 text-sm text-red-400">{error}</p>
         ) : p ? (

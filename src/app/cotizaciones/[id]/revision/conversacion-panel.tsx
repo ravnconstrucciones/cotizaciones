@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import { ArrowUp } from "lucide-react";
+import { SkeletonGlass } from "@/components/cockpit/skeleton-glass";
 import type { EstadoCotizacion } from "@/lib/cotizador/tipos";
 import type { MensajeHilo } from "@/lib/cotizador/conversacion";
 import { useRealtimeTable } from "@/hooks/use-realtime-table";
@@ -130,7 +131,7 @@ export function ConversacionPanel({
 
       <div className="min-h-0 max-h-[420px] flex-1 overflow-y-auto p-4">
         {mensajes === null ? (
-          <p className="text-[11px] text-cdm-muted">Cargando hilo…</p>
+          <SkeletonGlass filas={3} alto="h-2.5" anchos={["w-3/4", "w-1/2", "w-2/3"]} />
         ) : mensajes.length === 0 ? (
           <p className="text-[11px] leading-relaxed text-cdm-muted">
             Sin conversación todavía. Lo que escribas acá abajo queda en el hilo

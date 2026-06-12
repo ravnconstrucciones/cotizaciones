@@ -4,6 +4,7 @@ import Link from "next/link";
 import { Trash2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { RavnLogo } from "@/components/ravn-logo";
+import { SkeletonGlass } from "@/components/cockpit/skeleton-glass";
 import { createClient } from "@/lib/supabase/client";
 import {
   formatArsEnteroDesdeDigitos,
@@ -470,7 +471,9 @@ export function MaestroPreciosScreen() {
 
         <div className="mt-8 overflow-x-auto rounded-none border border-ravn-line border-b-0">
           {loading ? (
-            <p className="p-8 font-light text-ravn-muted">Cargando…</p>
+            <div className="p-8">
+              <SkeletonGlass filas={5} anchos={["w-full", "w-3/4", "w-2/3", "w-5/6", "w-1/2"]} />
+            </div>
           ) : (
             <table className="w-full min-w-[1020px] border-collapse text-left text-sm">
               <thead>

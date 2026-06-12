@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { OrbitalObra } from "@/components/cockpit/orbital-obra";
 import { WavesBackdrop } from "@/components/cockpit/waves-backdrop";
+import { SkeletonGlass } from "@/components/cockpit/skeleton-glass";
 import { useRealtimeTable } from "@/hooks/use-realtime-table";
 import { importeGastoObraArs } from "@/lib/cashflow-gastos-obra";
 import {
@@ -150,7 +151,9 @@ export function ObraOrbitalScreen({ presupuestoId }: { presupuestoId: string }) 
           <p className="px-1 pt-4 text-[11px] text-red-400">{error}</p>
         )}
         {!error && !orbital && (
-          <p className="px-1 pt-4 text-[11px] text-cdm-muted">Cargando…</p>
+          <div className="px-1 pt-6">
+            <SkeletonGlass filas={4} anchos={["w-1/3", "w-1/2", "w-1/4", "w-2/5"]} />
+          </div>
         )}
         {orbital && orbital.nodos.length === 0 && (
           <div className="flex h-full items-center justify-center">

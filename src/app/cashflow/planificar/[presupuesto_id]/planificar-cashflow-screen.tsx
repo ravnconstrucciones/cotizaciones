@@ -8,6 +8,7 @@ import { parseFormattedNumber, roundArs2 } from "@/lib/format-currency";
 import { formatTotalDisplay } from "@/lib/format-total-display";
 import { VolverAlInicio } from "@/components/volver-al-inicio";
 import { WavesBackdrop } from "@/components/cockpit/waves-backdrop";
+import { SkeletonGlass } from "@/components/cockpit/skeleton-glass";
 
 type IngresoPrev = {
   clave: string;
@@ -206,7 +207,9 @@ export function PlanificarCashflowScreen({
         </header>
 
         {loading ? (
-          <p className="mt-10 text-sm text-cdm-muted">Cargando…</p>
+          <div className="cdm-glass mt-10 px-5 py-6">
+            <SkeletonGlass filas={3} anchos={["w-1/2", "w-2/3", "w-1/3"]} />
+          </div>
         ) : error && !preview ? (
           <div className="mt-10 space-y-4">
             <p className="text-sm text-red-400">{error}</p>

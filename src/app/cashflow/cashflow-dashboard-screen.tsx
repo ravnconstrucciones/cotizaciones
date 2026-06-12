@@ -8,6 +8,8 @@ import { formatMoneyInt } from "@/lib/format-currency";
 import { VolverAlInicio } from "@/components/volver-al-inicio";
 import { WavesBackdrop } from "@/components/cockpit/waves-backdrop";
 import { CifraHeroica } from "@/components/cockpit/cifra-heroica";
+import { SkeletonGlass } from "@/components/cockpit/skeleton-glass";
+import { fetchCompartido } from "@/lib/fetch-compartido";
 
 type ObraActiva = {
   obra_id: string;
@@ -88,8 +90,11 @@ export function CashflowDashboardScreen() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch("/cashflow/resumen", { cache: "no-store" });
-      const j = (await res.json()) as ResumenJson & { error?: string };
+      // fetchCompartido consume el prefetch del documento en el primer load
+      // (ronda 6 — perf); los reloads post-mutación siempre van frescos
+      // porque el prefetch se consume una sola vez.
+      const res = await fetchCompartido("/cashflow/resumen");
+      const j = res.body as ResumenJson & { error?: string };
       if (!res.ok) {
         setError(j.error ?? "No se pudo cargar el resumen.");
         setData(null);
@@ -252,7 +257,14 @@ export function CashflowDashboardScreen() {
         ) : null}
 
         {loading ? (
-          <p className="mt-12 text-sm text-cdm-muted">Cargando…</p>
+          <div className="mt-10 flex flex-col gap-10">
+            <div className="cdm-glass px-5 py-5">
+              <SkeletonGlass filas={2} anchos={["w-1/3", "w-1/2"]} />
+            </div>
+            <div className="cdm-glass px-5 py-5">
+              <SkeletonGlass filas={4} anchos={["w-2/3", "w-1/2", "w-3/4", "w-2/5"]} />
+            </div>
+          </div>
         ) : error ? (
           <p className="mt-12 text-sm text-red-400">{error}</p>
         ) : data ? (

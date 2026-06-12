@@ -10,6 +10,7 @@ import type { CashflowTipo } from "@/lib/cashflow-compute";
 import { formatMoneyInt } from "@/lib/format-currency";
 import { VolverAlInicio } from "@/components/volver-al-inicio";
 import { WavesBackdrop } from "@/components/cockpit/waves-backdrop";
+import { SkeletonGlass } from "@/components/cockpit/skeleton-glass";
 import { CifraHeroica } from "@/components/cockpit/cifra-heroica";
 
 type ItemRow = {
@@ -299,7 +300,15 @@ export function CashflowObraScreen({ obraId }: { obraId: string }) {
         </div>
 
         {loading ? (
-          <p className="mt-12 text-sm text-cdm-muted">Cargando…</p>
+          <div className="mt-10 flex flex-col gap-10">
+            <div className="cdm-glass grid gap-4 p-5 sm:grid-cols-2">
+              <SkeletonGlass filas={2} anchos={["w-1/2", "w-2/3"]} />
+              <SkeletonGlass filas={2} anchos={["w-1/2", "w-2/3"]} />
+            </div>
+            <div className="cdm-glass p-5">
+              <SkeletonGlass filas={4} anchos={["w-3/4", "w-1/2", "w-2/3", "w-2/5"]} />
+            </div>
+          </div>
         ) : error ? (
           <p className="mt-12 text-sm text-red-400">{error}</p>
         ) : data ? (

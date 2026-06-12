@@ -401,6 +401,42 @@ html.light {
       0 0 44px -6px rgba(34, 211, 238, 0.6),
       0 8px 24px -12px rgba(0, 0, 0, 0.6);
   }
+
+  /**
+   * Pulso de carga (ronda 6 — muerte del loader feo): la marca RAVN.
+   * RESPIRA mientras el sistema carga. Anima solo opacity (compositor).
+   * Se aplica sobre el wrapper del RavnLogo en CargandoCockpit.
+   */
+  .cdm-pulso-carga {
+    animation: cdm-pulso-carga 2.2s ease-in-out infinite;
+  }
+
+  /**
+   * Skeleton glass del cockpit: barra de vidrio con barrido cian tenue.
+   * Mismo lenguaje que .cdm-glass pero en miniatura — el dato "se está
+   * proyectando" en el panel. El caller pone alto/ancho con utilidades.
+   */
+  .cdm-skeleton {
+    position: relative;
+    overflow: hidden;
+    background: rgba(234, 246, 251, 0.045);
+    box-shadow: inset 0 1px 0 rgba(234, 246, 251, 0.06);
+  }
+  .cdm-skeleton::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+      100deg,
+      transparent 20%,
+      rgba(34, 211, 238, 0.1) 45%,
+      rgba(125, 211, 252, 0.16) 50%,
+      rgba(34, 211, 238, 0.1) 55%,
+      transparent 80%
+    );
+    transform: translateX(-100%);
+    animation: cdm-skeleton-barrido 1.8s ease-in-out infinite;
+  }
 }
 
 @keyframes cdm-shimmer-sweep {
@@ -424,6 +460,28 @@ html.light {
   }
 }
 
+/* La marca respira mientras carga: el bloom sube y baja con ella. */
+@keyframes cdm-pulso-carga {
+  0%,
+  100% {
+    opacity: 0.55;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+/* Barrido del skeleton glass: luz cian que cruza la barra. */
+@keyframes cdm-skeleton-barrido {
+  0% {
+    transform: translateX(-100%);
+  }
+  60%,
+  100% {
+    transform: translateX(100%);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .cdm-shimmer {
     animation: none;
@@ -432,6 +490,15 @@ html.light {
   .cdm-niebla {
     animation: none;
     opacity: 0.8;
+  }
+  .cdm-pulso-carga {
+    animation: none;
+    opacity: 0.85;
+  }
+  .cdm-skeleton::after {
+    animation: none;
+    transform: translateX(0);
+    opacity: 0.4;
   }
 }
 

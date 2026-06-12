@@ -12,6 +12,7 @@ import type {
 import { formatMoneyInt } from "@/lib/format-currency";
 import { createClient } from "@/lib/supabase/client";
 import { VolverAlInicio } from "@/components/volver-al-inicio";
+import { SkeletonGlass } from "@/components/cockpit/skeleton-glass";
 import { WavesBackdrop } from "@/components/cockpit/waves-backdrop";
 import { CifraHeroica } from "@/components/cockpit/cifra-heroica";
 import { ConversacionPanel } from "./conversacion-panel";
@@ -183,7 +184,14 @@ export function RevisionScreen({ id }: { id: string }) {
         <WavesBackdrop />
         <div className="relative z-10 mx-auto w-full max-w-6xl">
           <VolverAlInicio />
-          <p className="text-sm text-cdm-muted">Cargando…</p>
+          <div className="grid gap-6 lg:grid-cols-[1fr_380px]">
+            <div className="cdm-glass p-5">
+              <SkeletonGlass filas={5} anchos={["w-2/3", "w-full", "w-1/2", "w-3/4", "w-2/5"]} />
+            </div>
+            <div className="cdm-glass p-5">
+              <SkeletonGlass filas={3} anchos={["w-3/4", "w-1/2", "w-2/3"]} />
+            </div>
+          </div>
         </div>
       </main>
     );

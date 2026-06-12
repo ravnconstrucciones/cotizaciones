@@ -18,6 +18,7 @@ import {
 } from "@/lib/ravn-propuesta-pref";
 import { parseRentabilidadInputsJson } from "@/lib/ravn-rentabilidad-inputs";
 import { WavesBackdrop } from "@/components/cockpit/waves-backdrop";
+import { CargandoCockpit } from "@/components/cockpit/cargando-cockpit";
 import { CifraHeroica } from "@/components/cockpit/cifra-heroica";
 import { VolverAlInicio } from "@/components/volver-al-inicio";
 
@@ -469,12 +470,7 @@ export function ControlGastosScreen() {
   }, [rows, items, rentabilidadInputsById, gastadoPorId]);
 
   if (loading) {
-    return (
-      <main className="font-grotesk relative flex min-h-screen items-center justify-center bg-cdm-bg text-cdm-muted">
-        <WavesBackdrop />
-        <span className="relative z-10 text-xs uppercase tracking-widest">Cargando…</span>
-      </main>
-    );
+    return <CargandoCockpit label="Control de gastos" />;
   }
 
   if (error) {

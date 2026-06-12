@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from "react";
 import type { EstadoCotizacion } from "@/lib/cotizador/tipos";
 import { formatMoneyInt } from "@/lib/format-currency";
 import { WavesBackdrop } from "@/components/cockpit/waves-backdrop";
+import { SkeletonGlass } from "@/components/cockpit/skeleton-glass";
 
 type CotizacionListada = {
   id: string;
@@ -110,7 +111,9 @@ export function CotizacionesScreen() {
         {error && <p className="mt-6 text-sm text-red-400">{error}</p>}
 
         {cargando ? (
-          <p className="mt-6 text-sm text-cdm-muted">Cargando…</p>
+          <div className="cdm-glass mt-6 p-5">
+            <SkeletonGlass filas={4} anchos={["w-2/3", "w-full", "w-1/2", "w-3/4"]} />
+          </div>
         ) : cotizaciones.length === 0 ? (
           <div className="mt-6 flex h-28 items-center justify-center border border-dashed border-cdm-line">
             <span className="max-w-md px-4 text-center text-[10px] uppercase tracking-[0.2em] leading-relaxed text-cdm-muted/60">

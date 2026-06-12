@@ -5,6 +5,7 @@ import { Search, Trash2 } from "lucide-react";
 import { motion } from "framer-motion";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { WavesBackdrop } from "@/components/cockpit/waves-backdrop";
+import { SkeletonGlass } from "@/components/cockpit/skeleton-glass";
 import { createClient } from "@/lib/supabase/client";
 import { formatTotalDisplay } from "@/lib/format-total-display";
 import { formatNumeroComercialHumano } from "@/lib/presupuesto-numero-comercial";
@@ -573,9 +574,9 @@ export function HistorialScreen() {
         </Link>
 
         {loading ? (
-          <p className="mt-12 text-sm font-light text-cdm-muted">
-            Cargando historial…
-          </p>
+          <div className="cdm-glass mt-12 p-5">
+            <SkeletonGlass filas={5} anchos={["w-full", "w-2/3", "w-3/4", "w-1/2", "w-2/5"]} />
+          </div>
         ) : error ? (
           <p className="mt-12 text-sm text-red-400">
             {error}

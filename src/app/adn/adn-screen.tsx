@@ -6,6 +6,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import { WavesBackdrop } from "@/components/cockpit/waves-backdrop";
 import { AvatarBot } from "@/components/cockpit/avatar-bot";
+import { SkeletonGlass } from "@/components/cockpit/skeleton-glass";
 import type { Referencia, SinClasificar } from "@/types/centro-mando";
 
 /** Monolito 3D: lazy, solo cliente — el objeto de la página de filosofía. */
@@ -124,7 +125,11 @@ export function AdnScreen() {
 
         {error && <p className="mt-6 text-[11px] text-red-400">{error}</p>}
         {!error && cargando && (
-          <p className="mt-6 text-[11px] text-cdm-muted">Cargando…</p>
+          <div className="mt-8 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+            <SkeletonGlass filas={3} alto="h-4" anchos={["w-full", "w-2/3", "w-1/2"]} />
+            <SkeletonGlass filas={3} alto="h-4" anchos={["w-3/4", "w-full", "w-2/5"]} />
+            <SkeletonGlass filas={3} alto="h-4" anchos={["w-2/3", "w-1/2", "w-full"]} />
+          </div>
         )}
 
         {!error && !cargando && vista === "estetica" && (

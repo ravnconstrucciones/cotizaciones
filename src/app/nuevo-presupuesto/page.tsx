@@ -1,15 +1,10 @@
 import { Suspense } from "react";
 import { NuevoPresupuestoScreen } from "./nuevo-presupuesto";
+import { CargandoCockpit } from "@/components/cockpit/cargando-cockpit";
 
 export default function NuevoPresupuestoPage() {
   return (
-    <Suspense
-      fallback={
-        <div className="font-grotesk flex min-h-[40vh] items-center justify-center bg-cdm-bg px-6 text-sm text-cdm-muted">
-          Cargando…
-        </div>
-      }
-    >
+    <Suspense fallback={<CargandoCockpit variante="bloque" />}>
       <NuevoPresupuestoScreen />
     </Suspense>
   );

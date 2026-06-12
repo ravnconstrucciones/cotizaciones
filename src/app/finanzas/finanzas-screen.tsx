@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { formatMoneyInt } from "@/lib/format-currency";
 import { VolverAlInicio } from "@/components/volver-al-inicio";
 import { WavesBackdrop } from "@/components/cockpit/waves-backdrop";
+import { CargandoCockpit } from "@/components/cockpit/cargando-cockpit";
 import { CifraHeroica } from "@/components/cockpit/cifra-heroica";
 
 type Semaforo = "verde" | "amarillo" | "rojo";
@@ -166,12 +167,7 @@ export function FinanzasScreen() {
   }
 
   if (loading) {
-    return (
-      <main className="font-grotesk relative flex min-h-screen items-center justify-center bg-cdm-bg text-cdm-muted">
-        <WavesBackdrop />
-        <span className="relative z-10 text-xs uppercase tracking-widest">Cargando…</span>
-      </main>
-    );
+    return <CargandoCockpit label="Finanzas" />;
   }
 
   if (error || !data) {
