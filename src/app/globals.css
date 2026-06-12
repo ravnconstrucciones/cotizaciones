@@ -25,6 +25,16 @@ html.light {
   --ravn-subtle: rgba(24, 24, 23, 0.08);
 }
 
+/* ── Centro de Mando (cockpit Jarvis) — paleta fija, siempre oscura ── */
+:root {
+  --cdm-bg: #0a0a0a;
+  --cdm-panel: #101010;
+  --cdm-fg: #f0ede6;
+  --cdm-muted: rgba(240, 237, 230, 0.45);
+  --cdm-line: rgba(240, 237, 230, 0.14);
+  --cdm-taupe: #c8b49a;
+}
+
 @theme {
   --color-ravn-surface: var(--ravn-surface);
   --color-ravn-fg: var(--ravn-fg);
@@ -33,6 +43,12 @@ html.light {
   --color-ravn-accent: var(--ravn-accent);
   --color-ravn-accent-contrast: var(--ravn-accent-contrast);
   --color-ravn-subtle: var(--ravn-subtle);
+  --color-cdm-bg: var(--cdm-bg);
+  --color-cdm-panel: var(--cdm-panel);
+  --color-cdm-fg: var(--cdm-fg);
+  --color-cdm-muted: var(--cdm-muted);
+  --color-cdm-line: var(--cdm-line);
+  --color-cdm-taupe: var(--cdm-taupe);
 
   /* compat: theme-toggle y código que aún usa ravn-ink */
   --color-ravn-ink: var(--ravn-fg);
