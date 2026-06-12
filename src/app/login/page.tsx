@@ -1,9 +1,23 @@
 "use client";
 
 import { useState } from "react";
+import { motion, useReducedMotion } from "framer-motion";
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
 import { RavnLogo } from "@/components/ravn-logo";
+import { WavesBackdrop } from "@/components/cockpit/waves-backdrop";
+
+/**
+ * Login (iteración 3 — primera impresión): la malla Waves también vive acá
+ * (antes era negro plano), la marca grande con shimmer y el form como panel
+ * glass flotante con entrada animada. La lógica de auth no cambió.
+ */
+
+const fieldCls =
+  "w-full rounded-none border-0 border-b border-cdm-line bg-transparent px-1 py-3 text-sm text-cdm-fg placeholder:text-cdm-muted/40 transition-[border-color,box-shadow] duration-200 focus-visible:border-cdm-taupe focus-visible:outline-none focus-visible:shadow-[0_12px_24px_-16px_rgba(200,180,154,0.6)]";
+
+const labelCls =
+  "text-[10px] font-medium uppercase tracking-[0.24em] text-cdm-muted";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -12,6 +26,7 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const router = useRouter();
   const supabase = createClient();
+  const reducirMovimiento = useReducedMotion();
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
@@ -34,16 +49,35 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="flex min-h-[100dvh] flex-col items-center justify-center bg-ravn-surface px-6 py-12 text-ravn-fg">
-      <div className="flex w-full max-w-sm flex-col items-center gap-10">
-        <RavnLogo sizeClassName="text-4xl sm:text-5xl" />
+    <main className="font-inter relative flex min-h-[100dvh] flex-col items-center justify-center overflow-hidden bg-cdm-bg px-6 py-12 text-cdm-fg">
+      <WavesBackdrop />
 
-        <form onSubmit={handleLogin} className="flex w-full flex-col gap-4">
-          <div className="flex flex-col gap-1">
-            <label
-              htmlFor="email"
-              className="font-raleway text-xs uppercase tracking-widest text-ravn-fg/60"
-            >
+      <div className="relative z-10 flex w-full max-w-sm flex-col items-center gap-10">
+        <motion.div
+          initial={reducirMovimiento ? false : { opacity: 0, y: -16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
+        >
+          <RavnLogo
+            shimmer
+            sizeClassName="text-4xl sm:text-5xl"
+            className="drop-shadow-[0_0_28px_rgba(200,180,154,0.25)]"
+          />
+        </motion.div>
+
+        <motion.form
+          onSubmit={handleLogin}
+          initial={reducirMovimiento ? false : { opacity: 0, y: 24 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{
+            duration: 0.55,
+            delay: 0.12,
+            ease: [0.22, 1, 0.36, 1],
+          }}
+          className="cdm-glass flex w-full flex-col gap-6 p-8"
+        >
+          <div className="flex flex-col gap-2">
+            <label htmlFor="email" className={labelCls}>
               Email
             </label>
             <input
@@ -53,16 +87,13 @@ export default function LoginPage() {
               required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="border border-ravn-line bg-transparent px-4 py-3 text-sm text-ravn-fg placeholder-ravn-fg/30 outline-none focus:border-ravn-fg transition-colors"
+              className={fieldCls}
               placeholder="tu@email.com"
             />
           </div>
 
-          <div className="flex flex-col gap-1">
-            <label
-              htmlFor="password"
-              className="font-raleway text-xs uppercase tracking-widest text-ravn-fg/60"
-            >
+          <div className="flex flex-col gap-2">
+            <label htmlFor="password" className={labelCls}>
               Contraseña
             </label>
             <input
@@ -72,25 +103,30 @@ export default function LoginPage() {
               required
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="border border-ravn-line bg-transparent px-4 py-3 text-sm text-ravn-fg placeholder-ravn-fg/30 outline-none focus:border-ravn-fg transition-colors"
+              className={fieldCls}
               placeholder="••••••••"
             />
           </div>
 
           {error && (
-            <p className="font-raleway text-xs uppercase tracking-wider text-red-500">
+            <p
+              role="alert"
+              className="border border-red-400/40 bg-red-500/10 px-3 py-2 text-xs uppercase tracking-wider text-red-300"
+            >
               {error}
             </p>
           )}
 
-          <button
+          <motion.button
             type="submit"
             disabled={loading}
-            className="font-raleway mt-2 inline-flex w-full items-center justify-center border-2 border-ravn-accent bg-ravn-accent px-8 py-4 text-sm font-normal uppercase tracking-wider text-ravn-accent-contrast transition-opacity hover:opacity-85 disabled:opacity-50"
+            whileHover={reducirMovimiento ? undefined : { y: -1 }}
+            whileTap={reducirMovimiento ? undefined : { scale: 0.985 }}
+            className="mt-2 inline-flex w-full items-center justify-center rounded-none border border-cdm-fg bg-cdm-fg px-8 py-4 text-sm font-semibold uppercase tracking-[0.18em] text-cdm-bg transition-shadow duration-300 hover:shadow-[0_0_36px_-4px_rgba(200,180,154,0.55)] disabled:opacity-50"
           >
             {loading ? "Ingresando..." : "Ingresar"}
-          </button>
-        </form>
+          </motion.button>
+        </motion.form>
       </div>
     </main>
   );
