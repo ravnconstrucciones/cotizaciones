@@ -1,6 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
+import { useEntradaAnimada } from "@/hooks/use-entrada-animada";
 import type { CerebroData } from "@/types/centro-mando";
 import { CommandBar } from "./command-bar";
 import { WavesBackdrop } from "./waves-backdrop";
@@ -27,6 +28,10 @@ const stagger = {
  * de niebla detrás (WavesBackdrop). En < lg degrada a una columna.
  */
 export function CockpitHome({ cerebro }: { cerebro: CerebroData }) {
+  // En la carga de documento los paneles pintan con el HTML (sin stagger):
+  // initial="hidden" se SSR-ea con opacity:0 y dejaba la home invisible
+  // hasta hidratar (ronda 6). El stagger queda para navegación client-side.
+  const animar = useEntradaAnimada();
   return (
     <div className="font-grotesk relative flex min-h-screen flex-col gap-7 bg-cdm-bg px-5 pb-10 pt-6 text-cdm-fg lg:px-10 lg:pt-8">
       <WavesBackdrop />
@@ -55,7 +60,7 @@ export function CockpitHome({ cerebro }: { cerebro: CerebroData }) {
       {/* Nivel 1 — lo que manda: tres módulos en grande, con aire. */}
       <motion.div
         variants={stagger}
-        initial="hidden"
+        initial={animar ? "hidden" : false}
         animate="visible"
         className="relative z-10 grid grid-cols-1 gap-5 lg:h-[46vh] lg:min-h-[340px] lg:grid-cols-3"
       >
@@ -75,7 +80,7 @@ export function CockpitHome({ cerebro }: { cerebro: CerebroData }) {
       </div>
       <motion.div
         variants={stagger}
-        initial="hidden"
+        initial={animar ? "hidden" : false}
         animate="visible"
         transition={{ delayChildren: 0.25 }}
         className="relative z-10 -mt-4 grid grid-cols-1 items-start gap-3 sm:grid-cols-2 xl:grid-cols-5"
