@@ -3,7 +3,7 @@ import { categoriaValidaParaTipo } from "@/lib/cashflow-validate";
 import type { CashflowTipo } from "@/lib/cashflow-compute";
 import { estadoDesdeTipo } from "@/lib/cashflow-matching";
 import { roundArs2 } from "@/lib/format-currency";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { createSupabaseAdminClient } from "@/lib/supabase/server";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -27,7 +27,7 @@ export async function PUT(req: Request, ctx: Params) {
   try {
     const { id } = await ctx.params;
     const body = (await req.json()) as Body;
-    const supabase = createSupabaseServerClient();
+    const supabase = createSupabaseAdminClient();
 
     const { data: existing, error: e0 } = await supabase
       .from("cashflow_items")
@@ -237,7 +237,7 @@ export async function PUT(req: Request, ctx: Params) {
 export async function DELETE(_req: Request, ctx: Params) {
   try {
     const { id } = await ctx.params;
-    const supabase = createSupabaseServerClient();
+    const supabase = createSupabaseAdminClient();
     const { data, error } = await supabase
       .from("cashflow_items")
       .update({ deleted_at: new Date().toISOString() })

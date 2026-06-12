@@ -1,12 +1,12 @@
 import { NextResponse } from "next/server";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { createSupabaseAdminClient } from "@/lib/supabase/server";
 
 type Params = { params: Promise<{ id: string }> };
 
 export async function POST(_req: Request, ctx: Params) {
   try {
     const { id } = await ctx.params;
-    const supabase = createSupabaseServerClient();
+    const supabase = createSupabaseAdminClient();
     const { data, error } = await supabase
       .from("cashflow_items")
       .update({ deleted_at: null })
