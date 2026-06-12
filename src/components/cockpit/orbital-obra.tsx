@@ -85,8 +85,21 @@ export function OrbitalObra({
   const [expandido, setExpandido] = useState<string | null>(null);
   const [rotacion, setRotacion] = useState(0);
   const [autoRotar, setAutoRotar] = useState(true);
+  const [radio, setRadio] = useState(210);
   const containerRef = useRef<HTMLDivElement>(null);
   const orbitRef = useRef<HTMLDivElement>(null);
+
+  // Radio responsive: en pantallas angostas la órbita se achica para que
+  // los nodos no queden recortados (el original fijaba 200 y desbordaba).
+  useEffect(() => {
+    const medir = () => {
+      const w = containerRef.current?.clientWidth ?? 0;
+      if (w > 0) setRadio(Math.max(120, Math.min(210, w / 2 - 70)));
+    };
+    medir();
+    window.addEventListener("resize", medir);
+    return () => window.removeEventListener("resize", medir);
+  }, []);
 
   useEffect(() => {
     if (!autoRotar || reducirMovimiento) return;
@@ -119,9 +132,8 @@ export function OrbitalObra({
   const posicionNodo = (index: number, total: number) => {
     const angle = ((index / total) * 360 + rotacion) % 360;
     const radian = (angle * Math.PI) / 180;
-    const radius = 210;
-    const x = radius * Math.cos(radian);
-    const y = radius * Math.sin(radian);
+    const x = radio * Math.cos(radian);
+    const y = radio * Math.sin(radian);
     const zIndex = Math.round(100 + 50 * Math.cos(radian));
     const opacity = Math.max(
       0.45,
@@ -177,7 +189,10 @@ export function OrbitalObra({
         </div>
 
         {/* Órbita guía */}
-        <div className="absolute h-[420px] w-[420px] rounded-full border border-cdm-fg/10" />
+        <div
+          className="absolute rounded-full border border-cdm-fg/10"
+          style={{ width: radio * 2, height: radio * 2 }}
+        />
 
         {nodos.map((nodo, index) => {
           const pos = posicionNodo(index, nodos.length);

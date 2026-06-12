@@ -180,9 +180,11 @@ export function WavesBackdrop() {
       }
     };
 
+    // El contenedor es fixed inset-0: clientX/Y mapean directo al viewport
+    // (el original usaba pageX + scrollY porque vivía dentro de una sección).
     const onMouseMove = (e: MouseEvent) => {
-      mouse.x = e.pageX - bounding.left;
-      mouse.y = e.pageY - bounding.top + window.scrollY;
+      mouse.x = e.clientX - bounding.left;
+      mouse.y = e.clientY - bounding.top;
       if (!mouse.set) {
         mouse.sx = mouse.x;
         mouse.sy = mouse.y;
