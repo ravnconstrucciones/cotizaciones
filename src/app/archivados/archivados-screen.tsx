@@ -9,6 +9,7 @@ import {
   textoDeEvento,
   type DestinoArchivado,
 } from "@/lib/archivados-destinos";
+import { WavesBackdrop } from "@/components/cockpit/waves-backdrop";
 import type { Evento } from "@/types/centro-mando";
 
 type ObraOpcion = {
@@ -37,7 +38,7 @@ const CATEGORIAS_GASTO = [
 ];
 
 const INPUT_CLS =
-  "font-raleway w-full border border-cdm-line bg-transparent px-3 py-2 text-xs text-cdm-fg placeholder:text-cdm-muted/50 focus:border-cdm-taupe focus:outline-none";
+  "w-full border border-cdm-line bg-transparent px-3 py-2 text-xs text-cdm-fg placeholder:text-cdm-muted/50 focus:border-cdm-taupe focus:outline-none";
 
 function fmtFechaHora(iso: string): string {
   return new Date(iso).toLocaleString("es-AR", {
@@ -172,7 +173,7 @@ function FormResolver({
       <button
         type="submit"
         disabled={enviando}
-        className="font-raleway w-full border border-cdm-taupe px-4 py-2 text-[10px] uppercase tracking-[0.2em] text-cdm-taupe transition-colors hover:bg-cdm-taupe hover:text-cdm-bg disabled:opacity-40"
+        className="w-full border border-cdm-taupe px-4 py-2 text-[10px] uppercase tracking-[0.2em] text-cdm-taupe transition-colors hover:bg-cdm-taupe hover:text-cdm-bg disabled:opacity-40"
       >
         {enviando ? "Resolviendo…" : destino === "descartar" ? "Descartar" : "Resolver"}
       </button>
@@ -217,21 +218,32 @@ export function ArchivadosScreen() {
   }
 
   return (
-    <div className="min-h-screen bg-cdm-bg px-4 py-8 text-cdm-fg sm:px-8">
-      <div className="mx-auto max-w-3xl">
-        <h1 className="font-raleway text-xs uppercase tracking-[0.35em] text-cdm-taupe">
-          Archivados
-        </h1>
-        <p className="mt-1 text-[11px] text-cdm-muted">
+    <div className="font-grotesk relative min-h-screen bg-cdm-bg px-4 pb-24 pt-14 text-cdm-fg sm:px-8">
+      <WavesBackdrop />
+      <div className="relative z-10 mx-auto max-w-3xl">
+        <div className="relative pb-3">
+          {/* Línea de horizonte detrás del header — mismo lenguaje que historial/obras. */}
+          <span aria-hidden className="cdm-horizon absolute inset-x-0 bottom-0" />
+          <h1 className="flex items-center gap-2 text-[11px] uppercase tracking-[0.35em] text-cdm-muted">
+            <span
+              aria-hidden
+              className="h-[5px] w-[5px] bg-cdm-taupe shadow-[0_0_8px_rgba(200,180,154,0.9)]"
+            />
+            Archivados
+          </h1>
+        </div>
+        <p className="mt-4 text-sm text-cdm-muted">
           Lo que el bot no pudo clasificar espera acá. Asignale un destino o descartalo —
           pérdida: cero.
         </p>
 
         {cargando && <p className="mt-8 text-[11px] text-cdm-muted">Cargando…</p>}
         {!cargando && eventos.length === 0 && (
-          <p className="mt-8 text-[10px] uppercase tracking-widest text-cdm-muted">
-            Nada sin clasificar. Pérdida: cero.
-          </p>
+          <div className="mt-8 flex h-24 items-center justify-center border border-dashed border-cdm-line">
+            <span className="text-[10px] uppercase tracking-[0.2em] text-cdm-muted/60">
+              Nada sin clasificar. Pérdida: cero.
+            </span>
+          </div>
         )}
 
         <AnimatePresence initial={false}>
@@ -240,7 +252,7 @@ export function ArchivadosScreen() {
               key={e.id}
               layout
               exit={{ opacity: 0, x: 24 }}
-              className="mt-3 border border-cdm-line bg-cdm-panel"
+              className="cdm-glass mt-4"
             >
               <button
                 onClick={() => setAbierto((a) => (a === e.id ? null : e.id))}

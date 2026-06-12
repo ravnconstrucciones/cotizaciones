@@ -5,6 +5,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { createClient } from "@/lib/supabase/client";
 import { useRealtimeTable } from "@/hooks/use-realtime-table";
 import { ORIGEN_TAG } from "@/components/cockpit/modulo-actividad";
+import { WavesBackdrop } from "@/components/cockpit/waves-backdrop";
 import type { EstadoEvento, Evento, OrigenEvento } from "@/types/centro-mando";
 
 const ORIGENES: Array<"todos" | OrigenEvento> = [
@@ -63,16 +64,25 @@ export function ActividadScreen() {
   useRealtimeTable("eventos", cargar);
 
   return (
-    <div className="min-h-screen bg-cdm-bg px-4 py-8 text-cdm-fg sm:px-8">
-      <div className="mx-auto max-w-4xl">
-        <h1 className="font-raleway text-xs uppercase tracking-[0.35em] text-cdm-taupe">
-          Actividad
-        </h1>
-        <p className="mt-1 text-[11px] text-cdm-muted">
+    <div className="font-grotesk relative min-h-screen bg-cdm-bg px-4 pb-24 pt-14 text-cdm-fg sm:px-8">
+      <WavesBackdrop />
+      <div className="relative z-10 mx-auto max-w-4xl">
+        <div className="relative pb-3">
+          {/* Línea de horizonte detrás del header — mismo lenguaje que historial/obras. */}
+          <span aria-hidden className="cdm-horizon absolute inset-x-0 bottom-0" />
+          <h1 className="flex items-center gap-2 text-[11px] uppercase tracking-[0.35em] text-cdm-muted">
+            <span
+              aria-hidden
+              className="h-[5px] w-[5px] bg-cdm-taupe shadow-[0_0_8px_rgba(200,180,154,0.9)]"
+            />
+            Actividad
+          </h1>
+        </div>
+        <p className="mt-4 text-sm text-cdm-muted">
           Registro permanente: todo lo que hizo el bot, el daemon y el tablero.
         </p>
 
-        <div className="mt-5 flex flex-wrap gap-1.5">
+        <div className="mt-6 flex flex-wrap gap-1.5">
           {ORIGENES.map((o) => (
             <button
               key={o}
@@ -93,21 +103,29 @@ export function ActividadScreen() {
           <p className="mt-6 text-[11px] text-cdm-muted">Cargando…</p>
         )}
         {!error && !cargando && eventos.length === 0 && (
-          <p className="mt-6 text-[11px] text-cdm-muted">
-            Sin eventos para este filtro.
-          </p>
+          <div className="mt-6 flex h-24 items-center justify-center border border-dashed border-cdm-line">
+            <span className="text-[10px] uppercase tracking-[0.2em] text-cdm-muted/60">
+              Sin eventos para este filtro
+            </span>
+          </div>
         )}
 
-        <ul className="mt-4 border-t border-cdm-line">
+        <ul
+          className={`cdm-glass mt-6 px-4 py-1 sm:px-5 ${
+            eventos.length === 0 ? "hidden" : ""
+          }`}
+        >
           <AnimatePresence initial={false}>
-            {eventos.map((e) => (
+            {eventos.map((e, i) => (
               <motion.li
                 key={e.id}
                 layout
                 initial={{ opacity: 0, x: -8 }}
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0 }}
-                className="flex items-baseline gap-3 border-b border-cdm-line px-1 py-2.5 text-[11px]"
+                className={`flex items-baseline gap-3 px-1 py-3 text-[11px] ${
+                  i > 0 ? "border-t border-cdm-line" : ""
+                }`}
               >
                 <span className="shrink-0 tabular-nums text-cdm-muted">
                   {fmtFechaHora(e.creado_at)}

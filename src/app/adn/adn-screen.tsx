@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
+import { WavesBackdrop } from "@/components/cockpit/waves-backdrop";
 import type { Referencia } from "@/types/centro-mando";
 
 type Vista = "estetica" | "filosofia";
@@ -63,12 +64,21 @@ export function AdnScreen() {
     : esteticas;
 
   return (
-    <div className="min-h-screen bg-cdm-bg px-4 py-8 text-cdm-fg sm:px-8">
-      <div className="mx-auto max-w-6xl">
-        <h1 className="font-raleway text-xs uppercase tracking-[0.35em] text-cdm-taupe">
-          ADN
-        </h1>
-        <p className="mt-1 text-[11px] text-cdm-muted">
+    <div className="font-grotesk relative min-h-screen bg-cdm-bg px-4 pb-24 pt-14 text-cdm-fg sm:px-8">
+      <WavesBackdrop />
+      <div className="relative z-10 mx-auto max-w-6xl">
+        <div className="relative pb-3">
+          {/* Línea de horizonte detrás del header — mismo lenguaje que historial/obras. */}
+          <span aria-hidden className="cdm-horizon absolute inset-x-0 bottom-0" />
+          <h1 className="flex items-center gap-2 text-[11px] uppercase tracking-[0.35em] text-cdm-muted">
+            <span
+              aria-hidden
+              className="h-[5px] w-[5px] bg-cdm-taupe shadow-[0_0_8px_rgba(200,180,154,0.9)]"
+            />
+            ADN
+          </h1>
+        </div>
+        <p className="mt-4 text-sm text-cdm-muted">
           La filosofía y la estética de Ravn construyéndose solas, captura a captura.
         </p>
 
@@ -119,9 +129,11 @@ export function AdnScreen() {
               </div>
             )}
             {filtradas.length === 0 ? (
-              <p className="mt-8 text-[11px] text-cdm-muted">
-                Mandale una foto al bot — acá nace el moodboard.
-              </p>
+              <div className="mt-8 flex h-32 items-center justify-center border border-dashed border-cdm-line">
+                <span className="px-4 text-center text-[10px] uppercase tracking-[0.2em] text-cdm-muted/60">
+                  Mandale una foto al bot — acá nace el moodboard
+                </span>
+              </div>
             ) : (
               <div className="mt-6 columns-2 gap-3 md:columns-3 xl:columns-4">
                 {filtradas.map((r, i) => (
@@ -175,9 +187,11 @@ export function AdnScreen() {
         {!error && !cargando && vista === "filosofia" && (
           <div className="mx-auto mt-8 max-w-2xl space-y-6">
             {filosofia.length === 0 && (
-              <p className="text-[11px] text-cdm-muted">
-                Mandale una frase al bot — acá nace la filosofía.
-              </p>
+              <div className="flex h-32 items-center justify-center border border-dashed border-cdm-line">
+                <span className="px-4 text-center text-[10px] uppercase tracking-[0.2em] text-cdm-muted/60">
+                  Mandale una frase al bot — acá nace la filosofía
+                </span>
+              </div>
             )}
             {filosofia.map((r, i) => (
               <motion.blockquote
