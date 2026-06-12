@@ -32,6 +32,17 @@ export async function middleware(request: NextRequest) {
   const isLoginPage = request.nextUrl.pathname.startsWith("/login");
 
   if (!user && !isLoginPage) {
+    const isPreviewAutoLogin =
+      process.env.PREVIEW_AUTO_LOGIN === "true" &&
+      process.env.VERCEL_ENV !== "production";
+
+    if (isPreviewAutoLogin) {
+      const url = request.nextUrl.clone();
+      url.pathname = "/api/auto-login";
+      url.search = `?next=${encodeURIComponent(request.nextUrl.pathname)}`;
+      return NextResponse.redirect(url);
+    }
+
     const url = request.nextUrl.clone();
     url.pathname = "/login";
     return NextResponse.redirect(url);
