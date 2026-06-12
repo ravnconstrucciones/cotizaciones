@@ -198,15 +198,45 @@ export async function GET() {
     }
 
     const presIdsAll = obrasAprobadasTodas.map((o) => o.presupuesto_id);
+    const obraIdsSaldoArr = [...saldoObraIds];
+
+    // RT2: presupuestos_gastos y anulados_recientes son independientes entre sí
+    // (ambos solo necesitan datos de RT1). Antes eran secuenciales (+~350ms).
+    // Los lanzamos en paralelo — elimina un round-trip completo del critical path.
+    const [gastosResult, anuladosResult] = await Promise.all([
+      presIdsAll.length > 0
+        ? supabase
+            .from("presupuestos_gastos")
+            .select("id, presupuesto_id, fecha, descripcion, importe")
+            .in("presupuesto_id", presIdsAll)
+        : Promise.resolve({ data: [] as GastoDb[], error: null }),
+      obraIdsSaldoArr.length > 0
+        ? supabase
+            .from("cashflow_items")
+            .select(
+              "id, obra_id, tipo, descripcion, monto_real, fecha_real, deleted_at"
+            )
+            .in("obra_id", obraIdsSaldoArr)
+            .not("deleted_at", "is", null)
+            .order("deleted_at", { ascending: false })
+            .limit(25)
+        : Promise.resolve({
+            data: [] as {
+              id: string;
+              obra_id: string;
+              tipo: string;
+              descripcion: string | null;
+              monto_real: unknown;
+              fecha_real: string | null;
+              deleted_at: string;
+            }[],
+            error: null,
+          }),
+    ]);
+
     let gastosRows: GastoDb[] = [];
-    if (presIdsAll.length > 0) {
-      const { data: gData, error: gErr } = await supabase
-        .from("presupuestos_gastos")
-        .select("id, presupuesto_id, fecha, descripcion, importe")
-        .in("presupuesto_id", presIdsAll);
-      if (!gErr && gData) {
-        gastosRows = gData as GastoDb[];
-      }
+    if (!gastosResult.error && gastosResult.data) {
+      gastosRows = gastosResult.data as unknown as GastoDb[];
     }
 
     const gastosTotalPorObraId = new Map<string, number>();
@@ -378,7 +408,7 @@ export async function GET() {
         r.monto_real != null &&
         String(r.monto_real).trim() !== ""
     );
-    const obraIdsSaldoArr = [...saldoObraIds];
+    // anuladosResult ya se resolvió en el Promise.all de RT2 de arriba.
     let movimientos_anulados_recientes: {
       id: string;
       obra_id: string;
@@ -389,41 +419,30 @@ export async function GET() {
       fecha_real: string;
       deleted_at: string;
     }[] = [];
-    if (obraIdsSaldoArr.length > 0) {
-      const { data: rawAnul, error: errAnul } = await supabase
-        .from("cashflow_items")
-        .select(
-          "id, obra_id, tipo, descripcion, monto_real, fecha_real, deleted_at"
-        )
-        .in("obra_id", obraIdsSaldoArr)
-        .not("deleted_at", "is", null)
-        .order("deleted_at", { ascending: false })
-        .limit(25);
-      if (!errAnul && rawAnul) {
-        movimientos_anulados_recientes = (
-          rawAnul as {
-            id: string;
-            obra_id: string;
-            tipo: string;
-            descripcion: string | null;
-            monto_real: unknown;
-            fecha_real: string | null;
-            deleted_at: string;
-          }[]
-        ).map((r) => ({
-          id: String(r.id),
-          obra_id: String(r.obra_id),
-          nombre_obra: nombrePorObraId.get(String(r.obra_id)) ?? "Obra",
-          tipo: r.tipo === "egreso" ? ("egreso" as const) : ("ingreso" as const),
-          descripcion: String(r.descripcion ?? ""),
-          monto_real:
-            r.monto_real == null ? 0 : roundArs2(parseNum(r.monto_real)),
-          fecha_real: r.fecha_real
-            ? String(r.fecha_real).slice(0, 10)
-            : "",
-          deleted_at: String(r.deleted_at),
-        }));
-      }
+    if (!anuladosResult.error && anuladosResult.data) {
+      movimientos_anulados_recientes = (
+        anuladosResult.data as {
+          id: string;
+          obra_id: string;
+          tipo: string;
+          descripcion: string | null;
+          monto_real: unknown;
+          fecha_real: string | null;
+          deleted_at: string;
+        }[]
+      ).map((r) => ({
+        id: String(r.id),
+        obra_id: String(r.obra_id),
+        nombre_obra: nombrePorObraId.get(String(r.obra_id)) ?? "Obra",
+        tipo: r.tipo === "egreso" ? ("egreso" as const) : ("ingreso" as const),
+        descripcion: String(r.descripcion ?? ""),
+        monto_real:
+          r.monto_real == null ? 0 : roundArs2(parseNum(r.monto_real)),
+        fecha_real: r.fecha_real
+          ? String(r.fecha_real).slice(0, 10)
+          : "",
+        deleted_at: String(r.deleted_at),
+      }));
     }
 
     type MovLin = {
