@@ -27,6 +27,8 @@ Un solo lugar — el Jarvis de Ezequiel — donde vive absolutamente todo: obras
 | Cotizador: aprobación | **Dos tiempos obligatorios**: mesa de revisión → OK explícito de Eze → documento final. Nunca auto-finaliza. |
 | Fuentes técnicas | Jerarquía formal (ver §6.3). Seia NUNCA como verdad única; siempre cruce con internet. |
 | Vault en el tablero | Lo registrado hoy + última orientación + patrones/FODA, **actualizándose solos** (job nocturno). |
+| ADN (filosofía + estética) | **Entra al tablero.** El bot captura frases, reflexiones, páginas de libros y referencias visuales (edificios, terminaciones, carteles, tipografías) → moodboard + filosofía viva. |
+| Asistente marketing/ventas | **Fuera del tablero** (proyecto aparte, después). |
 
 ## 3. Arquitectura
 
@@ -63,12 +65,13 @@ Una pantalla, sin scroll en desktop:
 6. **Actividad** (ex-oficina) — feed de la tabla `eventos`: todo lo que hizo el bot, el daemon y los agentes. Reemplaza al cockpit local 4317.
 7. **Archivados** — ítems sin clasificar pendientes de Eze. Badge visible si hay algo. Resolver = asignar destino con un click.
 8. **El cerebro** — "siguiente paso" de la última Orientación, patrones y FODA del vault. Lectura GitHub cacheada.
+9. **ADN** (teaser en home, vista completa propia) — la última referencia estética capturada + la última frase/reflexión. Click → vista ADN: moodboard visual + filosofía (§7.2).
 
 ## 5. Flujo WhatsApp — nada se pierde
 
 1. **Todo mensaje entrante genera una fila en `eventos`** (registro permanente, primero que todo). Esto reemplaza el historial en memoria que hoy se borra en cada reboot de Railway.
 2. El bot clasifica con Haiku:
-   - **Confianza alta** → registra en el destino (gasto de obra → `presupuestos_gastos`; gasto personal → `gastos_personales`; tarea → `tareas`; nota → vault Inbox) y confirma en una línea.
+   - **Confianza alta** → registra en el destino (gasto de obra → `presupuestos_gastos`; gasto personal → `gastos_personales`; tarea → `tareas`; nota → vault Inbox; filosofía/reflexión → §7.2; referencia estética con foto → §7.2) y confirma en una línea.
    - **Duda** → responde con opciones numeradas. Si Eze no contesta en N horas (configurable, default 4h) → estado `archivado`, visible en el tablero con aviso.
 3. **Fixes de fragilidad del bot** (parte del alcance):
    - Vault en `/tmp` de Railway → reemplazar por commits vía API de GitHub (sin clone) o volumen persistente.
@@ -131,9 +134,22 @@ Por WhatsApp: resumen + "OK / corregir X". En el tablero: vista completa. **El d
 3. **Precios frescos** — §6.2.4.
 4. **Auto-crítica** — post-cotización, agente revisor la cruza contra Seia + checklist + historial; anota en `cotizador_lecciones` y en `Conocimiento/Precios/lecciones-cotizador.md`. Las lecciones se inyectan en la próxima cotización.
 
-## 7. El cerebro se actualiza solo
+## 7. El cerebro vivo
+
+### 7.1 Inbox procesado cada noche
 
 Job nocturno en la Mac (daemon): corre "procesá mi inbox" con Claude Code headless → rutea entradas del día, actualiza FODA/Patrones, genera Orientación nueva, pushea a `boveda`. El tablero la muestra fresca a la mañana. Si la Mac está apagada esa noche, corre al prenderse (catch-up).
+
+### 7.2 ADN — filosofía y estética de Ravn
+
+Dos tipos de captura nuevos por WhatsApp (texto, audio o **foto**):
+
+- **Filosofía** — una frase de un libro, una reflexión, una idea que resuena. Si es foto de una página: visión extrae el texto (la imagen queda adjunta). Destino: vault `Filosofía/` (ruteado por el job nocturno) + fila en `referencias` para el tablero.
+- **Referencia estética** — foto de un edificio, una terminación, un cartel, una tipografía, un material. La IA la describe y etiqueta (tipo: tipografía / material / terminación / espacio / gráfica; qué transmite), la imagen va a Supabase Storage (bucket `referencias`) y la fila a la tabla `referencias`.
+
+**En el tablero — vista ADN:** moodboard visual (grilla de referencias estéticas filtrable por etiqueta) + filosofía (frases y reflexiones en orden cronológico, con su fuente). Es el lineamiento estético y filosófico de la empresa construyéndose solo, captura a captura. Alimenta directamente `Ravn/Posicionamiento.md`: cuando el job nocturno detecta un patrón nuevo en las referencias ("van 4 capturas de tipografía con serifa"), lo anota como observación en la Orientación.
+
+Si el bot duda entre filosofía / estética / otra cosa → mismo mecanismo de siempre: pregunta con opciones, timeout → Archivados. Nada se pierde.
 
 ## 8. Lo que se muere (al final, no al principio)
 
@@ -165,6 +181,7 @@ Job nocturno en la Mac (daemon): corre "procesá mi inbox" con Claude Code headl
 
 ## 11. Fuera de alcance
 
+- **Asistente de marketing y ventas** — proyecto aparte, después. Los agentes `ravn-comercial` / `ravn-marketing` ya existen para trabajarlo en sesión; si algún día produce datos durables (pipeline de leads, campañas), se evalúa si gana un módulo. El tablero no debe dar sensación de avance comercial sin venta real.
 - Módulo de salud (se gestiona aparte; decisión explícita de Eze).
 - App móvil nativa (WhatsApp es el canal móvil).
 - El 1% kaizen como módulo fijo (queda como herramienta bajo demanda).
@@ -175,9 +192,9 @@ Job nocturno en la Mac (daemon): corre "procesá mi inbox" con Claude Code headl
 
 Trabajables en paralelo; cada uno tendrá su plan detallado:
 
-- **Frente A — Cimientos:** migración `gastos_personales`, auditoría RLS, tablas nuevas (`eventos`, `trabajos_cola`, `cotizaciones`, `recetas`, `cotizador_lecciones`), Vitest base, verificación Railway.
-- **Frente B — Carcasa + Home cockpit:** shell de navegación nueva, home Jarvis con los 8 módulos, barra de comando, Realtime.
-- **Frente C — Bot 2.0:** eventos permanentes, pregunta+archivados, fixes de fragilidad, consolidación de código.
+- **Frente A — Cimientos:** migración `gastos_personales`, auditoría RLS, tablas nuevas (`eventos`, `trabajos_cola`, `cotizaciones`, `recetas`, `cotizador_lecciones`, `referencias` + bucket Storage), Vitest base, verificación Railway.
+- **Frente B — Carcasa + Home cockpit:** shell de navegación nueva, home Jarvis con los 9 módulos, vista ADN (moodboard + filosofía), barra de comando, Realtime.
+- **Frente C — Bot 2.0:** eventos permanentes, pregunta+archivados, capturas de filosofía y referencias estéticas (foto + visión), fixes de fragilidad, consolidación de código.
 - **Frente D — Cotizador 2.0:** motor de cálculo determinístico, recetario, checklist, vencimiento de precios, mesa de revisión, los 4 loops.
 - **Frente E — Cerebro + limpieza:** job nocturno de inbox, lecturas del vault en el tablero, y la baja ordenada de las piezas viejas (§8).
 
@@ -190,3 +207,4 @@ Dependencias duras: A antes que el resto en lo que toque tablas; B necesita las 
 3. Una cotización disparada desde el celular llega a mesa de revisión sin intervención, con fuentes fechadas, y NO se emite sin su OK.
 4. Las piezas de §8 están dadas de baja y nada las extraña.
 5. El cotizador mejora solo: cada obra cerrada ajusta coeficientes; cada cotización deja lecciones.
+6. Una foto de un edificio que te gustó termina en el moodboard, etiquetada, sin que hagas nada más que mandarla — y una frase de un libro termina en tu filosofía.
