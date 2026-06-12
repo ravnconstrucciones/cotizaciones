@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { Panel } from "./panel";
+import { CifraHeroica } from "./cifra-heroica";
 import { formatMoneyInt } from "@/lib/format-currency";
 
 type Semaforo = "verde" | "amarillo" | "rojo";
@@ -90,15 +91,23 @@ export function ModuloPlata({ className }: { className?: string }) {
       {error && <p className="text-[11px] text-red-400">{error}</p>}
       <div className="space-y-4">
         <div>
-          <p className="text-[9px] uppercase tracking-[0.2em] text-cdm-muted">
+          <p className="text-[10px] uppercase tracking-[0.24em] text-cdm-muted">
             Cashflow del mes (obras)
           </p>
-          <p
-            className={`text-2xl font-light tabular-nums ${
-              caja?.caja_mes && caja.caja_mes.saldo < 0 ? "text-red-400" : "text-cdm-fg"
-            }`}
-          >
-            {caja?.caja_mes ? formatMoneyInt(caja.caja_mes.saldo) : "—"}
+          {/* Display heroico (iteración 3): la plata del mes manda en el panel. */}
+          <p className="mt-1">
+            {caja?.caja_mes ? (
+              <CifraHeroica
+                className="text-[clamp(28px,2.3vw,44px)] leading-none"
+                colorBase={
+                  caja.caja_mes.saldo < 0 ? "#f87171" : "var(--cdm-fg)"
+                }
+              >
+                {formatMoneyInt(caja.caja_mes.saldo)}
+              </CifraHeroica>
+            ) : (
+              <span className="text-2xl font-light text-cdm-muted">—</span>
+            )}
           </p>
           {caja?.caja_mes && (
             <p className="text-[10px] tabular-nums text-cdm-muted">
@@ -114,7 +123,7 @@ export function ModuloPlata({ className }: { className?: string }) {
         </div>
         <div className="flex items-baseline justify-between border-t border-cdm-line pt-3">
           <div>
-            <p className="text-[9px] uppercase tracking-[0.2em] text-cdm-muted">
+            <p className="text-[10px] uppercase tracking-[0.24em] text-cdm-muted">
               Gastos de hoy (obra + personal)
             </p>
             <p className="text-lg font-light tabular-nums">
@@ -129,7 +138,7 @@ export function ModuloPlata({ className }: { className?: string }) {
         </div>
         <div className="flex items-baseline justify-between border-t border-cdm-line pt-3">
           <div>
-            <p className="text-[9px] uppercase tracking-[0.2em] text-cdm-muted">
+            <p className="text-[10px] uppercase tracking-[0.24em] text-cdm-muted">
               Mes personal
             </p>
             <p className="text-lg font-light tabular-nums">
