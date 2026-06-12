@@ -49,14 +49,14 @@ function NavLink({
   return (
     <Link
       href={item.href}
-      className={`relative flex items-center justify-between px-4 py-2 text-[11px] uppercase tracking-[0.18em] transition-colors ${
+      className={`relative flex items-center justify-between px-5 py-2.5 text-[11px] uppercase tracking-[0.18em] transition-colors ${
         activo ? "text-cdm-fg" : "text-cdm-muted hover:text-cdm-fg"
       }`}
     >
       {activo && (
         <motion.span
           layoutId="nav-activo"
-          className="absolute inset-y-0 left-0 w-[2px] bg-cdm-taupe"
+          className="absolute inset-y-0 left-0 w-[2px] bg-cdm-taupe shadow-[0_0_10px_rgba(200,180,154,0.7)]"
           transition={{ type: "spring", stiffness: 400, damping: 35 }}
         />
       )}
@@ -110,16 +110,22 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="min-h-screen bg-cdm-bg">
-      <aside className="fixed inset-y-0 left-0 z-40 hidden w-60 flex-col border-r border-cdm-line bg-cdm-bg lg:flex print:hidden">
-        <div className="px-4 pb-6 pt-8">
+      {/* Sidebar HUD: translúcido + blur sobre el shader del cockpit; marca con glow sutil */}
+      <aside className="font-inter fixed inset-y-0 left-0 z-40 hidden w-60 flex-col border-r border-cdm-line bg-cdm-bg/75 backdrop-blur-xl lg:flex print:hidden">
+        <div className="px-5 pb-9 pt-10">
           <Link href="/" aria-label="Inicio">
-            <RavnLogo align="start" showTagline={false} sizeClassName="text-xl" />
+            <RavnLogo
+              align="start"
+              showTagline={false}
+              sizeClassName="text-xl"
+              className="drop-shadow-[0_0_18px_rgba(200,180,154,0.30)]"
+            />
           </Link>
         </div>
         <nav className="flex-1 overflow-y-auto" aria-label="Navegación principal">
           {grupos.map((g) => (
-            <div key={g.titulo} className="mb-6">
-              <p className="px-4 pb-2 text-[9px] uppercase tracking-[0.3em] text-cdm-muted/60">
+            <div key={g.titulo} className="mb-8">
+              <p className="px-5 pb-2.5 text-[9px] uppercase tracking-[0.3em] text-cdm-taupe/60">
                 {g.titulo}
               </p>
               {g.items.map((item) => (
@@ -139,14 +145,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </nav>
         <button
           onClick={cerrarSesion}
-          className="border-t border-cdm-line px-4 py-4 text-left text-[10px] uppercase tracking-[0.2em] text-cdm-muted transition-colors hover:text-cdm-fg"
+          className="border-t border-cdm-line px-5 py-4 text-left text-[10px] uppercase tracking-[0.2em] text-cdm-muted transition-colors hover:text-cdm-fg"
         >
           Cerrar sesión
         </button>
       </aside>
 
       {/* Barra superior compacta < lg (el móvil real es WhatsApp) */}
-      <header className="flex items-center justify-between border-b border-cdm-line bg-cdm-bg px-4 py-3 lg:hidden print:hidden">
+      <header className="font-inter flex items-center justify-between border-b border-cdm-line bg-cdm-bg/80 px-4 py-3 backdrop-blur-xl lg:hidden print:hidden">
         <Link href="/" aria-label="Inicio">
           <RavnLogo align="start" showTagline={false} sizeClassName="text-base" />
         </Link>
