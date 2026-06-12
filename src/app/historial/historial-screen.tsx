@@ -1,8 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { Trash2 } from "lucide-react";
+import { Search, Trash2 } from "lucide-react";
+import { motion } from "framer-motion";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { WavesBackdrop } from "@/components/cockpit/waves-backdrop";
 import { createClient } from "@/lib/supabase/client";
 import { formatTotalDisplay } from "@/lib/format-total-display";
 import { formatNumeroComercialHumano } from "@/lib/presupuesto-numero-comercial";
@@ -80,10 +82,39 @@ function bulkConfirmMessage(n: number): string {
 }
 
 const checkboxCls =
-  "h-4 w-4 shrink-0 cursor-pointer rounded-none border-2 border-ravn-line bg-ravn-surface text-ravn-fg focus:ring-1 focus:ring-ravn-fg";
+  "h-4 w-4 shrink-0 cursor-pointer rounded-none accent-cdm-taupe";
 
+/** Input del cockpit: transparente, borde inferior que se enciende taupe al focus. */
 const tituloObraInputCls =
-  "mt-2 w-full max-w-xl rounded-none border border-ravn-line bg-ravn-surface px-3 py-2 text-sm text-ravn-fg placeholder:text-ravn-muted focus-visible:border-ravn-fg focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ravn-fg disabled:opacity-60";
+  "mt-2 w-full max-w-xl rounded-none border-0 border-b border-cdm-line bg-transparent px-1 py-2 text-sm text-cdm-fg placeholder:text-cdm-muted/50 transition-[border-color,box-shadow] duration-200 focus-visible:border-cdm-taupe focus-visible:outline-none focus-visible:shadow-[0_12px_24px_-16px_rgba(200,180,154,0.6)] disabled:opacity-50";
+
+/** Chip de estado con punto de color (radius permitido: chips). */
+function ChipEstado({
+  tono,
+  children,
+}: {
+  tono: "verde" | "ambar" | "taupe";
+  children: React.ReactNode;
+}) {
+  const estilos = {
+    verde: "border-emerald-400/30 bg-emerald-400/10 text-emerald-300",
+    ambar: "border-amber-300/30 bg-amber-300/10 text-amber-200",
+    taupe: "border-cdm-taupe/30 bg-cdm-taupe/10 text-cdm-taupe",
+  } as const;
+  const punto = {
+    verde: "bg-emerald-400",
+    ambar: "bg-amber-300",
+    taupe: "bg-cdm-taupe",
+  } as const;
+  return (
+    <span
+      className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[9px] font-semibold uppercase tracking-[0.16em] ${estilos[tono]}`}
+    >
+      <span aria-hidden className={`h-1.5 w-1.5 rounded-full ${punto[tono]}`} />
+      {children}
+    </span>
+  );
+}
 
 function TituloObraHistorialEditor({
   presupuestoId,
@@ -153,7 +184,7 @@ function TituloObraHistorialEditor({
         autoComplete="off"
       />
       {saving ? (
-        <p className="mt-1 text-[10px] text-ravn-muted">Guardando…</p>
+        <p className="mt-1 text-[10px] text-cdm-muted">Guardando…</p>
       ) : null}
     </div>
   );
@@ -177,6 +208,7 @@ export function HistorialScreen() {
   const [obraIdPorPresupuestoId, setObraIdPorPresupuestoId] = useState<
     Map<string, string>
   >(() => new Map());
+  const [busqueda, setBusqueda] = useState("");
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -436,6 +468,27 @@ export function HistorialScreen() {
     []
   );
 
+  /** Filtro de búsqueda (solo presentación): número, cliente o título de obra. */
+  const rowsFiltradas = useMemo(() => {
+    const q = busqueda.trim().toLowerCase();
+    if (!q) return rows;
+    return rows.filter((p) => {
+      const numero =
+        p.numero_correlativo != null &&
+        Number.isFinite(Number(p.numero_correlativo))
+          ? formatNumeroComercialHumano(
+              "P1",
+              Number(p.numero_correlativo)
+            ).toLowerCase()
+          : "";
+      return (
+        (p.nombre_cliente ?? "").toLowerCase().includes(q) ||
+        (p.nombre_obra ?? "").toLowerCase().includes(q) ||
+        numero.includes(q)
+      );
+    });
+  }, [rows, busqueda]);
+
   const totalArsMostradoPorId = useMemo(() => {
     const m = new Map<string, number>();
     for (const p of rows) {
@@ -451,7 +504,7 @@ export function HistorialScreen() {
 
   function toggleAll(checked: boolean) {
     if (checked) {
-      setSelected(new Set(rows.map((r) => r.id)));
+      setSelected(new Set(rowsFiltradas.map((r) => r.id)));
     } else {
       setSelected(new Set());
     }
@@ -469,8 +522,9 @@ export function HistorialScreen() {
   const selectedCount = selected.size;
 
   const allSelected =
-    rows.length > 0 && rows.every((r) => selected.has(r.id));
-  const someSelected = rows.some((r) => selected.has(r.id));
+    rowsFiltradas.length > 0 &&
+    rowsFiltradas.every((r) => selected.has(r.id));
+  const someSelected = rowsFiltradas.some((r) => selected.has(r.id));
 
   useEffect(() => {
     const el = selectAllRef.current;
@@ -480,91 +534,104 @@ export function HistorialScreen() {
   }, [someSelected, allSelected]);
 
   return (
-    <div className="relative min-h-screen bg-ravn-surface px-8 pb-32 pr-20 pt-16 text-ravn-fg">
-      <div className="mx-auto max-w-4xl">
-        <h1 className="font-raleway text-2xl font-medium uppercase tracking-tight md:text-3xl">
-          Historial de presupuestos
-        </h1>
-        <p className="mt-2 max-w-2xl text-sm text-ravn-muted">
+    <div className="font-inter relative min-h-screen bg-cdm-bg px-8 pb-32 pr-20 pt-14 text-cdm-fg">
+      <WavesBackdrop />
+      <div className="relative z-10 mx-auto max-w-4xl">
+        <div className="relative pb-3">
+          {/* Línea de horizonte detrás del header (iteración 3). */}
+          <span aria-hidden className="cdm-horizon absolute inset-x-0 bottom-0" />
+          <h1 className="flex items-center gap-2 text-[11px] uppercase tracking-[0.35em] text-cdm-muted">
+            <span
+              aria-hidden
+              className="h-[5px] w-[5px] bg-cdm-taupe shadow-[0_0_8px_rgba(200,180,154,0.9)]"
+            />
+            Historial de presupuestos
+          </h1>
+        </div>
+        <p className="mt-4 max-w-2xl text-sm text-cdm-muted">
           Solo presupuestos con PDF generado. Seleccioná varios para eliminar en
           lote.           La aprobación se hace desde{" "}
-          <span className="text-ravn-fg">Aprobar y planificar cashflow</span>{" "}
+          <span className="text-cdm-fg">Aprobar y planificar cashflow</span>{" "}
           (revisión + ítems). Los aprobados aparecen en{" "}
           <Link
             href="/control-gastos"
-            className="text-ravn-fg underline underline-offset-2"
+            className="text-cdm-fg underline underline-offset-2 transition-colors hover:text-cdm-taupe"
           >
             Control de gastos
           </Link>
           .
         </p>
-        <p className="mt-2 max-w-2xl text-xs text-ravn-muted">
+        <p className="mt-2 max-w-2xl text-xs text-cdm-muted">
           El total en{" "}
-          <span className="text-ravn-fg">ARS</span> es el importe de la
+          <span className="text-cdm-fg">ARS</span> es el importe de la
           propuesta guardado desde Rentabilidad / constructor (si existe); si
           no, la suma de ítems. Si el PDF fue en USD, debajo se indica el monto
           en dólares de la propuesta.
         </p>
         <Link
           href="/"
-          className="mt-6 inline-flex w-full max-w-md items-center justify-center rounded-none border-2 border-ravn-line bg-ravn-surface px-6 py-3.5 font-raleway text-sm font-medium uppercase tracking-wider text-ravn-fg transition-colors hover:bg-ravn-subtle focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ravn-fg sm:w-auto"
+          className="mt-5 inline-flex w-fit items-center justify-center rounded-none border border-cdm-line bg-transparent px-5 py-2.5 text-xs font-medium uppercase tracking-[0.18em] text-cdm-muted transition-colors hover:border-cdm-taupe/50 hover:text-cdm-fg focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cdm-taupe"
         >
           Volver al inicio
         </Link>
 
         {loading ? (
-          <p className="mt-12 text-sm font-light text-ravn-muted">
+          <p className="mt-12 text-sm font-light text-cdm-muted">
             Cargando historial…
           </p>
         ) : error ? (
-          <p className="mt-12 text-sm text-red-600 dark:text-red-400">
+          <p className="mt-12 text-sm text-red-400">
             {error}
           </p>
         ) : rows.length === 0 ? (
-          <p className="mt-12 text-sm font-light text-ravn-muted">
+          <p className="mt-12 text-sm font-light text-cdm-muted">
             No hay presupuestos finalizados (PDF generado) registrados.
           </p>
         ) : (
           <>
-            <div
-              className="mt-12 border border-ravn-line bg-ravn-surface"
-              role="table"
+            {/* Toolbar: seleccionar todos + búsqueda con el input del cockpit. */}
+            <div className="mt-10 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <label className="flex w-fit cursor-pointer items-center gap-3">
+                <input
+                  ref={selectAllRef}
+                  type="checkbox"
+                  aria-label="Seleccionar todos"
+                  checked={allSelected}
+                  onChange={(e) => toggleAll(e.target.checked)}
+                  className={checkboxCls}
+                />
+                <span className="text-[10px] font-semibold uppercase tracking-[0.2em] text-cdm-muted">
+                  Todos
+                </span>
+              </label>
+              <div className="relative w-full sm:max-w-xs">
+                <Search
+                  aria-hidden
+                  className="pointer-events-none absolute left-1 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-cdm-muted"
+                  strokeWidth={1.75}
+                />
+                <input
+                  type="search"
+                  value={busqueda}
+                  onChange={(e) => setBusqueda(e.target.value)}
+                  placeholder="Buscar por número, cliente u obra"
+                  aria-label="Buscar presupuestos"
+                  className="w-full rounded-none border-0 border-b border-cdm-line bg-transparent py-2 pl-7 pr-1 text-sm text-cdm-fg placeholder:text-cdm-muted/50 transition-[border-color,box-shadow] duration-200 focus-visible:border-cdm-taupe focus-visible:outline-none focus-visible:shadow-[0_12px_24px_-16px_rgba(200,180,154,0.6)]"
+                />
+              </div>
+            </div>
+
+            {rowsFiltradas.length === 0 ? (
+              <p className="mt-10 text-sm font-light text-cdm-muted">
+                Sin resultados para «{busqueda.trim()}».
+              </p>
+            ) : null}
+
+            <ul
+              className="mt-6 flex flex-col gap-3"
               aria-label="Historial de presupuestos"
             >
-              <div
-                className="grid grid-cols-[auto_1fr_auto_auto] items-center gap-4 border-b border-ravn-line px-6 py-5 md:gap-8 md:px-8"
-                role="row"
-              >
-                <div className="flex items-center gap-3" role="columnheader">
-                  <input
-                    ref={selectAllRef}
-                    type="checkbox"
-                    aria-label="Seleccionar todos"
-                    checked={allSelected}
-                    onChange={(e) => toggleAll(e.target.checked)}
-                    className={checkboxCls}
-                  />
-                  <span className="hidden text-[10px] font-bold uppercase tracking-[0.14em] text-ravn-muted sm:inline">
-                    Todos
-                  </span>
-                </div>
-                <div
-                  className="text-[10px] font-bold uppercase tracking-[0.14em] text-ravn-muted"
-                  role="columnheader"
-                >
-                  Presupuesto / Cliente
-                </div>
-                <div
-                  className="text-right text-[10px] font-bold uppercase tracking-[0.14em] text-ravn-muted"
-                  role="columnheader"
-                >
-                  Total (ARS)
-                </div>
-                <div className="w-10" aria-hidden />
-              </div>
-
-              <ul className="flex flex-col">
-                {rows.map((p) => {
+                {rowsFiltradas.map((p) => {
                   const correlativo = p.numero_correlativo;
                   const numeroLabel =
                     correlativo != null && Number.isFinite(Number(correlativo))
@@ -586,10 +653,11 @@ export function HistorialScreen() {
                   const isSel = selected.has(p.id);
 
                   return (
-                    <li
+                    <motion.li
                       key={p.id}
-                      role="row"
-                      className="grid grid-cols-[auto_1fr_auto_auto] items-center gap-4 border-b border-ravn-line px-6 py-6 last:border-b-0 md:gap-8 md:px-8 md:py-7"
+                      whileHover={{ y: -2 }}
+                      transition={{ type: "spring", stiffness: 350, damping: 28 }}
+                      className="cdm-glass grid grid-cols-[auto_1fr_auto_auto] items-center gap-4 px-6 py-6 md:gap-8 md:px-8 md:py-7"
                     >
                       <div className="flex items-center">
                         <input
@@ -601,22 +669,29 @@ export function HistorialScreen() {
                         />
                       </div>
                       <div className="min-w-0">
-                        <Link
-                          href={`/propuesta/${encodeURIComponent(p.id)}`}
-                          className="inline-block font-raleway text-base font-semibold uppercase tracking-wide text-ravn-accent transition-opacity hover:opacity-80 md:text-lg"
-                        >
-                          {numeroLabel}
-                        </Link>
+                        <div className="flex flex-wrap items-center gap-3">
+                          <Link
+                            href={`/propuesta/${encodeURIComponent(p.id)}`}
+                            className="font-raleway inline-block text-base font-bold uppercase tracking-wide text-cdm-fg transition-colors hover:text-cdm-taupe md:text-lg"
+                          >
+                            {numeroLabel}
+                          </Link>
+                          {p.presupuesto_aprobado ? (
+                            <ChipEstado tono="verde">Aprobado</ChipEstado>
+                          ) : (
+                            <ChipEstado tono="ambar">Pendiente</ChipEstado>
+                          )}
+                        </div>
                         <TituloObraHistorialEditor
                           presupuestoId={p.id}
                           nombreObraInicial={p.nombre_obra}
                           onSaved={actualizarNombreObraLocal}
                           onError={(msg) => setError(msg)}
                         />
-                        <p className="mt-2 text-sm font-light leading-relaxed text-ravn-fg md:text-base">
+                        <p className="mt-2 text-sm font-light leading-relaxed text-cdm-fg md:text-base">
                           {p.nombre_obra?.trim() ? (
                             <>
-                              <span className="text-[10px] font-medium uppercase tracking-wider text-ravn-muted">
+                              <span className="text-[10px] font-medium uppercase tracking-wider text-cdm-muted">
                                 Cliente{" "}
                               </span>
                               <span className="font-normal">
@@ -628,15 +703,15 @@ export function HistorialScreen() {
                               {p.nombre_cliente?.trim() || "—"}
                             </span>
                           )}
-                          <span className="text-ravn-muted"> · </span>
-                          <span className="text-ravn-muted">
+                          <span className="text-cdm-muted"> · </span>
+                          <span className="text-cdm-muted">
                             {formatFechaCreacion(p.created_at, p.fecha)}
                           </span>
                         </p>
                         <p className="mt-2 flex flex-wrap gap-x-4 gap-y-1">
                           <Link
                             href={`/rentabilidad?id=${encodeURIComponent(p.id)}`}
-                            className="text-xs font-medium uppercase tracking-wider text-ravn-muted underline-offset-2 transition-colors hover:text-ravn-fg hover:underline"
+                            className="text-xs font-medium uppercase tracking-wider text-cdm-muted underline-offset-2 transition-colors hover:text-cdm-taupe hover:underline"
                           >
                             Rentabilidad y costos
                           </Link>
@@ -644,13 +719,13 @@ export function HistorialScreen() {
                             <>
                               <Link
                                 href={`/obras/${encodeURIComponent(p.id)}/gastos`}
-                                className="text-xs font-medium uppercase tracking-wider text-ravn-muted underline-offset-2 transition-colors hover:text-ravn-fg hover:underline"
+                                className="text-xs font-medium uppercase tracking-wider text-cdm-muted underline-offset-2 transition-colors hover:text-cdm-taupe hover:underline"
                               >
                                 Gastos de obra
                               </Link>
                               <Link
                                 href={`/remito/${encodeURIComponent(p.id)}`}
-                                className="text-xs font-medium uppercase tracking-wider text-ravn-muted underline-offset-2 transition-colors hover:text-ravn-fg hover:underline"
+                                className="text-xs font-medium uppercase tracking-wider text-cdm-muted underline-offset-2 transition-colors hover:text-cdm-taupe hover:underline"
                               >
                                 Generar remito
                               </Link>
@@ -660,7 +735,7 @@ export function HistorialScreen() {
                           obraIdPorPresupuestoId.has(p.id) ? (
                             <Link
                               href={`/cashflow/obra/${encodeURIComponent(obraIdPorPresupuestoId.get(p.id)!)}`}
-                              className="text-xs font-medium uppercase tracking-wider text-ravn-muted underline-offset-2 transition-colors hover:text-ravn-fg hover:underline"
+                              className="text-xs font-medium uppercase tracking-wider text-cdm-muted underline-offset-2 transition-colors hover:text-cdm-taupe hover:underline"
                             >
                               Cashflow
                             </Link>
@@ -671,7 +746,7 @@ export function HistorialScreen() {
                               href={doc.url}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="text-xs font-medium uppercase tracking-wider text-ravn-accent/70 underline-offset-2 transition-colors hover:text-ravn-accent hover:underline"
+                              className="text-xs font-medium uppercase tracking-wider text-cdm-taupe/80 underline-offset-2 transition-colors hover:text-cdm-taupe hover:underline"
                             >
                               {doc.label}
                             </a>
@@ -679,9 +754,6 @@ export function HistorialScreen() {
                         </p>
                         {p.presupuesto_aprobado ? (
                           <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:gap-4">
-                            <span className="text-xs font-medium uppercase tracking-wider text-ravn-fg">
-                              Presupuesto aprobado
-                            </span>
                             <button
                               type="button"
                               disabled={updatingAprobadoId === p.id}
@@ -694,7 +766,7 @@ export function HistorialScreen() {
                                   return;
                                 void setPresupuestoAprobado(p.id, false);
                               }}
-                              className="w-fit text-left text-xs font-medium uppercase tracking-wider text-ravn-muted underline-offset-2 transition-colors hover:text-ravn-fg hover:underline disabled:opacity-50"
+                              className="w-fit text-left text-xs font-medium uppercase tracking-wider text-cdm-muted underline-offset-2 transition-colors hover:text-cdm-fg hover:underline disabled:opacity-50"
                             >
                               Quitar aprobación
                             </button>
@@ -703,12 +775,12 @@ export function HistorialScreen() {
                           <div className="mt-3 flex flex-col gap-2">
                             <Link
                               href={`/cashflow/planificar/${encodeURIComponent(p.id)}`}
-                              className="inline-flex w-full max-w-xs items-center justify-center rounded-none border-2 border-ravn-accent bg-ravn-accent px-5 py-3 text-center text-xs font-semibold uppercase tracking-wider text-ravn-accent-contrast transition-opacity hover:opacity-90 sm:w-auto"
+                              className="inline-flex w-full max-w-xs items-center justify-center rounded-none border border-cdm-fg bg-cdm-fg px-5 py-3 text-center text-xs font-semibold uppercase tracking-wider text-cdm-bg transition-shadow duration-300 hover:shadow-[0_0_28px_-4px_rgba(200,180,154,0.5)] sm:w-auto"
                             >
                               Aprobar y planificar cashflow
                             </Link>
                             {(totalArsMostradoPorId.get(p.id) ?? 0) <= 0 ? (
-                              <p className="max-w-sm text-xs text-ravn-muted">
+                              <p className="max-w-sm text-xs text-cdm-muted">
                                 Sin total en ARS en la nube: abrí Rentabilidad y
                                 guardá el importe para que el plan cuadre con la
                                 propuesta.
@@ -718,15 +790,18 @@ export function HistorialScreen() {
                         )}
                       </div>
                       <div className="text-right">
-                        <p className="text-lg font-medium tabular-nums text-ravn-fg md:text-xl">
+                        <p className="text-[10px] font-medium uppercase tracking-[0.2em] text-cdm-muted">
+                          Total ARS
+                        </p>
+                        <p className="font-raleway mt-1 text-xl font-bold tabular-nums text-cdm-fg md:text-2xl">
                           {totalFmt}
                         </p>
                         {totalUsdPropuesta ? (
-                          <p className="mt-1 text-[10px] text-ravn-muted">
+                          <p className="mt-1 text-[10px] tabular-nums text-cdm-muted">
                             Propuesta: {totalUsdPropuesta}
                           </p>
                         ) : pdfEnUsd ? (
-                          <p className="mt-1 text-[10px] text-ravn-muted">
+                          <p className="mt-1 text-[10px] text-cdm-muted">
                             PDF en USD
                           </p>
                         ) : null}
@@ -736,31 +811,35 @@ export function HistorialScreen() {
                         aria-label="Eliminar presupuesto"
                         disabled={busy || bulkDeleting}
                         onClick={() => void eliminarUno(p.id)}
-                        className="justify-self-end rounded-none border border-ravn-line p-2.5 text-ravn-muted transition-colors hover:border-ravn-fg hover:text-ravn-fg disabled:cursor-not-allowed disabled:opacity-40"
+                        className="justify-self-end rounded-none border border-cdm-line p-2.5 text-cdm-muted transition-colors hover:border-red-400/50 hover:bg-red-500/10 hover:text-red-300 disabled:cursor-not-allowed disabled:opacity-40"
                       >
                         <Trash2 className="h-4 w-4" strokeWidth={1.5} />
                       </button>
-                    </li>
+                    </motion.li>
                   );
                 })}
               </ul>
-            </div>
           </>
         )}
       </div>
 
       {selectedCount > 0 ? (
-        <div className="fixed bottom-0 left-0 right-0 z-50 flex justify-center border-t border-ravn-line bg-ravn-surface/95 px-4 py-4 backdrop-blur-sm pr-20">
+        <motion.div
+          initial={{ opacity: 0, y: 24 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.25, ease: "easeOut" }}
+          className="fixed bottom-0 left-0 right-0 z-50 flex justify-center border-t border-cdm-line bg-cdm-bg/85 px-4 py-4 pr-20 backdrop-blur-xl"
+        >
           <button
             type="button"
             disabled={bulkDeleting}
             onClick={() => void eliminarSeleccionados()}
-            className="inline-flex items-center gap-3 rounded-none border-2 border-ravn-accent bg-ravn-accent px-8 py-4 text-sm font-medium uppercase tracking-wider text-ravn-accent-contrast transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+            className="inline-flex items-center gap-3 rounded-none border border-red-400/50 bg-red-500/10 px-8 py-4 text-sm font-semibold uppercase tracking-wider text-red-200 transition-all duration-200 hover:bg-red-500/20 hover:shadow-[0_0_28px_-6px_rgba(248,113,113,0.45)] disabled:cursor-not-allowed disabled:opacity-50"
           >
             <Trash2 className="h-5 w-5" strokeWidth={1.75} />
             Eliminar seleccionados ({selectedCount})
           </button>
-        </div>
+        </motion.div>
       ) : null}
 
     </div>
