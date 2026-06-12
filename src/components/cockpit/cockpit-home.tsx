@@ -4,6 +4,8 @@ import { motion } from "framer-motion";
 import type { CerebroData } from "@/types/centro-mando";
 import { CommandBar } from "./command-bar";
 import { Panel } from "./panel";
+import { ModuloObras } from "./modulo-obras";
+import { ModuloPlata } from "./modulo-plata";
 
 const stagger = {
   hidden: {},
@@ -48,8 +50,8 @@ export function CockpitHome({ cerebro }: { cerebro: CerebroData }) {
         animate="visible"
         className="grid min-h-0 flex-1 grid-cols-1 gap-3 lg:grid-cols-12 lg:grid-rows-2"
       >
-        <Placeholder titulo="Obras" className="lg:col-span-3" />
-        <Placeholder titulo="Plata" className="lg:col-span-3" />
+        <ModuloObras className="lg:col-span-3" />
+        <ModuloPlata className="lg:col-span-3" />
         <Placeholder titulo="Pendientes" className="lg:col-span-3" />
         <Placeholder titulo="Cotizaciones" className="lg:col-span-3" />
         <Placeholder titulo="Actividad" className="lg:col-span-4" />

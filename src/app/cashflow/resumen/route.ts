@@ -74,6 +74,7 @@ type ObraRow = {
   id: string;
   presupuesto_id: string;
   cobranza_cerrada_at?: string | null;
+  finalizada_at?: string | null;
   monto_total_a_cobrar_ars?: string | number | null;
   presupuestos: PresRow | PresRow[] | null;
 };
@@ -140,6 +141,7 @@ export async function GET() {
         id,
         presupuesto_id,
         cobranza_cerrada_at,
+        finalizada_at,
         monto_total_a_cobrar_ars,
         presupuestos (
           id,
@@ -260,6 +262,12 @@ export async function GET() {
         pendiente_ingreso_referencia_ars,
         saldo_por_cobrar_ars,
         cobranza_cerrada: cobCerrada,
+        finalizada: Boolean(o.finalizada_at),
+        // Margen al día (spec §4.2): propuesta − gastado real acumulado.
+        margen_al_dia_ars:
+          referencia_propuesta_ars != null
+            ? roundArs2(referencia_propuesta_ars - egTotal)
+            : null,
       };
     });
     obrasActivas.sort((a, b) =>
@@ -290,6 +298,35 @@ export async function GET() {
     const egresosLibGlob = totGlob.egresos;
     const egresosTotGlob = roundArs2(egresosLibGlob + gastosGlobalArs);
     const saldoGlob = roundArs2(ingresosGlob - egresosTotGlob);
+
+    // ── Centro de Mando (spec §4.3): cashflow del mes + gastos de obra de hoy ──
+    // Mismas obras que el saldo global (saldoObraIds). Fecha de un item de
+    // libreta = fecha_real ?? fecha_proyectada (igual que movimientos_recientes).
+    const mesActual = hoy.slice(0, 7); // YYYY-MM
+    let ingresosMes = 0;
+    let egresosLibMes = 0;
+    let egresosLibHoy = 0;
+    for (const it of sliceSaldo) {
+      if (it.monto_real == null) continue;
+      const f = it.fecha_real ?? it.fecha_proyectada;
+      if (it.tipo === "ingreso") {
+        if (f.startsWith(mesActual)) ingresosMes = roundArs2(ingresosMes + it.monto_real);
+      } else {
+        if (f.startsWith(mesActual)) egresosLibMes = roundArs2(egresosLibMes + it.monto_real);
+        if (f === hoy) egresosLibHoy = roundArs2(egresosLibHoy + it.monto_real);
+      }
+    }
+    let gastosObraMes = 0;
+    let gastosObraHoy = 0;
+    for (const g of gastosRows) {
+      const oid = obraIdPorPresupuestoId.get(g.presupuesto_id);
+      if (!oid || !saldoObraIds.has(oid)) continue;
+      const f = String(g.fecha).slice(0, 10);
+      const add = importeGastoObraArs(g);
+      if (f.startsWith(mesActual)) gastosObraMes = roundArs2(gastosObraMes + add);
+      if (f === hoy) gastosObraHoy = roundArs2(gastosObraHoy + add);
+    }
+    const egresosMes = roundArs2(egresosLibMes + gastosObraMes);
 
     let libreta_empresa: {
       obra_id: string;
@@ -457,6 +494,13 @@ export async function GET() {
         egresos: egresosTotGlob,
         saldo: saldoGlob,
       },
+      caja_mes: {
+        mes: mesActual,
+        ingresos: ingresosMes,
+        egresos: egresosMes,
+        saldo: roundArs2(ingresosMes - egresosMes),
+      },
+      gastos_obra_hoy_ars: roundArs2(egresosLibHoy + gastosObraHoy),
       obras_activas: obrasActivas,
       libreta_empresa,
       movimientos_recientes,
