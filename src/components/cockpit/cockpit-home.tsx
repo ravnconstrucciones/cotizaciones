@@ -29,7 +29,9 @@ export function CockpitHome({ cerebro }: { cerebro: CerebroData }) {
     <div className="font-inter relative flex min-h-screen flex-col gap-3 bg-cdm-bg p-4 text-cdm-fg lg:h-screen lg:overflow-hidden">
       <WavesBackdrop />
 
-      <div className="relative z-10 flex items-baseline justify-between px-1">
+      <div className="relative z-10 flex items-baseline justify-between px-1 pb-2">
+        {/* Línea de horizonte: luz taupe a ancho completo detrás del header. */}
+        <span aria-hidden className="cdm-horizon absolute inset-x-0 bottom-0" />
         <h1 className="flex items-center gap-2 text-[11px] uppercase tracking-[0.35em] text-cdm-muted">
           <span
             aria-hidden

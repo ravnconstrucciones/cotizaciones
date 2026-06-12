@@ -94,24 +94,34 @@ html.light {
   }
 
   /**
-   * Panel HUD del cockpit (rediseño futurista): superficie levemente
-   * translúcida sobre el shader de fondo, borde 1px con gradiente sutil
-   * (border-image funciona porque los paneles mantienen radius 0 — ADN RAVN)
-   * y esquinas marcadas en taupe estilo cockpit de nave.
+   * Panel HUD del cockpit (iteración 3 — presencia): superficie translúcida
+   * sobre la malla Waves, borde 1px con gradiente NOTORIO (border-image
+   * funciona porque los paneles mantienen radius 0 — ADN RAVN), sombra
+   * ambiental que lo despega del fondo y micro-glow taupe en hover.
    */
   .cdm-glass {
     position: relative;
     border: 1px solid transparent;
     border-image: linear-gradient(
         165deg,
-        rgba(240, 237, 230, 0.22),
-        rgba(200, 180, 154, 0.1) 40%,
-        rgba(240, 237, 230, 0.05) 85%
+        rgba(240, 237, 230, 0.36),
+        rgba(200, 180, 154, 0.18) 40%,
+        rgba(240, 237, 230, 0.07) 85%
       )
       1;
     background: color-mix(in srgb, var(--cdm-panel) 74%, transparent);
     -webkit-backdrop-filter: blur(14px);
     backdrop-filter: blur(14px);
+    box-shadow:
+      0 24px 60px -28px rgba(0, 0, 0, 0.75),
+      inset 0 1px 0 rgba(240, 237, 230, 0.05);
+    transition: box-shadow 0.35s ease;
+  }
+  .cdm-glass:hover {
+    box-shadow:
+      0 24px 60px -28px rgba(0, 0, 0, 0.75),
+      0 0 44px -10px rgba(200, 180, 154, 0.22),
+      inset 0 1px 0 rgba(240, 237, 230, 0.08);
   }
   .cdm-glass::before,
   .cdm-glass::after {
@@ -181,6 +191,60 @@ html.light {
   }
   .cdm-textarea::-webkit-scrollbar-thumb:hover {
     background: rgba(200, 180, 154, 0.5);
+  }
+
+  /**
+   * Línea de horizonte: 1px de luz taupe a ancho completo detrás del header
+   * de cada pantalla del cockpit. Se posiciona desde el caller
+   * (normalmente `absolute inset-x-0 bottom-0` dentro de un header relative).
+   */
+  .cdm-horizon {
+    height: 1px;
+    background: linear-gradient(
+      90deg,
+      transparent 0%,
+      rgba(200, 180, 154, 0.4) 18%,
+      rgba(200, 180, 154, 0.85) 50%,
+      rgba(200, 180, 154, 0.4) 82%,
+      transparent 100%
+    );
+    box-shadow: 0 0 18px rgba(200, 180, 154, 0.3);
+  }
+
+  /**
+   * Shimmer de la marca "RAVN." — gradiente animado lento sobre el texto.
+   * CSS keyframes (no Framer) a propósito: es un loop ambiente infinito y
+   * RavnLogo debe seguir siendo server-compatible (lo usan los docs A4,
+   * que NUNCA reciben esta clase).
+   */
+  .cdm-shimmer {
+    background-image: linear-gradient(
+      110deg,
+      var(--cdm-fg) 38%,
+      var(--cdm-taupe) 50%,
+      var(--cdm-fg) 62%
+    );
+    background-size: 250% 100%;
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    animation: cdm-shimmer-sweep 7s linear infinite;
+  }
+}
+
+@keyframes cdm-shimmer-sweep {
+  0% {
+    background-position: 130% 0;
+  }
+  100% {
+    background-position: -150% 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cdm-shimmer {
+    animation: none;
+    background-position: 50% 0;
   }
 }
 
