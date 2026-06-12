@@ -18,6 +18,7 @@ const NAV_COCKPIT: NavItem[] = [
   { href: "/actividad", label: "Actividad" },
   { href: "/archivados", label: "Archivados" },
   { href: "/adn", label: "ADN" },
+  { href: "/cotizaciones", label: "Cotizaciones" },
 ];
 
 const NAV_OPERACION: NavItem[] = [
