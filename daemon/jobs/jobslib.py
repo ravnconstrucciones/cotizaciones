@@ -101,3 +101,91 @@ def evento_payload(tipo, titulo, contenido, estado="procesado"):
         "titulo": titulo[:200],
         "contenido": contenido,
     }
+
+# ---------- constantes de runtime ----------
+
+import os
+import ssl
+import subprocess
+import urllib.request
+
+import certifi
+
+DIR_JOBS = Path.home() / ".ravn-jobs"
+STATE = DIR_JOBS / "state.json"
+LOCK = DIR_JOBS / "runner.lock"
+LOG_RUNNER = DIR_JOBS / "logs" / "runner.log"
+ENV_DAEMON = Path.home() / ".ravn-cotizador" / ".env"
+VAULT = "/Users/ezeotero/Obsidian/RAVN"
+GIT_VAULT = ["git", "--git-dir", str(Path.home() / ".ravn-vault-git"), "--work-tree", VAULT]
+CLAUDE_BIN = str(Path.home() / ".local" / "bin" / "claude")
+CTX = ssl.create_default_context(cafile=certifi.where())
+
+
+def log(msg):
+    stamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    print(f"[{stamp}] {msg}", flush=True)
+
+
+def cargar_cfg():
+    return parse_env(ENV_DAEMON.read_text())
+
+# ---------- HTTP / Supabase REST (mismo patrón que daemon.py) ----------
+
+def http_json(url, data=None, headers=None, method=None, timeout=30):
+    req = urllib.request.Request(
+        url,
+        data=json.dumps(data).encode() if data is not None else None,
+        headers={"Content-Type": "application/json", **(headers or {})},
+        method=method,
+    )
+    with urllib.request.urlopen(req, timeout=timeout, context=CTX) as r:
+        cuerpo = r.read().decode()
+        return json.loads(cuerpo) if cuerpo.strip() else None
+
+
+def supabase_auth(cfg):
+    r = http_json(
+        f"{cfg['SUPABASE_URL']}/auth/v1/token?grant_type=password",
+        data={"email": cfg["BOT_EMAIL"], "password": cfg["BOT_PASSWORD"]},
+        headers={"apikey": cfg["SUPABASE_ANON_KEY"]},
+    )
+    return r["access_token"]
+
+
+def rest(cfg, token, path, data=None, method="GET"):
+    return http_json(
+        f"{cfg['SUPABASE_URL']}/rest/v1/{path}",
+        data=data,
+        headers={"apikey": cfg["SUPABASE_ANON_KEY"], "Authorization": f"Bearer {token}"},
+        method=method,
+    )
+
+
+def registrar_evento(cfg, token, tipo, titulo, contenido, estado="procesado"):
+    """Inserta una fila en `eventos` (origen='daemon'). Cada corrida de job pasa por acá."""
+    rest(cfg, token, "eventos", data=evento_payload(tipo, titulo, contenido, estado), method="POST")
+
+# ---------- git del vault (boveda) ----------
+
+def push_vault(mensaje):
+    """add -A + commit + push del vault vía el git externo (~/.ravn-vault-git).
+    Si no hay cambios, igual intenta push (por si quedó un commit local sin pushear)."""
+    subprocess.run(GIT_VAULT + ["add", "-A"], check=True, capture_output=True, text=True)
+    diff = subprocess.run(GIT_VAULT + ["diff", "--cached", "--quiet"])
+    if diff.returncode != 0:
+        subprocess.run(GIT_VAULT + ["commit", "-m", mensaje], check=True, capture_output=True, text=True)
+    r = subprocess.run(GIT_VAULT + ["push", "origin", "main"], capture_output=True, text=True)
+    if r.returncode != 0:
+        raise RuntimeError(f"push del vault falló: {r.stderr[:300]}")
+
+# ---------- Claude Code headless (mismo patrón que daemon.py) ----------
+
+def correr_claude(prompt, timeout=1500, modelo="sonnet"):
+    cmd = [CLAUDE_BIN, "-p", "--model", modelo, "--output-format", "json",
+           "--dangerously-skip-permissions", prompt]
+    r = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout, cwd=str(Path.home()))
+    if r.returncode != 0:
+        raise RuntimeError(f"claude exit {r.returncode}: {r.stderr[:500]}")
+    salida = json.loads(r.stdout)
+    return salida.get("result", "")
