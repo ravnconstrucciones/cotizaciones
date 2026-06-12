@@ -36,12 +36,26 @@ function ghHeaders(raw: boolean): HeadersInit {
 
 type GhEntry = { name: string; type: string };
 
+/**
+ * 401/403 = token vencido o sin permisos: NUNCA tragarlo en silencio
+ * (el cerebro quedaba en blanco sin aviso). 404 sí es silencioso: el
+ * archivo puede no existir todavía.
+ */
+function throwSiAuthFalla(status: number): void {
+  if (status === 401 || status === 403) {
+    throw new Error(
+      "GITHUB_TOKEN inválido o vencido — renovar el token del vault (boveda)."
+    );
+  }
+}
+
 /** Nombres de archivo de una carpeta del vault. [] si no existe o falla. */
 export async function listVaultDir(path: string): Promise<string[]> {
   const res = await fetch(ghUrl(path), {
     headers: ghHeaders(false),
     next: { revalidate: REVALIDATE_S },
   });
+  throwSiAuthFalla(res.status);
   if (!res.ok) return [];
   const data = (await res.json()) as GhEntry[];
   if (!Array.isArray(data)) return [];
@@ -54,6 +68,7 @@ export async function readVaultFile(path: string): Promise<string | null> {
     headers: ghHeaders(true),
     next: { revalidate: REVALIDATE_S },
   });
+  throwSiAuthFalla(res.status);
   if (!res.ok) return null;
   return res.text();
 }

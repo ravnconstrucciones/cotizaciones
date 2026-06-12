@@ -36,9 +36,25 @@ export function ModuloCerebro({
   cerebro: CerebroData;
   className?: string;
 }) {
+  const hayPatrones =
+    cerebro.patrones.potencian.length > 0 || cerebro.patrones.frenan.length > 0;
+  const hayFoda =
+    cerebro.foda.fortalezas.length > 0 ||
+    cerebro.foda.oportunidades.length > 0 ||
+    cerebro.foda.debilidades.length > 0 ||
+    cerebro.foda.amenazas.length > 0;
+  const vacio = !cerebro.orientacion && !hayPatrones && !hayFoda;
+
   return (
     <Panel titulo="El cerebro" className={className}>
       {cerebro.error && <p className="mb-3 text-[11px] text-amber-300">{cerebro.error}</p>}
+      {vacio && (
+        <div className="flex h-24 items-center justify-center border border-dashed border-cdm-line">
+          <span className="px-4 text-center text-[10px] uppercase tracking-[0.2em] text-cdm-muted/60">
+            {cerebro.error ? "Vault sin conexión" : "Sin lectura del vault aún"}
+          </span>
+        </div>
+      )}
       {cerebro.orientacion && (
         <div className="mb-4">
           <p className="text-[9px] uppercase tracking-[0.2em] text-cdm-muted">
@@ -54,24 +70,28 @@ export function ModuloCerebro({
           )}
         </div>
       )}
-      <div className="grid grid-cols-2 gap-4 border-t border-cdm-line pt-3">
-        <ListaMini
-          titulo="Me potencia"
-          items={cerebro.patrones.potencian.slice(0, 2)}
-          color="bg-cdm-taupe"
-        />
-        <ListaMini
-          titulo="Me frena"
-          items={cerebro.patrones.frenan.slice(0, 2)}
-          color="bg-red-400"
-        />
-      </div>
-      <div className="mt-3 grid grid-cols-2 gap-4 border-t border-cdm-line pt-3">
-        <ListaMini titulo="Fortalezas" items={cerebro.foda.fortalezas.slice(0, 1)} color="bg-emerald-400" />
-        <ListaMini titulo="Oportunidades" items={cerebro.foda.oportunidades.slice(0, 1)} color="bg-emerald-400" />
-        <ListaMini titulo="Debilidades" items={cerebro.foda.debilidades.slice(0, 1)} color="bg-amber-300" />
-        <ListaMini titulo="Amenazas" items={cerebro.foda.amenazas.slice(0, 1)} color="bg-red-400" />
-      </div>
+      {hayPatrones && (
+        <div className="grid grid-cols-2 gap-4 border-t border-cdm-line pt-3">
+          <ListaMini
+            titulo="Me potencia"
+            items={cerebro.patrones.potencian.slice(0, 2)}
+            color="bg-cdm-taupe"
+          />
+          <ListaMini
+            titulo="Me frena"
+            items={cerebro.patrones.frenan.slice(0, 2)}
+            color="bg-red-400"
+          />
+        </div>
+      )}
+      {hayFoda && (
+        <div className="mt-3 grid grid-cols-2 gap-4 border-t border-cdm-line pt-3">
+          <ListaMini titulo="Fortalezas" items={cerebro.foda.fortalezas.slice(0, 1)} color="bg-emerald-400" />
+          <ListaMini titulo="Oportunidades" items={cerebro.foda.oportunidades.slice(0, 1)} color="bg-emerald-400" />
+          <ListaMini titulo="Debilidades" items={cerebro.foda.debilidades.slice(0, 1)} color="bg-amber-300" />
+          <ListaMini titulo="Amenazas" items={cerebro.foda.amenazas.slice(0, 1)} color="bg-red-400" />
+        </div>
+      )}
     </Panel>
   );
 }
