@@ -15,6 +15,7 @@ from jobslib import VAULT, http_json, push_vault, registrar_evento
 
 URL_BLUELYTICS = "https://api.bluelytics.com.ar/v2/latest"
 URL_DOLARAPI = "https://dolarapi.com/v1/dolares"
+UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 DOLAR_JSON = Path(VAULT) / "Conocimiento" / "Precios" / "dolar.json"
 MD_PRECIOS = Path(VAULT) / "Conocimiento" / "Precios" / "materiales-construccion.md"
 PATRON_BLOQUE = re.compile(r"<!-- DOLAR:START -->.*?<!-- DOLAR:END -->", re.DOTALL)
@@ -61,9 +62,9 @@ def insertar_bloque(md, bloque):
 
 def correr(cfg, token):
     try:
-        cotiz = parsear_bluelytics(http_json(URL_BLUELYTICS))
+        cotiz = parsear_bluelytics(http_json(URL_BLUELYTICS, user_agent=UA))
     except Exception:
-        cotiz = parsear_dolarapi(http_json(URL_DOLARAPI))
+        cotiz = parsear_dolarapi(http_json(URL_DOLARAPI, user_agent=UA))
     fecha = date.today().isoformat()
     DOLAR_JSON.write_text(json.dumps({"fecha": fecha, **cotiz}, ensure_ascii=False, indent=2))
     md = MD_PRECIOS.read_text()

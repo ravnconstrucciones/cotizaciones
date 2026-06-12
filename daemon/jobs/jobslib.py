@@ -132,11 +132,14 @@ def cargar_cfg():
 
 # ---------- HTTP / Supabase REST (mismo patrón que daemon.py) ----------
 
-def http_json(url, data=None, headers=None, method=None, timeout=30):
+def http_json(url, data=None, headers=None, method=None, timeout=30, user_agent=None):
+    hdrs = {"Content-Type": "application/json", **(headers or {})}
+    if user_agent:
+        hdrs["User-Agent"] = user_agent
     req = urllib.request.Request(
         url,
         data=json.dumps(data).encode() if data is not None else None,
-        headers={"Content-Type": "application/json", **(headers or {})},
+        headers=hdrs,
         method=method,
     )
     with urllib.request.urlopen(req, timeout=timeout, context=CTX) as r:
