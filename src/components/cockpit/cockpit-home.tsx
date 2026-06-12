@@ -3,26 +3,19 @@
 import { motion } from "framer-motion";
 import type { CerebroData } from "@/types/centro-mando";
 import { CommandBar } from "./command-bar";
-import { Panel } from "./panel";
 import { ModuloObras } from "./modulo-obras";
 import { ModuloPlata } from "./modulo-plata";
 import { ModuloPendientes } from "./modulo-pendientes";
 import { ModuloCotizaciones } from "./modulo-cotizaciones";
 import { ModuloActividad } from "./modulo-actividad";
 import { ModuloArchivados } from "./modulo-archivados";
+import { ModuloCerebro } from "./modulo-cerebro";
+import { ModuloAdn } from "./modulo-adn";
 
 const stagger = {
   hidden: {},
   visible: { transition: { staggerChildren: 0.06 } },
 };
-
-function Placeholder({ titulo, className }: { titulo: string; className?: string }) {
-  return (
-    <Panel titulo={titulo} className={className}>
-      <p className="text-[11px] text-cdm-muted">Próximamente.</p>
-    </Panel>
-  );
-}
 
 /**
  * Home cockpit (spec §4): una pantalla, sin scroll en desktop (cada módulo
@@ -30,7 +23,6 @@ function Placeholder({ titulo, className }: { titulo: string; className?: string
  * Los Placeholder se reemplazan por módulos reales en las tareas 12-15.
  */
 export function CockpitHome({ cerebro }: { cerebro: CerebroData }) {
-  void cerebro;
   return (
     <div className="flex min-h-screen flex-col gap-3 bg-cdm-bg p-4 text-cdm-fg lg:h-screen lg:overflow-hidden">
       <div className="flex items-baseline justify-between px-1">
@@ -59,9 +51,9 @@ export function CockpitHome({ cerebro }: { cerebro: CerebroData }) {
         <ModuloPendientes className="lg:col-span-3" />
         <ModuloCotizaciones className="lg:col-span-3" />
         <ModuloActividad className="lg:col-span-4" />
-        <Placeholder titulo="El cerebro" className="lg:col-span-4" />
+        <ModuloCerebro cerebro={cerebro} className="lg:col-span-4" />
         <ModuloArchivados className="lg:col-span-2" />
-        <Placeholder titulo="ADN" className="lg:col-span-2" />
+        <ModuloAdn className="lg:col-span-2" />
       </motion.div>
     </div>
   );
