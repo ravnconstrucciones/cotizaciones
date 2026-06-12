@@ -1,9 +1,11 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import { WavesBackdrop } from "@/components/cockpit/waves-backdrop";
-import type { Referencia } from "@/types/centro-mando";
+import { AvatarBot } from "@/components/cockpit/avatar-bot";
+import type { Referencia, SinClasificar } from "@/types/centro-mando";
 
 type Vista = "estetica" | "filosofia";
 
@@ -20,6 +22,7 @@ const CHIP_IDLE =
 /** Vista ADN (spec §7.2): el lineamiento estético y filosófico de Ravn, captura a captura. */
 export function AdnScreen() {
   const [referencias, setReferencias] = useState<Referencia[]>([]);
+  const [sinClasificar, setSinClasificar] = useState<SinClasificar[]>([]);
   const [vista, setVista] = useState<Vista>("estetica");
   const [etiqueta, setEtiqueta] = useState<string | null>(null);
   const [cargando, setCargando] = useState(true);
@@ -27,7 +30,10 @@ export function AdnScreen() {
 
   const cargar = useCallback(async () => {
     try {
-      const res = await fetch("/api/referencias?limit=200", { cache: "no-store" });
+      const [res, resSin] = await Promise.all([
+        fetch("/api/referencias?limit=200", { cache: "no-store" }),
+        fetch("/api/adn/sin-clasificar", { cache: "no-store" }),
+      ]);
       const j = await res.json();
       if (!res.ok) {
         setError(j.error ?? "No se pudo cargar el ADN.");
@@ -35,6 +41,11 @@ export function AdnScreen() {
       }
       setError(null);
       setReferencias(j.referencias ?? []);
+      // Sin clasificar es best-effort: si falla, el moodboard vive igual.
+      if (resSin.ok) {
+        const jSin = await resSin.json();
+        setSinClasificar(jSin.sin_clasificar ?? []);
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Error de red");
     } finally {
@@ -167,12 +178,13 @@ export function AdnScreen() {
                           <button
                             key={e}
                             onClick={() => setEtiqueta(e)}
-                            className="border border-cdm-line px-1.5 py-0.5 text-[8px] uppercase tracking-widest text-cdm-accent transition-colors hover:bg-cdm-accent hover:text-cdm-bg"
+                            className="cursor-pointer border border-cdm-line px-1.5 py-0.5 text-[8px] uppercase tracking-widest text-cdm-accent transition-colors hover:bg-cdm-accent hover:text-cdm-bg"
                           >
                             {e}
                           </button>
                         ))}
-                        <span className="ml-auto text-[9px] tabular-nums text-cdm-muted">
+                        <span className="ml-auto flex items-center gap-1.5 text-[9px] tabular-nums text-cdm-muted">
+                          {r.evento_id ? <AvatarBot className="h-5 w-5" /> : null}
                           {fmtFecha(r.creado_at)}
                         </span>
                       </div>
@@ -180,6 +192,72 @@ export function AdnScreen() {
                   </motion.figure>
                 ))}
               </div>
+            )}
+
+            {/* Sin clasificar: imágenes que entraron por WhatsApp y quedaron
+                en Archivados sin destino — el moodboard las muestra para que
+                no haya ADN invisible, con link directo a resolverlas. */}
+            {sinClasificar.length > 0 && (
+              <section className="mt-10">
+                <div className="flex items-baseline justify-between gap-3">
+                  <h2 className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.25em] text-amber-300">
+                    <span
+                      aria-hidden
+                      className="h-[5px] w-[5px] bg-amber-300 shadow-[0_0_8px_rgba(252,211,77,0.8)]"
+                    />
+                    Sin clasificar ({sinClasificar.length})
+                  </h2>
+                  <Link
+                    href="/archivados"
+                    className="text-[9px] uppercase tracking-[0.2em] text-cdm-muted transition-colors hover:text-cdm-fg"
+                  >
+                    Resolver en Archivados →
+                  </Link>
+                </div>
+                <div className="mt-4 columns-2 gap-3 md:columns-3 xl:columns-4">
+                  {sinClasificar.map((s, i) => (
+                    <motion.figure
+                      key={s.id}
+                      initial={{ opacity: 0, y: 16 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ duration: 0.35, delay: Math.min(i * 0.03, 0.6) }}
+                      className="mb-3 break-inside-avoid border border-dashed border-amber-300/40 bg-cdm-panel/70"
+                    >
+                      <Link href="/archivados" className="block cursor-pointer">
+                        {s.imagen_url ? (
+                          /* eslint-disable-next-line @next/next/no-img-element */
+                          <img
+                            src={s.imagen_url}
+                            alt={s.texto ?? s.titulo}
+                            className="w-full opacity-90"
+                          />
+                        ) : (
+                          <div className="flex h-28 flex-col items-center justify-center gap-2 border-b border-cdm-line">
+                            <AvatarBot className="h-7 w-7" title="Llegó por WhatsApp" />
+                            <span className="px-3 text-center text-[9px] uppercase tracking-[0.18em] text-cdm-muted/70">
+                              {s.tipo_media === "image" ? "Imagen en WhatsApp" : "Media en WhatsApp"}
+                            </span>
+                          </div>
+                        )}
+                        <figcaption className="px-3 py-2">
+                          <p className="text-[11px] leading-snug text-cdm-fg/80">
+                            {s.texto ?? s.titulo}
+                          </p>
+                          <div className="mt-1.5 flex items-center justify-between gap-1">
+                            <span className="text-[8px] uppercase tracking-widest text-amber-300/90">
+                              Pendiente
+                            </span>
+                            <span className="flex items-center gap-1.5 text-[9px] tabular-nums text-cdm-muted">
+                              <AvatarBot className="h-5 w-5" />
+                              {fmtFecha(s.creado_at)}
+                            </span>
+                          </div>
+                        </figcaption>
+                      </Link>
+                    </motion.figure>
+                  ))}
+                </div>
+              </section>
             )}
           </>
         )}
@@ -204,9 +282,12 @@ export function AdnScreen() {
                 <p className="text-sm italic leading-relaxed text-cdm-fg/90">
                   &ldquo;{r.texto}&rdquo;
                 </p>
-                <footer className="mt-1.5 text-[9px] uppercase tracking-[0.2em] text-cdm-muted">
-                  {r.fuente ? `${r.fuente} · ` : ""}
-                  {fmtFecha(r.creado_at)}
+                <footer className="mt-1.5 flex items-center gap-1.5 text-[9px] uppercase tracking-[0.2em] text-cdm-muted">
+                  {r.evento_id ? <AvatarBot className="h-5 w-5" /> : null}
+                  <span>
+                    {r.fuente ? `${r.fuente} · ` : ""}
+                    {fmtFecha(r.creado_at)}
+                  </span>
                 </footer>
               </motion.blockquote>
             ))}

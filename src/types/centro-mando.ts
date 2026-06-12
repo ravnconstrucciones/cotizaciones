@@ -71,8 +71,21 @@ export type Referencia = {
   etiquetas: string[];
   fuente: string | null;
   imagen_path: string | null;
+  /** Evento de origen (captura por WhatsApp/bot) — null si nació en la app. */
+  evento_id?: string | null;
   /** Generada server-side por /api/referencias (no existe en la tabla). */
   imagen_url?: string | null;
+};
+
+/** Evento archivado con media, pendiente de clasificar (vista ADN). */
+export type SinClasificar = {
+  id: string;
+  creado_at: string;
+  titulo: string;
+  texto: string | null;
+  imagen_path: string | null;
+  imagen_url: string | null;
+  tipo_media: string | null;
 };
 
 /** Tabla `tareas` existente (Tu Día) — fuente única de pendientes. */
