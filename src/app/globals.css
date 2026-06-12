@@ -141,9 +141,10 @@ html.light {
    */
   .cdm-prompt {
     border: 1px solid rgba(200, 180, 154, 0.22);
-    background: color-mix(in srgb, var(--cdm-panel) 84%, transparent);
-    -webkit-backdrop-filter: blur(18px);
-    backdrop-filter: blur(18px);
+    /* Iteración 2: superficie liquid glass (LiquidGlass pone blur + tinte +
+       highlights); acá queda el velo base bajo para que la malla Waves
+       respire a través, más borde y glow de foco. */
+    background: color-mix(in srgb, var(--cdm-panel) 45%, transparent);
     box-shadow:
       0 12px 48px rgba(0, 0, 0, 0.55),
       inset 0 1px 0 rgba(240, 237, 230, 0.06);
@@ -157,6 +158,29 @@ html.light {
       0 12px 48px rgba(0, 0, 0, 0.55),
       0 0 32px rgba(200, 180, 154, 0.16),
       inset 0 1px 0 rgba(240, 237, 230, 0.08);
+  }
+
+  /**
+   * Scrollbar fino del textarea del prompt box. El componente original de
+   * 21st.dev inyectaba esto con un <style> al document — acá vive en la
+   * hoja global, que es donde corresponde.
+   */
+  .cdm-textarea {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(200, 180, 154, 0.3) transparent;
+  }
+  .cdm-textarea::-webkit-scrollbar {
+    width: 5px;
+  }
+  .cdm-textarea::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .cdm-textarea::-webkit-scrollbar-thumb {
+    background: rgba(200, 180, 154, 0.3);
+    border-radius: 9999px;
+  }
+  .cdm-textarea::-webkit-scrollbar-thumb:hover {
+    background: rgba(200, 180, 154, 0.5);
   }
 }
 
