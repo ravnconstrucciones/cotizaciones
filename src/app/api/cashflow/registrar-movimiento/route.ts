@@ -5,7 +5,7 @@ import {
   type QuickTipoRegistro,
 } from "@/lib/cashflow-matching";
 import { roundArs2 } from "@/lib/format-currency";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { createSupabaseAdminClient } from "@/lib/supabase/server";
 
 export async function POST(req: Request) {
   try {
@@ -43,7 +43,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "quick_tipo inválido." }, { status: 400 });
     }
 
-    const supabase = createSupabaseServerClient();
+    const supabase = createSupabaseAdminClient();
     const { data: obra, error: eObra } = await supabase
       .from("obras")
       .select("id")

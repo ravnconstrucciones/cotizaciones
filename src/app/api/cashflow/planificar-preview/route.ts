@@ -4,7 +4,7 @@ import {
   repartirPorcentajesIngresos,
 } from "@/lib/cashflow-planificar";
 import { todayBuenosAires } from "@/lib/cashflow-compute";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { createSupabaseAdminClient } from "@/lib/supabase/server";
 import {
   importeArsParaPropuesta,
   parsePropuestaPrefJsonDesdeMismaFila,
@@ -22,7 +22,7 @@ export async function GET(req: Request) {
       );
     }
 
-    const supabase = createSupabaseServerClient();
+    const supabase = createSupabaseAdminClient();
     const { data: pres, error: ePres } = await supabase
       .from("presupuestos")
       .select("id, presupuesto_aprobado, propuesta_comercial_pref")

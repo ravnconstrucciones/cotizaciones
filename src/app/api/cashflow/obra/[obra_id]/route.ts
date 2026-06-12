@@ -13,7 +13,7 @@ import {
   importeArsParaPropuesta,
   parsePropuestaPrefJsonDesdeMismaFila,
 } from "@/lib/ravn-propuesta-pref";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { createSupabaseAdminClient } from "@/lib/supabase/server";
 
 type Params = { params: Promise<{ obra_id: string }> };
 
@@ -50,7 +50,7 @@ function mapItem(r: DbItem): CashflowItemRow {
 export async function GET(_req: Request, ctx: Params) {
   try {
     const { obra_id } = await ctx.params;
-    const supabase = createSupabaseServerClient();
+    const supabase = createSupabaseAdminClient();
 
     const { data: obraRow, error: errObra } = await supabase
       .from("obras")

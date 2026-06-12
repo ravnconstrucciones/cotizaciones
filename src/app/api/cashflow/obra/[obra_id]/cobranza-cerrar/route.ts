@@ -4,7 +4,7 @@ import {
   parsePropuestaPrefJsonDesdeMismaFila,
 } from "@/lib/ravn-propuesta-pref";
 import { roundArs2 } from "@/lib/format-currency";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { createSupabaseAdminClient } from "@/lib/supabase/server";
 
 type Params = { params: Promise<{ obra_id: string }> };
 
@@ -15,7 +15,7 @@ type Params = { params: Promise<{ obra_id: string }> };
 export async function POST(_req: Request, ctx: Params) {
   try {
     const { obra_id } = await ctx.params;
-    const supabase = createSupabaseServerClient();
+    const supabase = createSupabaseAdminClient();
 
     const { data: obra, error: eObra } = await supabase
       .from("obras")

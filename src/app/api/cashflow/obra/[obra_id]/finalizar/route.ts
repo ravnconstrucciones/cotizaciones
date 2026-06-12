@@ -5,7 +5,7 @@ import {
   totalesReales,
   type CashflowItemRow,
 } from "@/lib/cashflow-compute";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { createSupabaseAdminClient } from "@/lib/supabase/server";
 
 type Params = { params: Promise<{ obra_id: string }> };
 
@@ -42,7 +42,7 @@ function mapItem(r: DbItem): CashflowItemRow {
 export async function POST(_req: Request, ctx: Params) {
   try {
     const { obra_id } = await ctx.params;
-    const supabase = createSupabaseServerClient();
+    const supabase = createSupabaseAdminClient();
 
     const { data: obra, error: eObra } = await supabase
       .from("obras")

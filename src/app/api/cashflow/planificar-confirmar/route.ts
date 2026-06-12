@@ -3,7 +3,7 @@ import { categoriaValidaParaTipo } from "@/lib/cashflow-validate";
 import type { CashflowTipo } from "@/lib/cashflow-compute";
 import { estadoDesdeTipo } from "@/lib/cashflow-matching";
 import { roundArs2 } from "@/lib/format-currency";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { createSupabaseAdminClient } from "@/lib/supabase/server";
 import {
   importeArsParaPropuesta,
   parsePropuestaPrefJsonDesdeMismaFila,
@@ -36,7 +36,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Sin filas para crear." }, { status: 400 });
     }
 
-    const supabase = createSupabaseServerClient();
+    const supabase = createSupabaseAdminClient();
 
     const { data: pres, error: ePres } = await supabase
       .from("presupuestos")
