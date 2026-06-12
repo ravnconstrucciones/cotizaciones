@@ -1,136 +1,160 @@
 import { describe, expect, it } from "vitest";
 import {
-  derivarOrbitalObra,
-  estadoPorPct,
-  type GastoOrbitalInput,
-  type ItemOrbitalInput,
+  derivarArtefactosObra,
+  type ArchivoObraRow,
+  type NodoArtefacto,
 } from "@/lib/obra-orbital";
 
-const NOMBRES = {
-  "1": "1 - Albañilería",
-  "2": "2 - Pintura",
-  "3": "3 - Electricidad",
-};
+const PID = "ad00bfc9-7a28-4fc5-9005-3e51e36a4065";
 
-function item(
-  rubroId: string | null,
-  cantidad: number,
-  mat: number,
-  mo: number
-): ItemOrbitalInput {
-  return { rubroId, cantidad, precioMaterial: mat, precioMo: mo };
+function archivo(parcial: Partial<ArchivoObraRow>): ArchivoObraRow {
+  return {
+    id: "a-1",
+    tipo: "foto",
+    titulo: null,
+    url: "https://signed/full.jpg",
+    thumb_url: "https://signed/thumb.jpg",
+    url_externa: null,
+    creado_at: "2026-06-12T10:00:00Z",
+    ...parcial,
+  };
 }
 
-function gasto(rubroId: string | null, importeArs: number): GastoOrbitalInput {
-  return { rubroId, importeArs };
+function derivar(
+  parcial: Partial<Parameters<typeof derivarArtefactosObra>[0]> = {}
+): NodoArtefacto[] {
+  return derivarArtefactosObra({
+    presupuestoId: PID,
+    docsMapeados: [],
+    archivos: [],
+    resumen: null,
+    gastado: 0,
+    cantGastos: 0,
+    ...parcial,
+  });
 }
 
-describe("estadoPorPct", () => {
-  it("deriva los tres estados con el umbral 95/0", () => {
-    expect(estadoPorPct(0)).toBe("pending");
-    expect(estadoPorPct(0.01)).toBe("in-progress");
-    expect(estadoPorPct(94.99)).toBe("in-progress");
-    expect(estadoPorPct(95)).toBe("completed");
-    expect(estadoPorPct(140)).toBe("completed");
-  });
-});
+function nodo(nodos: NodoArtefacto[], tipo: string): NodoArtefacto {
+  const n = nodos.find((x) => x.tipo === tipo);
+  if (!n) throw new Error(`falta el nodo ${tipo}`);
+  return n;
+}
 
-describe("derivarOrbitalObra", () => {
-  it("agrupa ítems por rubro con la convención cantidad × (mat + mo)", () => {
-    const r = derivarOrbitalObra(
-      [item("1", 2, 100, 50), item("1", 1, 200, 0), item("2", 10, 10, 5)],
-      [],
-      NOMBRES
-    );
-    expect(r.nodos).toHaveLength(2);
-    const alba = r.nodos.find((n) => n.rubroId === "1")!;
-    expect(alba.presupuestado).toBe(500); // 2×150 + 1×200
-    expect(alba.nombre).toBe("1 - Albañilería");
-    expect(alba.status).toBe("pending");
-    expect(alba.energy).toBe(0);
-    expect(r.presupuestadoTotal).toBe(650);
+describe("derivarArtefactosObra", () => {
+  it("siempre devuelve los 5 artefactos fijos (sin rubros por ningún lado)", () => {
+    const nodos = derivar();
+    expect(nodos.map((n) => n.tipo)).toEqual([
+      "presupuesto",
+      "diagnostico",
+      "fotos",
+      "resumen",
+      "gastos",
+    ]);
   });
 
-  it("cruza gastos por rubro: % ejecutado, energy 0-100 y desvío", () => {
-    const r = derivarOrbitalObra(
-      [item("1", 1, 1000, 0), item("2", 1, 1000, 0)],
-      [gasto("1", 500), gasto("2", 1200)],
-      NOMBRES
-    );
-    const alba = r.nodos.find((n) => n.rubroId === "1")!;
-    expect(alba.pctEjecutado).toBe(50);
-    expect(alba.energy).toBe(50);
-    expect(alba.status).toBe("in-progress");
-    expect(alba.desvio).toBe(500);
-
-    const pintura = r.nodos.find((n) => n.rubroId === "2")!;
-    expect(pintura.pctEjecutado).toBe(120); // real, sin tope
-    expect(pintura.energy).toBe(100); // capeado para el glow
-    expect(pintura.status).toBe("completed");
-    expect(pintura.desvio).toBe(-200); // pasado de presupuesto
+  it("obra sin nada: todos los nodos vacíos (tenues), sin detalle", () => {
+    const nodos = derivar();
+    for (const n of nodos) {
+      expect(n.vivo).toBe(false);
+      expect(n.detalle).toBeNull();
+    }
   });
 
-  it("status completed desde 95% ejecutado", () => {
-    const r = derivarOrbitalObra(
-      [item("1", 1, 100, 0)],
-      [gasto("1", 95)],
-      NOMBRES
-    );
-    expect(r.nodos[0].status).toBe("completed");
+  it("presupuesto vivo con el mapeo de documentos (incluye lista de materiales)", () => {
+    const nodos = derivar({
+      docsMapeados: [
+        { tipo: "presupuesto", label: "Presupuesto", url: "/docs/P.html" },
+        { tipo: "materiales", label: "Lista de materiales", url: "/docs/M.html" },
+        { tipo: "diagnostico", label: "Diagnóstico técnico", url: "/docs/D.html" },
+      ],
+    });
+    const pres = nodo(nodos, "presupuesto");
+    expect(pres.vivo).toBe(true);
+    expect(pres.detalle).toBe("2 docs");
+    expect(pres.docs.map((d) => d.url)).toEqual(["/docs/P.html", "/docs/M.html"]);
+
+    const diag = nodo(nodos, "diagnostico");
+    expect(diag.vivo).toBe(true);
+    expect(diag.detalle).toBe("1 doc");
+    expect(diag.docs).toEqual([
+      { label: "Diagnóstico técnico", url: "/docs/D.html" },
+    ]);
   });
 
-  it("gastos sin rubro van al bucket aparte y suman al total gastado", () => {
-    const r = derivarOrbitalObra(
-      [item("1", 1, 100, 0)],
-      [gasto(null, 30), gasto("", 20), gasto("1", 10)],
-      NOMBRES
-    );
-    expect(r.gastoSinRubro).toBe(50);
-    expect(r.gastadoTotal).toBe(60);
-    expect(r.nodos).toHaveLength(1);
+  it("suma archivos de obra_archivos a los docs (titulo → label, url firmada o externa)", () => {
+    const nodos = derivar({
+      archivos: [
+        archivo({ id: "d-1", tipo: "diagnostico", titulo: "Diagnóstico baño", url: "https://signed/d.pdf", thumb_url: null }),
+        archivo({ id: "p-1", tipo: "presupuesto", titulo: null, url: null, thumb_url: null, url_externa: "/docs/Presupuesto_X.html" }),
+        archivo({ id: "doc-1", tipo: "documento", titulo: "Plano sanitario", url: "https://signed/plano.pdf", thumb_url: null }),
+      ],
+    });
+    expect(nodo(nodos, "diagnostico").docs).toEqual([
+      { label: "Diagnóstico baño", url: "https://signed/d.pdf" },
+    ]);
+    // presupuesto + documento suelto viajan juntos en el nodo Presupuesto
+    expect(nodo(nodos, "presupuesto").docs).toEqual([
+      { label: "Documento", url: "/docs/Presupuesto_X.html" },
+      { label: "Plano sanitario", url: "https://signed/plano.pdf" },
+    ]);
   });
 
-  it("un gasto en rubro sin partida crea nodo con presupuestado 0 y pct 100", () => {
-    const r = derivarOrbitalObra(
-      [item("1", 1, 100, 0)],
-      [gasto("3", 40)],
-      NOMBRES
-    );
-    const elec = r.nodos.find((n) => n.rubroId === "3")!;
-    expect(elec.presupuestado).toBe(0);
-    expect(elec.gastado).toBe(40);
-    expect(elec.pctEjecutado).toBe(100);
-    expect(elec.status).toBe("completed");
-    expect(elec.desvio).toBe(-40);
+  it("un archivo sin url firmada ni externa NO genera doc (nodo queda vacío)", () => {
+    const nodos = derivar({
+      archivos: [
+        archivo({ tipo: "presupuesto", url: null, thumb_url: null, url_externa: null }),
+      ],
+    });
+    expect(nodo(nodos, "presupuesto").vivo).toBe(false);
+    expect(nodo(nodos, "presupuesto").docs).toEqual([]);
   });
 
-  it("ítems sin rubro caen al pseudo-rubro 'otros'", () => {
-    const r = derivarOrbitalObra([item(null, 1, 100, 0)], [], {});
-    expect(r.nodos[0].rubroId).toBe("otros");
-    expect(r.nodos[0].nombre).toBe("Otros");
+  it("fotos: vivo con conteo, thumb cae al original si no hay miniatura", () => {
+    const nodos = derivar({
+      archivos: [
+        archivo({ id: "f-1", titulo: "Avance baño" }),
+        archivo({ id: "f-2", thumb_url: null }),
+      ],
+    });
+    const fotos = nodo(nodos, "fotos");
+    expect(fotos.vivo).toBe(true);
+    expect(fotos.detalle).toBe("2 fotos");
+    expect(fotos.fotos[0]).toMatchObject({
+      id: "f-1",
+      titulo: "Avance baño",
+      url: "https://signed/full.jpg",
+      thumbUrl: "https://signed/thumb.jpg",
+    });
+    expect(fotos.fotos[1].thumbUrl).toBe("https://signed/full.jpg");
   });
 
-  it("unifica rubro_id numérico (items) y texto (gastos): un solo nodo, sin duplicados", () => {
-    // Regresión QA visual: catalogo_recetas.rubro_id llegaba como número desde
-    // la DB y el mismo rubro orbitaba dos veces (keys de React duplicadas).
-    const r = derivarOrbitalObra(
-      [item(17 as unknown as string, 1, 1000, 0)],
-      [gasto("17", 500)],
-      {}
-    );
-    expect(r.nodos).toHaveLength(1);
-    expect(r.nodos[0].rubroId).toBe("17");
-    expect(r.nodos[0].presupuestado).toBe(1000);
-    expect(r.nodos[0].gastado).toBe(500);
-    expect(r.nodos[0].pctEjecutado).toBe(50);
+  it("una sola foto: detalle en singular", () => {
+    const nodos = derivar({ archivos: [archivo({})] });
+    expect(nodo(nodos, "fotos").detalle).toBe("1 foto");
   });
 
-  it("ordena los nodos por prefijo numérico del rubro", () => {
-    const r = derivarOrbitalObra(
-      [item("10", 1, 1, 0), item("2", 1, 1, 0), item("1", 1, 1, 0)],
-      [],
-      {}
-    );
-    expect(r.nodos.map((n) => n.rubroId)).toEqual(["1", "2", "10"]);
+  it("resumen $: vivo cuando la obra está en el resumen de cashflow", () => {
+    const nodos = derivar({
+      resumen: { ingresos: 1000000, egresos: 350000, saldo: 650000 },
+    });
+    const r = nodo(nodos, "resumen");
+    expect(r.vivo).toBe(true);
+    expect(r.resumen).toEqual({ ingresos: 1000000, egresos: 350000, saldo: 650000 });
+  });
+
+  it("gastos: vivo con total ejecutado y link al detalle existente", () => {
+    const nodos = derivar({ gastado: 482000.5, cantGastos: 7 });
+    const g = nodo(nodos, "gastos");
+    expect(g.vivo).toBe(true);
+    expect(g.detalle).toBe("7 gastos");
+    expect(g.gastado).toBe(482000.5);
+    expect(g.href).toBe(`/obras/${PID}/gastos`);
+  });
+
+  it("gastos en cero: nodo tenue pero el link al detalle sigue", () => {
+    const nodos = derivar();
+    const g = nodo(nodos, "gastos");
+    expect(g.vivo).toBe(false);
+    expect(g.href).toBe(`/obras/${PID}/gastos`);
   });
 });

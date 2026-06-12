@@ -7,68 +7,57 @@ import { WavesBackdrop } from "@/components/cockpit/waves-backdrop";
 import { SkeletonGlass } from "@/components/cockpit/skeleton-glass";
 import { useRealtimeTable } from "@/hooks/use-realtime-table";
 import { importeGastoObraArs } from "@/lib/cashflow-gastos-obra";
+import { DOCUMENTOS_OBRA } from "@/lib/documentos-obra";
 import {
-  derivarOrbitalObra,
-  type OrbitalObra as OrbitalData,
+  derivarArtefactosObra,
+  type ArchivoObraRow,
+  type NodoArtefacto,
 } from "@/lib/obra-orbital";
 import { createClient } from "@/lib/supabase/client";
 
 /**
- * Vista orbital de la obra (/obras/[id], id = presupuesto_id — misma
- * convención que /obras/[id]/gastos): los rubros del presupuesto orbitan
- * el centro (la obra + margen al día). Datos: presupuestos_items ×
- * catalogo_recetas (presupuestado por rubro), presupuestos_gastos
- * (ejecutado real) y /cashflow/resumen (margen al día de la obra).
+ * Carpeta orbital de la obra (/obras/[id], id = presupuesto_id — misma
+ * convención que /obras/[id]/gastos): los ARTEFACTOS de la obra orbitan el
+ * centro (la obra + margen al día). Presupuesto y Diagnóstico salen del mapeo
+ * DOCUMENTOS_OBRA + obra_archivos; Fotos del bucket privado vía
+ * /api/obra-archivos (las manda Eze por WhatsApp y el bot las encarpeta);
+ * Resumen $ de /cashflow/resumen; Gastos linkea al detalle existente.
  */
 
-type RecetaJoin = { rubro_id: string | null } | { rubro_id: string | null }[] | null;
-
-type ItemRow = {
-  cantidad: number | string | null;
-  precio_material_congelado: number | string | null;
-  precio_mo_congelada: number | string | null;
-  recetas: RecetaJoin;
-};
-
-type GastoRow = { rubro_id: string | null; importe: unknown };
+type GastoRow = { importe: unknown };
 
 type ResumenObra = {
   presupuesto_id: string;
+  ingresos_caja: number | null;
+  egresos_caja: number | null;
+  saldo_caja: number | null;
   margen_al_dia_ars: number | null;
 };
 
-function rubroIdDeJoin(recetas: RecetaJoin): string | null {
-  if (recetas == null) return null;
-  const r = Array.isArray(recetas) ? recetas[0] : recetas;
-  return r?.rubro_id ?? null;
-}
-
 export function ObraOrbitalScreen({ presupuestoId }: { presupuestoId: string }) {
   const [nombre, setNombre] = useState<string>("Obra");
-  const [orbital, setOrbital] = useState<OrbitalData | null>(null);
+  const [nodos, setNodos] = useState<NodoArtefacto[] | null>(null);
   const [margen, setMargen] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const cargar = useCallback(async () => {
     try {
       const supabase = createClient();
-      const [pres, items, gastos, rubros, resumen] = await Promise.all([
+      const [pres, gastos, archivosRes, resumen] = await Promise.all([
         supabase
           .from("presupuestos")
           .select("id, nombre_obra, nombre_cliente")
           .eq("id", presupuestoId)
           .maybeSingle(),
         supabase
-          .from("presupuestos_items")
-          .select(
-            "cantidad, precio_material_congelado, precio_mo_congelada, recetas:catalogo_recetas ( rubro_id )"
-          )
-          .eq("presupuesto_id", presupuestoId),
-        supabase
           .from("presupuestos_gastos")
-          .select("rubro_id, importe")
+          .select("importe")
           .eq("presupuesto_id", presupuestoId),
-        supabase.from("rubros").select("id, nombre"),
+        fetch(`/api/obra-archivos?presupuesto_id=${presupuestoId}`, {
+          cache: "no-store",
+        })
+          .then((r) => (r.ok ? r.json() : null))
+          .catch(() => null),
         fetch("/cashflow/resumen", { cache: "no-store" })
           .then((r) => (r.ok ? r.json() : null))
           .catch(() => null),
@@ -85,31 +74,33 @@ export function ObraOrbitalScreen({ presupuestoId }: { presupuestoId: string }) 
           "Obra"
       );
 
-      const nombresRubros: Record<string, string> = {};
-      for (const r of (rubros.data ?? []) as { id: string; nombre: string }[]) {
-        nombresRubros[String(r.id)] = r.nombre;
-      }
-
-      setOrbital(
-        derivarOrbitalObra(
-          ((items.data ?? []) as unknown as ItemRow[]).map((it) => ({
-            cantidad: Number(it.cantidad) || 0,
-            precioMaterial: Number(it.precio_material_congelado) || 0,
-            precioMo: Number(it.precio_mo_congelada) || 0,
-            rubroId: rubroIdDeJoin(it.recetas),
-          })),
-          ((gastos.data ?? []) as GastoRow[]).map((g) => ({
-            rubroId: g.rubro_id,
-            importeArs: importeGastoObraArs(g),
-          })),
-          nombresRubros
-        )
+      const gastosRows = (gastos.data ?? []) as GastoRow[];
+      const gastado = gastosRows.reduce(
+        (acc, g) => acc + importeGastoObraArs(g),
+        0
       );
 
       const fila = (resumen?.obras_activas as ResumenObra[] | undefined)?.find(
         (o) => o.presupuesto_id === presupuestoId
       );
       setMargen(fila?.margen_al_dia_ars ?? null);
+
+      setNodos(
+        derivarArtefactosObra({
+          presupuestoId,
+          docsMapeados: DOCUMENTOS_OBRA[presupuestoId] ?? [],
+          archivos: (archivosRes?.archivos ?? []) as ArchivoObraRow[],
+          resumen: fila
+            ? {
+                ingresos: Number(fila.ingresos_caja) || 0,
+                egresos: Number(fila.egresos_caja) || 0,
+                saldo: Number(fila.saldo_caja) || 0,
+              }
+            : null,
+          gastado,
+          cantGastos: gastosRows.length,
+        })
+      );
     } catch (e) {
       setError(e instanceof Error ? e.message : "Error de red");
     }
@@ -118,8 +109,27 @@ export function ObraOrbitalScreen({ presupuestoId }: { presupuestoId: string }) 
   useEffect(() => {
     void cargar();
   }, [cargar]);
-  // El orbital respira en vivo: cada gasto nuevo recalcula la energía.
+  // La carpeta respira en vivo: cada gasto o foto nueva (bot) recarga.
   useRealtimeTable("presupuestos_gastos", cargar);
+  useRealtimeTable("obra_archivos", cargar);
+
+  const borrarFoto = useCallback(
+    async (id: string): Promise<boolean> => {
+      try {
+        const r = await fetch("/api/obra-archivos", {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id }),
+        });
+        if (!r.ok) return false;
+        await cargar();
+        return true;
+      } catch {
+        return false;
+      }
+    },
+    [cargar]
+  );
 
   return (
     <div className="font-grotesk relative flex h-dvh flex-col bg-cdm-bg p-4 text-cdm-fg">
@@ -150,24 +160,17 @@ export function ObraOrbitalScreen({ presupuestoId }: { presupuestoId: string }) 
         {error && (
           <p className="px-1 pt-4 text-[11px] text-red-400">{error}</p>
         )}
-        {!error && !orbital && (
+        {!error && !nodos && (
           <div className="px-1 pt-6">
             <SkeletonGlass filas={4} anchos={["w-1/3", "w-1/2", "w-1/4", "w-2/5"]} />
           </div>
         )}
-        {orbital && orbital.nodos.length === 0 && (
-          <div className="flex h-full items-center justify-center">
-            <p className="text-[11px] uppercase tracking-[0.2em] text-cdm-muted">
-              Este presupuesto todavía no tiene rubros cargados.
-            </p>
-          </div>
-        )}
-        {orbital && orbital.nodos.length > 0 && (
+        {nodos && (
           <OrbitalObra
-            nodos={orbital.nodos}
+            nodos={nodos}
             obraNombre={nombre}
             margenAlDia={margen}
-            gastoSinRubro={orbital.gastoSinRubro}
+            onBorrarFoto={borrarFoto}
           />
         )}
       </div>
