@@ -15,6 +15,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from jobslib import (DIR_JOBS, LOCK, STATE, cargar_cfg, cargar_estado, errores_hoy,
                      log, marcar_error, marcar_ok, registrar_evento, supabase_auth,
                      ultima_ok, vencio_diario, vencio_mensual, vencio_semanal)
+import job_calendario
 import job_dolar
 import job_inbox
 import job_maestro
@@ -28,6 +29,7 @@ MAX_ERRORES_DIA = 3
 LOCK_VIEJO = 5400
 
 JOBS = [
+    ("calendario", job_calendario.correr, lambda u, a: vencio_diario(u, a, hora_minima=7)),
     ("dolar",   job_dolar.correr,   lambda u, a: vencio_diario(u, a, hora_minima=8)),
     ("sismat",  job_sismat.correr,  lambda u, a: vencio_mensual(u, a, dia_minimo=2, hora_minima=8)),
     ("maestro", job_maestro.correr, lambda u, a: vencio_mensual(u, a, dia_minimo=2, hora_minima=9)),
