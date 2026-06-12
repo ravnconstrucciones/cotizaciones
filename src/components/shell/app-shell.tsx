@@ -17,6 +17,7 @@ type NavItem = { href: string; label: string };
 
 const NAV_COCKPIT: NavItem[] = [
   { href: "/", label: "Inicio" },
+  { href: "/obras", label: "Proyectos" },
   { href: "/actividad", label: "Actividad" },
   { href: "/archivados", label: "Archivados" },
   { href: "/adn", label: "ADN" },
