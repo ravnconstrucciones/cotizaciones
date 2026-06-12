@@ -7,6 +7,8 @@ import { formatMoneyInt } from "@/lib/format-currency";
 
 type ObraActiva = {
   obra_id: string;
+  /** Las rutas /obras/[id] usan presupuesto_id (convención de la app). */
+  presupuesto_id: string;
   nombre_obra: string;
   ingresos_caja: number;
   egresos_caja: number;
@@ -71,12 +73,20 @@ export function ModuloObras({ className }: { className?: string }) {
       titulo="Obras"
       className={className}
       accion={
-        <Link
-          href="/cashflow"
-          className="text-[9px] uppercase tracking-[0.2em] text-cdm-muted hover:text-cdm-fg"
-        >
-          Cashflow →
-        </Link>
+        <span className="flex items-baseline gap-3">
+          <Link
+            href="/obras"
+            className="text-[9px] uppercase tracking-[0.2em] text-cdm-muted hover:text-cdm-fg"
+          >
+            Proyectos →
+          </Link>
+          <Link
+            href="/cashflow"
+            className="text-[9px] uppercase tracking-[0.2em] text-cdm-muted hover:text-cdm-fg"
+          >
+            Cashflow →
+          </Link>
+        </span>
       }
     >
       {error && <p className="text-[11px] text-red-400">{error}</p>}
@@ -91,7 +101,13 @@ export function ModuloObras({ className }: { className?: string }) {
           return (
             <li key={o.obra_id} className="border-b border-cdm-line pb-2 last:border-0">
               <div className="flex items-baseline justify-between gap-2">
-                <span className="truncate text-xs text-cdm-fg">{o.nombre_obra}</span>
+                {/* Cada obra abre su orbital (rubros + % ejecutado). */}
+                <Link
+                  href={`/obras/${o.presupuesto_id}`}
+                  className="truncate text-xs text-cdm-fg transition-colors hover:text-cdm-taupe"
+                >
+                  {o.nombre_obra}
+                </Link>
                 <span
                   className={`shrink-0 text-[9px] uppercase tracking-[0.15em] ${estado.cls}`}
                 >
