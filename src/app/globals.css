@@ -1,5 +1,10 @@
 @import "tailwindcss";
 
+/* Variante `light:` (espejo del `dark:` de Tailwind, scoped a la clase
+   que aplica next-themes en <html>). Para los ajustes puntuales de
+   utilidades que el set de tokens claro no puede cubrir solo. */
+@custom-variant light (&:where(html.light, html.light *));
+
 /* Default dark (SSR / antes de next-themes); mismo token que html.dark */
 /* Blanco de marca: #fef7f2 (crema) en lugar de #fff */
 :root,
@@ -46,6 +51,39 @@ html.light {
   --cdm-glow: rgba(34, 211, 238, 0.35);
   /* acero de la niebla: el azul-gris frío de la atmósfera */
   --cdm-steel: #243a55;
+  /* malla Waves (el JS pinta con esta var — theme-aware sin leer el tema) */
+  --cdm-waves-stroke: rgba(34, 211, 238, 0.18);
+  /* hairline divisoria (línea de luz off-white en oscuro / tinta en claro) */
+  --cdm-hairline: rgba(234, 246, 251, 0.18);
+  /* LiquidGlass (capas inline del componente): tinte + highlights por tema */
+  --cdm-lg-tint-rgb: 234 246 251;
+  --cdm-lg-alpha-boost: 1;
+  --cdm-lg-hi-1: rgba(234, 246, 251, 0.13);
+  --cdm-lg-hi-2: rgba(234, 246, 251, 0.1);
+}
+
+/* ── MODO CLARO (pedido Eze 12/06): el MISMO cockpit con otra luz.
+   Referencia: visionOS — vidrio esmerilado sobre blanco frío. Base
+   #f5f7fa (ni beige ni blanco 100 puro), niebla gris-azul que respira
+   igual, cian recalibrado a #0891b2/#0e7490 para contraste AA. El bloom
+   sobre claro casi no existe: la luz pasa a ser sombra cian tenue. */
+html.light {
+  --cdm-bg: #f5f7fa;
+  --cdm-panel: #ffffff;
+  --cdm-fg: #0f172a;
+  --cdm-muted: rgba(15, 23, 42, 0.55);
+  --cdm-line: rgba(15, 23, 42, 0.12);
+  --cdm-accent: #0891b2;
+  --cdm-accent-2: #0e7490;
+  --cdm-deep: #0e7490;
+  --cdm-glow: rgba(8, 145, 178, 0.4);
+  --cdm-steel: #dde5ee;
+  --cdm-waves-stroke: rgba(100, 116, 139, 0.14);
+  --cdm-hairline: rgba(15, 23, 42, 0.16);
+  --cdm-lg-tint-rgb: 255 255 255;
+  --cdm-lg-alpha-boost: 6;
+  --cdm-lg-hi-1: rgba(255, 255, 255, 0.95);
+  --cdm-lg-hi-2: rgba(148, 163, 184, 0.25);
 }
 
 @theme {
@@ -321,6 +359,28 @@ html.light {
   }
 
   /**
+   * Capas de presencia del fondo Waves (antes gradientes hardcodeados en
+   * el JSX del componente — acá viven por tema). Presencia: calma el
+   * centro detrás del contenido. Vignette: las esquinas caen — cabina
+   * en oscuro, bruma fría en claro.
+   */
+  .cdm-presencia {
+    background: radial-gradient(
+      105% 80% at 50% 42%,
+      rgba(5, 8, 15, 0.62) 0%,
+      rgba(5, 8, 15, 0.34) 55%,
+      rgba(5, 8, 15, 0.04) 100%
+    );
+  }
+  .cdm-vignette {
+    background: radial-gradient(
+      135% 115% at 50% 50%,
+      transparent 58%,
+      rgba(0, 0, 0, 0.46) 100%
+    );
+  }
+
+  /**
    * Bloom volumétrico (iteración 5): el texto EMANA luz de verdad.
    * Dos copias del propio texto (attr(data-bloom)) detrás del original,
    * cada una con su blur — halo interno azul hielo + aura externa cian.
@@ -437,6 +497,216 @@ html.light {
     transform: translateX(-100%);
     animation: cdm-skeleton-barrido 1.8s ease-in-out infinite;
   }
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   MODO CLARO — piel de vidrio sobre blanco frío (visionOS).
+   Mismo lenguaje, otra luz: cada clase .cdm-* gana su versión clara.
+   El oscuro NO se toca: estas reglas solo aplican bajo html.light.
+   ════════════════════════════════════════════════════════════════════ */
+
+/* Panel HUD claro: vidrio esmerilado de verdad — blanco translúcido con
+   blur fuerte, borde que arranca blanco brillante arriba y cae a
+   gris-azul abajo, sombra ambiental difusa (nunca negra dura) y un baño
+   cian apenas perceptible en la base. */
+html.light .cdm-glass {
+  border-image: linear-gradient(
+      165deg,
+      rgba(255, 255, 255, 0.98),
+      rgba(255, 255, 255, 0.55) 35%,
+      rgba(100, 116, 139, 0.4) 100%
+    )
+    1;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.85), rgba(255, 255, 255, 0.25) 32%),
+    rgba(255, 255, 255, 0.42);
+  -webkit-backdrop-filter: blur(28px) saturate(1.6);
+  backdrop-filter: blur(28px) saturate(1.6);
+  box-shadow:
+    0 24px 56px -24px rgba(51, 65, 85, 0.28),
+    0 4px 14px -8px rgba(51, 65, 85, 0.14),
+    inset 0 1px 0 rgba(255, 255, 255, 1),
+    inset 0 -24px 40px -32px rgba(8, 145, 178, 0.08);
+}
+html.light .cdm-glass:hover {
+  box-shadow:
+    0 24px 56px -24px rgba(51, 65, 85, 0.32),
+    0 0 32px -12px rgba(8, 145, 178, 0.22),
+    inset 0 1px 0 rgba(255, 255, 255, 1),
+    inset 0 -24px 40px -32px rgba(8, 145, 178, 0.12);
+}
+
+/* Prompt box claro: vidrio blanco con foco cian profundo (anillo suave,
+   no glow — el bloom no existe sobre blanco). */
+html.light .cdm-prompt {
+  border-color: rgba(8, 145, 178, 0.3);
+  background: rgba(255, 255, 255, 0.55);
+  box-shadow:
+    0 16px 40px -18px rgba(51, 65, 85, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.95);
+}
+html.light .cdm-prompt:focus-within {
+  border-color: rgba(8, 145, 178, 0.6);
+  box-shadow:
+    0 16px 40px -18px rgba(51, 65, 85, 0.3),
+    0 0 0 3px rgba(8, 145, 178, 0.12),
+    inset 0 1px 0 rgba(255, 255, 255, 1);
+}
+
+/* Chip de vidrio claro. */
+html.light .cdm-chip {
+  background-color: rgba(255, 255, 255, 0.6);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.95),
+    inset 0 -1px 1px rgba(8, 145, 178, 0.06),
+    0 2px 10px -4px rgba(51, 65, 85, 0.22);
+}
+
+/* Scrollbar del prompt en claro: cian profundo. */
+html.light .cdm-textarea {
+  scrollbar-color: rgba(8, 145, 178, 0.35) transparent;
+}
+html.light .cdm-textarea::-webkit-scrollbar-thumb {
+  background: rgba(8, 145, 178, 0.35);
+}
+html.light .cdm-textarea::-webkit-scrollbar-thumb:hover {
+  background: rgba(8, 145, 178, 0.55);
+}
+
+/* Línea de horizonte clara: cian profundo, resplandor mínimo. */
+html.light .cdm-horizon {
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(8, 145, 178, 0.35) 18%,
+    rgba(8, 145, 178, 0.75) 50%,
+    rgba(8, 145, 178, 0.35) 82%,
+    transparent 100%
+  );
+  box-shadow: 0 0 12px rgba(8, 145, 178, 0.18);
+}
+
+/* Niebla clara: masas gris-azul (#e8edf3 / #dde5ee de referencia) que
+   respiran igual que las oscuras — bruma fría, no manchas. */
+html.light .cdm-niebla-a {
+  background: radial-gradient(
+    ellipse 50% 50% at 50% 50%,
+    rgba(221, 229, 238, 0.95),
+    rgba(221, 229, 238, 0.4) 48%,
+    transparent 72%
+  );
+}
+html.light .cdm-niebla-b {
+  background: radial-gradient(
+    ellipse 50% 50% at 50% 50%,
+    rgba(203, 215, 229, 0.85),
+    rgba(203, 215, 229, 0.35) 50%,
+    transparent 75%
+  );
+}
+html.light .cdm-niebla-c {
+  background: radial-gradient(
+    ellipse 50% 50% at 50% 50%,
+    rgba(8, 145, 178, 0.08),
+    rgba(8, 145, 178, 0.025) 45%,
+    transparent 70%
+  );
+}
+
+/* Presencia y vignette claras: el centro se aquieta hacia el blanco frío,
+   las esquinas caen a bruma gris-azul (nunca a negro). */
+html.light .cdm-presencia {
+  background: radial-gradient(
+    105% 80% at 50% 42%,
+    rgba(245, 247, 250, 0.78) 0%,
+    rgba(245, 247, 250, 0.42) 55%,
+    rgba(245, 247, 250, 0.05) 100%
+  );
+}
+html.light .cdm-vignette {
+  background: radial-gradient(
+    135% 115% at 50% 50%,
+    transparent 58%,
+    rgba(100, 116, 139, 0.18) 100%
+  );
+}
+
+/* Bloom en claro: la emanación casi desaparece — queda una sombra cian
+   tenue que sugiere la luz sin ensuciar el blanco. */
+html.light .cdm-bloom::before {
+  color: rgba(8, 145, 178, 0.2);
+  filter: blur(6px);
+}
+html.light .cdm-bloom::after {
+  color: rgba(8, 145, 178, 0.08);
+  filter: blur(18px);
+}
+html.light .cdm-bloom-suave::after {
+  color: rgba(8, 145, 178, 0.12);
+}
+
+/* Botón cian claro: vidrio con baño cian profundo, texto AA, sin
+   text-shadow (el glow es lenguaje del oscuro). */
+html.light .cdm-btn-cian {
+  border-color: rgba(8, 145, 178, 0.45);
+  color: var(--cdm-accent-2);
+  background: linear-gradient(
+    180deg,
+    rgba(8, 145, 178, 0.12),
+    rgba(8, 145, 178, 0.05)
+  );
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    0 8px 22px -10px rgba(8, 145, 178, 0.35),
+    0 12px 28px -16px rgba(51, 65, 85, 0.25);
+  text-shadow: none;
+}
+html.light .cdm-btn-cian:hover:not(:disabled) {
+  border-color: rgba(8, 145, 178, 0.75);
+  background: linear-gradient(
+    180deg,
+    rgba(8, 145, 178, 0.18),
+    rgba(8, 145, 178, 0.08)
+  );
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.95),
+    0 8px 28px -8px rgba(8, 145, 178, 0.45),
+    0 12px 28px -16px rgba(51, 65, 85, 0.25);
+}
+
+/* Skeleton claro: barra gris-azul con barrido cian profundo. */
+html.light .cdm-skeleton {
+  background: rgba(15, 23, 42, 0.05);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7);
+}
+html.light .cdm-skeleton::after {
+  background: linear-gradient(
+    100deg,
+    transparent 20%,
+    rgba(8, 145, 178, 0.08) 45%,
+    rgba(8, 145, 178, 0.14) 50%,
+    rgba(8, 145, 178, 0.08) 55%,
+    transparent 80%
+  );
+}
+
+/* Semáforo financiero en claro: los emerald/red/amber 200–400 del oscuro
+   no llegan a AA sobre blanco — remap global a tonos profundos (mismos
+   matices, otra luz). El oscuro no se toca: las clases siguen intactas. */
+html.light :is(.text-emerald-400, .text-emerald-300) {
+  color: #047857; /* emerald-700 */
+}
+html.light :is(.text-red-400, .text-red-300, .text-red-200) {
+  color: #dc2626; /* red-600 */
+}
+html.light
+  :is(
+    .text-amber-300,
+    .text-amber-200,
+    .text-amber-300\/90,
+    .text-amber-300\/70
+  ) {
+  color: #b45309; /* amber-700 */
 }
 
 @keyframes cdm-shimmer-sweep {
