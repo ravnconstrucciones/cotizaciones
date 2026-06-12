@@ -93,66 +93,73 @@ export async function GET() {
     const supabase = createSupabaseAdminClient();
     const hoy = todayBuenosAires();
 
-    await supabase
-      .from("cashflow_items")
-      .update({ estado: "vencido" })
-      .eq("tipo", "ingreso")
-      .eq("estado", "pendiente")
-      .is("monto_real", null)
-      .is("fecha_real", null)
-      .is("deleted_at", null)
-      .lt("fecha_proyectada", hoy);
+    // Las tres operaciones son independientes — las lanzamos en paralelo.
+    const [, itemsResult, obrasResult] = await Promise.all([
+      supabase
+        .from("cashflow_items")
+        .update({ estado: "vencido" })
+        .eq("tipo", "ingreso")
+        .eq("estado", "pendiente")
+        .is("monto_real", null)
+        .is("fecha_real", null)
+        .is("deleted_at", null)
+        .lt("fecha_proyectada", hoy),
 
-    const { data, error } = await supabase
-      .from("cashflow_items")
-      .select(
+      supabase
+        .from("cashflow_items")
+        .select(
+          `
+          id,
+          obra_id,
+          tipo,
+          categoria,
+          descripcion,
+          monto_proyectado,
+          fecha_proyectada,
+          monto_real,
+          fecha_real,
+          estado,
+          notas,
+          obras (
+            id,
+            presupuesto_id,
+            presupuestos (
+              id,
+              nombre_obra,
+              nombre_cliente,
+              presupuesto_aprobado
+            )
+          )
         `
-        id,
-        obra_id,
-        tipo,
-        categoria,
-        descripcion,
-        monto_proyectado,
-        fecha_proyectada,
-        monto_real,
-        fecha_real,
-        estado,
-        notas,
-        obras (
+        )
+        .is("deleted_at", null),
+
+      supabase.from("obras").select(`
           id,
           presupuesto_id,
+          cobranza_cerrada_at,
+          finalizada_at,
+          monto_total_a_cobrar_ars,
           presupuestos (
             id,
             nombre_obra,
             nombre_cliente,
-            presupuesto_aprobado
+            presupuesto_aprobado,
+            propuesta_comercial_pref,
+            libreta_caja_empresa,
+            fecha
           )
-        )
-      `
-      )
-      .is("deleted_at", null);
+        `),
+    ]);
 
+    const { data, error } = itemsResult;
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
     const rows = (data ?? []) as unknown as JoinedRow[];
 
-    const { data: obrasData, error: errObras } = await supabase.from("obras").select(`
-        id,
-        presupuesto_id,
-        cobranza_cerrada_at,
-        finalizada_at,
-        monto_total_a_cobrar_ars,
-        presupuestos (
-          id,
-          nombre_obra,
-          nombre_cliente,
-          presupuesto_aprobado,
-          propuesta_comercial_pref,
-          libreta_caja_empresa
-        )
-      `);
+    const { data: obrasData, error: errObras } = obrasResult;
     if (errObras) {
       return NextResponse.json({ error: errObras.message }, { status: 500 });
     }
@@ -254,6 +261,9 @@ export async function GET() {
         obra_id: o.id,
         presupuesto_id: o.presupuesto_id,
         nombre_obra: nombre,
+        // Expuestos para evitar un segundo fetch desde el cliente.
+        nombre_cliente: p?.nombre_cliente?.trim() ?? null,
+        fecha_presupuesto: p?.fecha ? String(p.fecha).slice(0, 10) : null,
         ingresos_caja: tr.ingresos,
         egresos_libreta_ars: egLib,
         egresos_gastos_obra_ars: egGastos,
@@ -484,7 +494,7 @@ export async function GET() {
       })
       .slice(0, 50);
 
-    return NextResponse.json({
+    const payload = NextResponse.json({
       fecha_referencia: hoy,
       saldo_caja_total: saldoGlob,
       total_por_cobrar_clientes_ars,
@@ -507,6 +517,14 @@ export async function GET() {
       movimientos_recientes,
       movimientos_anulados_recientes,
     });
+    // El middleware exige sesión, así que este endpoint nunca llega a CDN pública.
+    // private + stale-while-revalidate hace que el browser sirva caché al instante
+    // mientras revalida en background — elimina el "Cargando…" en navegaciones repetidas.
+    payload.headers.set(
+      "Cache-Control",
+      "private, max-age=15, stale-while-revalidate=60"
+    );
+    return payload;
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Error";
     return NextResponse.json({ error: msg }, { status: 500 });
