@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { useTheme } from "next-themes";
 import * as THREE from "three";
 
 /**
@@ -30,6 +31,14 @@ export function Monolito3D({
   opacidad = 1,
 }: MonolitoProps) {
   const hostRef = useRef<HTMLDivElement>(null);
+  /**
+   * Modo claro (12/06): la escena se reconstruye por tema — niebla blanca
+   * fría, el monolito sigue siendo vidrio oscuro (ahora ES el objeto de
+   * contraste) y la luz cian se enfría. Antes de montar resolvedTheme es
+   * undefined → arranca oscuro (igual que el SSR del resto del cockpit).
+   */
+  const { resolvedTheme } = useTheme();
+  const claro = resolvedTheme === "light";
 
   useEffect(() => {
     const host = hostRef.current;
@@ -40,9 +49,12 @@ export function Monolito3D({
     ).matches;
 
     const escena = new THREE.Scene();
-    // La niebla de three arranca del MISMO azul-gris del fondo CSS: el
+    // La niebla de three arranca del MISMO tono del fondo CSS: el
     // monolito se funde con la atmósfera en vez de flotar recortado.
-    escena.fog = new THREE.FogExp2(0x05080f, 0.19);
+    // En claro la niebla es el blanco frío del cockpit (#f5f7fa) y mucho
+    // menos densa: el blanco lava rapidísimo y aplana el objeto — acá el
+    // monolito debe seguir siendo VIDRIO OSCURO, el objeto de contraste.
+    escena.fog = new THREE.FogExp2(claro ? 0xf5f7fa : 0x05080f, claro ? 0.1 : 0.19);
 
     const camara = new THREE.PerspectiveCamera(38, 1, 0.1, 30);
     camara.position.set(0, 0.1, 3.4);
@@ -88,12 +100,14 @@ export function Monolito3D({
     });
     geo.center();
 
+    // En claro el clearcoat sube y la rugosidad baja: speculars más
+    // nítidos → lee como vidrio negro pulido, no como cartón gris.
     const mat = new THREE.MeshPhysicalMaterial({
       color: 0x0b1119,
       metalness: 0.92,
-      roughness: 0.34,
-      clearcoat: 0.55,
-      clearcoatRoughness: 0.3,
+      roughness: claro ? 0.26 : 0.34,
+      clearcoat: claro ? 0.75 : 0.55,
+      clearcoatRoughness: claro ? 0.22 : 0.3,
     });
     const monolito = new THREE.Mesh(geo, mat);
     const xBase = posicion === "derecha" ? 1.1 : 0;
@@ -105,13 +119,19 @@ export function Monolito3D({
     // ── Luz: cian rasante desde la derecha (las caras frontales quedan en
     //    sombra, solo las aristas atrapan luz), rim azul hielo desde
     //    atrás-izquierda, relleno casi nulo.
-    const key = new THREE.DirectionalLight(0x22d3ee, 7);
+    const key = new THREE.DirectionalLight(claro ? 0x06b6d4 : 0x22d3ee, claro ? 9 : 7);
     key.position.set(3.2, 1.5, 0.6);
     escena.add(key);
-    const rim = new THREE.DirectionalLight(0x7dd3fc, 3.4);
+    const rim = new THREE.DirectionalLight(0x7dd3fc, claro ? 3.2 : 3.4);
     rim.position.set(-2.6, -0.6, -2.2);
     escena.add(rim);
-    escena.add(new THREE.AmbientLight(0x12202e, 1.4));
+    // En claro el ambiente es luz de día fría pero BAJA: las caras quedan
+    // oscuras (contraste contra el blanco) y solo las aristas atrapan cian.
+    escena.add(
+      claro
+        ? new THREE.AmbientLight(0xe8f0f7, 1.1)
+        : new THREE.AmbientLight(0x12202e, 1.4)
+    );
 
     // ── Polvo en suspensión: puntos cian apenas visibles, deriva lenta.
     const N = 130;
@@ -123,12 +143,14 @@ export function Monolito3D({
     }
     const geoPolvo = new THREE.BufferGeometry();
     geoPolvo.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+    // Polvo: aditivo (luz) en oscuro; sobre blanco el aditivo desaparece →
+    // blending normal con gris-azul, motas de polvo en contraluz.
     const matPolvo = new THREE.PointsMaterial({
-      color: 0x7dd3fc,
+      color: claro ? 0x64748b : 0x7dd3fc,
       size: 0.012,
       transparent: true,
-      opacity: 0.4,
-      blending: THREE.AdditiveBlending,
+      opacity: claro ? 0.35 : 0.4,
+      blending: claro ? THREE.NormalBlending : THREE.AdditiveBlending,
       depthWrite: false,
       sizeAttenuation: true,
     });
@@ -197,13 +219,17 @@ export function Monolito3D({
       renderer.dispose();
       renderer.domElement.remove();
     };
-  }, [posicion]);
+  }, [posicion, claro]);
 
   return (
     <div
       ref={hostRef}
       aria-hidden
-      style={{ opacity: opacidad }}
+      // La graduación de opacidad es lenguaje del oscuro (hundirse en la
+      // niebla negra). Sobre blanco, bajar la opacidad LAVA el vidrio
+      // oscuro hacia gris — en claro va siempre pleno; la integración
+      // atmosférica ya la pone el fog blanco de la escena.
+      style={{ opacity: claro ? 1 : opacidad }}
       className={`pointer-events-none ${className ?? ""}`}
     />
   );
