@@ -3,6 +3,7 @@
 import { motion } from "framer-motion";
 import type { CerebroData } from "@/types/centro-mando";
 import { CommandBar } from "./command-bar";
+import { ShaderBackdrop } from "./shader-backdrop";
 import { ModuloObras } from "./modulo-obras";
 import { ModuloPlata } from "./modulo-plata";
 import { ModuloPendientes } from "./modulo-pendientes";
@@ -20,13 +21,20 @@ const stagger = {
 /**
  * Home cockpit (spec §4): una pantalla, sin scroll en desktop (cada módulo
  * scrollea adentro). En < lg degrada a una columna con scroll normal.
- * Los Placeholder se reemplazan por módulos reales en las tareas 12-15.
+ * Skin futurista: shader de fondo (ShaderBackdrop, z-0) + contenido en z-10
+ * con Inter como fuente de interfaz (Raleway queda solo para la marca).
  */
 export function CockpitHome({ cerebro }: { cerebro: CerebroData }) {
   return (
-    <div className="flex min-h-screen flex-col gap-3 bg-cdm-bg p-4 text-cdm-fg lg:h-screen lg:overflow-hidden">
-      <div className="flex items-baseline justify-between px-1">
-        <h1 className="font-raleway text-[11px] uppercase tracking-[0.35em] text-cdm-muted">
+    <div className="font-inter relative flex min-h-screen flex-col gap-3 bg-cdm-bg p-4 text-cdm-fg lg:h-screen lg:overflow-hidden">
+      <ShaderBackdrop />
+
+      <div className="relative z-10 flex items-baseline justify-between px-1">
+        <h1 className="flex items-center gap-2 text-[11px] uppercase tracking-[0.35em] text-cdm-muted">
+          <span
+            aria-hidden
+            className="h-[5px] w-[5px] bg-cdm-taupe shadow-[0_0_8px_rgba(200,180,154,0.9)]"
+          />
           Centro de mando
         </h1>
         <span className="text-[10px] uppercase tracking-[0.2em] text-cdm-muted/60">
@@ -44,7 +52,7 @@ export function CockpitHome({ cerebro }: { cerebro: CerebroData }) {
         variants={stagger}
         initial="hidden"
         animate="visible"
-        className="grid min-h-0 flex-1 grid-cols-1 gap-3 lg:grid-cols-12 lg:grid-rows-2"
+        className="relative z-10 grid min-h-0 flex-1 grid-cols-1 gap-3 lg:grid-cols-12 lg:grid-rows-2"
       >
         <ModuloObras className="lg:col-span-3" />
         <ModuloPlata className="lg:col-span-3" />
