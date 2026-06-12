@@ -13,7 +13,7 @@ function fmtFecha(iso: string): string {
 }
 
 const CHIP_ACTIVO =
-  "border-cdm-taupe bg-cdm-taupe text-cdm-bg";
+  "border-cdm-accent bg-cdm-accent text-cdm-bg";
 const CHIP_IDLE =
   "border-cdm-line text-cdm-muted hover:text-cdm-fg";
 
@@ -73,7 +73,7 @@ export function AdnScreen() {
           <h1 className="flex items-center gap-2 text-[11px] uppercase tracking-[0.35em] text-cdm-muted">
             <span
               aria-hidden
-              className="h-[5px] w-[5px] bg-cdm-taupe shadow-[0_0_8px_rgba(200,180,154,0.9)]"
+              className="h-[5px] w-[5px] bg-cdm-accent shadow-[0_0_8px_rgba(34,211,238,0.9)]"
             />
             ADN
           </h1>
@@ -167,7 +167,7 @@ export function AdnScreen() {
                           <button
                             key={e}
                             onClick={() => setEtiqueta(e)}
-                            className="border border-cdm-line px-1.5 py-0.5 text-[8px] uppercase tracking-widest text-cdm-taupe transition-colors hover:bg-cdm-taupe hover:text-cdm-bg"
+                            className="border border-cdm-line px-1.5 py-0.5 text-[8px] uppercase tracking-widest text-cdm-accent transition-colors hover:bg-cdm-accent hover:text-cdm-bg"
                           >
                             {e}
                           </button>
@@ -199,7 +199,7 @@ export function AdnScreen() {
                 initial={{ opacity: 0, y: 12 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.35, delay: Math.min(i * 0.04, 0.6) }}
-                className="border-l-2 border-cdm-taupe pl-4"
+                className="border-l-2 border-cdm-accent pl-4"
               >
                 <p className="text-sm italic leading-relaxed text-cdm-fg/90">
                   &ldquo;{r.texto}&rdquo;

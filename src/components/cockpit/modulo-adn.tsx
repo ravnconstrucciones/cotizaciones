@@ -57,7 +57,7 @@ export function ModuloAdn({ className }: { className?: string }) {
           </div>
         )}
         {ultFilosofia?.texto && (
-          <blockquote className="border-l-2 border-cdm-taupe pl-3 text-[11px] italic leading-relaxed text-cdm-fg/85">
+          <blockquote className="border-l-2 border-cdm-accent pl-3 text-[11px] italic leading-relaxed text-cdm-fg/85">
             &ldquo;{ultFilosofia.texto}&rdquo;
             {ultFilosofia.fuente && (
               <footer className="mt-1 text-[9px] uppercase not-italic tracking-[0.15em] text-cdm-muted">

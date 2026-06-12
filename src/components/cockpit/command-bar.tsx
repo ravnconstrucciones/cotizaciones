@@ -41,7 +41,7 @@ const ESTADO_LABEL: Record<TrabajoCola["estado"], string> = {
 const ESTADO_COLOR: Record<TrabajoCola["estado"], string> = {
   pendiente: "text-cdm-muted",
   esperando_datos: "text-amber-300",
-  procesando: "text-cdm-taupe",
+  procesando: "text-cdm-accent",
   en_revision: "text-amber-300",
   completado: "text-emerald-400",
   error: "text-red-400",
@@ -106,13 +106,13 @@ function VisualizadorBarras() {
         reducirMovimiento ? (
           <span
             key={i}
-            className="w-[2px] rounded-full bg-cdm-taupe/60"
+            className="w-[2px] rounded-full bg-cdm-accent/60"
             style={{ height: h * 0.6 }}
           />
         ) : (
           <motion.span
             key={i}
-            className="w-[2px] rounded-full bg-cdm-taupe/70"
+            className="w-[2px] rounded-full bg-cdm-accent/70"
             animate={{ height: [4, h, 4] }}
             transition={{
               repeat: Infinity,
@@ -364,8 +364,8 @@ export function CommandBar() {
           className="relative"
         >
           {arrastrando && (
-            <div className="pointer-events-none absolute inset-1 z-40 flex items-center justify-center rounded-[22px] border border-dashed border-cdm-taupe/60 bg-cdm-bg/70">
-              <p className="text-[11px] uppercase tracking-[0.2em] text-cdm-taupe">
+            <div className="pointer-events-none absolute inset-1 z-40 flex items-center justify-center rounded-[22px] border border-dashed border-cdm-accent/60 bg-cdm-bg/70">
+              <p className="text-[11px] uppercase tracking-[0.2em] text-cdm-accent">
                 Soltá la imagen
               </p>
             </div>
@@ -431,7 +431,7 @@ export function CommandBar() {
                   transition={{ repeat: Infinity, duration: 1.2 }}
                   className="h-2 w-2 shrink-0 rounded-full bg-red-400"
                 />
-                <span className="shrink-0 text-[11px] uppercase tracking-[0.2em] text-cdm-taupe">
+                <span className="shrink-0 text-[11px] uppercase tracking-[0.2em] text-cdm-accent">
                   Escuchando
                 </span>
                 <VisualizadorBarras />
@@ -494,7 +494,7 @@ export function CommandBar() {
             </button>
             <span aria-hidden className="h-4 w-px bg-cdm-line" />
 
-            {/* Chips de tipo: segmentado liquid glass + píldora taupe spring. */}
+            {/* Chips de tipo: segmentado liquid glass + píldora cian spring. */}
             <LiquidGlass className="rounded-full" blur={4} tint={0.05}>
               <div className="flex items-center gap-0.5 p-0.5">
                 {TIPOS_TRABAJO.map((t) => {
@@ -517,7 +517,7 @@ export function CommandBar() {
                         <motion.span
                           layoutId="cdm-chip-activo"
                           aria-hidden
-                          className="absolute inset-0 rounded-full bg-cdm-taupe shadow-[0_0_14px_rgba(200,180,154,0.35)]"
+                          className="absolute inset-0 rounded-full bg-cdm-accent shadow-[0_0_14px_rgba(34,211,238,0.35)]"
                           transition={{
                             type: "spring",
                             stiffness: 400,
@@ -583,7 +583,7 @@ export function CommandBar() {
                   aria-label="Ejecutar comando"
                   className={`flex h-8 w-8 items-center justify-center rounded-full transition-all disabled:cursor-not-allowed ${
                     hayContenido
-                      ? "bg-cdm-taupe text-cdm-bg shadow-[0_0_16px_rgba(200,180,154,0.35)] hover:opacity-90"
+                      ? "bg-cdm-accent text-cdm-bg shadow-[0_0_16px_rgba(34,211,238,0.35)] hover:opacity-90"
                       : "bg-cdm-fg/10 text-cdm-muted"
                   } ${enviando ? "opacity-50" : ""}`}
                 >
@@ -650,7 +650,7 @@ export function CommandBar() {
                     <motion.span
                       animate={{ opacity: [1, 0.2, 1] }}
                       transition={{ repeat: Infinity, duration: 1.6 }}
-                      className="h-1.5 w-1.5 shrink-0 bg-cdm-taupe"
+                      className="h-1.5 w-1.5 shrink-0 bg-cdm-accent"
                     />
                   )}
                   <span className="truncate text-[11px] text-cdm-muted">

@@ -72,13 +72,13 @@ function NavLink({
       {activo && (
         <motion.span
           layoutId="nav-activo"
-          className="absolute inset-y-0 left-0 w-[2px] bg-cdm-taupe shadow-[0_0_10px_rgba(200,180,154,0.7)]"
+          className="absolute inset-y-0 left-0 w-[2px] bg-cdm-accent shadow-[0_0_10px_rgba(34,211,238,0.7)]"
           transition={{ type: "spring", stiffness: 400, damping: 35 }}
         />
       )}
       <span>{item.label}</span>
       {badge ? (
-        <span className="bg-cdm-taupe px-1.5 py-0.5 text-[9px] font-bold tabular-nums text-cdm-bg">
+        <span className="cdm-chip border border-cdm-accent/50 px-1.5 py-0.5 text-[9px] font-bold tabular-nums text-cdm-accent shadow-[0_0_12px_-2px_rgba(34,211,238,0.45)]">
           {badge}
         </span>
       ) : null}
@@ -145,7 +145,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               showTagline={false}
               shimmer
               sizeClassName="text-xl"
-              className="drop-shadow-[0_0_18px_rgba(200,180,154,0.30)]"
+              className="drop-shadow-[0_0_18px_rgba(34,211,238,0.30)]"
             />
           </Link>
         </div>
@@ -155,7 +155,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         >
           {grupos.map((g) => (
             <div key={g.titulo} className="mb-8">
-              <p className="px-5 pb-2.5 text-[9px] uppercase tracking-[0.28em] text-cdm-taupe/60">
+              <p className="px-5 pb-2.5 text-[9px] uppercase tracking-[0.28em] text-cdm-accent/60">
                 {g.titulo}
               </p>
               {g.items.map((item) => (

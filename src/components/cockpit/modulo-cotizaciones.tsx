@@ -12,7 +12,7 @@ const ESTADO_UI: Record<EstadoCotizacion, { label: string; cls: string }> = {
   en_revision: { label: "En revisión", cls: "text-amber-300" },
   aprobada: { label: "Aprobada", cls: "text-emerald-400" },
   rechazada: { label: "Rechazada", cls: "text-red-400" },
-  documento_emitido: { label: "Emitida", cls: "text-cdm-taupe" },
+  documento_emitido: { label: "Emitida", cls: "text-cdm-accent" },
 };
 
 /** Módulo 5: cotizaciones en proceso + historial con estado de aprobación (spec §4.5). */

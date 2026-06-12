@@ -14,7 +14,7 @@ import { WavesBackdrop } from "@/components/cockpit/waves-backdrop";
  */
 
 const fieldCls =
-  "w-full rounded-none border-0 border-b border-cdm-line bg-transparent px-1 py-3 text-sm text-cdm-fg placeholder:text-cdm-muted/40 transition-[border-color,box-shadow] duration-200 focus-visible:border-cdm-taupe focus-visible:outline-none focus-visible:shadow-[0_12px_24px_-16px_rgba(200,180,154,0.6)]";
+  "w-full rounded-none border-0 border-b border-cdm-line bg-transparent px-1 py-3 text-sm text-cdm-fg placeholder:text-cdm-muted/40 transition-[border-color,box-shadow] duration-200 focus-visible:border-cdm-accent focus-visible:outline-none focus-visible:shadow-[0_12px_24px_-16px_rgba(34,211,238,0.6)]";
 
 const labelCls =
   "text-[10px] font-medium uppercase tracking-[0.24em] text-cdm-muted";
@@ -61,7 +61,7 @@ export default function LoginPage() {
           <RavnLogo
             shimmer
             sizeClassName="text-4xl sm:text-5xl"
-            className="drop-shadow-[0_0_28px_rgba(200,180,154,0.25)]"
+            className="drop-shadow-[0_0_28px_rgba(34,211,238,0.25)]"
           />
         </motion.div>
 
@@ -122,7 +122,7 @@ export default function LoginPage() {
             disabled={loading}
             whileHover={reducirMovimiento ? undefined : { y: -1 }}
             whileTap={reducirMovimiento ? undefined : { scale: 0.985 }}
-            className="mt-2 inline-flex w-full items-center justify-center rounded-none border border-cdm-fg bg-cdm-fg px-8 py-4 text-sm font-semibold uppercase tracking-[0.18em] text-cdm-bg transition-shadow duration-300 hover:shadow-[0_0_36px_-4px_rgba(200,180,154,0.55)] disabled:opacity-50"
+            className="mt-2 inline-flex w-full items-center justify-center rounded-none border border-cdm-fg bg-cdm-fg px-8 py-4 text-sm font-semibold uppercase tracking-[0.18em] text-cdm-bg transition-shadow duration-300 hover:shadow-[0_0_36px_-4px_rgba(34,211,238,0.55)] disabled:opacity-50"
           >
             {loading ? "Ingresando..." : "Ingresar"}
           </motion.button>

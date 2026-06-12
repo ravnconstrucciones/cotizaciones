@@ -25,11 +25,11 @@ export const ESTADO_LABEL: Record<EstadoCotizacion, string> = {
 };
 
 export const ESTADO_COLOR: Record<EstadoCotizacion, string> = {
-  borrador: "text-ravn-muted border-ravn-line",
+  borrador: "text-cdm-muted border-cdm-line",
   en_revision: "text-amber-300 border-amber-300/40",
   aprobada: "text-emerald-400 border-emerald-400/40",
   rechazada: "text-red-400 border-red-400/40",
-  documento_emitido: "text-ravn-fg border-ravn-fg/40",
+  documento_emitido: "text-cdm-accent-2 border-cdm-accent-2/40",
 };
 
 const FILTROS: Array<{ valor: EstadoCotizacion | "todas"; etiqueta: string }> = [
@@ -85,7 +85,7 @@ export function CotizacionesScreen() {
           <h1 className="flex items-center gap-2 text-[11px] uppercase tracking-[0.35em] text-cdm-muted">
             <span
               aria-hidden
-              className="h-[5px] w-[5px] bg-cdm-taupe shadow-[0_0_8px_rgba(200,180,154,0.9)]"
+              className="h-[5px] w-[5px] bg-cdm-accent shadow-[0_0_8px_rgba(34,211,238,0.9)]"
             />
             Cotizaciones
           </h1>
@@ -99,10 +99,10 @@ export function CotizacionesScreen() {
             <button
               key={f.valor}
               onClick={() => setFiltro(f.valor)}
-              className={`border px-3 py-1 text-[10px] uppercase tracking-[0.18em] transition-colors ${
+              className={`cdm-chip cursor-pointer border px-3 py-1 text-[10px] uppercase tracking-[0.18em] transition-colors ${
                 filtro === f.valor
-                  ? "border-cdm-taupe bg-cdm-taupe text-cdm-bg"
-                  : "border-cdm-line text-cdm-muted hover:text-cdm-fg"
+                  ? "border-cdm-accent/70 bg-cdm-accent/15 text-cdm-accent shadow-[0_0_18px_-6px_rgba(34,211,238,0.55)]"
+                  : "border-cdm-line text-cdm-muted hover:border-cdm-accent/30 hover:text-cdm-fg"
               }`}
             >
               {f.etiqueta}
@@ -139,7 +139,7 @@ export function CotizacionesScreen() {
                   <div className="flex shrink-0 items-center gap-4">
                     <span className="text-sm tabular-nums">{rangoTotal(c)}</span>
                     <span
-                      className={`border px-2 py-0.5 text-[10px] uppercase tracking-[0.14em] ${ESTADO_COLOR[c.estado]}`}
+                      className={`cdm-chip border px-2 py-0.5 text-[10px] uppercase tracking-[0.14em] ${ESTADO_COLOR[c.estado]}`}
                     >
                       {ESTADO_LABEL[c.estado]}
                     </span>

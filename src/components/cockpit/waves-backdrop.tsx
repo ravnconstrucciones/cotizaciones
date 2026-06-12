@@ -9,12 +9,12 @@ import { GlassFilter } from "./liquid-glass";
  *
  * El feedback de la iteración 2 fue lapidario: el fondo era casi invisible y
  * el cockpit no se sentía distinto. Cambios de esta pasada:
- * - Trazo taupe al 0.18 (antes 0.10) → la malla existe en los primeros 2s.
+ * - Trazo cian al 0.18 (antes 0.10) → la malla existe en los primeros 2s.
  * - Gradiente de presencia INVERTIDO: antes oscurecía los bordes (escondía
  *   la malla justo donde no hay paneles); ahora calma el CENTRO (detrás del
  *   contenido) y deja respirar los bordes de la pantalla.
  * - Vignette de profundidad: las esquinas caen a negro → atmósfera de cabina.
- * - Vuelve el "pointer-dot" del original de 21st.dev, ahora con glow taupe:
+ * - Vuelve el "pointer-dot" del original de 21st.dev, ahora con glow cian:
  *   se mueve por refs dentro del mismo RAF (cero re-renders de React).
  *
  * Se conservan las adaptaciones de performance de la iteración 2:
@@ -25,7 +25,7 @@ import { GlassFilter } from "./liquid-glass";
 
 const X_GAP = 18;
 const Y_GAP = 22;
-const STROKE = "rgba(200, 180, 154, 0.18)";
+const STROKE = "rgba(34, 211, 238, 0.18)";
 
 type Punto = {
   x: number;
@@ -169,7 +169,7 @@ export function WavesBackdrop() {
       mouse.ly = mouse.y;
       mouse.a = Math.atan2(dy, dx);
       if (dot) {
-        // Punto del cursor con glow taupe: sigue la posición suavizada
+        // Punto del cursor con glow cian: sigue la posición suavizada
         // (mouse.sx/sy) por estilo directo — nunca pasa por React.
         dot.style.transform = `translate3d(${mouse.sx}px, ${mouse.sy}px, 0)`;
         dot.style.opacity = mouse.set ? "1" : "0";
@@ -239,18 +239,18 @@ export function WavesBackdrop() {
     <div aria-hidden className="pointer-events-none fixed inset-0 z-0">
       <div ref={containerRef} className="absolute inset-0 overflow-hidden">
         <svg ref={svgRef} className="block h-full w-full" />
-        {/* Punto del cursor: dot taupe + glow chico, movido por refs en el RAF. */}
+        {/* Punto del cursor: dot cian + glow chico, movido por refs en el RAF. */}
         <div
           ref={dotRef}
           className="absolute left-0 top-0 opacity-0 transition-opacity duration-500 will-change-transform"
         >
-          <div className="absolute -left-14 -top-14 h-28 w-28 rounded-full bg-[radial-gradient(circle,rgba(200,180,154,0.22)_0%,rgba(200,180,154,0.07)_45%,transparent_70%)]" />
-          <div className="absolute -left-[2.5px] -top-[2.5px] h-[5px] w-[5px] rounded-full bg-cdm-taupe shadow-[0_0_14px_rgba(200,180,154,0.95)]" />
+          <div className="absolute -left-14 -top-14 h-28 w-28 rounded-full bg-[radial-gradient(circle,rgba(34,211,238,0.22)_0%,rgba(34,211,238,0.07)_45%,transparent_70%)]" />
+          <div className="absolute -left-[2.5px] -top-[2.5px] h-[5px] w-[5px] rounded-full bg-cdm-accent shadow-[0_0_14px_rgba(34,211,238,0.95)]" />
         </div>
       </div>
       {/* Gradiente de presencia: calmo detrás del contenido central,
           la malla respira con fuerza en los bordes de la pantalla. */}
-      <div className="absolute inset-0 bg-[radial-gradient(105%_80%_at_50%_42%,rgba(10,10,10,0.62)_0%,rgba(10,10,10,0.34)_55%,rgba(10,10,10,0.04)_100%)]" />
+      <div className="absolute inset-0 bg-[radial-gradient(105%_80%_at_50%_42%,rgba(6,10,13,0.62)_0%,rgba(6,10,13,0.34)_55%,rgba(6,10,13,0.04)_100%)]" />
       {/* Vignette de profundidad: las esquinas caen a negro (atmósfera de cabina). */}
       <div className="absolute inset-0 bg-[radial-gradient(135%_115%_at_50%_50%,transparent_58%,rgba(0,0,0,0.46)_100%)]" />
       <GlassFilter />

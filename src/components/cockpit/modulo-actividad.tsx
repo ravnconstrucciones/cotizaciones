@@ -79,7 +79,7 @@ export function ModuloActividad({ className }: { className?: string }) {
               <span className="shrink-0 tabular-nums text-cdm-muted">
                 {fmtHora(e.creado_at)}
               </span>
-              <span className="shrink-0 border border-cdm-line px-1 text-[8px] uppercase tracking-widest text-cdm-taupe">
+              <span className="shrink-0 border border-cdm-line px-1 text-[8px] uppercase tracking-widest text-cdm-accent">
                 {ORIGEN_TAG[e.origen]}
               </span>
               <span className="truncate text-cdm-fg/85">{e.titulo}</span>

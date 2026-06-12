@@ -135,7 +135,7 @@ export function ObraOrbitalScreen({ presupuestoId }: { presupuestoId: string }) 
           <h1 className="flex items-center gap-2 text-[11px] uppercase tracking-[0.35em] text-cdm-muted">
             <span
               aria-hidden
-              className="h-[5px] w-[5px] bg-cdm-taupe shadow-[0_0_8px_rgba(200,180,154,0.9)]"
+              className="h-[5px] w-[5px] bg-cdm-accent shadow-[0_0_8px_rgba(34,211,238,0.9)]"
             />
             {nombre}
           </h1>

@@ -38,7 +38,7 @@ const CATEGORIAS_GASTO = [
 ];
 
 const INPUT_CLS =
-  "w-full border border-cdm-line bg-transparent px-3 py-2 text-xs text-cdm-fg placeholder:text-cdm-muted/50 focus:border-cdm-taupe focus:outline-none";
+  "w-full border border-cdm-line bg-transparent px-3 py-2 text-xs text-cdm-fg placeholder:text-cdm-muted/50 focus:border-cdm-accent focus:outline-none";
 
 function fmtFechaHora(iso: string): string {
   return new Date(iso).toLocaleString("es-AR", {
@@ -110,7 +110,7 @@ function FormResolver({
             onClick={() => setDestino(d)}
             className={`border px-2.5 py-1 text-[9px] uppercase tracking-[0.15em] transition-colors ${
               destino === d
-                ? "border-cdm-taupe bg-cdm-taupe text-cdm-bg"
+                ? "border-cdm-accent bg-cdm-accent text-cdm-bg"
                 : "border-cdm-line text-cdm-muted hover:text-cdm-fg"
             }`}
           >
@@ -173,7 +173,7 @@ function FormResolver({
       <button
         type="submit"
         disabled={enviando}
-        className="w-full border border-cdm-taupe px-4 py-2 text-[10px] uppercase tracking-[0.2em] text-cdm-taupe transition-colors hover:bg-cdm-taupe hover:text-cdm-bg disabled:opacity-40"
+        className="w-full border border-cdm-accent px-4 py-2 text-[10px] uppercase tracking-[0.2em] text-cdm-accent transition-colors hover:bg-cdm-accent hover:text-cdm-bg disabled:opacity-40"
       >
         {enviando ? "Resolviendo…" : destino === "descartar" ? "Descartar" : "Resolver"}
       </button>
@@ -227,7 +227,7 @@ export function ArchivadosScreen() {
           <h1 className="flex items-center gap-2 text-[11px] uppercase tracking-[0.35em] text-cdm-muted">
             <span
               aria-hidden
-              className="h-[5px] w-[5px] bg-cdm-taupe shadow-[0_0_8px_rgba(200,180,154,0.9)]"
+              className="h-[5px] w-[5px] bg-cdm-accent shadow-[0_0_8px_rgba(34,211,238,0.9)]"
             />
             Archivados
           </h1>

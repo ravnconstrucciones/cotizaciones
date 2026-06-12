@@ -86,12 +86,12 @@ export function ModuloPendientes({ className }: { className?: string }) {
           value={nueva}
           onChange={(e) => setNueva(e.target.value)}
           placeholder="Anotar pendiente…"
-          className="font-raleway w-full border border-cdm-line bg-transparent px-3 py-1.5 text-[11px] text-cdm-fg placeholder:text-cdm-muted/50 focus:border-cdm-taupe focus:outline-none"
+          className="font-raleway w-full border border-cdm-line bg-transparent px-3 py-1.5 text-[11px] text-cdm-fg placeholder:text-cdm-muted/50 focus:border-cdm-accent focus:outline-none"
         />
         <button
           type="submit"
           disabled={!nueva.trim()}
-          className="shrink-0 border border-l-0 border-cdm-line px-3 text-[10px] uppercase tracking-widest text-cdm-taupe transition-colors hover:bg-cdm-taupe hover:text-cdm-bg disabled:opacity-30"
+          className="shrink-0 border border-l-0 border-cdm-line px-3 text-[10px] uppercase tracking-widest text-cdm-accent transition-colors hover:bg-cdm-accent hover:text-cdm-bg disabled:opacity-30"
         >
           +
         </button>
@@ -114,7 +114,7 @@ export function ModuloPendientes({ className }: { className?: string }) {
               <button
                 onClick={() => completar(t.id)}
                 aria-label="Marcar hecha"
-                className="mt-0.5 h-3 w-3 shrink-0 border border-cdm-line transition-colors hover:border-cdm-taupe hover:bg-cdm-taupe"
+                className="mt-0.5 h-3 w-3 shrink-0 border border-cdm-line transition-colors hover:border-cdm-accent hover:bg-cdm-accent"
               />
               <span className="min-w-0 flex-1 leading-snug text-cdm-fg/85">
                 {t.texto}

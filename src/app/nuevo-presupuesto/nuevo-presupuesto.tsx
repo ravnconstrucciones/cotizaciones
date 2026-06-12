@@ -34,7 +34,7 @@ function fieldClass(disabled?: boolean, _inverted?: boolean) {
     "w-full rounded-none border-0 border-b border-cdm-line bg-transparent px-1 py-2.5 text-sm text-cdm-fg",
     "placeholder:text-cdm-muted/50",
     "transition-[border-color,box-shadow] duration-200",
-    "focus-visible:border-cdm-taupe focus-visible:outline-none focus-visible:shadow-[0_12px_24px_-16px_rgba(200,180,154,0.6)]",
+    "focus-visible:border-cdm-accent focus-visible:outline-none focus-visible:shadow-[0_12px_24px_-16px_rgba(34,211,238,0.6)]",
     disabled ? "cursor-not-allowed opacity-40" : "",
   ].join(" ");
 }
@@ -218,7 +218,7 @@ function PesosAmountInput({
 
   const pesoMark = (
     <span
-      className="shrink-0 min-w-[1.75rem] text-center text-sm font-semibold tabular-nums text-cdm-taupe"
+      className="shrink-0 min-w-[1.75rem] text-center text-sm font-semibold tabular-nums text-cdm-accent"
       aria-hidden
     >
       $
@@ -330,7 +330,7 @@ function FormattedNumberInput({
   return (
     <div className="flex min-w-0 w-full items-center">
       <span
-        className="shrink-0 min-w-[1.75rem] text-center text-sm font-semibold tabular-nums text-cdm-taupe"
+        className="shrink-0 min-w-[1.75rem] text-center text-sm font-semibold tabular-nums text-cdm-accent"
         aria-hidden
       >
         $
@@ -1144,7 +1144,7 @@ export function NuevoPresupuestoScreen() {
         <div
           role="separator"
           aria-orientation="vertical"
-          className="absolute -right-0 top-0 z-20 h-full w-1 cursor-col-resize transition-colors hover:bg-cdm-taupe/40"
+          className="absolute -right-0 top-0 z-20 h-full w-1 cursor-col-resize transition-colors hover:bg-cdm-accent/40"
           onMouseDown={(e) => {
             e.preventDefault();
             setIsResizing(true);
@@ -1152,7 +1152,7 @@ export function NuevoPresupuestoScreen() {
         />
         <div className="flex flex-col justify-end border-b border-cdm-line px-6 py-4">
           {/* La marca vive en la carcasa (sidebar del shell) — acá solo el rol del panel. */}
-          <h2 className="text-[10px] font-semibold uppercase tracking-[0.3em] text-cdm-taupe">
+          <h2 className="text-[10px] font-semibold uppercase tracking-[0.3em] text-cdm-accent">
             Rubros
           </h2>
         </div>
@@ -1184,7 +1184,7 @@ export function NuevoPresupuestoScreen() {
                 return (
                   <div
                     key={rubroId}
-                    className="border border-cdm-line bg-cdm-panel/55 transition-[border-color,box-shadow] duration-300 hover:border-cdm-taupe/40 hover:shadow-[0_0_26px_-10px_rgba(200,180,154,0.35)]"
+                    className="border border-cdm-line bg-cdm-panel/55 transition-[border-color,box-shadow] duration-300 hover:border-cdm-accent/40 hover:shadow-[0_0_26px_-10px_rgba(34,211,238,0.35)]"
                   >
                     <button
                       type="button"
@@ -1194,13 +1194,13 @@ export function NuevoPresupuestoScreen() {
                       <span className="flex min-w-0 items-center gap-2">
                         <ChevronIcon
                           expanded={isExpanded}
-                          className="shrink-0 text-cdm-taupe"
+                          className="shrink-0 text-cdm-accent"
                         />
                         <span className="truncate">{label}</span>
                       </span>
                       {(itemCountByRubro.get(rubroId) ?? 0) > 0 ? (
                         <span
-                          className="shrink-0 bg-cdm-taupe px-2 py-0.5 text-xs font-bold tabular-nums text-cdm-bg shadow-[0_0_12px_rgba(200,180,154,0.45)]"
+                          className="shrink-0 bg-cdm-accent px-2 py-0.5 text-xs font-bold tabular-nums text-cdm-bg shadow-[0_0_12px_rgba(34,211,238,0.45)]"
                           aria-label={`${itemCountByRubro.get(rubroId)} ítems en el presupuesto`}
                         >
                           {itemCountByRubro.get(rubroId)}
@@ -1220,7 +1220,7 @@ export function NuevoPresupuestoScreen() {
                               agregandoTodosRubro === rubroId ||
                               sinRecetasEnCatalogo
                             }
-                            className="flex min-w-0 flex-1 items-center justify-center gap-1 truncate rounded-none border border-cdm-taupe/40 bg-cdm-taupe/10 px-2 py-2 text-xs font-medium text-cdm-taupe transition-all duration-200 hover:bg-cdm-taupe hover:text-cdm-bg hover:shadow-[0_0_20px_rgba(200,180,154,0.35)] disabled:opacity-40"
+                            className="flex min-w-0 flex-1 items-center justify-center gap-1 truncate rounded-none border border-cdm-accent/40 bg-cdm-accent/10 px-2 py-2 text-xs font-medium text-cdm-accent transition-all duration-200 hover:bg-cdm-accent hover:text-cdm-bg hover:shadow-[0_0_20px_rgba(34,211,238,0.35)] disabled:opacity-40"
                           >
                             <CheckIcon className="shrink-0" />
                             <span className="truncate">Agregar todos</span>
@@ -1267,7 +1267,7 @@ export function NuevoPresupuestoScreen() {
                                       )
                                     }
                                     disabled={!presupuestoId}
-                                    className="h-4 w-4 cursor-pointer accent-cdm-taupe"
+                                    className="h-4 w-4 cursor-pointer accent-cdm-accent"
                                   />
                                   <label
                                     htmlFor={`receta-${rid}`}
@@ -1296,7 +1296,7 @@ export function NuevoPresupuestoScreen() {
               type="button"
               onClick={() => setNuevoItemModalOpen(true)}
               disabled={catalogLoading}
-              className="w-full rounded-none border border-cdm-line bg-transparent py-3 text-xs font-medium uppercase tracking-[0.18em] text-cdm-muted transition-all duration-200 hover:border-cdm-taupe/50 hover:text-cdm-fg hover:shadow-[0_0_24px_-10px_rgba(200,180,154,0.4)] disabled:cursor-not-allowed disabled:opacity-40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cdm-taupe"
+              className="w-full rounded-none border border-cdm-line bg-transparent py-3 text-xs font-medium uppercase tracking-[0.18em] text-cdm-muted transition-all duration-200 hover:border-cdm-accent/50 hover:text-cdm-fg hover:shadow-[0_0_24px_-10px_rgba(34,211,238,0.4)] disabled:cursor-not-allowed disabled:opacity-40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cdm-accent"
             >
               + Agregar Nuevo Ítem
             </button>
@@ -1312,7 +1312,7 @@ export function NuevoPresupuestoScreen() {
             <h1 className="flex items-center gap-2 text-[11px] uppercase tracking-[0.35em] text-cdm-muted">
               <span
                 aria-hidden
-                className="h-[5px] w-[5px] bg-cdm-taupe shadow-[0_0_8px_rgba(200,180,154,0.9)]"
+                className="h-[5px] w-[5px] bg-cdm-accent shadow-[0_0_8px_rgba(34,211,238,0.9)]"
               />
               Nuevo presupuesto
             </h1>
@@ -1324,7 +1324,7 @@ export function NuevoPresupuestoScreen() {
               className={
                 banner.type === "error"
                   ? "mx-10 mt-3 rounded-none border border-red-400/40 bg-red-500/10 px-4 py-3 text-sm text-red-300"
-                  : "mx-10 mt-3 rounded-none border border-cdm-taupe/40 bg-cdm-taupe/10 px-4 py-3 text-sm text-cdm-taupe"
+                  : "mx-10 mt-3 rounded-none border border-cdm-accent/40 bg-cdm-accent/10 px-4 py-3 text-sm text-cdm-accent"
               }
             >
               {banner.text}
@@ -1333,7 +1333,7 @@ export function NuevoPresupuestoScreen() {
 
           <div className="px-10 pb-5 pt-4">
             <section className="cdm-glass p-5 sm:p-6">
-              <h2 className="text-[10px] font-semibold uppercase tracking-[0.25em] text-cdm-taupe">
+              <h2 className="text-[10px] font-semibold uppercase tracking-[0.25em] text-cdm-accent">
                 Cabecera
               </h2>
             <div className="mt-5 grid gap-4 md:grid-cols-3">
@@ -1389,7 +1389,7 @@ export function NuevoPresupuestoScreen() {
                 disabled={creating || !!presupuestoId}
                 whileHover={{ y: -1 }}
                 whileTap={{ scale: 0.985 }}
-                className="rounded-none border border-cdm-fg bg-cdm-fg px-8 py-3.5 text-sm font-semibold uppercase tracking-[0.18em] text-cdm-bg transition-shadow duration-300 hover:shadow-[0_0_36px_-4px_rgba(200,180,154,0.55)] disabled:cursor-not-allowed disabled:opacity-40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cdm-taupe"
+                className="rounded-none border border-cdm-fg bg-cdm-fg px-8 py-3.5 text-sm font-semibold uppercase tracking-[0.18em] text-cdm-bg transition-shadow duration-300 hover:shadow-[0_0_36px_-4px_rgba(34,211,238,0.55)] disabled:cursor-not-allowed disabled:opacity-40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cdm-accent"
               >
                 {creating ? "Creando…" : "Iniciar / Crear presupuesto"}
               </motion.button>
@@ -1411,7 +1411,7 @@ export function NuevoPresupuestoScreen() {
             <section
               className={`cdm-glass mb-8 p-5 sm:p-6 ${itemsBloqueados ? "opacity-60" : ""}`}
             >
-              <h2 className="text-[10px] font-semibold uppercase tracking-[0.25em] text-cdm-taupe">
+              <h2 className="text-[10px] font-semibold uppercase tracking-[0.25em] text-cdm-accent">
                 Ítems —{" "}
                 {formatRubroName(
                   rubroLabels.get(rubroSeleccionado) ?? rubroSeleccionado
@@ -1518,7 +1518,7 @@ export function NuevoPresupuestoScreen() {
                       catalogError !== null ||
                       !recetaId
                     }
-                    className="rounded-none border border-cdm-taupe/50 bg-cdm-taupe/10 px-4 py-3 text-sm font-medium uppercase tracking-wider text-cdm-taupe transition-all duration-200 hover:bg-cdm-taupe hover:text-cdm-bg hover:shadow-[0_0_24px_rgba(200,180,154,0.35)] disabled:cursor-not-allowed disabled:opacity-40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cdm-taupe"
+                    className="rounded-none border border-cdm-accent/50 bg-cdm-accent/10 px-4 py-3 text-sm font-medium uppercase tracking-wider text-cdm-accent transition-all duration-200 hover:bg-cdm-accent hover:text-cdm-bg hover:shadow-[0_0_24px_rgba(34,211,238,0.35)] disabled:cursor-not-allowed disabled:opacity-40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cdm-accent"
                   >
                     {adding ? "…" : "Agregar ítem"}
                   </button>
@@ -1529,7 +1529,7 @@ export function NuevoPresupuestoScreen() {
 
           <section className="mb-8 sm:mb-10">
             <div className="mb-4 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-              <h2 className="text-[10px] font-semibold uppercase tracking-[0.25em] text-cdm-taupe">
+              <h2 className="text-[10px] font-semibold uppercase tracking-[0.25em] text-cdm-accent">
                 Líneas del presupuesto
               </h2>
               {presupuestoId && itemsLoading ? (
@@ -1579,7 +1579,7 @@ export function NuevoPresupuestoScreen() {
                     <th className="sticky top-0 z-20 min-w-[13rem] border-b border-r border-t border-cdm-line bg-cdm-panel px-3 py-3 text-center font-medium leading-snug whitespace-normal">
                       Subtotal M.O.
                     </th>
-                    <th className="sticky top-0 z-20 min-w-[12rem] border-b border-l border-r border-t border-cdm-line bg-cdm-panel px-3 py-3 text-center text-[10px] font-semibold leading-snug text-cdm-taupe whitespace-normal">
+                    <th className="sticky top-0 z-20 min-w-[12rem] border-b border-l border-r border-t border-cdm-line bg-cdm-panel px-3 py-3 text-center text-[10px] font-semibold leading-snug text-cdm-accent whitespace-normal">
                       Total Ítem
                     </th>
                   </tr>
@@ -1645,7 +1645,7 @@ export function NuevoPresupuestoScreen() {
                                   void handleEliminarItem(row.id)
                                 }
                                 disabled={isDeleting}
-                                className="shrink-0 rounded-none p-1 text-cdm-muted transition-colors hover:bg-red-500/15 hover:text-red-300 focus-visible:outline focus-visible:outline-1 focus-visible:outline-cdm-taupe disabled:opacity-50"
+                                className="shrink-0 rounded-none p-1 text-cdm-muted transition-colors hover:bg-red-500/15 hover:text-red-300 focus-visible:outline focus-visible:outline-1 focus-visible:outline-cdm-accent disabled:opacity-50"
                                 title="Eliminar ítem"
                               >
                                 <TrashIcon />
@@ -1656,7 +1656,7 @@ export function NuevoPresupuestoScreen() {
                             <span className="block break-words">
                               {rubroDisplay ? (
                                 <>
-                                  <span className="mb-0.5 block text-[10px] font-medium uppercase tracking-[0.14em] text-cdm-taupe/80">
+                                  <span className="mb-0.5 block text-[10px] font-medium uppercase tracking-[0.14em] text-cdm-accent/80">
                                     {rubroDisplay}
                                   </span>
                                   <span>{nombre}</span>
@@ -1828,13 +1828,13 @@ export function NuevoPresupuestoScreen() {
               <div className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-center sm:gap-6">
                 <Link
                   href={`/rentabilidad?id=${encodeURIComponent(presupuestoId)}`}
-                  className="inline-flex w-fit items-center justify-center rounded-none border border-cdm-line bg-transparent px-6 py-3 text-sm font-medium uppercase tracking-wider text-cdm-fg transition-colors hover:border-cdm-taupe/50 hover:text-cdm-taupe focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cdm-taupe"
+                  className="inline-flex w-fit items-center justify-center rounded-none border border-cdm-line bg-transparent px-6 py-3 text-sm font-medium uppercase tracking-wider text-cdm-fg transition-colors hover:border-cdm-accent/50 hover:text-cdm-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cdm-accent"
                 >
                   Rentabilidad y costos
                 </Link>
                 <Link
                   href={`/propuesta?id=${encodeURIComponent(presupuestoId)}`}
-                  className="inline-flex w-fit items-center justify-center rounded-none border border-cdm-fg bg-cdm-fg px-6 py-3 text-sm font-semibold uppercase tracking-wider text-cdm-bg transition-shadow duration-300 hover:shadow-[0_0_32px_-4px_rgba(200,180,154,0.5)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cdm-taupe"
+                  className="inline-flex w-fit items-center justify-center rounded-none border border-cdm-fg bg-cdm-fg px-6 py-3 text-sm font-semibold uppercase tracking-wider text-cdm-bg transition-shadow duration-300 hover:shadow-[0_0_32px_-4px_rgba(34,211,238,0.5)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cdm-accent"
                 >
                   Continuar a propuesta comercial
                 </Link>
@@ -1842,7 +1842,7 @@ export function NuevoPresupuestoScreen() {
                   type="button"
                   onClick={() => void handleDesestimarPresupuesto()}
                   disabled={desestimando}
-                  className="w-fit rounded-none border border-cdm-line/60 bg-transparent px-5 py-2.5 text-sm font-medium uppercase tracking-wider text-cdm-muted transition-colors hover:border-red-400/40 hover:text-red-300 disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cdm-taupe"
+                  className="w-fit rounded-none border border-cdm-line/60 bg-transparent px-5 py-2.5 text-sm font-medium uppercase tracking-wider text-cdm-muted transition-colors hover:border-red-400/40 hover:text-red-300 disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cdm-accent"
                 >
                   {desestimando ? "Desestimando…" : "Desestimar presupuesto"}
                 </button>

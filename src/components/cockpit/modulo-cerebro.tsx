@@ -60,7 +60,7 @@ export function ModuloCerebro({
           <p className="text-[9px] uppercase tracking-[0.2em] text-cdm-muted">
             Última orientación
           </p>
-          <p className="mt-0.5 text-xs font-medium text-cdm-taupe">
+          <p className="mt-0.5 text-xs font-medium text-cdm-accent">
             {cerebro.orientacion.titulo}
           </p>
           {cerebro.orientacion.siguientePaso && (
@@ -75,7 +75,7 @@ export function ModuloCerebro({
           <ListaMini
             titulo="Me potencia"
             items={cerebro.patrones.potencian.slice(0, 2)}
-            color="bg-cdm-taupe"
+            color="bg-cdm-accent"
           />
           <ListaMini
             titulo="Me frena"

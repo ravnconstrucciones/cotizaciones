@@ -31,12 +31,12 @@ export function CockpitHome({ cerebro }: { cerebro: CerebroData }) {
 
       {/* pr-14: la fecha no debe quedar debajo del theme-toggle fijo (right-4). */}
       <div className="relative z-10 flex items-baseline justify-between px-1 pb-2 pr-14">
-        {/* Línea de horizonte: luz taupe a ancho completo detrás del header. */}
+        {/* Línea de horizonte: luz cian a ancho completo detrás del header. */}
         <span aria-hidden className="cdm-horizon absolute inset-x-0 bottom-0" />
         <h1 className="flex items-center gap-2 text-[11px] uppercase tracking-[0.35em] text-cdm-muted">
           <span
             aria-hidden
-            className="h-[5px] w-[5px] bg-cdm-taupe shadow-[0_0_8px_rgba(200,180,154,0.9)]"
+            className="h-[5px] w-[5px] bg-cdm-accent shadow-[0_0_8px_rgba(34,211,238,0.9)]"
           />
           Centro de mando
         </h1>

@@ -34,7 +34,7 @@ type ResumenCashflow = {
 };
 
 function estadoObra(o: ObraActiva): { label: string; cls: string } {
-  if (o.cobranza_cerrada) return { label: "Cobranza cerrada", cls: "text-cdm-taupe" };
+  if (o.cobranza_cerrada) return { label: "Cobranza cerrada", cls: "text-cdm-accent" };
   if (o.finalizada) return { label: "Finalizada", cls: "text-amber-300" };
   return { label: "En curso", cls: "text-emerald-400" };
 }
@@ -104,7 +104,7 @@ export function ModuloObras({ className }: { className?: string }) {
                 {/* Cada obra abre su orbital (rubros + % ejecutado). */}
                 <Link
                   href={`/obras/${o.presupuesto_id}`}
-                  className="truncate text-xs text-cdm-fg transition-colors hover:text-cdm-taupe"
+                  className="truncate text-xs text-cdm-fg transition-colors hover:text-cdm-accent"
                 >
                   {o.nombre_obra}
                 </Link>

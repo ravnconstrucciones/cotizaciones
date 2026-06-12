@@ -46,7 +46,7 @@ export function LiquidGlass({
       <div
         aria-hidden
         className="absolute inset-0 z-10 rounded-[inherit]"
-        style={{ background: `rgba(240, 237, 230, ${tint})` }}
+        style={{ background: `rgba(234, 246, 251, ${tint})` }}
       />
       {/* Capa 3: highlights inset al 10–15% — el "borde mojado". */}
       <div
@@ -54,7 +54,7 @@ export function LiquidGlass({
         className="absolute inset-0 z-20 rounded-[inherit]"
         style={{
           boxShadow:
-            "inset 1.5px 1.5px 1px 0 rgba(240, 237, 230, 0.13), inset -1px -1px 1px 1px rgba(240, 237, 230, 0.10)",
+            "inset 1.5px 1.5px 1px 0 rgba(234, 246, 251, 0.13), inset -1px -1px 1px 1px rgba(234, 246, 251, 0.10)",
         }}
       />
       <div className="relative z-30 min-w-0 flex-1">{children}</div>
@@ -97,7 +97,7 @@ export function GlassFilter() {
           surfaceScale="5"
           specularConstant="1"
           specularExponent="100"
-          lightingColor="#f0ede6"
+          lightingColor="#eaf6fb"
           result="specLight"
         >
           <fePointLight x="-200" y="-200" z="300" />

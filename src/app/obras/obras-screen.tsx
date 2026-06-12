@@ -44,7 +44,7 @@ type PresupuestoMeta = {
 
 function estadoDe(o: ObraResumen): { label: string; cls: string } {
   if (o.cobranza_cerrada)
-    return { label: "Cobranza cerrada", cls: "text-cdm-taupe" };
+    return { label: "Cobranza cerrada", cls: "text-cdm-accent" };
   if (o.finalizada) return { label: "Finalizada", cls: "text-amber-300" };
   return { label: "En curso", cls: "text-emerald-400" };
 }
@@ -136,7 +136,7 @@ export function ObrasScreen() {
         <h1 className="flex items-center gap-2 text-[11px] uppercase tracking-[0.35em] text-cdm-muted">
           <span
             aria-hidden
-            className="h-[5px] w-[5px] bg-cdm-taupe shadow-[0_0_8px_rgba(200,180,154,0.9)]"
+            className="h-[5px] w-[5px] bg-cdm-accent shadow-[0_0_8px_rgba(34,211,238,0.9)]"
           />
           Proyectos
         </h1>

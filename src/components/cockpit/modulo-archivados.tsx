@@ -35,7 +35,7 @@ export function ModuloArchivados({ className }: { className?: string }) {
       className={className}
       accion={
         total > 0 ? (
-          <span className="bg-cdm-taupe px-1.5 text-[10px] font-bold tabular-nums text-cdm-bg">
+          <span className="bg-cdm-accent px-1.5 text-[10px] font-bold tabular-nums text-cdm-bg">
             {total}
           </span>
         ) : undefined
@@ -56,7 +56,7 @@ export function ModuloArchivados({ className }: { className?: string }) {
           </ul>
           <Link
             href="/archivados"
-            className="mt-3 inline-block text-[9px] uppercase tracking-[0.2em] text-cdm-taupe hover:text-cdm-fg"
+            className="mt-3 inline-block text-[9px] uppercase tracking-[0.2em] text-cdm-accent hover:text-cdm-fg"
           >
             Resolver →
           </Link>

@@ -26,7 +26,7 @@ import type { EstadoNodo, NodoRubro } from "@/lib/obra-orbital";
  * Orbital de obra (ref. radial-orbital-timeline de 21st.dev, re-coloreado a
  * la paleta cdm): los rubros del presupuesto orbitan la obra. El glow de
  * cada nodo crece con su % ejecutado (energy); el centro muestra la obra y
- * su margen al día con glow taupe (nada del gradiente violeta original).
+ * su margen al día con glow cian (nada del gradiente violeta original).
  *
  * Diferencias deliberadas con el original:
  * - sin h-screen ni bg-black: vive dentro de la carcasa del cockpit
@@ -41,8 +41,8 @@ const ESTADO_LABEL: Record<EstadoNodo, string> = {
 };
 
 const ESTADO_BADGE: Record<EstadoNodo, string> = {
-  completed: "border-cdm-taupe bg-cdm-taupe text-cdm-bg",
-  "in-progress": "border-cdm-taupe/60 bg-transparent text-cdm-taupe",
+  completed: "border-cdm-accent bg-cdm-accent text-cdm-bg",
+  "in-progress": "border-cdm-accent/60 bg-transparent text-cdm-accent",
   pending: "border-cdm-line bg-transparent text-cdm-muted",
 };
 
@@ -153,13 +153,13 @@ export function OrbitalObra({
         className="absolute flex h-full w-full items-center justify-center"
         style={{ perspective: "1000px" }}
       >
-        {/* Centro: la obra, con glow taupe (sin el gradiente violeta original). */}
-        <div className="absolute z-10 flex h-40 w-40 flex-col items-center justify-center rounded-full border border-cdm-taupe/30 bg-cdm-bg/80 text-center shadow-[0_0_60px_rgba(200,180,154,0.18)] backdrop-blur-md">
+        {/* Centro: la obra, con glow cian (sin el gradiente violeta original). */}
+        <div className="absolute z-10 flex h-40 w-40 flex-col items-center justify-center rounded-full border border-cdm-accent/30 bg-cdm-bg/80 text-center shadow-[0_0_60px_rgba(34,211,238,0.18)] backdrop-blur-md">
           {!reducirMovimiento && (
             <>
-              <div className="absolute h-44 w-44 animate-ping rounded-full border border-cdm-taupe/15 opacity-70" />
+              <div className="absolute h-44 w-44 animate-ping rounded-full border border-cdm-accent/15 opacity-70" />
               <div
-                className="absolute h-52 w-52 animate-ping rounded-full border border-cdm-taupe/10 opacity-50"
+                className="absolute h-52 w-52 animate-ping rounded-full border border-cdm-accent/10 opacity-50"
                 style={{ animationDelay: "0.6s" }}
               />
             </>
@@ -175,7 +175,7 @@ export function OrbitalObra({
               margenAlDia == null
                 ? "text-cdm-muted"
                 : margenAlDia >= 0
-                  ? "text-cdm-taupe"
+                  ? "text-cdm-accent"
                   : "text-red-400"
             }`}
           >
@@ -220,7 +220,7 @@ export function OrbitalObra({
                 className="absolute rounded-full"
                 style={{
                   background:
-                    "radial-gradient(circle, rgba(200,180,154,0.25) 0%, rgba(200,180,154,0) 70%)",
+                    "radial-gradient(circle, rgba(34,211,238,0.25) 0%, rgba(34,211,238,0) 70%)",
                   width: `${glow}px`,
                   height: `${glow}px`,
                   left: `-${(glow - 40) / 2}px`,
@@ -236,9 +236,9 @@ export function OrbitalObra({
                 }, ${nodo.energy}% ejecutado`}
                 className={`flex h-10 w-10 items-center justify-center rounded-full border-2 transition-all duration-300 ${
                   abierto
-                    ? "scale-150 border-cdm-taupe bg-cdm-taupe text-cdm-bg shadow-lg shadow-cdm-taupe/30"
+                    ? "scale-150 border-cdm-accent bg-cdm-accent text-cdm-bg shadow-lg shadow-cdm-accent/30"
                     : nodo.status === "completed"
-                      ? "border-cdm-taupe/70 bg-cdm-bg text-cdm-taupe"
+                      ? "border-cdm-accent/70 bg-cdm-bg text-cdm-accent"
                       : "border-cdm-fg/30 bg-cdm-bg text-cdm-fg"
                 }`}
               >
@@ -254,8 +254,8 @@ export function OrbitalObra({
               </div>
 
               {abierto && (
-                <Card className="absolute left-1/2 top-20 w-72 -translate-x-1/2 border-cdm-taupe/30 bg-cdm-bg/90 shadow-xl shadow-cdm-taupe/10 backdrop-blur-lg">
-                  <div className="absolute -top-3 left-1/2 h-3 w-px -translate-x-1/2 bg-cdm-taupe/50" />
+                <Card className="absolute left-1/2 top-20 w-72 -translate-x-1/2 border-cdm-accent/30 bg-cdm-bg/90 shadow-xl shadow-cdm-accent/10 backdrop-blur-lg">
+                  <div className="absolute -top-3 left-1/2 h-3 w-px -translate-x-1/2 bg-cdm-accent/50" />
                   <CardHeader className="pb-1">
                     <div className="flex items-center justify-between">
                       <Badge className={ESTADO_BADGE[nodo.status]}>
@@ -305,7 +305,7 @@ export function OrbitalObra({
                       </div>
                       <div className="h-1 w-full overflow-hidden rounded-full bg-cdm-fg/10">
                         <div
-                          className="h-full bg-gradient-to-r from-cdm-bronze to-cdm-taupe"
+                          className="h-full bg-gradient-to-r from-cdm-deep to-cdm-accent"
                           style={{ width: `${nodo.energy}%` }}
                         />
                       </div>

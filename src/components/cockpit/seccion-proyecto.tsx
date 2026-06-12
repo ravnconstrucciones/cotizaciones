@@ -78,7 +78,7 @@ export function SeccionProyecto({
             className={`mx-auto mt-10 flex max-w-[546px] flex-col items-start gap-4 md:mx-0 md:mt-0 ${textOrderClass}`}
             variants={itemVariants}
           >
-            <p className="text-[10px] uppercase tracking-[0.3em] text-cdm-taupe">
+            <p className="text-[10px] uppercase tracking-[0.3em] text-cdm-accent">
               Proyecto
             </p>
             <h2 className="font-raleway text-3xl font-black leading-tight text-cdm-fg md:text-[40px] md:leading-[48px]">
@@ -96,7 +96,7 @@ export function SeccionProyecto({
             </div>
             <Link
               href={`/obras/${p.presupuestoId}`}
-              className="mt-2 border border-cdm-taupe/40 px-4 py-2 text-[10px] uppercase tracking-[0.2em] text-cdm-taupe transition-colors hover:bg-cdm-taupe hover:text-cdm-bg"
+              className="mt-2 border border-cdm-accent/40 px-4 py-2 text-[10px] uppercase tracking-[0.2em] text-cdm-accent transition-colors hover:bg-cdm-accent hover:text-cdm-bg"
             >
               Ver orbital →
             </Link>
@@ -138,7 +138,7 @@ export function SeccionProyecto({
                 aria-label={`Abrir orbital de ${p.nombre}`}
               >
                 <div className="flex items-baseline justify-between gap-2">
-                  <span className="text-[9px] uppercase tracking-[0.3em] text-cdm-taupe">
+                  <span className="text-[9px] uppercase tracking-[0.3em] text-cdm-accent">
                     Obra en vivo
                   </span>
                   <span
@@ -186,7 +186,7 @@ export function SeccionProyecto({
                     </div>
                     <div className="h-1 w-full overflow-hidden bg-cdm-fg/10">
                       <div
-                        className="h-full bg-gradient-to-r from-cdm-bronze to-cdm-taupe"
+                        className="h-full bg-gradient-to-r from-cdm-deep to-cdm-accent"
                         style={{
                           width: `${Math.min(100, Math.max(0, p.pctConsumido))}%`,
                         }}
@@ -228,7 +228,7 @@ export function SeccionProyecto({
                   </ul>
                 </div>
 
-                <p className="mt-4 text-right text-[9px] uppercase tracking-[0.2em] text-cdm-taupe/70">
+                <p className="mt-4 text-right text-[9px] uppercase tracking-[0.2em] text-cdm-accent/70">
                   Ver orbital →
                 </p>
               </Link>
@@ -243,7 +243,7 @@ export function SeccionProyecto({
         className="absolute bottom-0 left-0 z-0 h-px w-full"
         style={{
           background:
-            "radial-gradient(50% 50% at 50% 50%, rgba(240,237,230,0.18) 0%, rgba(240,237,230,0) 100%)",
+            "radial-gradient(50% 50% at 50% 50%, rgba(234,246,251,0.18) 0%, rgba(234,246,251,0) 100%)",
         }}
       />
     </section>

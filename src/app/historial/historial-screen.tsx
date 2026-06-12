@@ -82,11 +82,11 @@ function bulkConfirmMessage(n: number): string {
 }
 
 const checkboxCls =
-  "h-4 w-4 shrink-0 cursor-pointer rounded-none accent-cdm-taupe";
+  "h-4 w-4 shrink-0 cursor-pointer rounded-none accent-cdm-accent";
 
 /** Input del cockpit: transparente, borde inferior que se enciende taupe al focus. */
 const tituloObraInputCls =
-  "mt-2 w-full max-w-xl rounded-none border-0 border-b border-cdm-line bg-transparent px-1 py-2 text-sm text-cdm-fg placeholder:text-cdm-muted/50 transition-[border-color,box-shadow] duration-200 focus-visible:border-cdm-taupe focus-visible:outline-none focus-visible:shadow-[0_12px_24px_-16px_rgba(200,180,154,0.6)] disabled:opacity-50";
+  "mt-2 w-full max-w-xl rounded-none border-0 border-b border-cdm-line bg-transparent px-1 py-2 text-sm text-cdm-fg placeholder:text-cdm-muted/50 transition-[border-color,box-shadow] duration-200 focus-visible:border-cdm-accent focus-visible:outline-none focus-visible:shadow-[0_12px_24px_-16px_rgba(34,211,238,0.6)] disabled:opacity-50";
 
 /** Chip de estado con punto de color (radius permitido: chips). */
 function ChipEstado({
@@ -99,12 +99,12 @@ function ChipEstado({
   const estilos = {
     verde: "border-emerald-400/30 bg-emerald-400/10 text-emerald-300",
     ambar: "border-amber-300/30 bg-amber-300/10 text-amber-200",
-    taupe: "border-cdm-taupe/30 bg-cdm-taupe/10 text-cdm-taupe",
+    taupe: "border-cdm-accent/30 bg-cdm-accent/10 text-cdm-accent",
   } as const;
   const punto = {
     verde: "bg-emerald-400",
     ambar: "bg-amber-300",
-    taupe: "bg-cdm-taupe",
+    taupe: "bg-cdm-accent",
   } as const;
   return (
     <span
@@ -543,7 +543,7 @@ export function HistorialScreen() {
           <h1 className="flex items-center gap-2 text-[11px] uppercase tracking-[0.35em] text-cdm-muted">
             <span
               aria-hidden
-              className="h-[5px] w-[5px] bg-cdm-taupe shadow-[0_0_8px_rgba(200,180,154,0.9)]"
+              className="h-[5px] w-[5px] bg-cdm-accent shadow-[0_0_8px_rgba(34,211,238,0.9)]"
             />
             Historial de presupuestos
           </h1>
@@ -555,7 +555,7 @@ export function HistorialScreen() {
           (revisión + ítems). Los aprobados aparecen en{" "}
           <Link
             href="/control-gastos"
-            className="text-cdm-fg underline underline-offset-2 transition-colors hover:text-cdm-taupe"
+            className="text-cdm-fg underline underline-offset-2 transition-colors hover:text-cdm-accent"
           >
             Control de gastos
           </Link>
@@ -570,7 +570,7 @@ export function HistorialScreen() {
         </p>
         <Link
           href="/"
-          className="mt-5 inline-flex w-fit items-center justify-center rounded-none border border-cdm-line bg-transparent px-5 py-2.5 text-xs font-medium uppercase tracking-[0.18em] text-cdm-muted transition-colors hover:border-cdm-taupe/50 hover:text-cdm-fg focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cdm-taupe"
+          className="mt-5 inline-flex w-fit items-center justify-center rounded-none border border-cdm-line bg-transparent px-5 py-2.5 text-xs font-medium uppercase tracking-[0.18em] text-cdm-muted transition-colors hover:border-cdm-accent/50 hover:text-cdm-fg focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cdm-accent"
         >
           Volver al inicio
         </Link>
@@ -616,7 +616,7 @@ export function HistorialScreen() {
                   onChange={(e) => setBusqueda(e.target.value)}
                   placeholder="Buscar por número, cliente u obra"
                   aria-label="Buscar presupuestos"
-                  className="w-full rounded-none border-0 border-b border-cdm-line bg-transparent py-2 pl-7 pr-1 text-sm text-cdm-fg placeholder:text-cdm-muted/50 transition-[border-color,box-shadow] duration-200 focus-visible:border-cdm-taupe focus-visible:outline-none focus-visible:shadow-[0_12px_24px_-16px_rgba(200,180,154,0.6)]"
+                  className="w-full rounded-none border-0 border-b border-cdm-line bg-transparent py-2 pl-7 pr-1 text-sm text-cdm-fg placeholder:text-cdm-muted/50 transition-[border-color,box-shadow] duration-200 focus-visible:border-cdm-accent focus-visible:outline-none focus-visible:shadow-[0_12px_24px_-16px_rgba(34,211,238,0.6)]"
                 />
               </div>
             </div>
@@ -672,7 +672,7 @@ export function HistorialScreen() {
                         <div className="flex flex-wrap items-center gap-3">
                           <Link
                             href={`/propuesta/${encodeURIComponent(p.id)}`}
-                            className="font-raleway inline-block text-base font-bold uppercase tracking-wide text-cdm-fg transition-colors hover:text-cdm-taupe md:text-lg"
+                            className="font-raleway inline-block text-base font-bold uppercase tracking-wide text-cdm-fg transition-colors hover:text-cdm-accent md:text-lg"
                           >
                             {numeroLabel}
                           </Link>
@@ -711,7 +711,7 @@ export function HistorialScreen() {
                         <p className="mt-2 flex flex-wrap gap-x-4 gap-y-1">
                           <Link
                             href={`/rentabilidad?id=${encodeURIComponent(p.id)}`}
-                            className="text-xs font-medium uppercase tracking-wider text-cdm-muted underline-offset-2 transition-colors hover:text-cdm-taupe hover:underline"
+                            className="text-xs font-medium uppercase tracking-wider text-cdm-muted underline-offset-2 transition-colors hover:text-cdm-accent hover:underline"
                           >
                             Rentabilidad y costos
                           </Link>
@@ -719,13 +719,13 @@ export function HistorialScreen() {
                             <>
                               <Link
                                 href={`/obras/${encodeURIComponent(p.id)}/gastos`}
-                                className="text-xs font-medium uppercase tracking-wider text-cdm-muted underline-offset-2 transition-colors hover:text-cdm-taupe hover:underline"
+                                className="text-xs font-medium uppercase tracking-wider text-cdm-muted underline-offset-2 transition-colors hover:text-cdm-accent hover:underline"
                               >
                                 Gastos de obra
                               </Link>
                               <Link
                                 href={`/remito/${encodeURIComponent(p.id)}`}
-                                className="text-xs font-medium uppercase tracking-wider text-cdm-muted underline-offset-2 transition-colors hover:text-cdm-taupe hover:underline"
+                                className="text-xs font-medium uppercase tracking-wider text-cdm-muted underline-offset-2 transition-colors hover:text-cdm-accent hover:underline"
                               >
                                 Generar remito
                               </Link>
@@ -735,7 +735,7 @@ export function HistorialScreen() {
                           obraIdPorPresupuestoId.has(p.id) ? (
                             <Link
                               href={`/cashflow/obra/${encodeURIComponent(obraIdPorPresupuestoId.get(p.id)!)}`}
-                              className="text-xs font-medium uppercase tracking-wider text-cdm-muted underline-offset-2 transition-colors hover:text-cdm-taupe hover:underline"
+                              className="text-xs font-medium uppercase tracking-wider text-cdm-muted underline-offset-2 transition-colors hover:text-cdm-accent hover:underline"
                             >
                               Cashflow
                             </Link>
@@ -746,7 +746,7 @@ export function HistorialScreen() {
                               href={doc.url}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="text-xs font-medium uppercase tracking-wider text-cdm-taupe/80 underline-offset-2 transition-colors hover:text-cdm-taupe hover:underline"
+                              className="text-xs font-medium uppercase tracking-wider text-cdm-accent/80 underline-offset-2 transition-colors hover:text-cdm-accent hover:underline"
                             >
                               {doc.label}
                             </a>
@@ -775,7 +775,7 @@ export function HistorialScreen() {
                           <div className="mt-3 flex flex-col gap-2">
                             <Link
                               href={`/cashflow/planificar/${encodeURIComponent(p.id)}`}
-                              className="inline-flex w-full max-w-xs items-center justify-center rounded-none border border-cdm-fg bg-cdm-fg px-5 py-3 text-center text-xs font-semibold uppercase tracking-wider text-cdm-bg transition-shadow duration-300 hover:shadow-[0_0_28px_-4px_rgba(200,180,154,0.5)] sm:w-auto"
+                              className="inline-flex w-full max-w-xs items-center justify-center rounded-none border border-cdm-fg bg-cdm-fg px-5 py-3 text-center text-xs font-semibold uppercase tracking-wider text-cdm-bg transition-shadow duration-300 hover:shadow-[0_0_28px_-4px_rgba(34,211,238,0.5)] sm:w-auto"
                             >
                               Aprobar y planificar cashflow
                             </Link>

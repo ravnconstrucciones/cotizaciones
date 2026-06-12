@@ -21,7 +21,7 @@ const ESTADO_UI: Record<EstadoEvento, { label: string; cls: string }> = {
   procesado: { label: "Procesado", cls: "text-emerald-400" },
   pendiente_pregunta: { label: "Esperando respuesta", cls: "text-amber-300" },
   archivado: { label: "Archivado", cls: "text-red-400" },
-  resuelto: { label: "Resuelto", cls: "text-cdm-taupe" },
+  resuelto: { label: "Resuelto", cls: "text-cdm-accent" },
 };
 
 function fmtFechaHora(iso: string): string {
@@ -73,7 +73,7 @@ export function ActividadScreen() {
           <h1 className="flex items-center gap-2 text-[11px] uppercase tracking-[0.35em] text-cdm-muted">
             <span
               aria-hidden
-              className="h-[5px] w-[5px] bg-cdm-taupe shadow-[0_0_8px_rgba(200,180,154,0.9)]"
+              className="h-[5px] w-[5px] bg-cdm-accent shadow-[0_0_8px_rgba(34,211,238,0.9)]"
             />
             Actividad
           </h1>
@@ -89,7 +89,7 @@ export function ActividadScreen() {
               onClick={() => setOrigen(o)}
               className={`border px-3 py-1 text-[9px] uppercase tracking-[0.18em] transition-colors ${
                 origen === o
-                  ? "border-cdm-taupe bg-cdm-taupe text-cdm-bg"
+                  ? "border-cdm-accent bg-cdm-accent text-cdm-bg"
                   : "border-cdm-line text-cdm-muted hover:text-cdm-fg"
               }`}
             >
@@ -130,7 +130,7 @@ export function ActividadScreen() {
                 <span className="shrink-0 tabular-nums text-cdm-muted">
                   {fmtFechaHora(e.creado_at)}
                 </span>
-                <span className="shrink-0 border border-cdm-line px-1 text-[8px] uppercase tracking-widest text-cdm-taupe">
+                <span className="shrink-0 border border-cdm-line px-1 text-[8px] uppercase tracking-widest text-cdm-accent">
                   {ORIGEN_TAG[e.origen]}
                 </span>
                 <span className="min-w-0 flex-1 truncate text-cdm-fg/85">
