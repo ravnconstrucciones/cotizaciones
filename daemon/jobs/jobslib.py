@@ -107,6 +107,8 @@ def evento_payload(tipo, titulo, contenido, estado="procesado"):
 import os
 import ssl
 import subprocess
+import time
+import urllib.error
 import urllib.request
 
 import certifi
@@ -116,10 +118,12 @@ STATE = DIR_JOBS / "state.json"
 LOCK = DIR_JOBS / "runner.lock"
 LOG_RUNNER = DIR_JOBS / "logs" / "runner.log"
 ENV_DAEMON = Path.home() / ".ravn-cotizador" / ".env"
+TOKEN_CACHE_JOBS = Path.home() / ".ravn-jobs" / ".token-cache.json"
 VAULT = "/Users/ezeotero/Obsidian/RAVN"
 GIT_VAULT = ["git", "--git-dir", str(Path.home() / ".ravn-vault-git"), "--work-tree", VAULT]
 CLAUDE_BIN = str(Path.home() / ".local" / "bin" / "claude")
 CTX = ssl.create_default_context(cafile=certifi.where())
+AUTH_MARGEN_SEG = 5 * 60  # 5 minutos antes del vencimiento
 
 
 def log(msg):
@@ -147,22 +151,108 @@ def http_json(url, data=None, headers=None, method=None, timeout=30, user_agent=
         return json.loads(cuerpo) if cuerpo.strip() else None
 
 
-def supabase_auth(cfg):
-    r = http_json(
+def _escribir_cache_jobs(data):
+    """Persiste el token cache de jobs en disco con chmod 600."""
+    TOKEN_CACHE_JOBS.parent.mkdir(parents=True, exist_ok=True)
+    TOKEN_CACHE_JOBS.write_text(json.dumps(data, indent=2))
+    TOKEN_CACHE_JOBS.chmod(0o600)
+
+
+def _leer_cache_jobs():
+    """Lee el cache de jobs; devuelve None si no existe o está malformado."""
+    try:
+        return json.loads(TOKEN_CACHE_JOBS.read_text())
+    except (FileNotFoundError, json.JSONDecodeError):
+        return None
+
+
+def _password_grant_jobs(cfg):
+    """Login fresco para jobs — crea una sesión nueva."""
+    return http_json(
         f"{cfg['SUPABASE_URL']}/auth/v1/token?grant_type=password",
         data={"email": cfg["BOT_EMAIL"], "password": cfg["BOT_PASSWORD"]},
         headers={"apikey": cfg["SUPABASE_ANON_KEY"]},
     )
-    return r["access_token"]
+
+
+def _refresh_grant_jobs(cfg, refresh_token):
+    """Renueva el token de jobs sin crear sesión nueva."""
+    return http_json(
+        f"{cfg['SUPABASE_URL']}/auth/v1/token?grant_type=refresh_token",
+        data={"refresh_token": refresh_token},
+        headers={"apikey": cfg["SUPABASE_ANON_KEY"]},
+    )
+
+
+def supabase_auth(cfg):
+    """Devuelve un access_token válido reutilizando la sesión existente.
+
+    Lógica:
+    1. Cache en disco con >5 min de vida → devuelve sin red.
+    2. Cache presente pero por vencer (≤5 min) → refresh_token (misma sesión).
+    3. Sin cache o refresh falló → password grant + persiste.
+    """
+    ahora = time.time()
+    cache = _leer_cache_jobs()
+    if cache:
+        expires_at = cache.get("expires_at", 0)
+        access_token = cache.get("access_token")
+        refresh_token = cache.get("refresh_token")
+        if access_token and expires_at - ahora > AUTH_MARGEN_SEG:
+            return access_token
+        if refresh_token:
+            try:
+                r = _refresh_grant_jobs(cfg, refresh_token)
+                nuevo = {
+                    "access_token": r["access_token"],
+                    "refresh_token": r.get("refresh_token", refresh_token),
+                    "expires_at": ahora + r.get("expires_in", 3600),
+                }
+                _escribir_cache_jobs(nuevo)
+                log("jobs auth: token renovado con refresh_token (sin sesión nueva)")
+                return nuevo["access_token"]
+            except Exception as e:
+                log(f"jobs auth: refresh falló ({e}), haciendo password grant")
+
+    # Sin cache válido o refresh fallido → login fresco
+    r = _password_grant_jobs(cfg)
+    nuevo = {
+        "access_token": r["access_token"],
+        "refresh_token": r.get("refresh_token", ""),
+        "expires_at": ahora + r.get("expires_in", 3600),
+    }
+    _escribir_cache_jobs(nuevo)
+    log("jobs auth: password grant (nueva sesión)")
+    return nuevo["access_token"]
+
+
+def invalidar_cache_jobs():
+    """Borra el cache de jobs para forzar un login fresco en el próximo intento."""
+    TOKEN_CACHE_JOBS.unlink(missing_ok=True)
 
 
 def rest(cfg, token, path, data=None, method="GET"):
-    return http_json(
-        f"{cfg['SUPABASE_URL']}/rest/v1/{path}",
-        data=data,
-        headers={"apikey": cfg["SUPABASE_ANON_KEY"], "Authorization": f"Bearer {token}"},
-        method=method,
-    )
+    try:
+        return http_json(
+            f"{cfg['SUPABASE_URL']}/rest/v1/{path}",
+            data=data,
+            headers={"apikey": cfg["SUPABASE_ANON_KEY"], "Authorization": f"Bearer {token}"},
+            method=method,
+        )
+    except urllib.error.HTTPError as e:
+        if e.code == 401:
+            # Token rechazado: invalidar cache y reintentar UNA sola vez con login fresco
+            log("jobs rest: 401 recibido, invalidando cache y reintentando con token fresco")
+            invalidar_cache_jobs()
+            cfg_actual = cargar_cfg()
+            nuevo_token = supabase_auth(cfg_actual)
+            return http_json(
+                f"{cfg['SUPABASE_URL']}/rest/v1/{path}",
+                data=data,
+                headers={"apikey": cfg["SUPABASE_ANON_KEY"], "Authorization": f"Bearer {nuevo_token}"},
+                method=method,
+            )
+        raise
 
 
 def registrar_evento(cfg, token, tipo, titulo, contenido, estado="procesado"):
