@@ -83,9 +83,12 @@ export function ModuloCotizaciones({
             </div>
             <p className="mt-0.5 text-[10px] tabular-nums text-cdm-muted">
               {c.zona ? `${c.zona} · ` : ""}
-              {c.total_min !== null && c.total_max !== null
-                ? `${formatMoneyInt(c.total_min)} – ${formatMoneyInt(c.total_max)}`
-                : "Sin total aún"}
+              {/* nowrap: el rango de plata no se parte con el "$" colgado */}
+              <span className="whitespace-nowrap">
+                {c.total_min !== null && c.total_max !== null
+                  ? `${formatMoneyInt(c.total_min)} – ${formatMoneyInt(c.total_max)}`
+                  : "Sin total aún"}
+              </span>
             </p>
           </li>
         ))}
