@@ -3,7 +3,7 @@
 import { motion } from "framer-motion";
 import type { CerebroData } from "@/types/centro-mando";
 import { CommandBar } from "./command-bar";
-import { ShaderBackdrop } from "./shader-backdrop";
+import { WavesBackdrop } from "./waves-backdrop";
 import { ModuloObras } from "./modulo-obras";
 import { ModuloPlata } from "./modulo-plata";
 import { ModuloPendientes } from "./modulo-pendientes";
@@ -21,13 +21,13 @@ const stagger = {
 /**
  * Home cockpit (spec §4): una pantalla, sin scroll en desktop (cada módulo
  * scrollea adentro). En < lg degrada a una columna con scroll normal.
- * Skin futurista: shader de fondo (ShaderBackdrop, z-0) + contenido en z-10
+ * Skin futurista: malla Waves de fondo (WavesBackdrop, z-0) + contenido en z-10
  * con Inter como fuente de interfaz (Raleway queda solo para la marca).
  */
 export function CockpitHome({ cerebro }: { cerebro: CerebroData }) {
   return (
     <div className="font-inter relative flex min-h-screen flex-col gap-3 bg-cdm-bg p-4 text-cdm-fg lg:h-screen lg:overflow-hidden">
-      <ShaderBackdrop />
+      <WavesBackdrop />
 
       <div className="relative z-10 flex items-baseline justify-between px-1">
         <h1 className="flex items-center gap-2 text-[11px] uppercase tracking-[0.35em] text-cdm-muted">
