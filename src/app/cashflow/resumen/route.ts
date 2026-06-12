@@ -6,7 +6,7 @@ import {
   importeArsParaPropuesta,
   parsePropuestaPrefJsonDesdeMismaFila,
 } from "@/lib/ravn-propuesta-pref";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { createSupabaseAdminClient } from "@/lib/supabase/server";
 
 type PresRow = {
   id: string;
@@ -89,7 +89,7 @@ type GastoDb = {
 
 export async function GET() {
   try {
-    const supabase = createSupabaseServerClient();
+    const supabase = createSupabaseAdminClient();
     const hoy = todayBuenosAires();
 
     await supabase

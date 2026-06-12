@@ -3,7 +3,7 @@ import { categoriaValidaParaTipo } from "@/lib/cashflow-validate";
 import { todayBuenosAires, type CashflowTipo } from "@/lib/cashflow-compute";
 import { estadoDesdeTipo } from "@/lib/cashflow-matching";
 import { roundArs2 } from "@/lib/format-currency";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { createSupabaseAdminClient } from "@/lib/supabase/server";
 
 type Body = {
   obra_id?: string;
@@ -66,7 +66,7 @@ export async function POST(req: Request) {
       );
     }
 
-    const supabase = createSupabaseServerClient();
+    const supabase = createSupabaseAdminClient();
     const { data: obra, error: eObra } = await supabase
       .from("obras")
       .select("id")
