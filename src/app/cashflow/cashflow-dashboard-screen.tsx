@@ -6,6 +6,8 @@ import { CashflowItemModal } from "@/components/cashflow-item-modal";
 import type { CashflowTipo } from "@/lib/cashflow-compute";
 import { formatMoneyInt } from "@/lib/format-currency";
 import { VolverAlInicio } from "@/components/volver-al-inicio";
+import { WavesBackdrop } from "@/components/cockpit/waves-backdrop";
+import { CifraHeroica } from "@/components/cockpit/cifra-heroica";
 
 type ObraActiva = {
   obra_id: string;
@@ -197,95 +199,110 @@ export function CashflowDashboardScreen() {
   }
 
   return (
-    <div className="min-h-[100dvh] bg-ravn-surface px-4 py-10 pb-24 text-ravn-fg sm:px-8">
-      <div className="mx-auto w-full max-w-3xl">
+    <main className="font-grotesk relative min-h-screen bg-cdm-bg px-4 pb-24 pt-14 text-cdm-fg sm:px-8">
+      <WavesBackdrop />
+      <div className="relative z-10 mx-auto w-full max-w-3xl">
         <VolverAlInicio />
-        <header className="mt-8 border-b border-ravn-line pb-8">
-          <p className="text-[10px] font-medium uppercase tracking-[0.2em] text-ravn-muted">
-            Tesorería
-          </p>
-          <h1 className="mt-2 font-raleway text-2xl font-semibold uppercase tracking-wide text-ravn-accent sm:text-3xl">
-            Caja
+
+        {/* Header con línea de horizonte */}
+        <div className="relative pb-3">
+          <span aria-hidden className="cdm-horizon absolute inset-x-0 bottom-0" />
+          <h1 className="flex items-center gap-2 text-[11px] uppercase tracking-[0.35em] text-cdm-muted">
+            <span
+              aria-hidden
+              className="h-[5px] w-[5px] bg-cdm-accent shadow-[0_0_8px_rgba(34,211,238,0.9)]"
+            />
+            Cashflow
           </h1>
-          <p className="mt-3 max-w-xl text-sm font-light leading-relaxed text-ravn-muted">
-            El saldo de caja incluye ingresos y egresos de la libreta más los
-            gastos de obra (panel Gastos). “Por cobrar” resume lo que falta
-            cobrar a clientes (según propuesta o total cerrado).
+        </div>
+
+        <p className="mt-4 text-sm text-cdm-muted">
+          El saldo de caja incluye ingresos y egresos de la libreta más los
+          gastos de obra (panel Gastos). "Por cobrar" resume lo que falta
+          cobrar a clientes (según propuesta o total cerrado).
+        </p>
+
+        <div className="mt-6 grid grid-cols-2 gap-3 sm:max-w-md">
+          <button
+            type="button"
+            disabled={!puedeRegistrar}
+            onClick={() => abrirNuevo("ingreso")}
+            className="cdm-chip cursor-pointer inline-flex items-center justify-center border border-emerald-400/40 bg-emerald-400/10 px-4 py-4 text-[10px] font-semibold uppercase tracking-wider text-emerald-400 transition-colors hover:bg-emerald-400/20 disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            + Nuevo ingreso
+          </button>
+          <button
+            type="button"
+            disabled={!puedeRegistrar}
+            onClick={() => abrirNuevo("egreso")}
+            className="cdm-chip cursor-pointer inline-flex items-center justify-center border border-red-400/40 bg-red-400/10 px-4 py-4 text-[10px] font-semibold uppercase tracking-wider text-red-400 transition-colors hover:bg-red-400/20 disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            − Nuevo egreso
+          </button>
+        </div>
+        {!puedeRegistrar && !loading ? (
+          <p className="mt-3 text-xs text-cdm-muted">
+            Necesitás al menos una obra aprobada o la cuenta empresa (migración
+            de caja en Supabase). Aprobá presupuestos desde el{" "}
+            <Link
+              href="/historial"
+              className="text-cdm-fg underline underline-offset-2"
+            >
+              historial
+            </Link>
+            .
           </p>
-          <div className="mt-6 grid grid-cols-2 gap-3 sm:max-w-md">
-            <button
-              type="button"
-              disabled={!puedeRegistrar}
-              onClick={() => abrirNuevo("ingreso")}
-              className="inline-flex items-center justify-center rounded-none border-2 border-emerald-800/80 bg-emerald-950/50 px-4 py-4 text-[10px] font-semibold uppercase tracking-wider text-emerald-100 transition-colors hover:bg-emerald-900/50 disabled:cursor-not-allowed disabled:opacity-40"
-            >
-              + Nuevo ingreso
-            </button>
-            <button
-              type="button"
-              disabled={!puedeRegistrar}
-              onClick={() => abrirNuevo("egreso")}
-              className="inline-flex items-center justify-center rounded-none border-2 border-red-900/60 bg-red-950/40 px-4 py-4 text-[10px] font-semibold uppercase tracking-wider text-red-100 transition-colors hover:bg-red-900/40 disabled:cursor-not-allowed disabled:opacity-40"
-            >
-              − Nuevo egreso
-            </button>
-          </div>
-          {!puedeRegistrar && !loading ? (
-            <p className="mt-3 text-xs text-ravn-muted">
-              Necesitás al menos una obra aprobada o la cuenta empresa (migración
-              de caja en Supabase). Aprobá presupuestos desde el{" "}
-              <Link
-                href="/historial"
-                className="text-ravn-fg underline underline-offset-2"
-              >
-                historial
-              </Link>
-              .
-            </p>
-          ) : null}
-        </header>
+        ) : null}
 
         {loading ? (
-          <p className="mt-12 text-sm text-ravn-muted">Cargando…</p>
+          <p className="mt-12 text-sm text-cdm-muted">Cargando…</p>
         ) : error ? (
-          <p className="mt-12 text-sm text-red-600 dark:text-red-400">{error}</p>
+          <p className="mt-12 text-sm text-red-400">{error}</p>
         ) : data ? (
           <div className="mt-10 flex flex-col gap-10">
-            <div className="border border-ravn-line border-sky-900/40 bg-sky-950/25 px-5 py-5">
-              <p className="text-[10px] font-medium uppercase tracking-[0.14em] text-sky-200/90">
+            {/* Total por cobrar */}
+            <div className="cdm-glass px-5 py-5">
+              <p className="text-[10px] font-medium uppercase tracking-[0.14em] text-cdm-muted">
                 Total por cobrar (clientes)
               </p>
-              <p className="mt-2 text-xl font-medium tabular-nums text-sky-100 sm:text-2xl">
+              <CifraHeroica
+                className="mt-2 text-[clamp(28px,2.2vw,40px)] leading-none"
+                colorBase="#22d3ee"
+              >
                 {formatMoneyInt(data.total_por_cobrar_clientes_ars ?? 0)}
-              </p>
-              <p className="mt-3 text-[11px] font-light leading-snug text-sky-100/70">
+              </CifraHeroica>
+              <p className="mt-3 text-[11px] leading-snug text-cdm-muted">
                 Suma por obra: referencia − ingresos en caja, o (si cerraste
                 cobranza) total fijado − ingresos. Pagos parciales en caja
                 restan automáticamente.
               </p>
             </div>
 
-            <div className="border border-ravn-line bg-ravn-surface px-5 py-5">
-              <p className="text-[10px] font-medium uppercase tracking-[0.14em] text-ravn-muted">
+            {/* Saldo total */}
+            <div className="cdm-glass px-5 py-5">
+              <p className="text-[10px] font-medium uppercase tracking-[0.14em] text-cdm-muted">
                 Saldo total (caja)
               </p>
-              <p className="mt-2 text-xl font-medium tabular-nums sm:text-2xl">
+              <CifraHeroica
+                className="mt-2 text-[clamp(28px,2.2vw,40px)] leading-none"
+                colorBase={data.saldo_caja_total >= 0 ? "#34d399" : "#f87171"}
+              >
                 {formatMoneyInt(data.saldo_caja_total)}
-              </p>
-              <div className="mt-4 grid gap-2 border-t border-ravn-line/80 pt-4 text-xs tabular-nums sm:grid-cols-2 lg:grid-cols-4">
+              </CifraHeroica>
+              <div className="mt-4 grid gap-2 border-t border-cdm-line pt-4 text-xs tabular-nums sm:grid-cols-2 lg:grid-cols-4">
                 <div>
-                  <p className="text-[10px] uppercase tracking-wider text-ravn-muted">
+                  <p className="text-[10px] uppercase tracking-wider text-cdm-muted">
                     Ingresos caja
                   </p>
-                  <p className="mt-1 font-medium text-ravn-fg">
+                  <p className="mt-1 font-medium text-cdm-fg">
                     {formatMoneyInt(data.totales_caja.ingresos)}
                   </p>
                 </div>
                 <div>
-                  <p className="text-[10px] uppercase tracking-wider text-ravn-muted">
+                  <p className="text-[10px] uppercase tracking-wider text-cdm-muted">
                     Egr. libreta
                   </p>
-                  <p className="mt-1 font-medium text-ravn-fg">
+                  <p className="mt-1 font-medium text-cdm-fg">
                     {formatMoneyInt(
                       data.totales_caja.egresos_libreta ??
                         data.totales_caja.egresos
@@ -293,53 +310,54 @@ export function CashflowDashboardScreen() {
                   </p>
                 </div>
                 <div>
-                  <p className="text-[10px] uppercase tracking-wider text-ravn-muted">
+                  <p className="text-[10px] uppercase tracking-wider text-cdm-muted">
                     Egr. gastos obra
                   </p>
-                  <p className="mt-1 font-medium text-ravn-fg">
+                  <p className="mt-1 font-medium text-cdm-fg">
                     {formatMoneyInt(data.totales_caja.egresos_gastos_obra ?? 0)}
                   </p>
                 </div>
                 <div>
-                  <p className="text-[10px] uppercase tracking-wider text-ravn-muted">
+                  <p className="text-[10px] uppercase tracking-wider text-cdm-muted">
                     Saldo (ing − egr)
                   </p>
-                  <p className="mt-1 font-medium text-ravn-fg">
+                  <p className="mt-1 font-medium text-cdm-fg">
                     {formatMoneyInt(data.totales_caja.saldo)}
                   </p>
                 </div>
               </div>
-              <p className="mt-2 text-[10px] uppercase tracking-wider text-ravn-muted">
+              <p className="mt-2 text-[10px] uppercase tracking-wider text-cdm-muted">
                 Egresos caja total: {formatMoneyInt(data.totales_caja.egresos)} (
                 libreta + gastos de obra)
               </p>
-              <p className="mt-3 text-[11px] font-light leading-snug text-ravn-muted">
+              <p className="mt-3 text-[11px] leading-snug text-cdm-muted">
                 Incluye obras aprobadas y cuenta empresa. Referencia:{" "}
                 {fmtFecha(data.fecha_referencia)}.
               </p>
             </div>
 
+            {/* Cuenta empresa */}
             {data.libreta_empresa ? (
-              <div className="border border-ravn-line border-amber-900/30 bg-amber-950/20 px-5 py-5">
-                <p className="text-[10px] font-medium uppercase tracking-[0.14em] text-amber-200/90">
+              <div className="cdm-glass border-amber-300/20 px-5 py-5">
+                <p className="text-[10px] font-medium uppercase tracking-[0.14em] text-amber-300">
                   Cuenta empresa
                 </p>
-                <p className="mt-1 text-xs text-ravn-muted">
+                <p className="mt-1 text-xs text-cdm-muted">
                   Gastos o ingresos no imputados a una obra de cliente.
                 </p>
-                <p className="mt-3 text-lg font-medium tabular-nums">
+                <p className="mt-3 text-lg font-medium tabular-nums text-cdm-fg">
                   {formatMoneyInt(data.libreta_empresa.saldo_caja)}
                 </p>
-                <div className="mt-3 flex flex-wrap gap-x-6 gap-y-1 text-xs tabular-nums text-ravn-muted">
+                <div className="mt-3 flex flex-wrap gap-x-6 gap-y-1 text-xs tabular-nums text-cdm-muted">
                   <span>
                     Ing.:{" "}
-                    <span className="font-medium text-ravn-fg">
+                    <span className="font-medium text-cdm-fg">
                       {formatMoneyInt(data.libreta_empresa.ingresos_caja)}
                     </span>
                   </span>
                   <span>
                     Egr.:{" "}
-                    <span className="font-medium text-ravn-fg">
+                    <span className="font-medium text-cdm-fg">
                       {formatMoneyInt(data.libreta_empresa.egresos_caja)}
                     </span>
                   </span>
@@ -355,7 +373,7 @@ export function CashflowDashboardScreen() {
                 <p className="mt-3">
                   <Link
                     href={`/cashflow/obra/${encodeURIComponent(data.libreta_empresa.obra_id)}`}
-                    className="text-[10px] font-semibold uppercase tracking-wider text-ravn-accent underline-offset-2 hover:underline"
+                    className="text-[10px] font-semibold uppercase tracking-wider text-cdm-accent underline-offset-2 hover:underline"
                   >
                     Ver libreta empresa
                   </Link>
@@ -363,47 +381,48 @@ export function CashflowDashboardScreen() {
               </div>
             ) : null}
 
+            {/* Últimos movimientos */}
             {(data.movimientos_recientes ?? []).length > 0 ? (
               <section aria-labelledby="mov-recientes">
                 <h2
                   id="mov-recientes"
-                  className="font-raleway text-sm font-semibold uppercase tracking-wide text-ravn-accent"
+                  className="text-[11px] uppercase tracking-[0.35em] text-cdm-muted"
                 >
                   Últimos movimientos
                 </h2>
-                <p className="mt-2 text-xs text-ravn-muted">
+                <p className="mt-2 text-xs text-cdm-muted">
                   Libreta y gastos de obra (Gastos). Anular solo aplica a líneas
                   de libreta; los gastos se editan en el panel Gastos de la
                   obra.
                 </p>
-                <ul className="mt-4 border border-ravn-line divide-y divide-ravn-line">
+                <ul className="cdm-glass mt-4 divide-y divide-cdm-line">
                   {(data.movimientos_recientes ?? []).map((m) => (
                     <li
                       key={m.id}
                       className="flex flex-col gap-2 px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
                     >
                       <div className="min-w-0 flex-1">
-                        <p className="text-xs font-medium text-ravn-fg">
+                        <p className="text-xs font-medium text-cdm-fg">
                           <span
                             className={
                               m.tipo === "ingreso"
-                                ? "text-emerald-400/90"
-                                : "text-red-400/90"
+                                ? "text-emerald-400"
+                                : "text-red-400"
                             }
                           >
                             {m.tipo === "ingreso" ? "Ingreso" : "Egreso"}
                           </span>
                           {m.origen === "gasto_obra" ? (
-                            <span className="text-ravn-muted"> · Gasto obra</span>
+                            <span className="text-cdm-muted"> · Gasto obra</span>
                           ) : null}
-                          <span className="text-ravn-muted"> · </span>
+                          <span className="text-cdm-muted"> · </span>
                           {m.descripcion.trim() || "—"}
                         </p>
-                        <p className="mt-1 text-[11px] text-ravn-muted">
+                        <p className="mt-1 text-[11px] text-cdm-muted">
                           {m.nombre_obra} ·{" "}
                           {m.fecha_real ? fmtFecha(m.fecha_real) : "—"}
                         </p>
-                        <p className="mt-1 text-sm font-medium tabular-nums">
+                        <p className="mt-1 text-sm font-medium tabular-nums text-cdm-fg">
                           {formatMoneyInt(m.monto_real)}
                         </p>
                       </div>
@@ -423,7 +442,7 @@ export function CashflowDashboardScreen() {
                               ? `/obras/${encodeURIComponent(pid)}/gastos`
                               : `/cashflow/obra/${encodeURIComponent(m.obra_id)}`;
                           })()}
-                          className="inline-flex items-center justify-center rounded-none border border-ravn-line px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-ravn-fg hover:bg-ravn-subtle"
+                          className="cdm-chip cursor-pointer inline-flex items-center justify-center border border-cdm-line px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-cdm-muted transition-colors hover:border-cdm-accent/30 hover:text-cdm-fg"
                         >
                           {m.origen === "gasto_obra" ? "Gastos" : "Obra"}
                         </Link>
@@ -431,12 +450,12 @@ export function CashflowDashboardScreen() {
                           <button
                             type="button"
                             onClick={() => void anularMovimiento(m.id)}
-                            className="inline-flex items-center justify-center rounded-none border border-red-900/50 bg-red-950/30 px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-red-100 hover:bg-red-900/40"
+                            className="cdm-chip cursor-pointer inline-flex items-center justify-center border border-red-400/40 px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-red-400 transition-colors hover:bg-red-400/10"
                           >
                             Anular
                           </button>
                         ) : (
-                          <span className="self-center text-[10px] text-ravn-muted">
+                          <span className="self-center text-[10px] text-cdm-muted">
                             Ver Gastos
                           </span>
                         )}
@@ -447,40 +466,41 @@ export function CashflowDashboardScreen() {
               </section>
             ) : null}
 
+            {/* Anulados recientes */}
             {(data.movimientos_anulados_recientes ?? []).length > 0 ? (
               <section aria-labelledby="mov-anulados">
                 <h2
                   id="mov-anulados"
-                  className="font-raleway text-sm font-semibold uppercase tracking-wide text-ravn-muted"
+                  className="text-[11px] uppercase tracking-[0.35em] text-cdm-muted"
                 >
                   Anulados recientes
                 </h2>
-                <p className="mt-2 text-xs text-ravn-muted">
+                <p className="mt-2 text-xs text-cdm-muted">
                   No suman al saldo. Restaurá si anulaste por error.
                 </p>
-                <ul className="mt-4 border border-ravn-line divide-y divide-ravn-line opacity-90">
+                <ul className="cdm-glass mt-4 divide-y divide-cdm-line opacity-90">
                   {(data.movimientos_anulados_recientes ?? []).map((m) => (
                     <li
                       key={m.id}
                       className="flex flex-col gap-2 px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
                     >
                       <div className="min-w-0 flex-1">
-                        <p className="text-xs font-medium text-ravn-muted">
+                        <p className="text-xs font-medium text-cdm-muted">
                           {m.tipo === "ingreso" ? "Ingreso" : "Egreso"} ·{" "}
                           {m.descripcion.trim() || "—"}
                         </p>
-                        <p className="mt-1 text-[11px] text-ravn-muted">
+                        <p className="mt-1 text-[11px] text-cdm-muted">
                           {m.nombre_obra} · Anulado{" "}
                           {m.deleted_at ? fmtFecha(m.deleted_at) : ""}
                         </p>
-                        <p className="mt-1 text-sm font-medium tabular-nums text-ravn-muted">
+                        <p className="mt-1 text-sm font-medium tabular-nums text-cdm-muted">
                           {formatMoneyInt(m.monto_real)}
                         </p>
                       </div>
                       <button
                         type="button"
                         onClick={() => void restaurarMovimiento(m.id)}
-                        className="inline-flex shrink-0 items-center justify-center rounded-none border border-emerald-900/50 bg-emerald-950/30 px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-emerald-100 hover:bg-emerald-900/40"
+                        className="cdm-chip cursor-pointer inline-flex shrink-0 items-center justify-center border border-emerald-400/40 px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-emerald-400 transition-colors hover:bg-emerald-400/10"
                       >
                         Restaurar
                       </button>
@@ -490,81 +510,82 @@ export function CashflowDashboardScreen() {
               </section>
             ) : null}
 
+            {/* Obras */}
             <section aria-labelledby="obras-activas">
               <h2
                 id="obras-activas"
-                className="font-raleway text-sm font-semibold uppercase tracking-wide text-ravn-accent"
+                className="text-[11px] uppercase tracking-[0.35em] text-cdm-muted"
               >
                 Obras
               </h2>
               {data.obras_activas.length === 0 ? (
-                <p className="mt-3 text-sm text-ravn-muted">
+                <p className="mt-3 text-sm text-cdm-muted">
                   {data.libreta_empresa
                     ? "No hay obras de cliente con presupuesto aprobado (solo cuenta empresa)."
                     : "No hay obras con presupuesto aprobado."}
                 </p>
               ) : (
-                <ul className="mt-4 border border-ravn-line">
+                <ul className="cdm-glass mt-4">
                   {data.obras_activas.map((o) => (
                     <li
                       key={o.obra_id}
-                      className="border-b border-ravn-line px-5 py-4 last:border-b-0"
+                      className="border-b border-cdm-line px-5 py-4 last:border-b-0"
                     >
                       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                         <div>
                           <Link
                             href={`/cashflow/obra/${encodeURIComponent(o.obra_id)}`}
-                            className="font-raleway text-base font-semibold uppercase tracking-wide text-ravn-accent underline-offset-2 hover:underline"
+                            className="cursor-pointer text-base font-semibold uppercase tracking-wide text-cdm-accent underline-offset-2 hover:underline"
                           >
                             {o.nombre_obra}
                           </Link>
-                          <dl className="mt-2 space-y-1 text-xs text-ravn-muted">
+                          <dl className="mt-2 space-y-1 text-xs text-cdm-muted">
                             <div>
                               <dt className="inline">Ingresos caja:</dt>{" "}
-                              <dd className="inline tabular-nums font-medium text-ravn-fg">
+                              <dd className="inline tabular-nums font-medium text-cdm-fg">
                                 {formatMoneyInt(o.ingresos_caja)}
                               </dd>
                             </div>
                             <div>
                               <dt className="inline">Egresos libreta:</dt>{" "}
-                              <dd className="inline tabular-nums font-medium text-ravn-fg">
+                              <dd className="inline tabular-nums font-medium text-cdm-fg">
                                 {formatMoneyInt(o.egresos_libreta_ars ?? o.egresos_caja)}
                               </dd>
                             </div>
                             <div>
                               <dt className="inline">Egresos gastos obra:</dt>{" "}
-                              <dd className="inline tabular-nums font-medium text-ravn-fg">
+                              <dd className="inline tabular-nums font-medium text-cdm-fg">
                                 {formatMoneyInt(o.egresos_gastos_obra_ars ?? 0)}
                               </dd>
                             </div>
                             <div>
                               <dt className="inline">Egresos caja (total):</dt>{" "}
-                              <dd className="inline tabular-nums font-medium text-ravn-fg">
+                              <dd className="inline tabular-nums font-medium text-cdm-fg">
                                 {formatMoneyInt(o.egresos_caja)}
                               </dd>
                             </div>
                             <div>
                               <dt className="inline">Saldo caja:</dt>{" "}
-                              <dd className="inline tabular-nums font-medium text-ravn-fg">
+                              <dd className="inline tabular-nums font-medium text-cdm-fg">
                                 {formatMoneyInt(o.saldo_caja)}
                               </dd>
                             </div>
                             {o.saldo_por_cobrar_ars != null ? (
                               <div className="pt-1 text-[11px] leading-snug">
-                                <span className="text-ravn-muted">
+                                <span className="text-cdm-muted">
                                   {o.cobranza_cerrada
                                     ? "Por cobrar (total cerrado − ingresos caja): "
                                     : "Por cobrar (ref. propuesta − ingresos caja): "}
                                 </span>
-                                <span className="tabular-nums font-medium text-amber-200/90">
+                                <span className="tabular-nums font-medium text-amber-300">
                                   {formatMoneyInt(o.saldo_por_cobrar_ars)}
                                 </span>
                               </div>
                             ) : null}
                             {o.referencia_propuesta_ars != null ? (
-                              <div className="pt-1 text-[11px] leading-snug text-ravn-muted">
+                              <div className="pt-1 text-[11px] leading-snug text-cdm-muted">
                                 Ref. propuesta:{" "}
-                                <span className="tabular-nums font-medium text-ravn-fg">
+                                <span className="tabular-nums font-medium text-cdm-fg">
                                   {formatMoneyInt(o.referencia_propuesta_ars)}
                                 </span>
                               </div>
@@ -577,7 +598,7 @@ export function CashflowDashboardScreen() {
                               type="button"
                               disabled={cobranzaCerrandoId === o.obra_id}
                               onClick={() => void cerrarCobranzaObra(o.obra_id)}
-                              className="inline-flex items-center justify-center rounded-none border border-amber-800/60 bg-amber-950/40 px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-amber-100 transition-colors hover:bg-amber-900/40 disabled:opacity-50"
+                              className="cdm-chip cursor-pointer inline-flex items-center justify-center border border-amber-300/40 px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-amber-300 transition-colors hover:bg-amber-300/10 disabled:opacity-50"
                             >
                               {cobranzaCerrandoId === o.obra_id
                                 ? "Guardando…"
@@ -585,14 +606,14 @@ export function CashflowDashboardScreen() {
                             </button>
                           ) : null}
                           {o.cobranza_cerrada ? (
-                            <span className="self-center text-[10px] uppercase tracking-wider text-ravn-muted">
+                            <span className="self-center text-[10px] uppercase tracking-wider text-cdm-muted">
                               Cobranza cerrada
                             </span>
                           ) : null}
                           {o.presupuesto_id ? (
                             <Link
                               href={`/obras/${encodeURIComponent(o.presupuesto_id)}/gastos`}
-                              className="inline-flex items-center justify-center rounded-none border border-ravn-line px-4 py-2 text-[10px] font-semibold uppercase tracking-wider text-ravn-fg transition-colors hover:bg-ravn-subtle"
+                              className="cdm-chip cursor-pointer inline-flex items-center justify-center border border-cdm-line px-4 py-2 text-[10px] font-semibold uppercase tracking-wider text-cdm-muted transition-colors hover:border-cdm-accent/30 hover:text-cdm-fg"
                             >
                               Gastos
                             </Link>
@@ -620,6 +641,6 @@ export function CashflowDashboardScreen() {
           setModalOpen(false);
         }}
       />
-    </div>
+    </main>
   );
 }

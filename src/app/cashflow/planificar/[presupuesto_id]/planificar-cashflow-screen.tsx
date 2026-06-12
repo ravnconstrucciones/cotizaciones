@@ -7,6 +7,7 @@ import { todayBuenosAires } from "@/lib/cashflow-compute";
 import { parseFormattedNumber, roundArs2 } from "@/lib/format-currency";
 import { formatTotalDisplay } from "@/lib/format-total-display";
 import { VolverAlInicio } from "@/components/volver-al-inicio";
+import { WavesBackdrop } from "@/components/cockpit/waves-backdrop";
 
 type IngresoPrev = {
   clave: string;
@@ -33,7 +34,10 @@ type PreviewJson = {
 };
 
 const inp =
-  "w-full rounded-none border border-ravn-line bg-ravn-surface px-3 py-2.5 text-sm text-ravn-fg focus-visible:border-ravn-fg focus-visible:outline-none";
+  "w-full border-0 border-b border-cdm-line bg-transparent px-1 py-2 text-sm text-cdm-fg placeholder:text-cdm-muted/50 transition-[border-color,box-shadow] duration-200 focus-visible:border-cdm-accent focus-visible:outline-none focus-visible:shadow-[0_12px_24px_-16px_rgba(34,211,238,0.6)]";
+
+const inpDate =
+  "w-full border border-cdm-line bg-cdm-panel/60 px-3 py-2 text-sm text-cdm-fg focus:border-cdm-accent focus:outline-none";
 
 export function PlanificarCashflowScreen({
   presupuestoId,
@@ -170,19 +174,33 @@ export function PlanificarCashflowScreen({
   }
 
   return (
-    <div className="min-h-[100dvh] bg-ravn-surface px-4 py-10 pb-24 text-ravn-fg sm:px-8">
-      <div className="mx-auto max-w-3xl">
+    <main className="font-grotesk relative min-h-screen bg-cdm-bg px-4 pb-24 pt-14 text-cdm-fg sm:px-8">
+      <WavesBackdrop />
+      <div className="relative z-10 mx-auto w-full max-w-3xl">
         <VolverAlInicio />
-        <header className="mt-8 border-b border-ravn-line pb-6">
-          <p className="text-[10px] font-medium uppercase tracking-[0.2em] text-ravn-muted">
+
+        {/* Header con línea de horizonte */}
+        <div className="relative pb-3">
+          <span aria-hidden className="cdm-horizon absolute inset-x-0 bottom-0" />
+          <h1 className="flex items-center gap-2 text-[11px] uppercase tracking-[0.35em] text-cdm-muted">
+            <span
+              aria-hidden
+              className="h-[5px] w-[5px] bg-cdm-accent shadow-[0_0_8px_rgba(34,211,238,0.9)]"
+            />
+            Cashflow
+          </h1>
+        </div>
+
+        <header className="mt-8 border-b border-cdm-line pb-6">
+          <p className="text-[10px] font-medium uppercase tracking-[0.2em] text-cdm-muted">
             Cierre de presupuesto
           </p>
-          <h1 className="mt-2 font-raleway text-xl font-semibold uppercase tracking-wide text-ravn-accent sm:text-2xl">
+          <p className="mt-2 text-xl font-semibold uppercase tracking-wide text-cdm-fg sm:text-2xl">
             Revisar plan de cashflow
-          </h1>
-          <p className="mt-3 text-sm text-ravn-muted">
+          </p>
+          <p className="mt-3 text-sm text-cdm-muted">
             Total referencia (ARS):{" "}
-            <span className="font-medium text-ravn-fg">
+            <span className="font-medium text-cdm-fg">
               {formatTotalDisplay(Math.round(totalRef), "ARS")}
             </span>
             . Al confirmar se aprueba el presupuesto y se cargan los movimientos en
@@ -191,13 +209,13 @@ export function PlanificarCashflowScreen({
         </header>
 
         {loading ? (
-          <p className="mt-10 text-sm text-ravn-muted">Cargando…</p>
+          <p className="mt-10 text-sm text-cdm-muted">Cargando…</p>
         ) : error && !preview ? (
           <div className="mt-10 space-y-4">
-            <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
+            <p className="text-sm text-red-400">{error}</p>
             <Link
               href="/historial"
-              className="inline-block text-sm uppercase tracking-wider text-ravn-muted underline"
+              className="inline-block text-sm uppercase tracking-wider text-cdm-muted underline"
             >
               Volver al historial
             </Link>
@@ -205,62 +223,64 @@ export function PlanificarCashflowScreen({
         ) : preview ? (
           <div className="mt-10 flex flex-col gap-10">
             {error ? (
-              <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
+              <p className="text-sm text-red-400">{error}</p>
             ) : null}
 
-            <section className="border border-ravn-line p-5">
-              <h2 className="text-xs font-semibold uppercase tracking-wider text-ravn-accent">
+            {/* Porcentajes ingresos */}
+            <section className="cdm-glass p-5">
+              <h2 className="text-[11px] uppercase tracking-[0.35em] text-cdm-muted">
                 Porcentajes ingresos
               </h2>
               <div className="mt-4 grid gap-4 sm:grid-cols-3">
-                <label className="text-xs text-ravn-muted">
+                <label className="text-xs text-cdm-muted">
                   Anticipo %
                   <input className={`${inp} mt-1`} value={pctAnt} onChange={(e) => setPctAnt(e.target.value)} />
                 </label>
-                <label className="text-xs text-ravn-muted">
+                <label className="text-xs text-cdm-muted">
                   Cuota 1 %
                   <input className={`${inp} mt-1`} value={pct1} onChange={(e) => setPct1(e.target.value)} />
                 </label>
-                <label className="text-xs text-ravn-muted">
+                <label className="text-xs text-cdm-muted">
                   Cuota 2 %
                   <input className={`${inp} mt-1`} value={pct2} onChange={(e) => setPct2(e.target.value)} />
                 </label>
-                <label className="text-xs text-ravn-muted">
+                <label className="text-xs text-cdm-muted">
                   Días cuota 1
                   <input className={`${inp} mt-1`} value={dias1} onChange={(e) => setDias1(e.target.value)} />
                 </label>
-                <label className="text-xs text-ravn-muted">
+                <label className="text-xs text-cdm-muted">
                   Días cuota 2
                   <input className={`${inp} mt-1`} value={dias2} onChange={(e) => setDias2(e.target.value)} />
                 </label>
-                <label className="text-xs text-ravn-muted">
+                <label className="text-xs text-cdm-muted">
                   Días cuota final
                   <input className={`${inp} mt-1`} value={diasF} onChange={(e) => setDiasF(e.target.value)} />
                 </label>
               </div>
-              <p className="mt-3 text-[11px] text-ravn-muted">
+              <p className="mt-3 text-[11px] text-cdm-muted">
                 La cuota final toma el % restante para llegar al 100%. Podés
                 ajustar cada monto y fecha en la tabla.
               </p>
             </section>
 
-            <section className="border border-ravn-line p-5">
-              <h2 className="text-xs font-semibold uppercase tracking-wider text-ravn-accent">
+            {/* Ingresos proyectados */}
+            <section className="cdm-glass p-5">
+              <h2 className="text-[11px] uppercase tracking-[0.35em] text-cdm-muted">
                 Ingresos proyectados
               </h2>
               <ul className="mt-4 space-y-4">
                 {ingresos.map((r, i) => (
                   <li
                     key={r.clave}
-                    className="grid gap-3 border-b border-ravn-line pb-4 last:border-b-0 sm:grid-cols-2"
+                    className="grid gap-3 border-b border-cdm-line pb-4 last:border-b-0 sm:grid-cols-2"
                   >
                     <div>
-                      <p className="text-sm font-medium">{r.descripcion}</p>
-                      <p className="text-[10px] uppercase text-ravn-muted">
+                      <p className="text-sm font-medium text-cdm-fg">{r.descripcion}</p>
+                      <p className="text-[10px] uppercase text-cdm-muted">
                         {r.categoria.replace(/_/g, " ")}
                       </p>
                     </div>
-                    <label className="text-xs text-ravn-muted">
+                    <label className="text-xs text-cdm-muted">
                       Monto ARS
                       <input
                         className={`${inp} mt-1 tabular-nums`}
@@ -272,11 +292,11 @@ export function PlanificarCashflowScreen({
                         }
                       />
                     </label>
-                    <label className="text-xs text-ravn-muted sm:col-span-2">
+                    <label className="text-xs text-cdm-muted sm:col-span-2">
                       Fecha proyectada
                       <input
                         type="date"
-                        className={`${inp} mt-1 max-w-xs`}
+                        className={`${inpDate} mt-1 max-w-xs`}
                         value={r.fecha_proyectada}
                         onChange={(e) =>
                           setIngreso(i, { fecha_proyectada: e.target.value })
@@ -288,18 +308,19 @@ export function PlanificarCashflowScreen({
               </ul>
             </section>
 
-            <section className="border border-ravn-line p-5">
-              <h2 className="text-xs font-semibold uppercase tracking-wider text-ravn-accent">
+            {/* Egresos */}
+            <section className="cdm-glass p-5">
+              <h2 className="text-[11px] uppercase tracking-[0.35em] text-cdm-muted">
                 Egresos desde ítems del presupuesto
               </h2>
               <ul className="mt-4 space-y-4">
                 {egresos.map((r, i) => (
                   <li
                     key={`${i}-${r.descripcion}`}
-                    className="grid gap-3 border-b border-ravn-line pb-4 last:border-b-0 sm:grid-cols-2"
+                    className="grid gap-3 border-b border-cdm-line pb-4 last:border-b-0 sm:grid-cols-2"
                   >
-                    <p className="text-sm">{r.descripcion}</p>
-                    <label className="text-xs text-ravn-muted">
+                    <p className="text-sm text-cdm-fg">{r.descripcion}</p>
+                    <label className="text-xs text-cdm-muted">
                       Monto ARS
                       <input
                         className={`${inp} mt-1 tabular-nums`}
@@ -311,11 +332,11 @@ export function PlanificarCashflowScreen({
                         }
                       />
                     </label>
-                    <label className="text-xs text-ravn-muted sm:col-span-2">
+                    <label className="text-xs text-cdm-muted sm:col-span-2">
                       Fecha proyectada
                       <input
                         type="date"
-                        className={`${inp} mt-1 max-w-xs`}
+                        className={`${inpDate} mt-1 max-w-xs`}
                         value={r.fecha_proyectada}
                         onChange={(e) =>
                           setEgreso(i, { fecha_proyectada: e.target.value })
@@ -330,7 +351,7 @@ export function PlanificarCashflowScreen({
             <div className="flex flex-col gap-3 sm:flex-row sm:justify-end">
               <Link
                 href="/historial"
-                className="inline-flex items-center justify-center border-2 border-ravn-line px-6 py-3 text-center text-xs font-semibold uppercase tracking-wider text-ravn-fg hover:bg-ravn-subtle"
+                className="cdm-chip cursor-pointer inline-flex items-center justify-center border border-cdm-line px-6 py-3 text-center text-xs font-semibold uppercase tracking-wider text-cdm-muted transition-colors hover:border-cdm-accent/30 hover:text-cdm-fg"
               >
                 Cancelar
               </Link>
@@ -338,7 +359,7 @@ export function PlanificarCashflowScreen({
                 type="button"
                 disabled={saving || totalRef <= 0}
                 onClick={() => void confirmar()}
-                className="inline-flex items-center justify-center border-2 border-ravn-accent bg-ravn-accent px-6 py-3 text-xs font-semibold uppercase tracking-wider text-ravn-accent-contrast hover:opacity-90 disabled:opacity-40"
+                className="cdm-chip cursor-pointer inline-flex items-center justify-center border border-cdm-accent/60 bg-cdm-accent/15 px-6 py-3 text-xs font-semibold uppercase tracking-wider text-cdm-accent shadow-[0_0_18px_-6px_rgba(34,211,238,0.55)] transition-colors hover:bg-cdm-accent/25 disabled:opacity-40"
               >
                 {saving ? "Guardando…" : "Confirmar y aprobar"}
               </button>
@@ -346,6 +367,6 @@ export function PlanificarCashflowScreen({
           </div>
         ) : null}
       </div>
-    </div>
+    </main>
   );
 }
