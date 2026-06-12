@@ -332,7 +332,7 @@ export function GastosScreen({
     try {
       const base =
         typeof window !== "undefined" ? window.location.origin : "";
-      const url = base ? `${base}/api/cotizaciones` : "/api/cotizaciones";
+      const url = base ? `${base}/api/dolar` : "/api/dolar";
       const res = await fetch(url, { cache: "no-store" });
       const body = (await res.json()) as {
         cotizaciones?: CotizacionItem[];

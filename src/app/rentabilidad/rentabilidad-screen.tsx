@@ -135,7 +135,7 @@ export function RentabilidadScreen({
         typeof window !== "undefined"
           ? window.location.origin
           : "";
-      const url = base ? `${base}/api/cotizaciones` : "/api/cotizaciones";
+      const url = base ? `${base}/api/dolar` : "/api/dolar";
       const res = await fetch(url, { cache: "no-store" });
       let body: CotizacionesResponse & { error?: string; fuente?: string };
       try {
