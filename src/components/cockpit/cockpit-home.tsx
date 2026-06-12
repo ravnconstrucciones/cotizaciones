@@ -7,6 +7,9 @@ import { Panel } from "./panel";
 import { ModuloObras } from "./modulo-obras";
 import { ModuloPlata } from "./modulo-plata";
 import { ModuloPendientes } from "./modulo-pendientes";
+import { ModuloCotizaciones } from "./modulo-cotizaciones";
+import { ModuloActividad } from "./modulo-actividad";
+import { ModuloArchivados } from "./modulo-archivados";
 
 const stagger = {
   hidden: {},
@@ -54,10 +57,10 @@ export function CockpitHome({ cerebro }: { cerebro: CerebroData }) {
         <ModuloObras className="lg:col-span-3" />
         <ModuloPlata className="lg:col-span-3" />
         <ModuloPendientes className="lg:col-span-3" />
-        <Placeholder titulo="Cotizaciones" className="lg:col-span-3" />
-        <Placeholder titulo="Actividad" className="lg:col-span-4" />
+        <ModuloCotizaciones className="lg:col-span-3" />
+        <ModuloActividad className="lg:col-span-4" />
         <Placeholder titulo="El cerebro" className="lg:col-span-4" />
-        <Placeholder titulo="Archivados" className="lg:col-span-2" />
+        <ModuloArchivados className="lg:col-span-2" />
         <Placeholder titulo="ADN" className="lg:col-span-2" />
       </motion.div>
     </div>
