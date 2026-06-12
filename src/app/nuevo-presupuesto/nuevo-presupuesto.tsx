@@ -4,7 +4,6 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { motion } from "framer-motion";
 import { NuevoRecetaModal } from "@/components/nuevo-receta-modal";
-import { RavnLogo } from "@/components/ravn-logo";
 import { WavesBackdrop } from "@/components/cockpit/waves-backdrop";
 import { CifraHeroica } from "@/components/cockpit/cifra-heroica";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -1136,7 +1135,7 @@ export function NuevoPresupuestoScreen() {
 
   return (
     <>
-    <div className="font-inter relative flex h-[100dvh] min-h-0 overflow-hidden bg-cdm-bg text-cdm-fg">
+    <div className="font-grotesk relative flex h-[100dvh] min-h-0 overflow-hidden bg-cdm-bg text-cdm-fg">
       <WavesBackdrop />
       <aside
         className="relative z-10 flex h-full min-h-0 flex-shrink-0 flex-col border-r border-cdm-line bg-cdm-bg/70 backdrop-blur-xl"
@@ -1151,19 +1150,9 @@ export function NuevoPresupuestoScreen() {
             setIsResizing(true);
           }}
         />
-        <div className="flex flex-col justify-end border-b border-cdm-line px-6 py-3 sm:py-4">
-          <Link
-            href="/"
-            className="block w-full"
-            aria-label="Volver al inicio"
-          >
-            <RavnLogo
-              sizeClassName="text-base sm:text-lg"
-              showTagline={false}
-              align="start"
-            />
-          </Link>
-          <h2 className="mt-2 text-[10px] font-semibold uppercase tracking-[0.3em] text-cdm-taupe sm:mt-3">
+        <div className="flex flex-col justify-end border-b border-cdm-line px-6 py-4">
+          {/* La marca vive en la carcasa (sidebar del shell) — acá solo el rol del panel. */}
+          <h2 className="text-[10px] font-semibold uppercase tracking-[0.3em] text-cdm-taupe">
             Rubros
           </h2>
         </div>
