@@ -5,27 +5,27 @@ import { createNoise2D } from "simplex-noise";
 import { GlassFilter } from "./liquid-glass";
 
 /**
- * Fondo del cockpit — iteración 2: Waves (ref. wave-background de 21st.dev),
- * malla de líneas SVG con simplex-noise QUE REACCIONA AL MOUSE.
+ * Fondo del cockpit — iteración 3: la malla SE VE.
  *
- * Ganó la competencia contra el NeuroNoise (shader WebGL) de la iteración 1:
- * - Reacciona al cursor → el cockpit se siente vivo (el shader era ambiente puro).
- * - La malla de líneas es ADN RAVN (precisión arquitectónica) vs. humo orgánico.
- * - Misma paleta ley: trazo taupe al 10% sobre #0a0a0a.
+ * El feedback de la iteración 2 fue lapidario: el fondo era casi invisible y
+ * el cockpit no se sentía distinto. Cambios de esta pasada:
+ * - Trazo taupe al 0.18 (antes 0.10) → la malla existe en los primeros 2s.
+ * - Gradiente de presencia INVERTIDO: antes oscurecía los bordes (escondía
+ *   la malla justo donde no hay paneles); ahora calma el CENTRO (detrás del
+ *   contenido) y deja respirar los bordes de la pantalla.
+ * - Vignette de profundidad: las esquinas caen a negro → atmósfera de cabina.
+ * - Vuelve el "pointer-dot" del original de 21st.dev, ahora con glow taupe:
+ *   se mueve por refs dentro del mismo RAF (cero re-renders de React).
  *
- * Adaptaciones de performance sobre el original (que usaba xGap/yGap 8 →
- * ~36k puntos por frame):
- * - Densidad bajada a xGap 18 / yGap 22 → ~4k puntos por frame (~1ms CPU).
- * - prefers-reduced-motion → un solo draw estático, sin RAF ni listeners.
+ * Se conservan las adaptaciones de performance de la iteración 2:
+ * - Densidad xGap 18 / yGap 22 → ~4k puntos por frame (~1ms CPU).
+ * - prefers-reduced-motion → un solo draw estático, sin RAF, sin dot.
  * - RAF pausado cuando la pestaña está oculta (visibilitychange).
- * - Sin el "pointer-dot" del original (desaparecía detrás de los paneles).
- * - El overlay radial de legibilidad de la iteración 1 se conserva:
- *   el fondo NUNCA gana contra el contenido.
  */
 
 const X_GAP = 18;
 const Y_GAP = 22;
-const STROKE = "rgba(200, 180, 154, 0.10)";
+const STROKE = "rgba(200, 180, 154, 0.18)";
 
 type Punto = {
   x: number;
@@ -37,10 +37,12 @@ type Punto = {
 export function WavesBackdrop() {
   const containerRef = useRef<HTMLDivElement>(null);
   const svgRef = useRef<SVGSVGElement>(null);
+  const dotRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const container = containerRef.current;
     const svg = svgRef.current;
+    const dot = dotRef.current;
     if (!container || !svg) return;
 
     const reducirMovimiento = window.matchMedia(
@@ -166,6 +168,12 @@ export function WavesBackdrop() {
       mouse.lx = mouse.x;
       mouse.ly = mouse.y;
       mouse.a = Math.atan2(dy, dx);
+      if (dot) {
+        // Punto del cursor con glow taupe: sigue la posición suavizada
+        // (mouse.sx/sy) por estilo directo — nunca pasa por React.
+        dot.style.transform = `translate3d(${mouse.sx}px, ${mouse.sy}px, 0)`;
+        dot.style.opacity = mouse.set ? "1" : "0";
+      }
       movePoints(time);
       drawLines();
       raf = requestAnimationFrame(tick);
@@ -231,9 +239,20 @@ export function WavesBackdrop() {
     <div aria-hidden className="pointer-events-none fixed inset-0 z-0">
       <div ref={containerRef} className="absolute inset-0 overflow-hidden">
         <svg ref={svgRef} className="block h-full w-full" />
+        {/* Punto del cursor: dot taupe + glow chico, movido por refs en el RAF. */}
+        <div
+          ref={dotRef}
+          className="absolute left-0 top-0 opacity-0 transition-opacity duration-500 will-change-transform"
+        >
+          <div className="absolute -left-14 -top-14 h-28 w-28 rounded-full bg-[radial-gradient(circle,rgba(200,180,154,0.22)_0%,rgba(200,180,154,0.07)_45%,transparent_70%)]" />
+          <div className="absolute -left-[2.5px] -top-[2.5px] h-[5px] w-[5px] rounded-full bg-cdm-taupe shadow-[0_0_14px_rgba(200,180,154,0.95)]" />
+        </div>
       </div>
-      {/* Overlay de legibilidad: el contenido siempre gana. */}
-      <div className="absolute inset-0 bg-[radial-gradient(120%_90%_at_50%_8%,rgba(10,10,10,0.30)_0%,rgba(10,10,10,0.78)_100%)]" />
+      {/* Gradiente de presencia: calmo detrás del contenido central,
+          la malla respira con fuerza en los bordes de la pantalla. */}
+      <div className="absolute inset-0 bg-[radial-gradient(105%_80%_at_50%_42%,rgba(10,10,10,0.62)_0%,rgba(10,10,10,0.34)_55%,rgba(10,10,10,0.04)_100%)]" />
+      {/* Vignette de profundidad: las esquinas caen a negro (atmósfera de cabina). */}
+      <div className="absolute inset-0 bg-[radial-gradient(135%_115%_at_50%_50%,transparent_58%,rgba(0,0,0,0.46)_100%)]" />
       <GlassFilter />
     </div>
   );
