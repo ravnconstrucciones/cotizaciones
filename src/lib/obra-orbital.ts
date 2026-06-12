@@ -75,7 +75,10 @@ export function derivarOrbitalObra(
 ): OrbitalObra {
   const presupuestadoPorRubro = new Map<string, number>();
   for (const it of items) {
-    const rubro = it.rubroId ?? RUBRO_OTROS;
+    // String(): catalogo_recetas.rubro_id puede llegar numérico desde la DB y
+    // presupuestos_gastos.rubro_id es texto — sin normalizar, el mismo rubro
+    // orbitaba DOS veces (17 ≠ "17" en el Set) con keys de React duplicadas.
+    const rubro = it.rubroId == null ? RUBRO_OTROS : String(it.rubroId);
     const monto =
       (Number(it.cantidad) || 0) *
       ((Number(it.precioMaterial) || 0) + (Number(it.precioMo) || 0));
@@ -89,11 +92,12 @@ export function derivarOrbitalObra(
   let gastoSinRubro = 0;
   for (const g of gastos) {
     const importe = Number(g.importeArs) || 0;
-    if (g.rubroId == null || g.rubroId === "") {
+    if (g.rubroId == null || String(g.rubroId) === "") {
       gastoSinRubro += importe;
       continue;
     }
-    gastadoPorRubro.set(g.rubroId, (gastadoPorRubro.get(g.rubroId) ?? 0) + importe);
+    const rubro = String(g.rubroId);
+    gastadoPorRubro.set(rubro, (gastadoPorRubro.get(rubro) ?? 0) + importe);
   }
 
   // Un nodo por rubro presupuestado Y por rubro con gasto (aunque no esté

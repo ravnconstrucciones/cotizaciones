@@ -110,6 +110,21 @@ describe("derivarOrbitalObra", () => {
     expect(r.nodos[0].nombre).toBe("Otros");
   });
 
+  it("unifica rubro_id numérico (items) y texto (gastos): un solo nodo, sin duplicados", () => {
+    // Regresión QA visual: catalogo_recetas.rubro_id llegaba como número desde
+    // la DB y el mismo rubro orbitaba dos veces (keys de React duplicadas).
+    const r = derivarOrbitalObra(
+      [item(17 as unknown as string, 1, 1000, 0)],
+      [gasto("17", 500)],
+      {}
+    );
+    expect(r.nodos).toHaveLength(1);
+    expect(r.nodos[0].rubroId).toBe("17");
+    expect(r.nodos[0].presupuestado).toBe(1000);
+    expect(r.nodos[0].gastado).toBe(500);
+    expect(r.nodos[0].pctEjecutado).toBe(50);
+  });
+
   it("ordena los nodos por prefijo numérico del rubro", () => {
     const r = derivarOrbitalObra(
       [item("10", 1, 1, 0), item("2", 1, 1, 0), item("1", 1, 1, 0)],

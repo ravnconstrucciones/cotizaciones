@@ -164,7 +164,7 @@ export function OrbitalObra({
               />
             </>
           )}
-          <p className="max-w-[8.5rem] truncate px-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-cdm-fg">
+          <p className="line-clamp-2 max-w-[9rem] break-words px-2 text-[10px] font-semibold uppercase leading-snug tracking-[0.08em] text-cdm-fg">
             {obraNombre}
           </p>
           <p className="mt-2 text-[8px] uppercase tracking-[0.25em] text-cdm-muted">
