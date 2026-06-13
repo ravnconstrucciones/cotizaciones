@@ -34,8 +34,8 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
-  title: "RAVN — Presupuestos",
-  description: "Automatización de presupuestos",
+  title: "RAVN — Centro de Mando",
+  description: "El centro de mando de Ravn Construcciones",
   manifest: "/manifest.webmanifest",
   appleWebApp: {
     capable: true,
