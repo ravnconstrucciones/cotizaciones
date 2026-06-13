@@ -10,6 +10,7 @@ import type {
   Revision,
 } from "@/lib/cotizador/tipos";
 import { formatMoneyInt } from "@/lib/format-currency";
+import { esUuid } from "@/lib/uuid";
 import { createClient } from "@/lib/supabase/client";
 import { VolverAlInicio } from "@/components/volver-al-inicio";
 import { SkeletonGlass } from "@/components/cockpit/skeleton-glass";
@@ -110,15 +111,27 @@ export function RevisionScreen({ id }: { id: string }) {
   const [vinculando, setVinculando] = useState(false);
 
   useEffect(() => {
+    let vivo = true;
     const supabase = createClient();
     supabase
       .from("presupuestos")
       .select("id, nombre_obra, nombre_cliente, fecha")
       .order("fecha", { ascending: false })
       .limit(100)
-      .then(({ data }) => {
-        setPresupuestos((data as PresupuestoOpcion[] | null) ?? []);
+      .then(({ data, error: errP }) => {
+        if (!vivo) return;
+        if (errP) {
+          // El selector de obra es opcional (loop de oro): si falla, queda vacío
+          // y la mesa sigue funcionando. No pisamos el error principal de carga.
+          console.error("[revision] presupuestos:", errP.message);
+          setPresupuestos([]);
+          return;
+        }
+        setPresupuestos(Array.isArray(data) ? (data as PresupuestoOpcion[]) : []);
       });
+    return () => {
+      vivo = false;
+    };
   }, []);
 
   const cargar = useCallback(async () => {
@@ -126,9 +139,11 @@ export function RevisionScreen({ id }: { id: string }) {
     setError(null);
     try {
       const res = await fetch(`/api/cotizaciones/${id}`, { cache: "no-store" });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error ?? "Error al cargar");
-      setDetalle(json.cotizacion);
+      const json = (await res.json().catch(() => null)) as
+        | { error?: string; cotizacion?: Detalle }
+        | null;
+      if (!res.ok) throw new Error(json?.error ?? "Error al cargar");
+      setDetalle(json?.cotizacion ?? null);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Error al cargar");
     } finally {
@@ -149,8 +164,8 @@ export function RevisionScreen({ id }: { id: string }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error ?? "Error");
+      const json = (await res.json().catch(() => null)) as { error?: string } | null;
+      if (!res.ok) throw new Error(json?.error ?? "Error");
       await cargar();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Error");
@@ -160,16 +175,24 @@ export function RevisionScreen({ id }: { id: string }) {
   }
 
   async function vincularObra(presupuestoId: string) {
+    // Vacío = desvincular (null). Si viene un valor, exigimos que sea un uuid
+    // antes de pegarle al PATCH (las opciones son uuids; cualquier otra cosa
+    // es estado corrupto del DOM y no debe llegar al backend).
+    const limpio = presupuestoId.trim();
+    if (limpio !== "" && !esUuid(limpio)) {
+      setError("La obra seleccionada no es válida (id inesperado).");
+      return;
+    }
     setVinculando(true);
     setError(null);
     try {
       const res = await fetch(`/api/cotizaciones/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ presupuesto_id: presupuestoId || null }),
+        body: JSON.stringify({ presupuesto_id: limpio || null }),
       });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error ?? "Error al vincular la obra");
+      const json = (await res.json().catch(() => null)) as { error?: string } | null;
+      if (!res.ok) throw new Error(json?.error ?? "Error al vincular la obra");
       await cargar();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Error al vincular la obra");

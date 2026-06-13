@@ -51,7 +51,8 @@ export async function GET(_req: Request, ctx: Params) {
     .from("trabajos_cola")
     .select("id, creado_at, actualizado_at, tipo, origen, estado, prompt, contexto, resultado")
     .or(filtroTrabajos)
-    .order("creado_at", { ascending: true });
+    .order("creado_at", { ascending: true })
+    .limit(500);
   if (eTra) return NextResponse.json({ error: eTra.message }, { status: 500 });
 
   const { data: eventos, error: eEv } = await sb
@@ -68,7 +69,9 @@ export async function GET(_req: Request, ctx: Params) {
     eventos: (eventos ?? []) as EventoHilo[],
   });
 
-  return NextResponse.json({ mensajes });
+  const res = NextResponse.json({ mensajes });
+  res.headers.set("Cache-Control", "private, max-age=15, stale-while-revalidate=60");
+  return res;
 }
 
 export async function POST(req: Request, ctx: Params) {
@@ -113,8 +116,21 @@ export async function POST(req: Request, ctx: Params) {
       .select("id");
     if (eUpd) return NextResponse.json({ error: eUpd.message }, { status: 500 });
     if (!upd || upd.length === 0) {
+      // El guard no afectó filas: alguien la movió entre el GET y este POST.
+      // Re-leemos el estado real para que el front muestre dónde quedó.
+      const { data: actual } = await sb
+        .from("cotizaciones")
+        .select("estado")
+        .eq("id", id)
+        .maybeSingle();
+      const estadoActual = (actual?.estado as EstadoCotizacion | undefined) ?? null;
       return NextResponse.json(
-        { error: "La cotización ya no está en revisión (cambió de estado) — recargá la mesa." },
+        {
+          error: estadoActual
+            ? `La cotización ya no está en revisión (ahora está "${estadoActual}") — recargá la mesa.`
+            : "La cotización ya no está en revisión (cambió de estado) — recargá la mesa.",
+          estado_actual: estadoActual,
+        },
         { status: 409 }
       );
     }

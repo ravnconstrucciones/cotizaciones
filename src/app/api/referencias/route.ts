@@ -53,5 +53,7 @@ export async function GET(req: NextRequest) {
     imagen_url: r.imagen_path ? urlPorPath.get(r.imagen_path) ?? null : null,
   }));
 
-  return NextResponse.json({ referencias });
+  const res = NextResponse.json({ referencias });
+  res.headers.set("Cache-Control", "private, max-age=15, stale-while-revalidate=60");
+  return res;
 }

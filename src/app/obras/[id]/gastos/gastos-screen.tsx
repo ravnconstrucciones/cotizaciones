@@ -26,6 +26,7 @@ import {
 } from "@/lib/presupuesto-numero-comercial";
 import { deleteGastoAdjuntoStorage } from "@/lib/gastos-storage";
 import { estadoDesdeTipo } from "@/lib/cashflow-matching";
+import { importeGastoObraArs } from "@/lib/cashflow-gastos-obra";
 import {
   parsePropuestaPrefJsonDesdeMismaFila,
   type PropuestaPrefV1,
@@ -235,10 +236,9 @@ export function GastosScreen({
   const totalTablaGastosArs = useMemo(
     () =>
       roundArs2(
-        gastos.reduce(
-          (acc, g) => acc + (Number(g.importe) || 0),
-          0
-        )
+        // importeGastoObraArs (vía parseNum) blinda contra importe string
+        // malformado: NaN nunca llega a la suma (quedaría como 0).
+        gastos.reduce((acc, g) => acc + importeGastoObraArs(g), 0)
       ),
     [gastos]
   );
@@ -305,7 +305,7 @@ export function GastosScreen({
     if (!esPresupuestoUsd) return 0;
     let s = 0;
     for (const g of gastos) {
-      const ars = Number(g.importe) || 0;
+      const ars = importeGastoObraArs(g);
       const cotRow = Number(g.cotizacion_venta_ars_por_usd) || 0;
       const cot =
         cotRow > 0 ? cotRow : cotProp > 0 ? cotProp : ventaEfectivaParaGastos;
@@ -1314,7 +1314,7 @@ export function GastosScreen({
                           rid && nombrePorRubroId.has(rid)
                             ? nombrePorRubroId.get(rid)!
                             : "—";
-                        const imp = Number(g.importe) || 0;
+                        const imp = importeGastoObraArs(g);
                         const cotG =
                           Number(g.cotizacion_venta_ars_por_usd) ||
                           cotProp ||

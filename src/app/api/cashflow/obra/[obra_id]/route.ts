@@ -193,7 +193,7 @@ export async function GET(_req: Request, ctx: Params) {
       pres?.nombre_cliente?.trim() ||
       "Sin nombre";
 
-    return NextResponse.json({
+    const res = NextResponse.json({
       obra_id,
       presupuesto_id: raw.presupuesto_id,
       nombre_obra: nombreObra,
@@ -219,6 +219,13 @@ export async function GET(_req: Request, ctx: Params) {
       items_anulados,
       serie_saldo_libreta: serie_saldo_libreta,
     });
+    // Mismo criterio que /cashflow/resumen: sesión exigida (nunca CDN pública),
+    // SWR sirve al instante en navegaciones repetidas y revalida en background.
+    res.headers.set(
+      "Cache-Control",
+      "private, max-age=15, stale-while-revalidate=60"
+    );
+    return res;
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Error";
     return NextResponse.json({ error: msg }, { status: 500 });

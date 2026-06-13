@@ -74,6 +74,15 @@ export function ObraOrbitalScreen({ presupuestoId }: { presupuestoId: string }) 
         setError(pres.error.message);
         return;
       }
+      // Gastos/avances son secundarios: si una de esas queries falla, la
+      // carpeta igual se arma (cae a lista vacía vía `?? []`). Dejamos rastro
+      // en consola sin romper la pantalla por un dato no crítico.
+      if (gastos.error) {
+        console.error("[obra-orbital] gastos:", gastos.error.message);
+      }
+      if (avances.error) {
+        console.error("[obra-orbital] avances:", avances.error.message);
+      }
       setError(null);
       setNombre(
         pres.data?.nombre_obra?.trim() ||

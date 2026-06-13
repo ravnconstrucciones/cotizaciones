@@ -17,7 +17,9 @@ export async function GET(req: NextRequest) {
   if (estado && ESTADOS.includes(estado)) q = q.eq("estado", estado);
   const { data, error } = await q;
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json({ cotizaciones: data ?? [] });
+  const res = NextResponse.json({ cotizaciones: data ?? [] });
+  res.headers.set("Cache-Control", "private, max-age=15, stale-while-revalidate=60");
+  return res;
 }
 
 /**

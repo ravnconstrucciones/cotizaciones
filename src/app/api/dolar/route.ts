@@ -207,12 +207,21 @@ export async function GET() {
       );
     }
 
-    return NextResponse.json({
+    const res = NextResponse.json({
       cronistaUrl: CRONISTA_DOLAR_URL,
       referencia: `Valores vía ${fuente}; contrastar con El Cronista antes de cerrar.`,
       fuente,
       cotizaciones,
     });
+    // Cotizaciones de referencia (no precio de cierre): se contrastan a mano
+    // contra El Cronista. Cachear unos minutos evita martillar a los proveedores
+    // externos en cada apertura de pantalla, sin perder utilidad. Solo el caso
+    // OK se cachea; los errores (abajo) salen sin cache para reintentar fresco.
+    res.headers.set(
+      "Cache-Control",
+      "private, max-age=120, stale-while-revalidate=300"
+    );
+    return res;
   } catch {
     return NextResponse.json(
       {

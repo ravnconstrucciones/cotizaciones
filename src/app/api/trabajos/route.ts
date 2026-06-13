@@ -52,5 +52,7 @@ export async function GET() {
     .order("creado_at", { ascending: false })
     .limit(10);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json({ trabajos: data ?? [] });
+  const res = NextResponse.json({ trabajos: data ?? [] });
+  res.headers.set("Cache-Control", "private, max-age=15, stale-while-revalidate=60");
+  return res;
 }

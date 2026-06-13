@@ -34,21 +34,25 @@ export async function GET() {
     .limit(60);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-  const filas = (data ?? []).map((e) => {
-    const c = (e.contenido ?? {}) as ContenidoMedia;
-    return {
-      id: e.id as string,
-      creado_at: e.creado_at as string,
-      titulo: e.titulo as string,
-      texto: typeof c.texto === "string" ? c.texto : null,
-      imagen_path:
-        typeof c.imagen_path === "string" && c.imagen_path.trim()
-          ? c.imagen_path.trim()
-          : null,
-      tipo_media: c.media?.tipo_wa ?? null,
-      imagen_url: null as string | null,
-    };
-  });
+  const filas = (data ?? [])
+    .map((e) => {
+      const c = (e.contenido ?? {}) as ContenidoMedia;
+      const id = typeof e.id === "string" ? e.id : "";
+      return {
+        id,
+        creado_at: typeof e.creado_at === "string" ? e.creado_at : "",
+        titulo: typeof e.titulo === "string" ? e.titulo : "",
+        texto: typeof c.texto === "string" ? c.texto : null,
+        imagen_path:
+          typeof c.imagen_path === "string" && c.imagen_path.trim()
+            ? c.imagen_path.trim()
+            : null,
+        tipo_media: c.media?.tipo_wa ?? null,
+        imagen_url: null as string | null,
+      };
+    })
+    // Una fila sin id no se puede resolver ni clavear en la grilla → se descarta.
+    .filter((f) => f.id !== "");
 
   const paths = filas
     .map((f) => f.imagen_path)
@@ -61,8 +65,18 @@ export async function GET() {
       console.error("[/api/adn/sin-clasificar] signed urls:", signErr.message);
     } else if (firmadas) {
       const urlPorPath = new Map<string, string>();
+      let fallidas = 0;
       for (const f of firmadas) {
+        // createSignedUrls puede fallar parcialmente: cada entrada trae su
+        // propio `error`. Las que fallaron quedan fuera del mapa (url null en
+        // la UI) y se cuentan para dejar rastro sin romper el resto.
         if (f.signedUrl && f.path) urlPorPath.set(f.path, f.signedUrl);
+        else fallidas++;
+      }
+      if (fallidas > 0) {
+        console.warn(
+          `[/api/adn/sin-clasificar] ${fallidas}/${paths.length} firmas fallaron (se sirven con placeholder)`
+        );
       }
       for (const fila of filas) {
         if (fila.imagen_path) fila.imagen_url = urlPorPath.get(fila.imagen_path) ?? null;
@@ -70,5 +84,7 @@ export async function GET() {
     }
   }
 
-  return NextResponse.json({ sin_clasificar: filas });
+  const res = NextResponse.json({ sin_clasificar: filas });
+  res.headers.set("Cache-Control", "private, max-age=15, stale-while-revalidate=60");
+  return res;
 }
