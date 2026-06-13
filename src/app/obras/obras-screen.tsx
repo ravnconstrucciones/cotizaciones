@@ -11,6 +11,8 @@ import {
 import { createClient } from "@/lib/supabase/client";
 import { useRealtimeTable } from "@/hooks/use-realtime-table";
 import { fetchCompartido } from "@/lib/fetch-compartido";
+import { proximaAccion } from "@/lib/obra-gestion";
+import { NuevaObraModal } from "@/components/cockpit/nueva-obra-modal";
 import type { ObraAvance, Tarea } from "@/types/centro-mando";
 import type { ProyectoRow } from "@/lib/proyectos-orden";
 
@@ -105,6 +107,7 @@ export function ObrasScreen() {
   const [todos, setTodos] = useState<ProyectoRow[] | null>(null);
   const [cargandoTodos, setCargandoTodos] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [modalAbierto, setModalAbierto] = useState(false);
 
   const cargar = useCallback(async () => {
     try {
@@ -144,6 +147,15 @@ export function ObrasScreen() {
             (a) => a.presupuesto_id === o.presupuesto_id
           );
           const ultimo = deLaObra[0] ?? null;
+          // Próxima acción para avanzar = el primer pendiente vinculado.
+          const prox = proximaAccion(
+            o.presupuesto_id,
+            tareas.map((t) => ({
+              presupuesto_id: t.presupuesto_id,
+              texto: t.texto,
+              creado_at: t.creado_at,
+            }))
+          );
           return {
             presupuestoId: o.presupuesto_id,
             nombre: o.nombre_obra,
@@ -165,6 +177,8 @@ export function ObrasScreen() {
             pendientes: tareas
               .filter((t) => t.presupuesto_id === o.presupuesto_id)
               .map((t) => ({ id: t.id, texto: t.texto })),
+            proximaAccion: { display: prox.display, hay: prox.hay },
+            finalizada: o.finalizada,
           };
         })
       );
@@ -221,6 +235,25 @@ export function ObrasScreen() {
     [cargar]
   );
 
+  // CERRAR OBRA: setea finalizada_at → sale de las activas (queda en "Todas").
+  const finalizarObra = useCallback(
+    async (presupuestoId: string): Promise<boolean> => {
+      const res = await fetch(`/api/obras/${presupuestoId}/finalizar`, {
+        method: "POST",
+      });
+      const j = (await res.json().catch(() => ({}))) as { error?: string };
+      if (!res.ok) {
+        setError(j.error ?? "No se pudo cerrar la obra.");
+        return false;
+      }
+      // Forzamos recarga de "Todas" la próxima vez que se abra (ya no es activa).
+      setTodos(null);
+      await cargar();
+      return true;
+    },
+    [cargar]
+  );
+
   return (
     <div className="font-grotesk relative min-h-screen bg-cdm-bg text-cdm-fg">
       <WavesBackdrop />
@@ -238,26 +271,35 @@ export function ObrasScreen() {
         </Link>
       </header>
 
-      {/* Toggle ACTIVAS / TODAS */}
-      <div className="relative z-10 flex gap-2 px-6 pt-5 md:px-10">
-        {(["activas", "todas"] as const).map((v) => {
-          const activo = vista === v;
-          return (
-            <button
-              key={v}
-              onClick={() => setVista(v)}
-              className={[
-                "cdm-chip font-mono-hud inline-flex items-center border px-3 py-1.5",
-                "text-[10px] font-semibold uppercase tracking-[0.14em] transition-colors",
-                activo
-                  ? "border-cdm-accent/60 text-cdm-accent"
-                  : "border-cdm-line text-cdm-muted hover:border-cdm-accent/30 hover:text-cdm-fg",
-              ].join(" ")}
-            >
-              {v === "activas" ? "Activas" : "Todas"}
-            </button>
-          );
-        })}
+      {/* Toggle ACTIVAS / TODAS + alta de obra */}
+      <div className="relative z-10 flex items-center justify-between gap-3 px-6 pt-5 md:px-10">
+        <div className="flex gap-2">
+          {(["activas", "todas"] as const).map((v) => {
+            const activo = vista === v;
+            return (
+              <button
+                key={v}
+                onClick={() => setVista(v)}
+                className={[
+                  "cdm-chip font-mono-hud inline-flex items-center border px-3 py-1.5",
+                  "text-[10px] font-semibold uppercase tracking-[0.14em] transition-colors",
+                  activo
+                    ? "border-cdm-accent/60 text-cdm-accent"
+                    : "border-cdm-line text-cdm-muted hover:border-cdm-accent/30 hover:text-cdm-fg",
+                ].join(" ")}
+              >
+                {v === "activas" ? "Activas" : "Todas"}
+              </button>
+            );
+          })}
+        </div>
+        <button
+          type="button"
+          onClick={() => setModalAbierto(true)}
+          className="cdm-chip font-mono-hud inline-flex items-center border border-cdm-accent/60 bg-cdm-accent/10 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-cdm-accent shadow-[0_0_18px_-8px_rgba(34,211,238,0.55)] transition-colors hover:bg-cdm-accent/20"
+        >
+          + Nueva obra
+        </button>
       </div>
 
       <div className="relative z-10">
@@ -287,6 +329,7 @@ export function ObrasScreen() {
                 proyecto={p}
                 reverseLayout={i % 2 === 1}
                 onAgregarAvance={agregarAvance}
+                onFinalizar={finalizarObra}
               />
             ))}
           </>
@@ -322,6 +365,17 @@ export function ObrasScreen() {
           </div>
         )}
       </div>
+
+      <NuevaObraModal
+        open={modalAbierto}
+        onClose={() => setModalAbierto(false)}
+        onCreated={() => {
+          setModalAbierto(false);
+          setVista("activas");
+          setTodos(null);
+          void cargar();
+        }}
+      />
     </div>
   );
 }

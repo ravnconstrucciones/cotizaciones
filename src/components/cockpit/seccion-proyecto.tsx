@@ -36,6 +36,10 @@ export type ProyectoCard = {
   cantAvances: number;
   /** Tareas pendientes vinculadas a la obra (tareas.presupuesto_id). */
   pendientes: PendienteCard[];
+  /** Próxima acción para avanzar (primer pendiente, o fallback). */
+  proximaAccion: { display: string; hay: boolean };
+  /** finalizada_at != null → la obra ya está cerrada. */
+  finalizada: boolean;
 };
 
 const containerVariants = {
@@ -66,15 +70,20 @@ export function SeccionProyecto({
   proyecto,
   reverseLayout = false,
   onAgregarAvance,
+  onFinalizar,
 }: {
   proyecto: ProyectoCard;
   reverseLayout?: boolean;
   /** Insert en obra_avances — devuelve true si salió bien. */
   onAgregarAvance: (presupuestoId: string, texto: string) => Promise<boolean>;
+  /** Cierra la obra (POST /api/obras/[id]/finalizar) — true si salió bien. */
+  onFinalizar: (presupuestoId: string) => Promise<boolean>;
 }) {
   const p = proyecto;
   const [nuevo, setNuevo] = useState("");
   const [guardando, setGuardando] = useState(false);
+  const [confirmarCierre, setConfirmarCierre] = useState(false);
+  const [cerrando, setCerrando] = useState(false);
   const layoutClasses = reverseLayout
     ? "md:grid-cols-2 md:grid-flow-col-dense"
     : "md:grid-cols-2";
@@ -90,6 +99,17 @@ export function SeccionProyecto({
       if (await onAgregarAvance(p.presupuestoId, texto)) setNuevo("");
     } finally {
       setGuardando(false);
+    }
+  }
+
+  async function cerrarObra() {
+    if (cerrando) return;
+    setCerrando(true);
+    try {
+      await onFinalizar(p.presupuestoId);
+    } finally {
+      setCerrando(false);
+      setConfirmarCierre(false);
     }
   }
 
@@ -256,6 +276,22 @@ export function SeccionProyecto({
                   )}
                 </div>
 
+                {/* PRÓXIMA ACCIÓN para avanzar la obra (el primer pendiente) */}
+                <div className="mt-4 border-l-2 border-cdm-accent/50 bg-cdm-accent/[0.06] py-2 pl-3 pr-2">
+                  <p className="font-mono-hud text-[9px] uppercase tracking-[0.25em] text-cdm-accent">
+                    Próxima acción
+                  </p>
+                  <p
+                    className={`mt-1 text-[12px] font-medium leading-snug ${
+                      p.proximaAccion.hay
+                        ? "text-cdm-fg"
+                        : "italic text-cdm-muted"
+                    }`}
+                  >
+                    {p.proximaAccion.display}
+                  </p>
+                </div>
+
                 {/* + avance: alta de 1 toque → obra_avances */}
                 <form onSubmit={agregar} className="mt-4 flex">
                   <input
@@ -275,12 +311,47 @@ export function SeccionProyecto({
                   </button>
                 </form>
 
-                <Link
-                  href={`/obras/${p.presupuestoId}`}
-                  className="mt-4 text-right text-[9px] uppercase tracking-[0.2em] text-cdm-accent/70 transition-colors hover:text-cdm-accent"
-                >
-                  Bitácora completa ({p.cantAvances}) →
-                </Link>
+                {/* Pie: cerrar obra (a la izq) + bitácora (a la der) */}
+                <div className="mt-4 flex items-center justify-between gap-2">
+                  {p.finalizada ? (
+                    <span className="font-mono-hud text-[9px] uppercase tracking-[0.2em] text-amber-300">
+                      Obra cerrada
+                    </span>
+                  ) : confirmarCierre ? (
+                    <span className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={cerrarObra}
+                        disabled={cerrando}
+                        className="font-mono-hud border border-amber-300/60 bg-amber-300/10 px-2.5 py-1 text-[9px] uppercase tracking-[0.15em] text-amber-300 transition-colors hover:bg-amber-300 hover:text-cdm-bg disabled:opacity-40"
+                      >
+                        {cerrando ? "Cerrando…" : "Confirmar cierre"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setConfirmarCierre(false)}
+                        disabled={cerrando}
+                        className="font-mono-hud text-[9px] uppercase tracking-[0.15em] text-cdm-muted transition-colors hover:text-cdm-fg disabled:opacity-40"
+                      >
+                        No
+                      </button>
+                    </span>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setConfirmarCierre(true)}
+                      className="font-mono-hud text-[9px] uppercase tracking-[0.2em] text-cdm-muted transition-colors hover:text-amber-300"
+                    >
+                      ✓ Marcar terminada
+                    </button>
+                  )}
+                  <Link
+                    href={`/obras/${p.presupuestoId}`}
+                    className="text-right text-[9px] uppercase tracking-[0.2em] text-cdm-accent/70 transition-colors hover:text-cdm-accent"
+                  >
+                    Bitácora ({p.cantAvances}) →
+                  </Link>
+                </div>
               </div>
             </motion.div>
           </motion.div>
