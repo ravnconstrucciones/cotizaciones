@@ -3,6 +3,8 @@ import {
   armarHilo,
   estadoMac,
   hayPensando,
+  parcialVigente,
+  parsearParcial,
   validarMensajeTerminal,
 } from "@/lib/terminal-hilo";
 import type { TrabajoCola } from "@/types/centro-mando";
@@ -143,6 +145,67 @@ describe("validarMensajeTerminal", () => {
       mensaje: "x".repeat(4001),
     });
     expect(v.ok).toBe(false);
+  });
+});
+
+describe("parsearParcial", () => {
+  it("acepta el payload del broadcast del daemon {texto, trabajo_id}", () => {
+    expect(
+      parsearParcial({ texto: "escribien", trabajo_id: "t1" })
+    ).toEqual({ trabajoId: "t1", texto: "escribien" });
+  });
+
+  it("rechaza payloads malformados, vacíos o con tipos incorrectos", () => {
+    expect(parsearParcial(null)).toBeNull();
+    expect(parsearParcial("texto")).toBeNull();
+    expect(parsearParcial({})).toBeNull();
+    expect(parsearParcial({ texto: "   ", trabajo_id: "t1" })).toBeNull();
+    expect(parsearParcial({ texto: "hola" })).toBeNull();
+    expect(parsearParcial({ texto: 42, trabajo_id: "t1" })).toBeNull();
+    expect(parsearParcial({ texto: "hola", trabajo_id: 7 })).toBeNull();
+  });
+});
+
+describe("parcialVigente", () => {
+  const parcial = { trabajoId: "t1", texto: "escribiendo..." };
+
+  it("vigente mientras SU trabajo siga pendiente o procesando", () => {
+    expect(parcialVigente(parcial, [trabajo({ estado: "pendiente" })])).toBe(
+      true
+    );
+    expect(parcialVigente(parcial, [trabajo({ estado: "procesando" })])).toBe(
+      true
+    );
+  });
+
+  it("muere cuando la tabla fija la respuesta final o el error", () => {
+    expect(parcialVigente(parcial, [trabajo({ estado: "completado" })])).toBe(
+      false
+    );
+    expect(
+      parcialVigente(parcial, [trabajo({ estado: "error", resultado: null })])
+    ).toBe(false);
+  });
+
+  it("no se muestra sin parcial o si el trabajo no está en el hilo cargado", () => {
+    expect(parcialVigente(null, [trabajo({})])).toBe(false);
+    expect(
+      parcialVigente({ trabajoId: "otro", texto: "x" }, [
+        trabajo({ estado: "procesando" }),
+      ])
+    ).toBe(false);
+    expect(parcialVigente(parcial, [])).toBe(false);
+  });
+
+  it("mira el estado del trabajo del parcial, no el de otros del hilo", () => {
+    const trabajos = [
+      trabajo({ id: "t1", estado: "procesando" }),
+      trabajo({ id: "t2", estado: "completado" }),
+    ];
+    expect(parcialVigente(parcial, trabajos)).toBe(true);
+    expect(parcialVigente({ trabajoId: "t2", texto: "x" }, trabajos)).toBe(
+      false
+    );
   });
 });
 

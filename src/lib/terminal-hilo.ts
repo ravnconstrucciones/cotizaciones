@@ -88,6 +88,42 @@ export function hayPensando(trabajos: TrabajoCola[]): boolean {
   return trabajos.some((t) => ESTADOS_PENSANDO.includes(t.estado));
 }
 
+// ── streaming en vivo ────────────────────────────────────────────────────────
+// El daemon broadcastea por Supabase Realtime (topic `hilo:<hilo_id>`) el
+// texto parcial acumulado mientras Claude escribe: evento "parcial" cada
+// ~700ms y "fin" con el texto completo. Es efímero (cero escrituras a la
+// base): la respuesta final persiste en trabajos_cola como siempre.
+
+export type ParcialHilo = {
+  /** id del trabajo de trabajos_cola que está generando esta respuesta. */
+  trabajoId: string;
+  /** Texto ACUMULADO (no delta) de la respuesta en curso. */
+  texto: string;
+};
+
+/** Parsea el payload del broadcast "parcial"/"fin" del daemon. */
+export function parsearParcial(payload: unknown): ParcialHilo | null {
+  if (!payload || typeof payload !== "object") return null;
+  const p = payload as Record<string, unknown>;
+  const texto = typeof p.texto === "string" ? p.texto : "";
+  const trabajoId = typeof p.trabajo_id === "string" ? p.trabajo_id : "";
+  return texto.trim() && trabajoId ? { trabajoId, texto } : null;
+}
+
+/**
+ * El parcial solo se muestra mientras SU trabajo siga pendiente/procesando:
+ * cuando la tabla ya fijó la respuesta final (o el error), manda la tabla y
+ * el parcial muere solo — sin estado extra que limpiar.
+ */
+export function parcialVigente(
+  parcial: ParcialHilo | null,
+  trabajos: TrabajoCola[]
+): boolean {
+  if (!parcial) return false;
+  const t = trabajos.find((x) => x.id === parcial.trabajoId);
+  return t !== undefined && ESTADOS_PENSANDO.includes(t.estado);
+}
+
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 

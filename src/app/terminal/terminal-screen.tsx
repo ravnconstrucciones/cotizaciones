@@ -8,13 +8,17 @@ import {
 } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { Mic, Square } from "lucide-react";
+import type { RealtimeChannel } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/client";
 import { useRealtimeTable } from "@/hooks/use-realtime-table";
 import {
   armarHilo,
   estadoMac,
   hayPensando,
+  parcialVigente,
+  parsearParcial,
   type MensajeTerminal,
+  type ParcialHilo,
 } from "@/lib/terminal-hilo";
 import type { TrabajoCola } from "@/types/centro-mando";
 
@@ -123,6 +127,8 @@ export function TerminalScreen() {
   const [ahora, setAhora] = useState(() => Date.now());
   const [escuchando, setEscuchando] = useState(false);
   const [micDisponible, setMicDisponible] = useState(false);
+  /** Respuesta escribiéndose en vivo (broadcast "parcial" del daemon). */
+  const [parcial, setParcial] = useState<ParcialHilo | null>(null);
 
   const hiloRef = useRef<string | null>(null);
   const recRef = useRef<ReconocimientoVoz | null>(null);
@@ -173,6 +179,48 @@ export function TerminalScreen() {
   }, []);
   useRealtimeTable("trabajos_cola", cargar);
 
+  // ── streaming en vivo: broadcast del daemon en el topic hilo:<hilo_id> ───
+  // El topic acá DEBE ser exacto (no admite el sufijo aleatorio del gotcha de
+  // use-realtime-table): si quedó una instancia previa del mismo topic
+  // (StrictMode dev / re-mount), se espera a que termine de irse antes de
+  // crear la nueva — channel(topic) devolvería el canal moribundo y la
+  // suscripción quedaría sorda.
+  useEffect(() => {
+    if (!hilo) return;
+    const supabase = createClient();
+    const topic = `hilo:${hilo}`;
+    let vivo = true;
+    let canal: RealtimeChannel | null = null;
+
+    void (async () => {
+      const previo = supabase
+        .getChannels()
+        .find((c) => c.topic === `realtime:${topic}`);
+      if (previo) await supabase.removeChannel(previo);
+      if (!vivo) return;
+      canal = supabase
+        .channel(topic)
+        .on("broadcast", { event: "parcial" }, ({ payload }) => {
+          const p = parsearParcial(payload);
+          if (p) setParcial(p);
+        })
+        .on("broadcast", { event: "fin" }, ({ payload }) => {
+          // Texto completo al instante; el refetch fija el mensaje desde la
+          // tabla y ahí el parcial muere solo (parcialVigente → false).
+          const p = parsearParcial(payload);
+          if (p) setParcial(p);
+          void cargar();
+        })
+        .subscribe();
+    })();
+
+    return () => {
+      vivo = false;
+      setParcial(null);
+      if (canal) void supabase.removeChannel(canal);
+    };
+  }, [hilo, cargar]);
+
   // ── latido de la Mac (sistema_estado, singleton id=1) cada 30s ───────────
   const cargarLatido = useCallback(async () => {
     const supabase = createClient();
@@ -194,11 +242,15 @@ export function TerminalScreen() {
   const mensajes = armarHilo(trabajos);
   const pensando = hayPensando(trabajos);
   const mac = estadoMac(latido, new Date(ahora));
+  // El parcial solo vive mientras su trabajo siga pensando; cuando la tabla
+  // trae la respuesta final, manda la tabla.
+  const parcialActivo = parcialVigente(parcial, trabajos) ? parcial : null;
+  const parcialLen = parcialActivo?.texto.length ?? 0;
 
-  // ── autoscroll al fondo con cada mensaje nuevo / estado pensando ─────────
+  // ── autoscroll al fondo con cada mensaje nuevo / pensando / streaming ────
   useEffect(() => {
     finRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
-  }, [mensajes.length, pensando]);
+  }, [mensajes.length, pensando, parcialLen]);
 
   function alternarDictado() {
     if (escuchando) {
@@ -348,9 +400,40 @@ export function TerminalScreen() {
           </div>
         )}
 
-        {/* "pensando": hay un trabajo del hilo pendiente/procesando */}
+        {/* respuesta escribiéndose en vivo (broadcast "parcial" del daemon) */}
+        {parcialActivo && (
+          <motion.div
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ type: "spring", stiffness: 300, damping: 30 }}
+            className="mt-5 flex justify-start"
+          >
+            <div className="max-w-[86%] text-left sm:max-w-[75%]">
+              <p className="mb-1 text-[9px] uppercase tracking-[0.2em] text-cdm-muted/70">
+                mac · escribiendo
+              </p>
+              <div className="whitespace-pre-wrap break-words border border-cdm-line bg-cdm-fg/[0.03] px-4 py-3 text-[13px] leading-relaxed text-cdm-fg/90">
+                {parcialActivo.texto}
+                <motion.span
+                  aria-hidden
+                  animate={{ opacity: [1, 1, 0, 0] }}
+                  transition={{
+                    duration: 0.9,
+                    times: [0, 0.5, 0.5, 1],
+                    repeat: Infinity,
+                  }}
+                  className="text-cdm-accent"
+                >
+                  ▍
+                </motion.span>
+              </div>
+            </div>
+          </motion.div>
+        )}
+
+        {/* "pensando": trabajo en cola/procesando, solo hasta el PRIMER chunk */}
         <AnimatePresence>
-          {pensando && (
+          {pensando && !parcialActivo && (
             <motion.p
               initial={{ opacity: 0, y: 6 }}
               animate={{ opacity: 1, y: 0 }}
