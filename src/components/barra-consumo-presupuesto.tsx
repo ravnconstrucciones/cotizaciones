@@ -59,9 +59,9 @@ export function BarraConsumoPresupuesto({
   const costoFlex = base > 0 ? C / base : 1;
   const margenFlex = base > 0 ? M / base : 0;
 
-  const fillBg = alerta
-    ? "bg-[#6b1c1c] dark:bg-[#8b2e2e]"
-    : "bg-ravn-fg dark:bg-ravn-fg";
+  // Alerta = semáforo negativo (token theme-aware: rojo profundo en claro,
+  // rojo claro en oscuro). El relleno normal sigue la tinta de marca.
+  const fillBg = alerta ? "bg-[var(--cdm-negativo)]" : "bg-ravn-fg";
 
   return (
     <div className="space-y-4">
@@ -80,7 +80,7 @@ export function BarraConsumoPresupuesto({
           </p>
           <p
             className={`mt-1 font-raleway text-lg font-medium tabular-nums md:text-xl ${
-              alerta ? "text-[#6b1c1c] dark:text-[#f87171]" : "text-ravn-fg"
+              alerta ? "text-[var(--cdm-negativo)]" : "text-ravn-fg"
             }`}
           >
             {fmt(G)}
@@ -93,7 +93,7 @@ export function BarraConsumoPresupuesto({
           <p
             className={`mt-1 font-raleway text-lg font-medium tabular-nums md:text-xl ${
               margenRestante < 0
-                ? "text-[#6b1c1c] dark:text-[#f87171]"
+                ? "text-[var(--cdm-negativo)]"
                 : "text-ravn-fg"
             }`}
           >
@@ -130,7 +130,7 @@ export function BarraConsumoPresupuesto({
                     <span
                       className={`font-semibold tabular-nums ${
                         margenRestante < 0
-                          ? "text-[#6b1c1c] dark:text-[#f87171]"
+                          ? "text-[var(--cdm-negativo)]"
                           : ""
                       }`}
                     >
@@ -140,7 +140,7 @@ export function BarraConsumoPresupuesto({
                     <span
                       className={`font-medium tabular-nums ${
                         margenRestante < 0
-                          ? "text-[#6b1c1c] dark:text-[#f87171]"
+                          ? "text-[var(--cdm-negativo)]"
                           : ""
                       }`}
                     >
@@ -235,12 +235,12 @@ export function BarraConsumoPresupuesto({
               </span>
             )}
             {invadeMargen ? (
-              <span className="font-medium text-[#6b1c1c] dark:text-[#f87171]">
+              <span className="font-medium text-[var(--cdm-negativo)]">
                 Gasto por encima del costo directo
               </span>
             ) : null}
             {excedeTodo ? (
-              <span className="font-medium text-[#6b1c1c] dark:text-[#f87171]">
+              <span className="font-medium text-[var(--cdm-negativo)]">
                 Desvío sobre precio de referencia
                 {base > 0 ? (
                   <>

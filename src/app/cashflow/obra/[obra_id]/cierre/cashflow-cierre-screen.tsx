@@ -123,7 +123,7 @@ export function CashflowCierreScreen({ obraId }: { obraId: string }) {
               </p>
               <CifraHeroica
                 className="mt-3 text-[clamp(28px,2.2vw,40px)] leading-none"
-                colorBase={p.etiqueta === "GANÓ" ? "#34d399" : "#f87171"}
+                tono={p.etiqueta === "GANÓ" ? "positivo" : "negativo"}
               >
                 {formatMoneyInt(p.monto_resultado_abs)}
               </CifraHeroica>

@@ -211,7 +211,7 @@ export function FinanzasScreen() {
           <div className="mt-2 flex items-baseline gap-2">
             <CifraHeroica
               className="text-[clamp(28px,2.2vw,40px)] leading-none"
-              colorBase={data.semaforo_dia === "rojo" ? "#f87171" : "var(--cdm-fg)"}
+              tono={data.semaforo_dia === "rojo" ? "negativo" : "neutro"}
             >
               {formatMoneyInt(data.gastado_hoy)}
             </CifraHeroica>
@@ -237,7 +237,7 @@ export function FinanzasScreen() {
           <div className="mt-2 flex items-baseline gap-2">
             <CifraHeroica
               className="text-[clamp(28px,2.2vw,40px)] leading-none"
-              colorBase={data.semaforo_mes === "rojo" ? "#f87171" : "var(--cdm-fg)"}
+              tono={data.semaforo_mes === "rojo" ? "negativo" : "neutro"}
               delay={0.25}
             >
               {formatMoneyInt(data.total_mes)}

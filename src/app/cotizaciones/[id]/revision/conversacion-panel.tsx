@@ -148,7 +148,7 @@ export function ConversacionPanel({
       </div>
 
       <form onSubmit={enviar} className="border-t border-cdm-line p-3">
-        <div className="cdm-prompt flex items-end gap-2 rounded-2xl px-3 py-2">
+        <div className="cdm-prompt flex items-end gap-2 rounded-[26px] px-3 py-2">
           <textarea
             value={texto}
             onChange={(e) => setTexto(e.target.value)}

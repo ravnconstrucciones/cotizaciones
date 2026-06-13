@@ -53,6 +53,16 @@ html.light {
   --cdm-steel: #243a55;
   /* malla Waves (el JS pinta con esta var — theme-aware sin leer el tema) */
   --cdm-waves-stroke: rgba(34, 211, 238, 0.18);
+  /* Semáforo financiero como TOKENS (no solo clases): para los displays que
+     pintan por inline-style (CifraHeroica) el remap global de clases no llega,
+     así que la cifra heroica lee estos. Mismos matices que las clases
+     emerald/red, recalibrados a tono profundo bajo html.light (ver abajo). */
+  --cdm-positivo: #34d399; /* plata positiva (emerald-400) */
+  --cdm-negativo: #f87171; /* plata negativa (red-400) */
+  --cdm-alerta: #fcd34d; /* alerta (amber-300) */
+  /* Reflejo (gleam) que barre la CifraHeroica: en oscuro es luz casi blanca;
+     en claro se invierte a una veta clara para no lavar el número oscuro. */
+  --cdm-gleam: rgba(255, 255, 255, 0.95);
   /* hairline divisoria (línea de luz off-white en oscuro / tinta en claro) */
   --cdm-hairline: rgba(234, 246, 251, 0.18);
   /* LiquidGlass (capas inline del componente): tinte + highlights por tema */
@@ -80,6 +90,12 @@ html.light {
   --cdm-steel: #dde5ee;
   --cdm-waves-stroke: rgba(100, 116, 139, 0.14);
   --cdm-hairline: rgba(15, 23, 42, 0.16);
+  /* Semáforo profundo para AA sobre blanco (espeja el remap de clases). */
+  --cdm-positivo: #047857; /* emerald-700 */
+  --cdm-negativo: #dc2626; /* red-600 */
+  --cdm-alerta: #b45309; /* amber-700 */
+  /* Gleam claro: veta blanca tenue que da volumen sin lavar el número. */
+  --cdm-gleam: rgba(255, 255, 255, 0.55);
   --cdm-lg-tint-rgb: 255 255 255;
   --cdm-lg-alpha-boost: 6;
   --cdm-lg-hi-1: rgba(255, 255, 255, 0.95);

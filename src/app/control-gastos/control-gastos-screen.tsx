@@ -167,7 +167,7 @@ function BarraGastoSobreTotalAlCliente({
       <div className="h-2.5 overflow-hidden bg-cdm-panel/60">
         <div
           className={`h-full transition-[width] duration-300 ${
-            over ? "bg-[#6b1c1c] dark:bg-[#8b2e2e]" : "bg-cdm-accent"
+            over ? "bg-[var(--cdm-negativo)]" : "bg-cdm-accent"
           }`}
           style={{ width: `${pct}%` }}
         />
@@ -621,7 +621,7 @@ export function ControlGastosScreen() {
                                   <p
                                     className={`mt-0.5 text-base font-semibold tabular-nums md:text-lg ${
                                       restanteFrenteClienteArs < 0
-                                        ? "text-[#6b1c1c] dark:text-[#f87171]"
+                                        ? "text-[var(--cdm-negativo)]"
                                         : "text-cdm-fg"
                                     }`}
                                   >

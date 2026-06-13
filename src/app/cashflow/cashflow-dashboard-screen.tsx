@@ -276,7 +276,7 @@ export function CashflowDashboardScreen() {
               </p>
               <CifraHeroica
                 className="mt-2 text-[clamp(28px,2.2vw,40px)] leading-none"
-                colorBase="#22d3ee"
+                tono="accent"
               >
                 {formatMoneyInt(data.total_por_cobrar_clientes_ars ?? 0)}
               </CifraHeroica>
@@ -294,7 +294,7 @@ export function CashflowDashboardScreen() {
               </p>
               <CifraHeroica
                 className="mt-2 text-[clamp(28px,2.2vw,40px)] leading-none"
-                colorBase={data.saldo_caja_total >= 0 ? "#34d399" : "#f87171"}
+                tono={data.saldo_caja_total >= 0 ? "positivo" : "negativo"}
               >
                 {formatMoneyInt(data.saldo_caja_total)}
               </CifraHeroica>

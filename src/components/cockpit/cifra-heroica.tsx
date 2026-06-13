@@ -2,13 +2,37 @@
 
 import { motion, useReducedMotion } from "framer-motion";
 
+/**
+ * Tono semántico del display, ruteado a tokens theme-aware. Es el camino
+ * preferido (vs. `colorBase` con hex hardcodeado): el mismo valor lee bien
+ * en oscuro Y en claro porque el token se remapea bajo `html.light`.
+ * - `neutro`   → off-white / tinta (--cdm-fg)
+ * - `accent`   → cian holograma (--cdm-accent)
+ * - `positivo` → plata positiva (semáforo verde)
+ * - `negativo` → plata negativa (semáforo rojo)
+ */
+type TonoCifra = "neutro" | "accent" | "positivo" | "negativo";
+
+const TONO_VAR: Record<TonoCifra, string> = {
+  neutro: "var(--cdm-fg)",
+  accent: "var(--cdm-accent)",
+  positivo: "var(--cdm-positivo)",
+  negativo: "var(--cdm-negativo)",
+};
+
 type CifraHeroicaProps = {
   children: React.ReactNode;
   /** Tamaño/leading del display: ej. `text-[clamp(30px,2.4vw,44px)] leading-none`. */
   className?: string;
   /**
-   * Color base del número (el gleam barre encima). Por defecto off-white;
-   * pasar p. ej. `#f87171` para saldos negativos.
+   * Tono semántico (preferido): rutea por token theme-aware. Si se pasa,
+   * gana sobre `colorBase`.
+   */
+  tono?: TonoCifra;
+  /**
+   * Color base del número (el gleam barre encima). Por defecto off-white.
+   * Legacy: preferir `tono` para que lea bien en claro. Aceptá CSS color
+   * (hex o `var(--…)`).
    */
   colorBase?: string;
   /** Demora del gleam al montar (para escalonar varios displays). */
@@ -28,10 +52,13 @@ type CifraHeroicaProps = {
 export function CifraHeroica({
   children,
   className,
+  tono,
   colorBase = "var(--cdm-fg)",
   delay = 0.15,
 }: CifraHeroicaProps) {
   const reducirMovimiento = useReducedMotion();
+  // `tono` (token theme-aware) gana sobre el `colorBase` hex legacy.
+  const color = tono ? TONO_VAR[tono] : colorBase;
   // Bloom suave (iteración 5): si el contenido es texto plano, una copia
   // difuminada cian respira detrás de la cifra — el dato emana luz.
   const bloom = typeof children === "string" ? children : undefined;
@@ -47,7 +74,9 @@ export function CifraHeroica({
         bloom ? "cdm-bloom-suave" : ""
       } ${className ?? ""}`}
       style={{
-        backgroundImage: `linear-gradient(105deg, ${colorBase} 40%, rgba(255, 255, 255, 0.95) 50%, ${colorBase} 60%)`,
+        // El gleam usa --cdm-gleam (theme-aware): blanco casi puro en oscuro,
+        // veta blanca tenue en claro (un blanco fuerte lavaría el número oscuro).
+        backgroundImage: `linear-gradient(105deg, ${color} 40%, var(--cdm-gleam) 50%, ${color} 60%)`,
         backgroundSize: "220% 100%",
         backgroundPosition: "-30% 0",
         WebkitBackgroundClip: "text",
