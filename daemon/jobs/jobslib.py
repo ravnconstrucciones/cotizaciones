@@ -262,15 +262,24 @@ def registrar_evento(cfg, token, tipo, titulo, contenido, estado="procesado"):
 # ---------- git del vault (boveda) ----------
 
 def push_vault(mensaje):
-    """add -A + commit + push del vault vía el git externo (~/.ravn-vault-git).
-    Si no hay cambios, igual intenta push (por si quedó un commit local sin pushear)."""
+    """add -A + commit + (pull --rebase) + push del vault vía el git externo.
+    El vault tiene DOS escritores: el bot (por la API de GitHub, desde Railway) y
+    este daemon (por git, desde la Mac). Por eso SIEMPRE traemos el remoto antes de
+    pushear — si no, el push rebota con 'fetch first' cuando el bot escribió algo."""
     subprocess.run(GIT_VAULT + ["add", "-A"], check=True, capture_output=True, text=True)
     diff = subprocess.run(GIT_VAULT + ["diff", "--cached", "--quiet"])
     if diff.returncode != 0:
         subprocess.run(GIT_VAULT + ["commit", "-m", mensaje], check=True, capture_output=True, text=True)
-    r = subprocess.run(GIT_VAULT + ["push", "origin", "main"], capture_output=True, text=True)
-    if r.returncode != 0:
-        raise RuntimeError(f"push del vault falló: {r.stderr[:300]}")
+    r = None
+    for _ in (1, 2):
+        pr = subprocess.run(GIT_VAULT + ["pull", "--rebase", "origin", "main"], capture_output=True, text=True)
+        if pr.returncode != 0:
+            # rebase con conflicto → abortar para no dejar el repo trabado
+            subprocess.run(GIT_VAULT + ["rebase", "--abort"], capture_output=True, text=True)
+        r = subprocess.run(GIT_VAULT + ["push", "origin", "main"], capture_output=True, text=True)
+        if r.returncode == 0:
+            return
+    raise RuntimeError(f"push del vault falló: {r.stderr[:300] if r else 'sin push'}")
 
 # ---------- Claude Code headless (mismo patrón que daemon.py) ----------
 

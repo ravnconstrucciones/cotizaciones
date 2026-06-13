@@ -64,9 +64,12 @@ def correr_vencidos(cfg, token, ahora, jobs=JOBS, state_path=STATE):
             marcar_error(state_path, nombre, datetime.now())
             log(f"job {nombre} ERROR: {e}")
             try:
+                # Los errores de jobs de SISTEMA van a Actividad (estado procesado),
+                # NO a Archivados — ese feed es para mensajes de Eze que el bot no
+                # pudo clasificar, no para ruido técnico de los jobs internos.
                 registrar_evento(cfg, token, f"job_{nombre}",
-                                 f"ERROR job {nombre}: {str(e)[:150]}",
-                                 {"error": str(e)[:1000]}, estado="archivado")
+                                 f"job {nombre} falló: {str(e)[:150]}",
+                                 {"error": str(e)[:1000], "nivel": "error"}, estado="procesado")
             except Exception as e2:
                 log(f"no pude registrar el evento de error: {e2}")
     return pendientes
