@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { formatMoneyInt } from "@/lib/format-currency";
 import { VolverAlInicio } from "@/components/volver-al-inicio";
-import { WavesBackdrop } from "@/components/cockpit/waves-backdrop";
 import { CargandoCockpit } from "@/components/cockpit/cargando-cockpit";
 import { CifraHeroica } from "@/components/cockpit/cifra-heroica";
 
@@ -172,8 +171,7 @@ export function FinanzasScreen() {
 
   if (error || !data) {
     return (
-      <main className="font-grotesk relative flex min-h-screen items-center justify-center bg-cdm-bg text-red-400">
-        <WavesBackdrop />
+      <main className="font-geist relative flex min-h-screen items-center justify-center bg-cdm-bg text-red-400">
         <span className="relative z-10 text-xs uppercase tracking-widest">{error ?? "Sin datos"}</span>
       </main>
     );
@@ -184,38 +182,38 @@ export function FinanzasScreen() {
   const presupuestoEsperado = data.presupuesto_diario * data.dias_transcurridos;
 
   return (
-    <main className="font-grotesk relative min-h-screen bg-cdm-bg px-4 pb-24 pt-14 text-cdm-fg sm:px-8">
-      <WavesBackdrop />
-      <div className="relative z-10 mx-auto w-full max-w-lg">
+    <main className="font-geist relative min-h-screen bg-cdm-bg px-4 pb-24 pt-14 text-cdm-fg sm:px-8">
+      <div className="mx-auto w-full max-w-lg">
         <VolverAlInicio />
 
-        {/* Header con horizonte */}
-        <div className="relative pb-3">
-          <span aria-hidden className="cdm-horizon absolute inset-x-0 bottom-0" />
-          <h1 className="font-mono-hud flex items-baseline gap-2 text-[11px] font-medium uppercase tracking-[0.22em] text-cdm-muted">
-            <span aria-hidden className="text-cdm-accent/60">{"//////"}</span>
+        {/* Header */}
+        <div className="pt-4 pb-6">
+          <h1 className="font-geist text-3xl font-semibold tracking-tight text-cdm-fg">
             Finanzas personales
           </h1>
+          <p className="font-mono-hud mt-1 text-[11px] uppercase tracking-[0.18em] text-cdm-muted">
+            Gastos del mes
+          </p>
         </div>
 
         {/* Semáforo del día */}
-        <div className="cdm-glass mt-6 p-5">
+        <div className="rounded-[24px] ring-1 ring-cdm-line bg-white/60 dark:bg-zinc-900/40 p-5">
           <div className="flex items-baseline justify-between">
-            <span className="text-[10px] uppercase tracking-widest text-cdm-muted">
+            <span className="font-mono-hud text-[10px] uppercase tracking-widest text-cdm-muted">
               Hoy
             </span>
-            <span className={`text-[10px] font-semibold uppercase tracking-widest ${SEMAFORO_COLOR[data.semaforo_dia]}`}>
+            <span className={`font-mono-hud text-[10px] font-semibold uppercase tracking-widest ${SEMAFORO_COLOR[data.semaforo_dia]}`}>
               {SEMAFORO_LABEL[data.semaforo_dia]}
             </span>
           </div>
           <div className="mt-2 flex items-baseline gap-2">
             <CifraHeroica
-              className="text-[clamp(28px,2.2vw,40px)] leading-none"
+              className="text-[clamp(28px,2.2vw,40px)] leading-none font-geist tabular-nums"
               tono={data.semaforo_dia === "rojo" ? "negativo" : "neutro"}
             >
               {formatMoneyInt(data.gastado_hoy)}
             </CifraHeroica>
-            <span className="text-xs text-cdm-muted">
+            <span className="font-mono-hud text-xs text-cdm-muted">
               / {formatMoneyInt(data.presupuesto_diario)} diario
             </span>
           </div>
@@ -225,24 +223,24 @@ export function FinanzasScreen() {
         </div>
 
         {/* Resumen del mes */}
-        <div className="cdm-glass mt-3 p-5">
+        <div className="rounded-[24px] ring-1 ring-cdm-line bg-white/60 dark:bg-zinc-900/40 mt-3 p-5">
           <div className="flex items-baseline justify-between">
-            <span className="text-[10px] uppercase tracking-widest text-cdm-muted">
+            <span className="font-mono-hud text-[10px] uppercase tracking-widest text-cdm-muted">
               Junio — {data.dias_transcurridos}/{data.dias_en_mes} días
             </span>
-            <span className={`text-[10px] font-semibold uppercase tracking-widest ${SEMAFORO_COLOR[data.semaforo_mes]}`}>
+            <span className={`font-mono-hud text-[10px] font-semibold uppercase tracking-widest ${SEMAFORO_COLOR[data.semaforo_mes]}`}>
               {SEMAFORO_LABEL[data.semaforo_mes]}
             </span>
           </div>
           <div className="mt-2 flex items-baseline gap-2">
             <CifraHeroica
-              className="text-[clamp(28px,2.2vw,40px)] leading-none"
+              className="text-[clamp(28px,2.2vw,40px)] leading-none font-geist tabular-nums"
               tono={data.semaforo_mes === "rojo" ? "negativo" : "neutro"}
               delay={0.25}
             >
               {formatMoneyInt(data.total_mes)}
             </CifraHeroica>
-            <span className="text-xs text-cdm-muted">
+            <span className="font-mono-hud text-xs text-cdm-muted">
               / {formatMoneyInt(data.presupuesto_mensual)}
             </span>
           </div>
@@ -251,20 +249,20 @@ export function FinanzasScreen() {
           </div>
           <dl className="mt-4 grid grid-cols-2 gap-x-4 gap-y-2 text-[11px]">
             <div>
-              <dt className="text-cdm-muted">Disponible</dt>
-              <dd className={`tabular-nums font-medium ${data.disponible >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+              <dt className="font-mono-hud uppercase tracking-[0.12em] text-cdm-muted">Disponible</dt>
+              <dd className={`font-geist tabular-nums font-medium ${data.disponible >= 0 ? "text-emerald-400" : "text-red-400"}`}>
                 {formatMoneyInt(data.disponible)}
               </dd>
             </div>
             <div>
-              <dt className="text-cdm-muted">Proyección fin de mes</dt>
-              <dd className={`tabular-nums font-medium ${data.proyeccion <= data.presupuesto_mensual ? "text-emerald-400" : "text-amber-300"}`}>
+              <dt className="font-mono-hud uppercase tracking-[0.12em] text-cdm-muted">Proyección fin de mes</dt>
+              <dd className={`font-geist tabular-nums font-medium ${data.proyeccion <= data.presupuesto_mensual ? "text-emerald-400" : "text-amber-300"}`}>
                 {formatMoneyInt(data.proyeccion)}
               </dd>
             </div>
             <div>
-              <dt className="text-cdm-muted">Presupuesto esperado a hoy</dt>
-              <dd className="tabular-nums font-medium text-cdm-fg">
+              <dt className="font-mono-hud uppercase tracking-[0.12em] text-cdm-muted">Presupuesto esperado a hoy</dt>
+              <dd className="font-geist tabular-nums font-medium text-cdm-fg">
                 {formatMoneyInt(presupuestoEsperado)}
               </dd>
             </div>
@@ -272,8 +270,8 @@ export function FinanzasScreen() {
         </div>
 
         {/* Por categoría */}
-        <div className="cdm-glass mt-3 p-5">
-          <h2 className="text-[10px] uppercase tracking-widest text-cdm-muted">
+        <div className="rounded-[24px] ring-1 ring-cdm-line bg-white/60 dark:bg-zinc-900/40 mt-3 p-5">
+          <h2 className="font-mono-hud text-[10px] uppercase tracking-widest text-cdm-muted">
             Por categoría — semana
           </h2>
           <ul className="mt-4 space-y-3">
@@ -286,8 +284,8 @@ export function FinanzasScreen() {
               return (
                 <li key={cat}>
                   <div className="flex items-baseline justify-between text-[11px]">
-                    <span className="text-cdm-fg">{cat}</span>
-                    <span className="tabular-nums">
+                    <span className="font-geist text-cdm-fg">{cat}</span>
+                    <span className="font-geist tabular-nums">
                       <span className={SEMAFORO_COLOR[sem]}>{formatMoneyInt(monto)}</span>
                       <span className="text-cdm-muted"> / {formatMoneyInt(limite)}</span>
                     </span>
@@ -299,14 +297,14 @@ export function FinanzasScreen() {
               );
             })}
             {Object.keys(data.por_categoria).length === 0 && (
-              <li className="text-[11px] text-cdm-muted">Sin gastos cargados este mes.</li>
+              <li className="font-mono-hud text-[11px] text-cdm-muted">Sin gastos cargados este mes.</li>
             )}
           </ul>
         </div>
 
         {/* Cargar gasto manual */}
-        <div className="cdm-glass mt-3 p-5">
-          <h2 className="text-[10px] uppercase tracking-widest text-cdm-muted">
+        <div className="rounded-[24px] ring-1 ring-cdm-line bg-white/60 dark:bg-zinc-900/40 mt-3 p-5">
+          <h2 className="font-mono-hud text-[10px] uppercase tracking-widest text-cdm-muted">
             Cargar gasto
           </h2>
           <form onSubmit={guardarGasto} className="mt-4 space-y-3">
@@ -315,19 +313,19 @@ export function FinanzasScreen() {
               placeholder="Concepto"
               value={form.concepto}
               onChange={(e) => setForm((f) => ({ ...f, concepto: e.target.value }))}
-              className="w-full border-0 border-b border-cdm-line bg-transparent px-1 py-2 text-sm text-cdm-fg placeholder:text-cdm-muted/50 transition-[border-color,box-shadow] duration-200 focus-visible:border-cdm-accent focus-visible:outline-none focus-visible:shadow-[0_12px_24px_-16px_rgba(34,211,238,0.6)]"
+              className="font-geist w-full border-0 border-b border-cdm-line bg-transparent px-1 py-2 text-sm text-cdm-fg placeholder:text-cdm-muted/50 transition-[border-color,box-shadow] duration-200 focus-visible:border-cdm-accent focus-visible:outline-none focus-visible:shadow-[0_12px_24px_-16px_rgba(34,211,238,0.6)]"
             />
             <input
               type="number"
               placeholder="Monto"
               value={form.monto}
               onChange={(e) => setForm((f) => ({ ...f, monto: e.target.value }))}
-              className="w-full border-0 border-b border-cdm-line bg-transparent px-1 py-2 text-sm text-cdm-fg placeholder:text-cdm-muted/50 transition-[border-color,box-shadow] duration-200 focus-visible:border-cdm-accent focus-visible:outline-none focus-visible:shadow-[0_12px_24px_-16px_rgba(34,211,238,0.6)]"
+              className="font-geist tabular-nums w-full border-0 border-b border-cdm-line bg-transparent px-1 py-2 text-sm text-cdm-fg placeholder:text-cdm-muted/50 transition-[border-color,box-shadow] duration-200 focus-visible:border-cdm-accent focus-visible:outline-none focus-visible:shadow-[0_12px_24px_-16px_rgba(34,211,238,0.6)]"
             />
             <select
               value={form.categoria}
               onChange={(e) => setForm((f) => ({ ...f, categoria: e.target.value }))}
-              className="w-full border border-cdm-line bg-cdm-panel/60 px-4 py-3 text-sm text-cdm-fg focus:border-cdm-accent focus:outline-none"
+              className="font-geist w-full rounded-[12px] border border-cdm-line bg-white/40 dark:bg-zinc-900/60 px-4 py-3 text-sm text-cdm-fg focus:border-cdm-accent focus:outline-none"
             >
               {CATEGORIAS_ORDEN.map((c) => (
                 <option key={c} value={c}>{c}</option>
@@ -336,17 +334,17 @@ export function FinanzasScreen() {
             <button
               type="submit"
               disabled={guardando || !form.concepto || !form.monto}
-              className="cdm-chip w-full cursor-pointer border border-cdm-accent/60 bg-cdm-accent/15 px-8 py-3 text-sm uppercase tracking-wider text-cdm-accent shadow-[0_0_18px_-6px_rgba(34,211,238,0.55)] transition-colors hover:bg-cdm-accent/25 disabled:opacity-40"
+              className="font-mono-hud w-full cursor-pointer rounded-full border border-cdm-accent/60 bg-cdm-accent/10 px-8 py-3 text-[11px] uppercase tracking-[0.14em] text-cdm-accent transition-colors hover:bg-cdm-accent/20 disabled:opacity-40"
             >
               {guardando ? "Guardando…" : "Guardar"}
             </button>
             {guardadoOk && (
-              <p className="text-center text-xs uppercase tracking-widest text-emerald-400">
+              <p className="font-mono-hud text-center text-xs uppercase tracking-widest text-emerald-400">
                 Guardado ✓
               </p>
             )}
             {errorGuardar && (
-              <p className="text-center text-xs uppercase tracking-widest text-red-400">
+              <p className="font-mono-hud text-center text-xs uppercase tracking-widest text-red-400">
                 Error: {errorGuardar}
               </p>
             )}
@@ -355,22 +353,22 @@ export function FinanzasScreen() {
 
         {/* Últimos gastos */}
         {data.ultimos_gastos.length > 0 && (
-          <div className="cdm-glass mt-3 p-5">
-            <h2 className="text-[10px] uppercase tracking-widest text-cdm-muted">
+          <div className="rounded-[24px] ring-1 ring-cdm-line bg-white/60 dark:bg-zinc-900/40 mt-3 p-5">
+            <h2 className="font-mono-hud text-[10px] uppercase tracking-widest text-cdm-muted">
               Últimos gastos
             </h2>
             <ul className="mt-4 divide-y divide-cdm-line">
               {data.ultimos_gastos.map((g) => (
-                <li key={g.id} className="flex items-center justify-between py-2 text-[11px]">
+                <li key={g.id} className="flex items-center justify-between py-2.5 text-[11px]">
                   <div className="flex items-center gap-3">
-                    <span className="tabular-nums text-cdm-muted">{fmtFecha(g.fecha)}</span>
+                    <span className="font-mono-hud tabular-nums text-cdm-muted">{fmtFecha(g.fecha)}</span>
                     <div>
-                      <div className="text-cdm-fg">{g.concepto}</div>
-                      <div className="text-cdm-muted">{g.categoria}</div>
+                      <div className="font-geist text-cdm-fg">{g.concepto}</div>
+                      <div className="font-mono-hud text-[10px] uppercase tracking-[0.1em] text-cdm-muted">{g.categoria}</div>
                     </div>
                   </div>
                   <div className="flex items-center gap-3">
-                    <span className="tabular-nums font-medium text-cdm-fg">
+                    <span className="font-geist tabular-nums font-medium text-cdm-fg">
                       {formatMoneyInt(g.monto)}
                     </span>
                     <button

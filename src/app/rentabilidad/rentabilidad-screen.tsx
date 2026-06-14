@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { WavesBackdrop } from "@/components/cockpit/waves-backdrop";
 import { CifraHeroica } from "@/components/cockpit/cifra-heroica";
 import { createClient } from "@/lib/supabase/client";
 import {
@@ -54,10 +53,11 @@ type CotizacionesResponse = {
 };
 
 const labelCls =
-  "mb-2 block text-[10px] font-medium uppercase tracking-[0.18em] text-cdm-muted";
+  "mb-2 block font-mono-hud text-[10px] font-medium uppercase tracking-[0.18em] text-cdm-muted";
 const inputCls =
-  "w-full border-0 border-b border-cdm-line bg-transparent px-1 py-2 text-sm text-cdm-fg placeholder:text-cdm-muted/50 transition-[border-color,box-shadow] duration-200 focus-visible:border-cdm-accent focus-visible:outline-none focus-visible:shadow-[0_12px_24px_-16px_rgba(34,211,238,0.6)]";
-const sectionCls = "cdm-glass p-6 md:p-8";
+  "font-geist w-full border-0 border-b border-cdm-line bg-transparent px-1 py-2 text-sm tabular-nums text-cdm-fg placeholder:text-cdm-muted/50 transition-[border-color,box-shadow] duration-200 focus-visible:border-cdm-accent focus-visible:outline-none focus-visible:shadow-[0_12px_24px_-16px_rgba(34,211,238,0.6)]";
+const sectionCls =
+  "rounded-[24px] ring-1 ring-cdm-line bg-white/60 dark:bg-zinc-900/40 p-6 md:p-8";
 
 function formatFechaCotizacion(iso?: string): string {
   if (!iso) return "—";
@@ -773,15 +773,15 @@ export function RentabilidadScreen({
 
   if (!presupuestoIdInicial) {
     return (
-      <main className="font-grotesk relative min-h-screen bg-cdm-bg px-4 pb-24 pt-14 text-cdm-fg sm:px-8">
-        <WavesBackdrop />
+      <main className="font-geist relative min-h-screen bg-cdm-bg px-4 pb-24 pt-14 text-cdm-fg sm:px-8">
         <div className="relative z-10 mx-auto w-full max-w-5xl">
           {headerNav}
           <div className="mx-auto max-w-2xl px-6 py-16 sm:px-10">
-            <div className="relative pb-3">
-              <span aria-hidden className="cdm-horizon absolute inset-x-0 bottom-0" />
-              <h1 className="font-mono-hud flex items-baseline gap-2 text-[11px] font-medium uppercase tracking-[0.22em] text-cdm-muted">
-                <span aria-hidden className="text-cdm-accent/60">{"//////"}</span>
+            <div className="pb-3">
+              <p className="font-mono-hud text-[11px] uppercase tracking-[0.18em] text-cdm-muted">
+                Análisis financiero
+              </p>
+              <h1 className="font-geist mt-1 text-3xl font-semibold tracking-tight text-cdm-fg">
                 Rentabilidad
               </h1>
             </div>
@@ -798,13 +798,13 @@ export function RentabilidadScreen({
             <div className="mt-10 flex flex-col gap-4 sm:flex-row sm:flex-wrap">
               <Link
                 href="/nuevo-presupuesto"
-                className="cdm-chip inline-flex w-fit cursor-pointer items-center justify-center border border-cdm-accent/60 bg-cdm-accent/15 px-8 py-4 text-sm text-cdm-accent uppercase tracking-wider transition-colors hover:bg-cdm-accent/25 shadow-[0_0_18px_-6px_rgba(34,211,238,0.55)]"
+                className="font-mono-hud inline-flex w-fit cursor-pointer items-center justify-center rounded-full border border-cdm-accent/60 bg-cdm-accent/15 px-8 py-3 text-[11px] font-semibold uppercase tracking-[0.14em] text-cdm-accent transition-colors hover:bg-cdm-accent/25 shadow-[0_0_18px_-6px_rgba(34,211,238,0.55)]"
               >
                 Ir a nuevo presupuesto
               </Link>
               <Link
                 href="/historial"
-                className="cdm-chip inline-flex w-fit cursor-pointer items-center justify-center border border-cdm-line px-8 py-4 text-sm text-cdm-muted uppercase tracking-wider transition-colors hover:border-cdm-accent/30 hover:text-cdm-fg"
+                className="font-mono-hud inline-flex w-fit cursor-pointer items-center justify-center rounded-full border border-cdm-line px-8 py-3 text-[11px] font-semibold uppercase tracking-[0.14em] text-cdm-muted transition-colors hover:border-cdm-accent/30 hover:text-cdm-fg"
               >
                 Historial de presupuestos
               </Link>
@@ -816,16 +816,16 @@ export function RentabilidadScreen({
   }
 
   return (
-    <main className="font-grotesk relative min-h-screen bg-cdm-bg px-4 pb-24 pt-14 text-cdm-fg sm:px-8">
-      <WavesBackdrop />
+    <main className="font-geist relative min-h-screen bg-cdm-bg px-4 pb-24 pt-14 text-cdm-fg sm:px-8">
       <div className="relative z-10 mx-auto w-full max-w-5xl">
         {headerNav}
 
         <div className="mx-auto max-w-5xl px-6 py-10 pb-24 sm:px-10">
-          <div className="relative pb-3">
-            <span aria-hidden className="cdm-horizon absolute inset-x-0 bottom-0" />
-            <h1 className="font-mono-hud flex items-baseline gap-2 text-[11px] font-medium uppercase tracking-[0.22em] text-cdm-muted">
-              <span aria-hidden className="text-cdm-accent/60">{"//////"}</span>
+          <div className="pb-3">
+            <p className="font-mono-hud text-[11px] uppercase tracking-[0.18em] text-cdm-muted">
+              Análisis financiero
+            </p>
+            <h1 className="font-geist mt-1 text-3xl font-semibold tracking-tight text-cdm-fg">
               Rentabilidad
             </h1>
           </div>
@@ -862,7 +862,7 @@ export function RentabilidadScreen({
             antes de cerrar números con el cliente.
           </p>
 
-          <p className="mt-4 border border-cdm-line bg-cdm-panel/60 px-4 py-3 text-xs text-cdm-muted">
+          <p className="mt-4 rounded-[16px] ring-1 ring-cdm-line bg-white/40 dark:bg-zinc-900/30 px-4 py-3 text-xs text-cdm-muted">
             {cargandoPresupuesto
               ? "Cargando totales del presupuesto…"
               : errorPresupuesto
@@ -887,7 +887,7 @@ export function RentabilidadScreen({
           <div className="mt-10 flex flex-col gap-10">
             {/* ── COSTO DIRECTO ── */}
             <section className={sectionCls}>
-              <h2 className="text-[10px] font-medium uppercase tracking-[0.18em] text-cdm-muted">
+              <h2 className="font-mono-hud text-[10px] font-medium uppercase tracking-[0.18em] text-cdm-muted">
                 Costo directo (base)
               </h2>
               <p className="mt-2 text-xs text-cdm-muted">
@@ -934,7 +934,7 @@ export function RentabilidadScreen({
 
             {/* ── REMARQUE ── */}
             <section className={sectionCls}>
-              <h2 className="text-[10px] font-medium uppercase tracking-[0.18em] text-cdm-muted">
+              <h2 className="font-mono-hud text-[10px] font-medium uppercase tracking-[0.18em] text-cdm-muted">
                 Remarque sobre costo (recargo)
               </h2>
               <p className="mt-2 text-xs text-cdm-muted">
@@ -1003,7 +1003,7 @@ export function RentabilidadScreen({
 
             {/* ── CARGOS E IMPREVISTOS ── */}
             <section className={sectionCls}>
-              <h2 className="text-[10px] font-medium uppercase tracking-[0.18em] text-cdm-muted">
+              <h2 className="font-mono-hud text-[10px] font-medium uppercase tracking-[0.18em] text-cdm-muted">
                 Cargos al cliente e imprevistos
               </h2>
               <div className="mt-6 grid gap-6 md:grid-cols-2">
@@ -1060,7 +1060,7 @@ export function RentabilidadScreen({
 
             {/* ── COTIZACIÓN DÓLAR ── */}
             <section className={sectionCls}>
-              <h2 className="text-[10px] font-medium uppercase tracking-[0.18em] text-cdm-muted">
+              <h2 className="font-mono-hud text-[10px] font-medium uppercase tracking-[0.18em] text-cdm-muted">
                 Cotización en dólares
               </h2>
               <p className="mt-2 text-xs text-cdm-muted">
@@ -1095,7 +1095,7 @@ export function RentabilidadScreen({
                     value={casaDolar}
                     onChange={(e) => setCasaDolar(e.target.value)}
                     disabled={cotizaciones.length === 0}
-                    className="w-full border border-cdm-line bg-cdm-panel/60 px-3 py-2 text-sm text-cdm-fg focus:border-cdm-accent focus:outline-none"
+                    className="font-geist w-full rounded-[12px] border border-cdm-line bg-white/60 dark:bg-zinc-900/40 px-3 py-2 text-sm text-cdm-fg focus:border-cdm-accent focus:outline-none"
                   >
                     {cotizaciones.length === 0 ? (
                       <option value="">—</option>
@@ -1112,7 +1112,7 @@ export function RentabilidadScreen({
                   type="button"
                   onClick={() => void loadCotizaciones()}
                   disabled={cotizLoading}
-                  className="cdm-chip cursor-pointer border border-cdm-line px-5 py-3 text-xs font-medium uppercase tracking-wider text-cdm-muted transition-colors hover:border-cdm-accent/30 hover:text-cdm-fg disabled:cursor-not-allowed disabled:opacity-50"
+                  className="font-mono-hud cursor-pointer rounded-full border border-cdm-line px-5 py-2.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-cdm-muted transition-colors hover:border-cdm-accent/30 hover:text-cdm-fg disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {cotizLoading ? "Actualizando…" : "Actualizar cotizaciones"}
                 </button>
@@ -1120,7 +1120,7 @@ export function RentabilidadScreen({
                   href={CRONISTA_DOLAR_URL}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="cdm-chip inline-flex cursor-pointer items-center justify-center border border-cdm-accent/60 bg-cdm-accent/15 px-5 py-3 text-xs font-medium uppercase tracking-wider text-cdm-accent transition-colors hover:bg-cdm-accent/25 shadow-[0_0_18px_-6px_rgba(34,211,238,0.55)]"
+                  className="font-mono-hud inline-flex cursor-pointer items-center justify-center rounded-full border border-cdm-accent/60 bg-cdm-accent/15 px-5 py-2.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-cdm-accent transition-colors hover:bg-cdm-accent/25 shadow-[0_0_18px_-6px_rgba(34,211,238,0.55)]"
                 >
                   Abrir El Cronista
                 </a>
@@ -1144,8 +1144,8 @@ export function RentabilidadScreen({
             </section>
 
             {/* ── BONIFICACIÓN COMERCIAL ── */}
-            <section className="cdm-glass border-cdm-accent/40 p-6 md:p-8">
-              <h2 className="text-[10px] font-medium uppercase tracking-[0.18em] text-cdm-fg">
+            <section className="rounded-[24px] ring-1 ring-cdm-accent/40 bg-white/60 dark:bg-zinc-900/40 p-6 md:p-8">
+              <h2 className="font-mono-hud text-[10px] font-medium uppercase tracking-[0.18em] text-cdm-fg">
                 Bonificación comercial
               </h2>
               <p className="mt-2 text-xs text-cdm-muted">
@@ -1172,12 +1172,12 @@ export function RentabilidadScreen({
 
             {/* ── PRECIO Y RENTABILIDAD ── */}
             <section className={sectionCls}>
-              <h2 className="text-[10px] font-medium uppercase tracking-[0.18em] text-cdm-muted">
+              <h2 className="font-mono-hud text-[10px] font-medium uppercase tracking-[0.18em] text-cdm-muted">
                 Precio al cliente y rentabilidad
               </h2>
               <div className="mt-6 space-y-4 text-sm">
-                <div className="space-y-3 border border-cdm-line bg-cdm-panel/60 p-4">
-                  <p className="text-[10px] font-medium uppercase tracking-[0.18em] text-cdm-muted">
+                <div className="space-y-3 rounded-[18px] ring-1 ring-cdm-line bg-white/40 dark:bg-zinc-900/30 p-4">
+                  <p className="font-mono-hud text-[10px] font-medium uppercase tracking-[0.18em] text-cdm-muted">
                     Resultado materiales y M.O. (bonificación aplicada)
                   </p>
                   <div className="border-b border-cdm-line py-2">
@@ -1256,7 +1256,7 @@ export function RentabilidadScreen({
                   </p>
                   {precioObraManual != null ? (
                     <div className="mt-4 border-t border-cdm-accent/50 pt-4">
-                      <p className="text-[10px] font-medium uppercase tracking-[0.18em] text-cdm-accent">
+                      <p className="font-mono-hud text-[10px] font-medium uppercase tracking-[0.18em] text-cdm-accent">
                         Con precio de obra cerrado a mano (importe final)
                       </p>
                       <div className="mt-2 flex flex-wrap items-baseline justify-between gap-2 border-b border-cdm-line py-2">
@@ -1345,7 +1345,7 @@ export function RentabilidadScreen({
                 <div className="border-t border-cdm-line pt-4">
                   <label
                     htmlFor="importe-propuesta-ars"
-                    className="text-[10px] font-medium uppercase tracking-[0.18em] text-cdm-muted"
+                    className="font-mono-hud text-[10px] font-medium uppercase tracking-[0.18em] text-cdm-muted"
                   >
                     Importe que pasará a la propuesta (ARS)
                   </label>
@@ -1381,14 +1381,14 @@ export function RentabilidadScreen({
                             importeDraftSincronizadoManualRef.current = false;
                             setPrecioObraManual(null);
                           }}
-                          className="cdm-chip mt-3 cursor-pointer border border-cdm-line px-4 py-2 text-xs font-medium uppercase tracking-wider text-cdm-muted transition-colors hover:border-cdm-accent/30 hover:text-cdm-fg"
+                          className="font-mono-hud mt-3 cursor-pointer rounded-full border border-cdm-line px-4 py-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-cdm-muted transition-colors hover:border-cdm-accent/30 hover:text-cdm-fg"
                         >
                           Volver al precio calculado desde ítems
                         </button>
                       ) : null}
                       {previewCierreDesdeImporteDraft ? (
-                        <div className="mt-4 border border-cdm-accent/40 bg-cdm-panel/60 p-4 text-xs">
-                          <p className="font-medium uppercase tracking-[0.18em] text-cdm-muted">
+                        <div className="mt-4 rounded-[16px] ring-1 ring-cdm-accent/40 bg-white/40 dark:bg-zinc-900/30 p-4 text-xs">
+                          <p className="font-mono-hud font-medium uppercase tracking-[0.18em] text-cdm-muted">
                             Con el importe que estás editando
                           </p>
                           <p className="mt-2 tabular-nums text-cdm-fg">
@@ -1448,7 +1448,7 @@ export function RentabilidadScreen({
 
                 <div className="mt-6 grid gap-3 border-t border-cdm-line pt-6 text-xs sm:grid-cols-2">
                   <div>
-                    <p className="font-medium uppercase tracking-[0.18em] text-cdm-muted">
+                    <p className="font-mono-hud font-medium uppercase tracking-[0.18em] text-cdm-muted">
                       Margen en materiales (venta final − costo)
                     </p>
                     <p className="mt-1 tabular-nums text-cdm-fg">
@@ -1456,7 +1456,7 @@ export function RentabilidadScreen({
                     </p>
                   </div>
                   <div>
-                    <p className="font-medium uppercase tracking-[0.18em] text-cdm-muted">
+                    <p className="font-mono-hud font-medium uppercase tracking-[0.18em] text-cdm-muted">
                       Margen en M.O. (venta final − costo)
                     </p>
                     <p className="mt-1 tabular-nums text-cdm-fg">
@@ -1464,7 +1464,7 @@ export function RentabilidadScreen({
                     </p>
                   </div>
                   <div>
-                    <p className="font-medium uppercase tracking-[0.18em] text-cdm-muted">
+                    <p className="font-mono-hud font-medium uppercase tracking-[0.18em] text-cdm-muted">
                       Contribución obra (precio redondeado − costo directo)
                     </p>
                     <p className="mt-1 tabular-nums text-cdm-fg">
@@ -1472,7 +1472,7 @@ export function RentabilidadScreen({
                     </p>
                   </div>
                   <div>
-                    <p className="font-medium uppercase tracking-[0.18em] text-cdm-muted">
+                    <p className="font-mono-hud font-medium uppercase tracking-[0.18em] text-cdm-muted">
                       Utilidad tras costos internos
                     </p>
                     <p className="mt-1 tabular-nums text-cdm-fg">
@@ -1480,7 +1480,7 @@ export function RentabilidadScreen({
                     </p>
                   </div>
                   <div className="sm:col-span-2">
-                    <p className="font-medium uppercase tracking-[0.18em] text-cdm-muted">
+                    <p className="font-mono-hud font-medium uppercase tracking-[0.18em] text-cdm-muted">
                       Margen sobre precio obra sin IVA (tras costos internos)
                     </p>
                     <p className="mt-1 tabular-nums text-cdm-fg">
@@ -1491,7 +1491,7 @@ export function RentabilidadScreen({
 
                 {ventaDolarEfectiva > 0 ? (
                   <div className="mt-8 border-t border-cdm-line pt-6">
-                    <h3 className="text-[10px] font-medium uppercase tracking-[0.18em] text-cdm-muted">
+                    <h3 className="font-mono-hud text-[10px] font-medium uppercase tracking-[0.18em] text-cdm-muted">
                       Equivalente en USD ({etiquetaTipoCambio}, venta{" "}
                       {formatMoney(ventaDolarEfectiva)})
                     </h3>
@@ -1539,7 +1539,7 @@ export function RentabilidadScreen({
 
             {/* ── MONEDA EN PROPUESTA ── */}
             <section className={sectionCls}>
-              <h2 className="text-[10px] font-medium uppercase tracking-[0.18em] text-cdm-muted">
+              <h2 className="font-mono-hud text-[10px] font-medium uppercase tracking-[0.18em] text-cdm-muted">
                 Moneda en propuesta comercial
               </h2>
               <p className="mt-2 text-xs text-cdm-muted">
@@ -1569,7 +1569,7 @@ export function RentabilidadScreen({
                   <span className="text-sm text-cdm-fg">Dólares (USD)</span>
                 </label>
               </div>
-              <p className="mt-4 border border-cdm-line bg-cdm-panel/60 px-4 py-3 text-sm tabular-nums text-cdm-fg">
+              <p className="font-geist mt-4 rounded-[16px] ring-1 ring-cdm-line bg-white/40 dark:bg-zinc-900/30 px-4 py-3 text-sm tabular-nums text-cdm-fg">
                 Vista previa:{" "}
                 {monedaPresentacion === "ARS"
                   ? formatMoneyInt(importeVistaPreviaArsEntero)
@@ -1595,7 +1595,7 @@ export function RentabilidadScreen({
                     ? `/nuevo-presupuesto?id=${encodeURIComponent(presupuestoIdInicial)}`
                     : "/nuevo-presupuesto"
                 }
-                className="cdm-chip inline-flex w-fit cursor-pointer items-center justify-center border border-cdm-line px-6 py-3 text-sm font-medium uppercase tracking-wider text-cdm-muted transition-colors hover:border-cdm-accent/30 hover:text-cdm-fg"
+                className="font-mono-hud inline-flex w-fit cursor-pointer items-center justify-center rounded-full border border-cdm-line px-6 py-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-cdm-muted transition-colors hover:border-cdm-accent/30 hover:text-cdm-fg"
               >
                 Volver al presupuesto
               </Link>
@@ -1609,14 +1609,14 @@ export function RentabilidadScreen({
                   type="button"
                   disabled={guardandoPrefEnNube}
                   onClick={() => void guardarPrefYAbrirPropuesta()}
-                  className="cdm-chip cursor-pointer border border-cdm-accent/60 bg-cdm-accent/15 px-6 py-3 text-sm font-medium uppercase tracking-wider text-cdm-accent transition-colors hover:bg-cdm-accent/25 shadow-[0_0_18px_-6px_rgba(34,211,238,0.55)] disabled:cursor-not-allowed disabled:opacity-50"
+                  className="font-mono-hud cursor-pointer rounded-full border border-cdm-accent/60 bg-cdm-accent/15 px-6 py-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-cdm-accent transition-colors hover:bg-cdm-accent/25 shadow-[0_0_18px_-6px_rgba(34,211,238,0.55)] disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {guardandoPrefEnNube
                     ? "Guardando en la nube…"
                     : "Continuar a propuesta comercial"}
                 </button>
               ) : (
-                <span className="cdm-chip inline-flex w-fit cursor-not-allowed items-center justify-center border border-cdm-line px-6 py-3 text-sm font-medium uppercase tracking-wider text-cdm-muted opacity-60">
+                <span className="font-mono-hud inline-flex w-fit cursor-not-allowed items-center justify-center rounded-full border border-cdm-line px-6 py-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-cdm-muted opacity-60">
                   Continuar a propuesta (falta cotización USD)
                 </span>
               )}
