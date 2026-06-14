@@ -84,18 +84,37 @@ export function cotizar(entrada: EntradaCotizacion): CotizacionCalculada {
         i.precios.sismat != null &&
         i.precios.internet != null
     )
-    .map((i) => ({
-      item: i.nombre,
-      sismat: i.precios.sismat!.valor,
-      internet: i.precios.internet!.valor,
-      divergencia_pct: i.divergencia_pct!,
-      nivel:
-        i.divergencia_pct! >= UMBRAL_DIVERGENCIA_CRITICA_PCT
-          ? ("critica" as const)
-          : ("marca" as const),
-      fuente_sismat: i.precios.sismat!.fuente,
-      fuente_internet: i.precios.internet!.fuente,
-    }));
+    .map((i) => {
+      const s = i.precios.sismat!.valor;
+      const net = i.precios.internet!.valor;
+      const ml = i.precios.mercadolibre;
+      // ML (retail) como desempate: ¿a cuál se acerca más? Equidistante = null.
+      let mlRespalda: "sismat" | "internet" | null = null;
+      if (ml) {
+        const dS = Math.abs(ml.valor - s);
+        const dN = Math.abs(ml.valor - net);
+        mlRespalda = dS === dN ? null : dS < dN ? "sismat" : "internet";
+      }
+      return {
+        item: i.nombre,
+        sismat: s,
+        internet: net,
+        divergencia_pct: i.divergencia_pct!,
+        nivel:
+          i.divergencia_pct! >= UMBRAL_DIVERGENCIA_CRITICA_PCT
+            ? ("critica" as const)
+            : ("marca" as const),
+        fuente_sismat: i.precios.sismat!.fuente,
+        fuente_internet: i.precios.internet!.fuente,
+        ...(ml
+          ? {
+              mercadolibre: ml.valor,
+              fuente_mercadolibre: ml.fuente,
+              ml_respalda: mlRespalda,
+            }
+          : {}),
+      };
+    });
 
   const revision: Revision = {
     checklist: evaluarChecklist({

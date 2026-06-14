@@ -110,6 +110,41 @@ describe("cotizar (orquestador)", () => {
     expect(d.fuente_sismat).toBe("Excavación sótano a máquina");
   });
 
+  it("ML desempata la divergencia: marca a quién le da la razón el mercado", () => {
+    const r = cotizar({
+      ...entrada("2026-06-12"),
+      precios: {
+        "Latex interior 20L": {
+          sismat: { valor: 62043, fuente: "Excavación sótano a máquina", fecha: "2026-06-08" },
+          internet: { valor: 25000, fuente: "easy.com.ar", fecha: "2026-06-11" },
+          mercadolibre: { valor: 27000, fuente: "MercadoLibre (ref. retail)", fecha: "2026-06-12" },
+        },
+        "Pintor por m2": { sismat: { valor: 5500, fuente: "SISMAT", fecha: "2026-06-08" } },
+      },
+    });
+    const d = r.revision.divergencias.find((x) => x.item === "Latex interior 20L")!;
+    expect(d.mercadolibre).toBe(27000);
+    expect(d.fuente_mercadolibre).toBe("MercadoLibre (ref. retail)");
+    expect(d.ml_respalda).toBe("internet"); // 27k está mucho más cerca de 25k que de 62k
+  });
+
+  it("ML es referencia: NO entra en el total ni en los subtotales", () => {
+    const base = cotizar(entrada("2026-06-12"));
+    const conMl = cotizar({
+      ...entrada("2026-06-12"),
+      precios: {
+        ...PRECIOS,
+        "Latex interior 20L": {
+          ...PRECIOS["Latex interior 20L"],
+          // Un ML absurdo no debe mover el total (es solo referencia de mesa).
+          mercadolibre: { valor: 999999, fuente: "MercadoLibre (ref. retail)", fecha: "2026-06-12" },
+        },
+      },
+    });
+    expect(conMl.total_min).toBe(base.total_min);
+    expect(conMl.total_max).toBe(base.total_max);
+  });
+
   it("corre checklist y sanidad y pasa las dudas", () => {
     const flete = resultado.revision.checklist.find((c) => c.item === "flete")!;
     expect(flete.estado).toBe("cubierto");
