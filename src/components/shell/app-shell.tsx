@@ -8,43 +8,18 @@ import { useTheme } from "next-themes";
 import { RavnLogo } from "@/components/ravn-logo";
 import { createClient } from "@/lib/supabase/client";
 import { useRealtimeTable } from "@/hooks/use-realtime-table";
+import { MenuOverlay } from "./menu-overlay";
+import {
+  NAV_COCKPIT,
+  NAV_DATOS,
+  NAV_HERRAMIENTAS,
+  type NavItem,
+} from "./nav-config";
 
 /** Rutas SIN carcasa (login, vistas de impresión/PDF y landing pública). */
 const SIN_CARCASA = ["/login", "/propuesta", "/remito", "/landing"];
 /** Sufijos de ruta que también omiten carcasa (documentos A4 de cotizaciones). */
 const SIN_CARCASA_SUFIJO = ["/documento"];
-
-type NavItem = { href: string; label: string };
-
-const NAV_COCKPIT: NavItem[] = [
-  { href: "/", label: "Inicio" },
-  { href: "/dia", label: "Tu Día" },
-  { href: "/terminal", label: "Terminal" },
-  { href: "/obras", label: "Proyectos" },
-  { href: "/cotizaciones", label: "Cotizaciones" },
-  { href: "/actividad", label: "Actividad" },
-  { href: "/archivados", label: "Archivados" },
-  { href: "/adn", label: "ADN" },
-];
-
-const NAV_DATOS: NavItem[] = [
-  { href: "/cashflow", label: "Cashflow" },
-  { href: "/control-gastos", label: "Control de gastos" },
-  { href: "/rentabilidad", label: "Rentabilidad" },
-  { href: "/finanzas", label: "Finanzas personales" },
-];
-
-/**
- * Herramientas de edición manual: el flujo principal del cockpit es el
- * diálogo (los presupuestos se elaboran conversando) — esto queda al fondo,
- * colapsado y visualmente secundario.
- */
-const NAV_HERRAMIENTAS: NavItem[] = [
-  { href: "/nuevo-presupuesto", label: "Nuevo presupuesto" },
-  { href: "/historial", label: "Historial" },
-  { href: "/catalogo", label: "Catálogo" },
-  { href: "/maestro-precios", label: "Maestro de precios" },
-];
 
 function NavLink({
   item,
@@ -119,6 +94,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const [archivados, setArchivados] = useState(0);
+  const [menuAbierto, setMenuAbierto] = useState(false);
+
+  // Cierra el overlay al cambiar de ruta (navegaste → fuera el menú).
+  useEffect(() => {
+    setMenuAbierto(false);
+  }, [pathname]);
 
   const esActivo = useCallback(
     (href: string) =>
@@ -167,7 +148,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     <div className="min-h-screen bg-cdm-bg">
       {/* Sidebar HUD: translúcido + blur sobre el shader del cockpit; marca con glow sutil */}
       <aside className="font-grotesk fixed inset-y-0 left-0 z-40 hidden w-60 flex-col border-r border-cdm-line bg-cdm-bg/75 backdrop-blur-xl lg:flex print:hidden">
-        <div className="px-5 pb-9 pt-10">
+        <div className="px-5 pb-6 pt-10">
           <Link href="/" aria-label="Inicio">
             <RavnLogo
               align="start"
@@ -177,6 +158,21 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               className="drop-shadow-[0_0_18px_rgba(34,211,238,0.30)]"
             />
           </Link>
+          {/* Disparador del menú overlay grande (formato B) */}
+          <button
+            type="button"
+            onClick={() => setMenuAbierto(true)}
+            aria-haspopup="dialog"
+            aria-expanded={menuAbierto}
+            className="font-mono-hud group mt-5 flex w-full items-center gap-2.5 text-left text-[10px] uppercase tracking-[0.2em] text-cdm-muted transition-colors hover:text-cdm-accent"
+          >
+            <span aria-hidden className="flex flex-col gap-[3px]">
+              <span className="block h-px w-4 bg-current transition-all duration-300 group-hover:w-5" />
+              <span className="block h-px w-3 bg-current transition-all duration-300 group-hover:w-5" />
+              <span className="block h-px w-4 bg-current transition-all duration-300 group-hover:w-5" />
+            </span>
+            Menú
+          </button>
         </div>
         <nav
           className="flex flex-1 flex-col overflow-y-auto"
@@ -267,15 +263,29 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             sizeClassName="text-base"
           />
         </Link>
-        <Link
-          href="/archivados"
-          className="text-[10px] uppercase tracking-[0.2em] text-cdm-muted"
+        <button
+          type="button"
+          onClick={() => setMenuAbierto(true)}
+          aria-haspopup="dialog"
+          aria-expanded={menuAbierto}
+          className="font-mono-hud flex items-center gap-2 text-[10px] uppercase tracking-[0.2em] text-cdm-muted"
         >
-          Archivados{archivados > 0 ? ` (${archivados})` : ""}
-        </Link>
+          <span aria-hidden className="flex flex-col gap-[3px]">
+            <span className="block h-px w-4 bg-current" />
+            <span className="block h-px w-3 bg-current" />
+            <span className="block h-px w-4 bg-current" />
+          </span>
+          Menú
+        </button>
       </header>
 
       <main className="min-w-0 lg:pl-60 print:pl-0">{children}</main>
+
+      <MenuOverlay
+        open={menuAbierto}
+        onClose={() => setMenuAbierto(false)}
+        onCerrarSesion={cerrarSesion}
+      />
     </div>
   );
 }
