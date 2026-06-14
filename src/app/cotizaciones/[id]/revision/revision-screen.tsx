@@ -325,8 +325,9 @@ export function RevisionScreen({ id }: { id: string }) {
                     <tbody className="divide-y divide-cdm-line">
                       {desglose.items.map((it, i) => {
                         const divergente = it.divergencia_pct != null && it.divergencia_pct > 25;
+                        const critica = it.divergencia_pct != null && it.divergencia_pct >= 100;
                         return (
-                          <tr key={i} className={divergente ? "bg-red-400/5" : undefined}>
+                          <tr key={i} className={critica ? "bg-red-400/15" : divergente ? "bg-red-400/5" : undefined}>
                             <td className="py-2 pr-3 text-cdm-muted">{it.etapa}</td>
                             <td className="py-2 pr-3">
                               {it.nombre}
@@ -350,7 +351,9 @@ export function RevisionScreen({ id }: { id: string }) {
                             <td
                               className={`py-2 pr-3 text-right tabular-nums ${divergente ? "font-semibold text-red-400" : "text-cdm-muted"}`}
                             >
-                              {it.divergencia_pct != null ? `${it.divergencia_pct}%` : "—"}
+                              {it.divergencia_pct != null
+                                ? `${critica ? "⚠ " : ""}${it.divergencia_pct}%`
+                                : "—"}
                             </td>
                             <td className="py-2 text-right tabular-nums">
                               {it.sin_precio
@@ -427,6 +430,60 @@ export function RevisionScreen({ id }: { id: string }) {
 
             {revision && (
               <>
+                {revision.divergencias.length > 0 && (
+                  <Seccion
+                    titulo={`Divergencia SISMAT vs internet${
+                      revision.divergencias.some((d) => d.nivel === "critica")
+                        ? " — ⚠ HAY CRÍTICAS"
+                        : ""
+                    }`}
+                  >
+                    <ul className="space-y-2 text-xs">
+                      {revision.divergencias.map((d, i) => {
+                        const critica = d.nivel === "critica";
+                        return (
+                          <li
+                            key={i}
+                            className={`rounded-lg border p-2.5 ${
+                              critica
+                                ? "border-red-400/50 bg-red-400/10"
+                                : "border-amber-300/40 bg-amber-300/[0.06]"
+                            }`}
+                          >
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="font-semibold">{d.item}</span>
+                              <span
+                                className={`font-mono-hud text-[10px] font-bold uppercase tracking-[0.12em] ${
+                                  critica ? "text-red-400" : "text-amber-300"
+                                }`}
+                              >
+                                {critica ? `⚠ ${d.divergencia_pct}%` : `${d.divergencia_pct}%`}
+                              </span>
+                            </div>
+                            <div className="mt-1 grid grid-cols-1 gap-1 text-[11px] text-cdm-muted sm:grid-cols-2">
+                              <span>
+                                SISMAT {formatMoneyInt(d.sismat)}{" "}
+                                <span className="opacity-70">· {d.fuente_sismat}</span>
+                              </span>
+                              <span>
+                                Internet {formatMoneyInt(d.internet)}{" "}
+                                <span className="opacity-70">· {d.fuente_internet}</span>
+                              </span>
+                            </div>
+                            {critica && (
+                              <p className="mt-1.5 text-[10px] leading-snug text-red-300/90">
+                                Una fuente es ≥2x la otra — casi siempre es un ítem SISMAT que no
+                                corresponde al laburo. Verificá que “{d.fuente_sismat}” sea
+                                realmente lo que va antes de aprobar.
+                              </p>
+                            )}
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  </Seccion>
+                )}
+
                 <Seccion titulo="Checklist anti-olvidos">
                   <ul className="space-y-1 text-xs">
                     {revision.checklist.map((c, i) => (

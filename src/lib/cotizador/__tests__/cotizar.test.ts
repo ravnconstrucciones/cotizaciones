@@ -78,10 +78,36 @@ describe("cotizar (orquestador)", () => {
     expect(resultado.desglose.tiempo).toEqual({ dias_min: 3, dias_max: 5, cuadrilla_max: 2 });
   });
 
-  it("marca las divergencias >25% para la mesa", () => {
+  it("marca las divergencias >25% para la mesa (nivel + fuentes)", () => {
     expect(resultado.revision.divergencias).toEqual([
-      { item: "Latex interior 20L", sismat: 90000, internet: 120000, divergencia_pct: 33.3 },
+      {
+        item: "Latex interior 20L",
+        sismat: 90000,
+        internet: 120000,
+        divergencia_pct: 33.3,
+        nivel: "marca",
+        fuente_sismat: "SISMAT",
+        fuente_internet: "easy.com.ar",
+      },
     ]);
+  });
+
+  it("marca CRÍTICA cuando una fuente es ≥2x la otra (caso pileta)", () => {
+    // SISMAT 62.043 vs internet 25.000 → 148% → crítica (ítem equivocado).
+    const r = cotizar({
+      ...entrada("2026-06-12"),
+      precios: {
+        "Latex interior 20L": {
+          sismat: { valor: 62043, fuente: "Excavación sótano a máquina", fecha: "2026-06-08" },
+          internet: { valor: 25000, fuente: "easy.com.ar", fecha: "2026-06-11" },
+        },
+        "Pintor por m2": { sismat: { valor: 5500, fuente: "SISMAT", fecha: "2026-06-08" } },
+      },
+    });
+    const d = r.revision.divergencias.find((x) => x.item === "Latex interior 20L")!;
+    expect(d.nivel).toBe("critica");
+    expect(d.divergencia_pct).toBeGreaterThanOrEqual(100);
+    expect(d.fuente_sismat).toBe("Excavación sótano a máquina");
   });
 
   it("corre checklist y sanidad y pasa las dudas", () => {

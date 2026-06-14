@@ -172,6 +172,15 @@ export type Divergencia = {
   sismat: number;
   internet: number;
   divergencia_pct: number;
+  /**
+   * "marca" (>25%): revisar. "critica" (>=100%, uno es ≥2x el otro): hace
+   * RUIDO — casi siempre es un ítem SISMAT equivocado para el laburo (el caso
+   * pileta: "excavación de sótano a máquina" usada para excavar una pileta).
+   */
+  nivel: "marca" | "critica";
+  /** De dónde salió cada precio — para cazar el ítem equivocado de un vistazo. */
+  fuente_sismat: string;
+  fuente_internet: string;
 };
 
 /** Datos del documento final (los carga Eze al emitir desde la mesa). */

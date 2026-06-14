@@ -18,6 +18,15 @@ export const IMPREVISTOS_DEFAULT_PCT = 10;
 /** Umbral de divergencia SISMAT vs internet que se marca en la mesa (§6.4). */
 export const UMBRAL_DIVERGENCIA_PCT = 25;
 
+/**
+ * Umbral CRÍTICO: uno de los precios es ≥2x el otro (divergencia ≥100%). Hace
+ * RUIDO fuerte en la mesa — casi siempre es un ítem SISMAT equivocado para el
+ * laburo (el caso pileta: "excavación de sótano a máquina" $62k/m³ usada para
+ * excavar una pileta, vs mercado $25k/m³ = 148%). Se eligió 100% y no el "200%"
+ * literal que pidió Eze porque su peor error fue 148% y con 200% se escapaba.
+ */
+export const UMBRAL_DIVERGENCIA_CRITICA_PCT = 100;
+
 export class FaltanParametrosError extends Error {
   faltan: string[];
   constructor(faltan: string[]) {
@@ -80,6 +89,12 @@ export function cotizar(entrada: EntradaCotizacion): CotizacionCalculada {
       sismat: i.precios.sismat!.valor,
       internet: i.precios.internet!.valor,
       divergencia_pct: i.divergencia_pct!,
+      nivel:
+        i.divergencia_pct! >= UMBRAL_DIVERGENCIA_CRITICA_PCT
+          ? ("critica" as const)
+          : ("marca" as const),
+      fuente_sismat: i.precios.sismat!.fuente,
+      fuente_internet: i.precios.internet!.fuente,
     }));
 
   const revision: Revision = {
