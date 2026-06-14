@@ -30,11 +30,16 @@
 10. **Tanda 5 — MERCADOLIBRE** — ML como TERCER precio de REFERENCIA (NO toca el total): `tipos.ts` (PrecioItem.mercadolibre + Divergencia.{mercadolibre,ml_respalda}), `cotizar.ts` (desempate: a cuál se acerca ML), `mercadolibre.ts` (fetch mediana, timeout, falla en silencio, soporta `ML_ACCESS_TOKEN`), daemon CLI `scripts/cotizador/instanciar.ts` (enriquece materiales con doble precio), mesa: columna "ML ref." + línea de desempate. +10 tests. **OJO: ML cerró el search anónimo (403)** → no devuelve nada hasta registrar app en developers.mercadolibre.com.ar y setear `ML_ACCESS_TOKEN` donde corre el daemon. Sin token todo sigue igual (columna vacía).
 11. **Tanda 6 — CARDS ROLLOUT (wave 1)** — convertidas al lenguaje cards/Geist (matcheando la galería): **cotizaciones, actividad, archivados, dia**. Build + typecheck + 236 tests OK.
 
-## TANDA 6 — PENDIENTE (NO tocadas a ciegas, riesgo de romper funcionalidad)
-Faltan 6 pantallas. NO las convertí solo porque rompen fácil y conviene hacerlas con Eze mirando el resultado:
-- **DATA-ENTRY grids (riesgo plata/datos):** `maestro-precios` (752 líneas, grid editable $/m²), `finanzas` (393, inline edits), `control-gastos` (731, charts + tablas), `rentabilidad` (1629, 8 secciones, lo más pesado).
-- **Especiales:** `terminal` (532, chat realtime + reconocimiento de voz), `adn` (343, galería + Monolito3D lazy).
-- **Receta (probada en wave 1):** mantener tema oscuro `bg-cdm-bg`, `font-grotesk`→`font-geist`, header grande Geist + sublabel `font-mono-hud`, `.cdm-glass`→cards `rounded-[24px] ring-1 ring-cdm-line bg-white/60 dark:bg-zinc-900/40`, micro-labels mono, reveals Framer Motion. PRESERVAR toda la lógica. Un subagente Sonnet por pantalla, archivos distintos en paralelo, después `npx tsc --noEmit` + `npm run build` + push.
+## HECHO Y PUSHEADO ✅ (sesión 2026-06-14 noche — review en vivo con Eze)
+12. **Galería Proyectos — tachito + limpieza:** botón × por card en "Todas" (DELETE /api/presupuestos/[id], borrado seguro con FKs) + ya borradas las 19 de muestra "Ezequiel Otero". Quedan 11 presupuestos (3 obras reales + 8 de cliente real). OJO: las 8 reales (Empresa gastos generales [APROB], Lagomarsino, Consorcio, Sliding, Intendencia x5) NO se borraron — Eze decide.
+13. **Nav:** sacado "Nuevo presupuesto" (sigue accesible desde Rentabilidad/Propuesta). "Catálogo" → label **"SISMAT"**. "Historial" sacado del nav (redundante con Proyectos; los docs ya están en el orbital). Archivos `/historial` y `/nuevo-presupuesto` siguen existiendo, solo no están en el menú.
+14. **Botón "Generar diagnóstico"** en el orbital `/obras/[id]` → `POST /api/obras/[id]/diagnostico` encola un `orden` que la Mac arma + adjunta a la obra (obra_archivos tipo=diagnostico). ⚠️ FALTA VERIFICAR end-to-end: el lado daemon (que genere + adjunte de verdad) no se probó con la Mac. Si genera pero no engancha, afinar el prompt/daemon.
+15. **Tanda 6 — CARDS ROLLOUT casi completa:** convertidas cotizaciones, actividad, archivados, dia, catalogo(SISMAT), maestro-precios (wave 1+catalogo/maestro) + rentabilidad, finanzas, control-gastos, adn (wave 2). Todas: build + 236 tests OK.
+
+## PENDIENTE
+- **terminal** (`/terminal`): única pantalla sin convertir — a propósito (es una terminal, su estética mono es intencional). Eze tiene que decidir si igual la quiere en cards.
+- **ML (Tanda 5):** parkeado por Eze "hasta el final". Código listo; falta registrar app en developers.mercadolibre.com.ar (el menú "Mis aplicaciones" no le aparecía → quizás falta aceptar términos de developer) y setear `ML_ACCESS_TOKEN`.
+- **Receta de conversión (probada): ** tema oscuro `bg-cdm-bg`, `font-grotesk`→`font-geist`, header grande Geist + sublabel `font-mono-hud`, `.cdm-glass`→cards `rounded-[24px] ring-1 ring-cdm-line bg-white/60 dark:bg-zinc-900/40`, pills mono, números `tabular-nums`. Subagente Sonnet por pantalla, theme-only sin tocar lógica, después tsc+build+push.
 
 ## GOTCHAS
 - iCloud rompe `.next`: ENOENT → `rm -rf .next && ln -s .next.nosync .next`.
