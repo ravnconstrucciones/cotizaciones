@@ -34,15 +34,15 @@ import { readVaultFile } from "@/lib/vault";
  * El emoji/título reales salen del H1 del .md; los de acá son sólo fallback
  * por si el archivo no carga (degradación elegante, no pantalla en blanco).
  */
+// Tu Día queda enfocado en empresa + base operativa. Se sacaron las áreas de
+// ocio personal (Música y Arte, Vínculos, Disfrute) por pedido de Eze. Cuerpo /
+// Mente / Finanzas personales se mantienen (base que sostiene la ejecución).
 export const AREAS_ORDEN = [
   { archivo: "Negocio", emojiFallback: "🏗️", grupo: "Negocio" },
   { archivo: "Construcción y Reformas", emojiFallback: "🧱", grupo: "Negocio" },
   { archivo: "Cuerpo", emojiFallback: "💪", grupo: "Vida" },
   { archivo: "Mente e Identidad", emojiFallback: "🧠", grupo: "Vida" },
-  { archivo: "Música y Arte", emojiFallback: "🎹", grupo: "Vida" },
-  { archivo: "Vínculos", emojiFallback: "🤝", grupo: "Vida" },
   { archivo: "Finanzas personales", emojiFallback: "💰", grupo: "Vida" },
-  { archivo: "Disfrute", emojiFallback: "🌅", grupo: "Vida" },
 ] as const;
 
 export type AreaSlug = (typeof AREAS_ORDEN)[number]["archivo"];
