@@ -55,7 +55,7 @@ function PriceCell({
       type="text"
       inputMode="decimal"
       disabled={disabled}
-      className="w-full min-w-[6rem] rounded-none border border-ravn-line bg-ravn-surface px-3 py-2 text-right text-sm text-ravn-fg focus-visible:border-ravn-fg focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ravn-fg disabled:opacity-50"
+      className="font-geist w-full min-w-[6rem] rounded-xl border border-cdm-line bg-transparent px-3 py-2 text-right text-[13px] tabular-nums text-cdm-fg focus-visible:border-cdm-accent/50 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-cdm-accent/40 disabled:opacity-50"
       value={display}
       onFocus={() => {
         setFocused(true);
@@ -151,27 +151,27 @@ function NuevoRubroModal({
     >
       <button
         type="button"
-        className="absolute inset-0 bg-ravn-fg/40 backdrop-blur-sm"
+        className="absolute inset-0 bg-cdm-fg/30 backdrop-blur-sm"
         aria-label="Cerrar"
         onClick={handleClose}
       />
-      <div className="relative z-10 w-full max-w-md rounded-none border-2 border-ravn-line bg-ravn-surface p-8">
+      <div className="relative z-10 w-full max-w-md rounded-[24px] p-8 ring-1 ring-cdm-line bg-white/80 dark:bg-zinc-900/80 backdrop-blur-md">
         <h2
           id="nuevo-rubro-titulo"
-          className="font-raleway text-lg font-medium uppercase tracking-wide text-ravn-fg"
+          className="font-geist text-xl font-semibold tracking-tight text-cdm-fg"
         >
           Nuevo rubro
         </h2>
-        <form onSubmit={(e) => void handleSubmit(e)} className="mt-8 space-y-5">
+        <form onSubmit={(e) => void handleSubmit(e)} className="mt-6 space-y-5">
           {localError ? (
-            <p className="rounded-none border border-ravn-accent bg-ravn-accent px-3 py-2 text-sm text-ravn-accent-contrast">
+            <p className="rounded-xl bg-red-400/10 px-3 py-2 text-[12px] text-red-400 ring-1 ring-red-400/30">
               {localError}
             </p>
           ) : null}
           <div>
             <label
               htmlFor="rubro-id-input"
-              className="mb-2 block text-xs font-medium uppercase tracking-wider text-ravn-muted"
+              className="font-mono-hud mb-2 block text-[10px] uppercase tracking-[0.14em] text-cdm-muted"
             >
               Número (ID)
             </label>
@@ -181,7 +181,7 @@ function NuevoRubroModal({
               inputMode="numeric"
               value={idInput}
               onChange={(e) => setIdInput(e.target.value)}
-              className="w-full rounded-none border border-ravn-line bg-ravn-surface px-4 py-3 text-sm text-ravn-fg focus-visible:border-ravn-fg focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ravn-fg"
+              className="font-geist w-full rounded-xl border border-cdm-line bg-transparent px-4 py-3 text-sm text-cdm-fg focus-visible:border-cdm-accent/50 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-cdm-accent/40"
               placeholder="Ej. 1, 2, 10…"
               required
             />
@@ -189,7 +189,7 @@ function NuevoRubroModal({
           <div>
             <label
               htmlFor="rubro-nombre-input"
-              className="mb-2 block text-xs font-medium uppercase tracking-wider text-ravn-muted"
+              className="font-mono-hud mb-2 block text-[10px] uppercase tracking-[0.14em] text-cdm-muted"
             >
               Nombre descriptivo
             </label>
@@ -198,7 +198,7 @@ function NuevoRubroModal({
               type="text"
               value={nombre}
               onChange={(e) => setNombre(e.target.value)}
-              className="w-full rounded-none border border-ravn-line bg-ravn-surface px-4 py-3 text-sm text-ravn-fg focus-visible:border-ravn-fg focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ravn-fg"
+              className="font-geist w-full rounded-xl border border-cdm-line bg-transparent px-4 py-3 text-sm text-cdm-fg focus-visible:border-cdm-accent/50 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-cdm-accent/40"
               placeholder="Nombre del rubro"
               required
             />
@@ -208,14 +208,14 @@ function NuevoRubroModal({
               type="button"
               onClick={handleClose}
               disabled={saving}
-              className="rounded-none border-2 border-ravn-line bg-ravn-surface px-5 py-3 text-sm font-medium uppercase tracking-wider text-ravn-fg transition-colors hover:bg-ravn-subtle disabled:opacity-50"
+              className="font-mono-hud inline-flex items-center justify-center rounded-full px-4 py-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-cdm-muted ring-1 ring-cdm-line transition-colors hover:text-cdm-fg hover:ring-cdm-accent/30 disabled:opacity-50"
             >
               Cancelar
             </button>
             <button
               type="submit"
               disabled={saving}
-              className="rounded-none border-2 border-ravn-accent bg-ravn-accent px-5 py-3 text-sm font-medium uppercase tracking-wider text-ravn-accent-contrast transition-opacity hover:opacity-90 disabled:opacity-50"
+              className="font-mono-hud inline-flex items-center justify-center rounded-full bg-cdm-accent/10 px-4 py-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-cdm-accent ring-1 ring-cdm-accent/50 transition-colors hover:bg-cdm-accent/20 disabled:opacity-50"
             >
               {saving ? "Guardando…" : "Confirmar"}
             </button>
@@ -524,22 +524,25 @@ export function CatalogoScreen() {
     }
   }
 
-  const tabBtn = (id: CatalogTab, label: string) => (
-    <button
-      type="button"
-      onClick={() => setTab(id)}
-      className={`rounded-none border-2 px-5 py-3 text-sm font-medium uppercase tracking-wider transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ravn-fg ${
-        tab === id
-          ? "border-ravn-accent bg-ravn-accent text-ravn-accent-contrast"
-          : "border-ravn-line bg-ravn-surface text-ravn-muted hover:border-ravn-fg hover:text-ravn-fg"
-      }`}
-    >
-      {label}
-    </button>
-  );
+  const tabBtn = (id: CatalogTab, label: string) => {
+    const activo = tab === id;
+    return (
+      <button
+        type="button"
+        onClick={() => setTab(id)}
+        className={`font-mono-hud inline-flex items-center rounded-full px-3.5 py-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] ring-1 transition-colors ${
+          activo
+            ? "bg-cdm-accent/10 text-cdm-accent ring-cdm-accent/50"
+            : "text-cdm-muted ring-cdm-line hover:text-cdm-fg hover:ring-cdm-accent/30"
+        }`}
+      >
+        {label}
+      </button>
+    );
+  };
 
   return (
-    <div className="min-h-screen bg-ravn-surface px-8 pb-16 pr-20 pt-16 text-ravn-fg">
+    <div className="font-geist relative min-h-screen bg-cdm-bg text-cdm-fg">
       <CatalogToast
         message={toast?.message ?? null}
         variant={toast?.variant ?? "error"}
@@ -554,101 +557,73 @@ export function CatalogoScreen() {
         }}
       />
 
-      <Link
-        href="/"
-        className="mb-8 inline-block text-sm font-light text-ravn-muted underline-offset-4 hover:text-ravn-fg hover:underline"
-      >
-        Volver al inicio
-      </Link>
+      {/* Header */}
+      <header className="relative z-10 flex items-baseline justify-between px-6 pt-8 md:px-10">
+        <div>
+          <h1 className="font-geist text-3xl font-semibold tracking-tight text-cdm-fg">
+            Catálogo
+          </h1>
+          <p className="font-mono-hud mt-1 text-[11px] uppercase tracking-[0.18em] text-cdm-muted">
+            Recetas &amp; rubros
+          </p>
+        </div>
+        <Link
+          href="/"
+          className="font-mono-hud text-[10px] uppercase tracking-[0.14em] text-cdm-muted transition-colors hover:text-cdm-fg"
+        >
+          ← Inicio
+        </Link>
+      </header>
 
-      <h1 className="font-raleway text-2xl font-medium uppercase tracking-tight">
-        Gestión de catálogo
-      </h1>
-      <p className="mt-2 max-w-2xl text-sm text-ravn-muted">
-        Administración de ítems (recetas) y rubros (categorías).
-      </p>
-
-      <div className="mt-8 flex flex-wrap gap-3 border-b border-ravn-line pb-6">
+      {/* Tabs */}
+      <div className="relative z-10 flex flex-wrap gap-2 px-6 pt-6 md:px-10">
         {tabBtn("items", "Ítems (recetas)")}
         {tabBtn("rubros", "Rubros")}
       </div>
 
+      {/* Error global */}
       {error ? (
-        <div
-          role="alert"
-          className="mt-6 rounded-none border border-ravn-accent bg-ravn-accent px-4 py-3 text-sm text-ravn-accent-contrast"
-        >
+        <p className="px-6 pt-4 text-[12px] text-red-400 md:px-10" role="alert">
           {error}
-        </div>
+        </p>
       ) : null}
 
-      {tab === "items" ? (
-        <>
-          <div className="mt-8 flex flex-col gap-4 md:flex-row md:flex-wrap md:items-end">
-            <div className="min-w-[200px] flex-1">
-              <label
-                htmlFor="catalogo-buscar"
-                className="mb-2 block text-xs font-medium uppercase tracking-wider text-ravn-muted"
-              >
-                Buscar por nombre
-              </label>
-              <input
-                id="catalogo-buscar"
-                type="search"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Nombre del ítem…"
-                className="w-full rounded-none border border-ravn-line bg-ravn-surface px-4 py-3 text-sm text-ravn-fg placeholder:text-ravn-muted focus-visible:border-ravn-fg focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ravn-fg"
-              />
-            </div>
-            <div className="min-w-[180px]">
-              <label
-                htmlFor="catalogo-rubro"
-                className="mb-2 block text-xs font-medium uppercase tracking-wider text-ravn-muted"
-              >
-                Rubro
-              </label>
-              <select
-                id="catalogo-rubro"
-                value={rubroFilter}
-                onChange={(e) => setRubroFilter(e.target.value)}
-                className="w-full rounded-none border border-ravn-line bg-ravn-surface px-4 py-3 text-sm text-ravn-fg focus-visible:border-ravn-fg focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ravn-fg"
-              >
-                <option value="">Todos los rubros</option>
-                {rubrosSorted.map((r) => (
-                  <option key={String(r.id)} value={String(r.id)}>
-                    {formatRubroName(r.nombre)}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <button
-              type="button"
-              onClick={() => setShowForm((s) => !s)}
-              className="rounded-none border-2 border-ravn-accent bg-ravn-accent px-5 py-3 text-sm font-medium uppercase tracking-wider text-ravn-accent-contrast transition-opacity hover:opacity-80 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ravn-fg"
-            >
-              {showForm ? "Cerrar formulario" : "Nuevo ítem"}
-            </button>
-          </div>
-
-          {showForm ? (
-            <form
-              onSubmit={(e) => void handleCreateReceta(e)}
-              className="mt-8 grid max-w-4xl gap-4 rounded-none border border-ravn-line p-6 md:grid-cols-2"
-            >
-              <div className="md:col-span-2">
-                <label className="mb-2 block text-xs font-medium uppercase tracking-wider text-ravn-muted">
+      {/* Contenido */}
+      <div className="relative z-10 px-6 pt-8 pb-24 md:px-10">
+        {tab === "items" ? (
+          <>
+            {/* Filtros + botón nuevo */}
+            <div className="flex flex-col gap-4 md:flex-row md:flex-wrap md:items-end">
+              <div className="min-w-[200px] flex-1">
+                <label
+                  htmlFor="catalogo-buscar"
+                  className="font-mono-hud mb-2 block text-[10px] uppercase tracking-[0.14em] text-cdm-muted"
+                >
+                  Buscar por nombre
+                </label>
+                <input
+                  id="catalogo-buscar"
+                  type="search"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Nombre del ítem…"
+                  className="font-geist w-full rounded-xl border border-cdm-line bg-white/60 px-4 py-2.5 text-sm text-cdm-fg placeholder:text-cdm-muted focus-visible:border-cdm-accent/50 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-cdm-accent/40 dark:bg-zinc-900/40"
+                />
+              </div>
+              <div className="min-w-[180px]">
+                <label
+                  htmlFor="catalogo-rubro"
+                  className="font-mono-hud mb-2 block text-[10px] uppercase tracking-[0.14em] text-cdm-muted"
+                >
                   Rubro
                 </label>
                 <select
-                  required
-                  value={draft.rubro_id}
-                  onChange={(e) =>
-                    setDraft((d) => ({ ...d, rubro_id: e.target.value }))
-                  }
-                  className="w-full rounded-none border border-ravn-line bg-ravn-surface px-4 py-3 text-sm text-ravn-fg"
+                  id="catalogo-rubro"
+                  value={rubroFilter}
+                  onChange={(e) => setRubroFilter(e.target.value)}
+                  className="font-geist w-full rounded-xl border border-cdm-line bg-white/60 px-4 py-2.5 text-sm text-cdm-fg focus-visible:border-cdm-accent/50 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-cdm-accent/40 dark:bg-zinc-900/40"
                 >
-                  <option value="">Seleccionar…</option>
+                  <option value="">Todos los rubros</option>
                   {rubrosSorted.map((r) => (
                     <option key={String(r.id)} value={String(r.id)}>
                       {formatRubroName(r.nombre)}
@@ -656,294 +631,335 @@ export function CatalogoScreen() {
                   ))}
                 </select>
               </div>
-              <div>
-                <label className="mb-2 block text-xs font-medium uppercase tracking-wider text-ravn-muted">
-                  Nombre del ítem
-                </label>
-                <input
-                  required
-                  value={draft.nombre_item}
-                  onChange={(e) =>
-                    setDraft((d) => ({ ...d, nombre_item: e.target.value }))
-                  }
-                  className="w-full rounded-none border border-ravn-line bg-ravn-surface px-4 py-3 text-sm text-ravn-fg"
-                />
-              </div>
-              <div>
-                <label className="mb-2 block text-xs font-medium uppercase tracking-wider text-ravn-muted">
-                  Unidad
-                </label>
-                <input
-                  required
-                  value={draft.unidad}
-                  onChange={(e) =>
-                    setDraft((d) => ({ ...d, unidad: e.target.value }))
-                  }
-                  className="w-full rounded-none border border-ravn-line bg-ravn-surface px-4 py-3 text-sm text-ravn-fg"
-                />
-              </div>
-              <div>
-                <label className="mb-2 block text-xs font-medium uppercase tracking-wider text-ravn-muted">
-                  Precio material unit.
-                </label>
-                <input
-                  value={draft.costo_base_material_unitario}
-                  onChange={(e) =>
-                    setDraft((d) => ({
-                      ...d,
-                      costo_base_material_unitario: e.target.value,
-                    }))
-                  }
-                  className="w-full rounded-none border border-ravn-line bg-ravn-surface px-4 py-3 text-sm text-ravn-fg"
-                  placeholder="0"
-                />
-              </div>
-              <div>
-                <label className="mb-2 block text-xs font-medium uppercase tracking-wider text-ravn-muted">
-                  Precio M.O. unit.
-                </label>
-                <input
-                  value={draft.costo_base_mo_unitario}
-                  onChange={(e) =>
-                    setDraft((d) => ({
-                      ...d,
-                      costo_base_mo_unitario: e.target.value,
-                    }))
-                  }
-                  className="w-full rounded-none border border-ravn-line bg-ravn-surface px-4 py-3 text-sm text-ravn-fg"
-                  placeholder="0"
-                />
-              </div>
-              <div className="md:col-span-2">
-                <button
-                  type="submit"
-                  disabled={creating}
-                  className="rounded-none border-2 border-ravn-line bg-ravn-surface px-6 py-3 text-sm font-medium uppercase tracking-wider text-ravn-fg transition-colors hover:bg-ravn-accent hover:text-ravn-accent-contrast disabled:opacity-50"
-                >
-                  {creating ? "Guardando…" : "Crear ítem"}
-                </button>
-              </div>
-            </form>
-          ) : null}
+              <button
+                type="button"
+                onClick={() => setShowForm((s) => !s)}
+                className="font-mono-hud inline-flex items-center rounded-full bg-cdm-accent/10 px-3.5 py-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-cdm-accent ring-1 ring-cdm-accent/50 transition-colors hover:bg-cdm-accent/20"
+              >
+                {showForm ? "Cerrar formulario" : "+ Nuevo ítem"}
+              </button>
+            </div>
 
-          <div className="mt-10 overflow-x-auto rounded-none border border-ravn-line border-b-0">
-            {loading ? (
-              <div className="p-8">
-                <SkeletonGlass filas={5} anchos={["w-full", "w-3/4", "w-2/3", "w-5/6", "w-1/2"]} />
-              </div>
-            ) : (
-              <table className="w-full min-w-[720px] border-collapse text-left text-sm">
-                <thead>
-                  <tr className="border-b border-t border-ravn-line bg-ravn-surface text-xs font-medium uppercase tracking-wider text-ravn-muted">
-                    <th className="border-r border-ravn-line px-4 py-3">
-                      Nombre
-                    </th>
-                    <th className="border-r border-ravn-line px-4 py-3">
-                      Rubro
-                    </th>
-                    <th className="border-r border-ravn-line px-4 py-3">
-                      Unidad
-                    </th>
-                    <th className="border-r border-ravn-line px-4 py-3 text-right">
-                      Precio material
-                    </th>
-                    <th className="border-r border-ravn-line px-4 py-3 text-right">
-                      Precio M.O.
-                    </th>
-                    <th className="w-14 px-2 py-3 text-center"> </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filtered.length === 0 ? (
-                    <tr>
-                      <td
-                        colSpan={6}
-                        className="border-b border-ravn-line px-4 py-10 text-center font-light text-ravn-muted"
-                      >
-                        No hay ítems que coincidan con los filtros.
-                      </td>
+            {/* Formulario nuevo ítem */}
+            {showForm ? (
+              <form
+                onSubmit={(e) => void handleCreateReceta(e)}
+                className="mt-6 grid max-w-4xl gap-4 rounded-[24px] p-6 ring-1 ring-cdm-line bg-white/60 dark:bg-zinc-900/40 md:grid-cols-2"
+              >
+                <div className="md:col-span-2">
+                  <label className="font-mono-hud mb-2 block text-[10px] uppercase tracking-[0.14em] text-cdm-muted">
+                    Rubro
+                  </label>
+                  <select
+                    required
+                    value={draft.rubro_id}
+                    onChange={(e) =>
+                      setDraft((d) => ({ ...d, rubro_id: e.target.value }))
+                    }
+                    className="font-geist w-full rounded-xl border border-cdm-line bg-white/60 px-4 py-2.5 text-sm text-cdm-fg dark:bg-zinc-900/40"
+                  >
+                    <option value="">Seleccionar…</option>
+                    {rubrosSorted.map((r) => (
+                      <option key={String(r.id)} value={String(r.id)}>
+                        {formatRubroName(r.nombre)}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="font-mono-hud mb-2 block text-[10px] uppercase tracking-[0.14em] text-cdm-muted">
+                    Nombre del ítem
+                  </label>
+                  <input
+                    required
+                    value={draft.nombre_item}
+                    onChange={(e) =>
+                      setDraft((d) => ({ ...d, nombre_item: e.target.value }))
+                    }
+                    className="font-geist w-full rounded-xl border border-cdm-line bg-white/60 px-4 py-2.5 text-sm text-cdm-fg dark:bg-zinc-900/40"
+                  />
+                </div>
+                <div>
+                  <label className="font-mono-hud mb-2 block text-[10px] uppercase tracking-[0.14em] text-cdm-muted">
+                    Unidad
+                  </label>
+                  <input
+                    required
+                    value={draft.unidad}
+                    onChange={(e) =>
+                      setDraft((d) => ({ ...d, unidad: e.target.value }))
+                    }
+                    className="font-geist w-full rounded-xl border border-cdm-line bg-white/60 px-4 py-2.5 text-sm text-cdm-fg dark:bg-zinc-900/40"
+                  />
+                </div>
+                <div>
+                  <label className="font-mono-hud mb-2 block text-[10px] uppercase tracking-[0.14em] text-cdm-muted">
+                    Precio material unit.
+                  </label>
+                  <input
+                    value={draft.costo_base_material_unitario}
+                    onChange={(e) =>
+                      setDraft((d) => ({
+                        ...d,
+                        costo_base_material_unitario: e.target.value,
+                      }))
+                    }
+                    className="font-geist w-full rounded-xl border border-cdm-line bg-white/60 px-4 py-2.5 text-sm text-cdm-fg dark:bg-zinc-900/40"
+                    placeholder="0"
+                  />
+                </div>
+                <div>
+                  <label className="font-mono-hud mb-2 block text-[10px] uppercase tracking-[0.14em] text-cdm-muted">
+                    Precio M.O. unit.
+                  </label>
+                  <input
+                    value={draft.costo_base_mo_unitario}
+                    onChange={(e) =>
+                      setDraft((d) => ({
+                        ...d,
+                        costo_base_mo_unitario: e.target.value,
+                      }))
+                    }
+                    className="font-geist w-full rounded-xl border border-cdm-line bg-white/60 px-4 py-2.5 text-sm text-cdm-fg dark:bg-zinc-900/40"
+                    placeholder="0"
+                  />
+                </div>
+                <div className="md:col-span-2">
+                  <button
+                    type="submit"
+                    disabled={creating}
+                    className="font-mono-hud inline-flex items-center rounded-full bg-cdm-accent/10 px-3.5 py-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-cdm-accent ring-1 ring-cdm-accent/50 transition-colors hover:bg-cdm-accent/20 disabled:opacity-50"
+                  >
+                    {creating ? "Guardando…" : "Crear ítem"}
+                  </button>
+                </div>
+              </form>
+            ) : null}
+
+            {/* Tabla ítems */}
+            <div className="mt-6 overflow-x-auto rounded-[24px] ring-1 ring-cdm-line bg-white/60 dark:bg-zinc-900/40">
+              {loading ? (
+                <div className="p-8">
+                  <SkeletonGlass filas={5} anchos={["w-full", "w-3/4", "w-2/3", "w-5/6", "w-1/2"]} />
+                </div>
+              ) : (
+                <table className="w-full min-w-[720px] border-collapse text-left text-sm">
+                  <thead>
+                    <tr className="border-b border-cdm-line">
+                      <th className="font-mono-hud border-r border-cdm-line px-4 py-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-cdm-muted">
+                        Nombre
+                      </th>
+                      <th className="font-mono-hud border-r border-cdm-line px-4 py-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-cdm-muted">
+                        Rubro
+                      </th>
+                      <th className="font-mono-hud border-r border-cdm-line px-4 py-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-cdm-muted">
+                        Unidad
+                      </th>
+                      <th className="font-mono-hud border-r border-cdm-line px-4 py-3 text-right text-[10px] font-semibold uppercase tracking-[0.14em] text-cdm-muted">
+                        Precio material
+                      </th>
+                      <th className="font-mono-hud border-r border-cdm-line px-4 py-3 text-right text-[10px] font-semibold uppercase tracking-[0.14em] text-cdm-muted">
+                        Precio M.O.
+                      </th>
+                      <th className="w-14 px-2 py-3 text-center"> </th>
                     </tr>
-                  ) : (
-                    filtered.map((row) => {
-                      const id = String(row.id);
-                      const busy = savingId === id || deletingId === id;
-                      return (
-                        <tr
-                          key={id}
-                          className="border-b border-ravn-line last:border-b"
+                  </thead>
+                  <tbody>
+                    {filtered.length === 0 ? (
+                      <tr>
+                        <td
+                          colSpan={6}
+                          className="font-mono-hud px-4 py-10 text-center text-[11px] uppercase tracking-[0.14em] text-cdm-muted"
                         >
-                          <td className="border-r border-ravn-line px-4 py-3 font-light text-ravn-fg">
-                            {row.nombre_item}
-                          </td>
-                          <td className="border-r border-ravn-line px-4 py-3 text-ravn-muted">
-                            {formatRubroName(
-                              rubroLabel.get(String(row.rubro_id)) ??
-                                `Rubro ${row.rubro_id}`
-                            )}
-                          </td>
-                          <td className="border-r border-ravn-line px-4 py-3 text-ravn-muted">
-                            {row.unidad}
-                          </td>
-                          <td className="border-r border-ravn-line p-1">
-                            <PriceCell
-                              value={
-                                Number(row.costo_base_material_unitario) || 0
-                              }
-                              onSave={(n) =>
-                                updatePrecios(id, {
-                                  costo_base_material_unitario: n,
-                                })
-                              }
-                              disabled={busy}
-                            />
-                          </td>
-                          <td className="border-r border-ravn-line p-1">
-                            <PriceCell
-                              value={Number(row.costo_base_mo_unitario) || 0}
-                              onSave={(n) =>
-                                updatePrecios(id, {
-                                  costo_base_mo_unitario: n,
-                                })
-                              }
-                              disabled={busy}
-                            />
-                          </td>
-                          <td className="px-2 py-2 text-center align-middle">
-                            <button
-                              type="button"
-                              onClick={() => void handleDeleteReceta(id)}
-                              disabled={busy}
-                              className="inline-flex rounded-none p-2 text-ravn-muted transition-colors hover:bg-ravn-accent hover:text-ravn-accent-contrast focus-visible:outline focus-visible:outline-1 focus-visible:outline-ravn-fg disabled:opacity-50"
-                              title="Eliminar"
-                            >
-                              <Trash2
-                                className="h-4 w-4"
-                                strokeWidth={1.25}
+                          No hay ítems que coincidan con los filtros.
+                        </td>
+                      </tr>
+                    ) : (
+                      filtered.map((row) => {
+                        const id = String(row.id);
+                        const busy = savingId === id || deletingId === id;
+                        return (
+                          <tr
+                            key={id}
+                            className="border-b border-cdm-line last:border-b-0 transition-colors hover:bg-cdm-fg/[0.02]"
+                          >
+                            <td className="font-geist border-r border-cdm-line px-4 py-3 text-[13px] font-medium leading-snug text-cdm-fg">
+                              {row.nombre_item}
+                            </td>
+                            <td className="font-mono-hud border-r border-cdm-line px-4 py-3 text-[10px] uppercase tracking-[0.1em] text-cdm-muted">
+                              {formatRubroName(
+                                rubroLabel.get(String(row.rubro_id)) ??
+                                  `Rubro ${row.rubro_id}`
+                              )}
+                            </td>
+                            <td className="font-mono-hud border-r border-cdm-line px-4 py-3 text-[10px] uppercase tracking-[0.1em] text-cdm-muted">
+                              {row.unidad}
+                            </td>
+                            <td className="border-r border-cdm-line p-1">
+                              <PriceCell
+                                value={
+                                  Number(row.costo_base_material_unitario) || 0
+                                }
+                                onSave={(n) =>
+                                  updatePrecios(id, {
+                                    costo_base_material_unitario: n,
+                                  })
+                                }
+                                disabled={busy}
                               />
-                            </button>
-                          </td>
-                        </tr>
-                      );
-                    })
-                  )}
-                </tbody>
-              </table>
-            )}
-          </div>
-        </>
-      ) : (
-        <>
-          <div className="mt-8">
-            <button
-              type="button"
-              onClick={() => setRubroModalOpen(true)}
-              className="rounded-none border-2 border-ravn-accent bg-ravn-accent px-5 py-3 text-sm font-medium uppercase tracking-wider text-ravn-accent-contrast transition-opacity hover:opacity-80 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ravn-fg"
-            >
-              + Agregar nuevo rubro
-            </button>
-          </div>
+                            </td>
+                            <td className="border-r border-cdm-line p-1">
+                              <PriceCell
+                                value={Number(row.costo_base_mo_unitario) || 0}
+                                onSave={(n) =>
+                                  updatePrecios(id, {
+                                    costo_base_mo_unitario: n,
+                                  })
+                                }
+                                disabled={busy}
+                              />
+                            </td>
+                            <td className="px-2 py-2 text-center align-middle">
+                              <button
+                                type="button"
+                                onClick={() => void handleDeleteReceta(id)}
+                                disabled={busy}
+                                className="inline-flex items-center justify-center rounded-full p-2 text-cdm-muted/50 transition-colors hover:bg-red-400/10 hover:text-red-400 focus-visible:outline focus-visible:outline-1 focus-visible:outline-cdm-line disabled:opacity-40"
+                                title="Eliminar"
+                              >
+                                <Trash2
+                                  className="h-4 w-4"
+                                  strokeWidth={1.25}
+                                />
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          </>
+        ) : (
+          <>
+            {/* Botón nuevo rubro */}
+            <div className="mb-6">
+              <button
+                type="button"
+                onClick={() => setRubroModalOpen(true)}
+                className="font-mono-hud inline-flex items-center rounded-full bg-cdm-accent/10 px-3.5 py-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-cdm-accent ring-1 ring-cdm-accent/50 transition-colors hover:bg-cdm-accent/20"
+              >
+                + Agregar nuevo rubro
+              </button>
+            </div>
 
-          <div className="mt-10 overflow-x-auto rounded-none border border-ravn-line border-b-0">
-            {loading ? (
-              <div className="p-8">
-                <SkeletonGlass filas={4} anchos={["w-2/3", "w-1/2", "w-3/4", "w-2/5"]} />
-              </div>
-            ) : (
-              <table className="w-full min-w-[480px] border-collapse text-left text-sm">
-                <thead>
-                  <tr className="border-b border-t border-ravn-line bg-ravn-surface text-xs font-medium uppercase tracking-wider text-ravn-muted">
-                    <th className="border-r border-ravn-line px-4 py-3">
-                      ID
-                    </th>
-                    <th className="border-r border-ravn-line px-4 py-3">
-                      Nombre
-                    </th>
-                    <th className="w-14 px-2 py-3 text-center">Acción</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {rubrosSorted.length === 0 ? (
-                    <tr>
-                      <td
-                        colSpan={3}
-                        className="border-b border-ravn-line px-4 py-10 text-center font-light text-ravn-muted"
-                      >
-                        No hay rubros. Creá uno con el botón superior.
-                      </td>
+            {/* Tabla rubros */}
+            <div className="overflow-x-auto rounded-[24px] ring-1 ring-cdm-line bg-white/60 dark:bg-zinc-900/40">
+              {loading ? (
+                <div className="p-8">
+                  <SkeletonGlass filas={4} anchos={["w-2/3", "w-1/2", "w-3/4", "w-2/5"]} />
+                </div>
+              ) : (
+                <table className="w-full min-w-[480px] border-collapse text-left text-sm">
+                  <thead>
+                    <tr className="border-b border-cdm-line">
+                      <th className="font-mono-hud border-r border-cdm-line px-4 py-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-cdm-muted">
+                        ID
+                      </th>
+                      <th className="font-mono-hud border-r border-cdm-line px-4 py-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-cdm-muted">
+                        Nombre
+                      </th>
+                      <th className="font-mono-hud w-14 px-2 py-3 text-center text-[10px] font-semibold uppercase tracking-[0.14em] text-cdm-muted">
+                        Acción
+                      </th>
                     </tr>
-                  ) : (
-                    rubrosSorted.map((r) => {
-                      const id = String(r.id);
-                      const busy =
-                        deletingRubroId === id || savingRubroNombreId === id;
-                      return (
-                        <tr
-                          key={id}
-                          className="border-b border-ravn-line last:border-b"
+                  </thead>
+                  <tbody>
+                    {rubrosSorted.length === 0 ? (
+                      <tr>
+                        <td
+                          colSpan={3}
+                          className="font-mono-hud px-4 py-10 text-center text-[11px] uppercase tracking-[0.14em] text-cdm-muted"
                         >
-                          <td className="border-r border-ravn-line px-4 py-3 font-mono text-sm tabular-nums text-ravn-fg">
-                            {id}
-                          </td>
-                          <td className="border-r border-ravn-line px-4 py-3 align-middle">
-                            <input
-                              type="text"
-                              value={r.nombre}
-                              disabled={busy}
-                              title="Editá el nombre y salí del campo para guardar"
-                              onFocus={() => {
-                                rubroNombreAlFocusRef.current.set(id, r.nombre);
-                              }}
-                              onChange={(e) =>
-                                setRubros((prev) =>
-                                  sortRubrosByNumericId(
-                                    prev.map((x) =>
-                                      String(x.id) === id
-                                        ? { ...x, nombre: e.target.value }
-                                        : x
+                          No hay rubros. Creá uno con el botón superior.
+                        </td>
+                      </tr>
+                    ) : (
+                      rubrosSorted.map((r) => {
+                        const id = String(r.id);
+                        const busy =
+                          deletingRubroId === id || savingRubroNombreId === id;
+                        return (
+                          <tr
+                            key={id}
+                            className="border-b border-cdm-line last:border-b-0 transition-colors hover:bg-cdm-fg/[0.02]"
+                          >
+                            <td className="font-mono-hud border-r border-cdm-line px-4 py-3 text-[11px] tabular-nums text-cdm-fg">
+                              {id}
+                            </td>
+                            <td className="border-r border-cdm-line px-4 py-3 align-middle">
+                              <input
+                                type="text"
+                                value={r.nombre}
+                                disabled={busy}
+                                title="Editá el nombre y salí del campo para guardar"
+                                onFocus={() => {
+                                  rubroNombreAlFocusRef.current.set(id, r.nombre);
+                                }}
+                                onChange={(e) =>
+                                  setRubros((prev) =>
+                                    sortRubrosByNumericId(
+                                      prev.map((x) =>
+                                        String(x.id) === id
+                                          ? { ...x, nombre: e.target.value }
+                                          : x
+                                      )
                                     )
                                   )
-                                )
-                              }
-                              onBlur={(e) => {
-                                const v = e.target.value.trim();
-                                const orig = (
-                                  rubroNombreAlFocusRef.current.get(id) ?? ""
-                                ).trim();
-                                rubroNombreAlFocusRef.current.delete(id);
-                                if (v === orig) return;
-                                void handleSaveRubroNombre(id, v);
-                              }}
-                              onKeyDown={(e) => {
-                                if (e.key === "Enter")
-                                  (e.target as HTMLInputElement).blur();
-                              }}
-                              className="w-full min-w-[12rem] rounded-none border border-ravn-line bg-ravn-surface px-3 py-2 text-sm font-light text-ravn-fg placeholder:text-ravn-muted focus-visible:border-ravn-fg focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ravn-fg disabled:opacity-50"
-                            />
-                          </td>
-                          <td className="px-2 py-2 text-center align-middle">
-                            <button
-                              type="button"
-                              onClick={() => void handleDeleteRubro(id)}
-                              disabled={busy}
-                              className="inline-flex rounded-none p-2 text-ravn-muted transition-colors hover:bg-ravn-accent hover:text-ravn-accent-contrast focus-visible:outline focus-visible:outline-1 focus-visible:outline-ravn-fg disabled:opacity-50"
-                              title="Eliminar rubro"
-                            >
-                              <Trash2
-                                className="h-4 w-4"
-                                strokeWidth={1.25}
+                                }
+                                onBlur={(e) => {
+                                  const v = e.target.value.trim();
+                                  const orig = (
+                                    rubroNombreAlFocusRef.current.get(id) ?? ""
+                                  ).trim();
+                                  rubroNombreAlFocusRef.current.delete(id);
+                                  if (v === orig) return;
+                                  void handleSaveRubroNombre(id, v);
+                                }}
+                                onKeyDown={(e) => {
+                                  if (e.key === "Enter")
+                                    (e.target as HTMLInputElement).blur();
+                                }}
+                                className="font-geist w-full min-w-[12rem] rounded-xl border border-cdm-line bg-transparent px-3 py-2 text-[13px] text-cdm-fg placeholder:text-cdm-muted focus-visible:border-cdm-accent/50 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-cdm-accent/40 disabled:opacity-50"
                               />
-                            </button>
-                          </td>
-                        </tr>
-                      );
-                    })
-                  )}
-                </tbody>
-              </table>
-            )}
-          </div>
-        </>
-      )}
+                            </td>
+                            <td className="px-2 py-2 text-center align-middle">
+                              <button
+                                type="button"
+                                onClick={() => void handleDeleteRubro(id)}
+                                disabled={busy}
+                                className="inline-flex items-center justify-center rounded-full p-2 text-cdm-muted/50 transition-colors hover:bg-red-400/10 hover:text-red-400 focus-visible:outline focus-visible:outline-1 focus-visible:outline-cdm-line disabled:opacity-40"
+                                title="Eliminar rubro"
+                              >
+                                <Trash2
+                                  className="h-4 w-4"
+                                  strokeWidth={1.25}
+                                />
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          </>
+        )}
+      </div>
     </div>
   );
 }

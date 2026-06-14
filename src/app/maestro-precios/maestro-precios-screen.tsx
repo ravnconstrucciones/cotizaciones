@@ -1,9 +1,7 @@
 "use client";
 
-import Link from "next/link";
 import { Trash2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { RavnLogo } from "@/components/ravn-logo";
 import { SkeletonGlass } from "@/components/cockpit/skeleton-glass";
 import { createClient } from "@/lib/supabase/client";
 import {
@@ -76,7 +74,7 @@ function MoneyM2Cell({
       type="text"
       inputMode="numeric"
       disabled={disabled}
-      className="w-full min-w-[5.5rem] rounded-none border border-ravn-line bg-ravn-surface px-3 py-2 text-right text-sm text-ravn-fg focus-visible:border-ravn-fg focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ravn-fg disabled:opacity-50"
+      className="font-geist w-full min-w-[5.5rem] rounded-lg border border-cdm-line bg-transparent px-3 py-2 text-right text-sm tabular-nums text-cdm-fg focus-visible:border-cdm-accent focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-cdm-accent disabled:opacity-50"
       value={display}
       onFocus={() => {
         setFocused(true);
@@ -416,337 +414,343 @@ export function MaestroPreciosScreen() {
   }
 
   return (
-    <div className="min-h-screen bg-ravn-surface px-8 pb-16 pr-20 pt-16 text-ravn-fg">
-      <header className="mb-10 flex flex-col gap-4 border-b border-ravn-line pb-8 sm:flex-row sm:items-center sm:justify-between">
-        <Link href="/" className="inline-block w-fit" aria-label="Inicio">
-          <RavnLogo sizeClassName="text-2xl sm:text-3xl" showTagline={false} />
-        </Link>
-        <Link
-          href="/"
-          className="text-sm font-light text-ravn-muted underline-offset-4 hover:text-ravn-fg hover:underline"
-        >
-          Volver al inicio
-        </Link>
+    <div className="font-geist relative min-h-screen bg-cdm-bg text-cdm-fg">
+      {/* Header — lenguaje obras/cotizaciones */}
+      <header className="relative z-10 flex items-baseline justify-between px-6 pt-8 md:px-10">
+        <div>
+          <h1 className="font-geist text-3xl font-semibold tracking-tight text-cdm-fg">
+            Maestro de precios
+          </h1>
+          <p className="font-mono-hud mt-1 text-[11px] uppercase tracking-[0.18em] text-cdm-muted">
+            Tarifario · $/m² por trabajo
+          </p>
+        </div>
+        <BadgeSismat fechaIso={sismatUltimaSync} />
       </header>
 
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <h1 className="font-raleway text-2xl font-medium uppercase tracking-tight">
-          Maestro de precios
-        </h1>
-        <BadgeSismat fechaIso={sismatUltimaSync} />
+      <div className="relative z-10 px-6 pt-3 md:px-10">
+        <p className="font-geist max-w-2xl text-sm text-cdm-muted">
+          M.O. y materiales en $/m²; ganancia en $/m² (al lado, % equivalente).
+          Precio final = suma de los tres.
+        </p>
       </div>
-      <p className="mt-2 max-w-2xl text-sm text-ravn-muted">
-        M.O. y materiales en $/m²; ganancia en $/m² (al lado, % equivalente).
-        Precio final = suma de los tres.
-      </p>
 
       {error ? (
         <div
           role="alert"
-          className="mt-6 rounded-none border border-ravn-accent bg-ravn-accent px-4 py-3 text-sm text-ravn-accent-contrast"
+          className="relative z-10 mx-6 mt-4 rounded-[14px] border border-red-400/30 bg-red-400/10 px-4 py-3 text-sm text-red-400 md:mx-10"
         >
           {error}
         </div>
       ) : null}
 
-      <section className="mt-10 rounded-none border border-ravn-line bg-ravn-surface p-6 md:p-8">
-        <div className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-end sm:justify-between">
-          <div>
-            <h2 className="font-raleway text-lg font-medium uppercase tracking-wide text-ravn-fg">
-              Trabajos por m²
-            </h2>
-            <p className="mt-1 text-xs text-ravn-muted">
-              Pintura, contrapisos, tabiques, etc.
+      {/* Sección tabla trabajos por m² */}
+      <div className="relative z-10 px-6 pt-8 pb-6 md:px-10">
+        <div className="rounded-[24px] ring-1 ring-cdm-line bg-white/60 dark:bg-zinc-900/40 overflow-hidden">
+          {/* Sub-header de la card */}
+          <div className="flex flex-col gap-4 px-6 pt-6 pb-4 sm:flex-row sm:flex-wrap sm:items-end sm:justify-between border-b border-cdm-line/50">
+            <div>
+              <p className="font-geist text-base font-semibold leading-snug text-cdm-fg">
+                Trabajos por m²
+              </p>
+              <p className="font-mono-hud mt-0.5 text-[10px] uppercase tracking-[0.14em] text-cdm-muted">
+                Pintura, contrapisos, tabiques, etc.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => void agregarTrabajo()}
+              disabled={adding || loading}
+              className="font-mono-hud inline-flex items-center rounded-full bg-cdm-accent/10 px-3.5 py-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-cdm-accent ring-1 ring-cdm-accent/50 transition-colors hover:bg-cdm-accent/20 disabled:opacity-50"
+            >
+              {adding ? "Agregando…" : "+ Agregar trabajo"}
+            </button>
+          </div>
+
+          {/* Tabla */}
+          <div className="overflow-x-auto">
+            {loading ? (
+              <div className="p-8">
+                <SkeletonGlass filas={5} anchos={["w-full", "w-3/4", "w-2/3", "w-5/6", "w-1/2"]} />
+              </div>
+            ) : (
+              <table className="w-full min-w-[1020px] border-collapse text-left text-sm">
+                <thead>
+                  <tr className="border-b border-cdm-line/50 bg-cdm-fg/[0.02]">
+                    <th className="font-mono-hud border-r border-cdm-line/40 px-4 py-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-cdm-muted">
+                      Nombre del trabajo
+                    </th>
+                    <th className="font-mono-hud border-r border-cdm-line/40 px-4 py-3 text-right text-[10px] font-semibold uppercase tracking-[0.14em] text-cdm-muted">
+                      M.O. ($/m²)
+                    </th>
+                    <th className="font-mono-hud border-r border-cdm-line/40 px-4 py-3 text-right text-[10px] font-semibold uppercase tracking-[0.14em] text-cdm-muted">
+                      Materiales ($/m²)
+                    </th>
+                    <th className="font-mono-hud border-r border-cdm-line/40 px-3 py-3 text-right text-[10px] font-semibold uppercase tracking-[0.14em] text-cdm-muted min-w-[11rem]">
+                      <span className="block">Ganancia ($/m²)</span>
+                      <span className="mt-0.5 block text-[9px] font-normal normal-case tracking-normal text-cdm-muted/60">
+                        Equiv. %
+                      </span>
+                    </th>
+                    <th className="font-mono-hud border-r border-cdm-line/40 px-3 py-3 text-right text-[10px] font-semibold uppercase tracking-[0.14em] text-cdm-muted min-w-[8rem]">
+                      <span className="block">SISMAT MO</span>
+                      <span className="mt-0.5 block text-[9px] font-normal normal-case tracking-normal text-cdm-muted/60">
+                        vs tu costo
+                      </span>
+                    </th>
+                    <th className="font-mono-hud w-[7rem] min-w-[6.5rem] max-w-[8rem] border-r border-cdm-line/40 px-2 py-3 text-right text-[10px] font-semibold uppercase tracking-[0.14em] text-cdm-muted">
+                      Precio final ($/m²)
+                    </th>
+                    <th className="w-14 px-2 py-3 text-center"> </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {items.length === 0 ? (
+                    <tr>
+                      <td
+                        colSpan={7}
+                        className="border-b border-cdm-line/40 px-4 py-10 text-center text-[12px] uppercase tracking-[0.14em] text-cdm-muted"
+                      >
+                        Sin trabajos. Usá{" "}
+                        <span className="text-cdm-fg">+ Agregar trabajo</span>{" "}
+                        para comenzar.
+                      </td>
+                    </tr>
+                  ) : (
+                    items.map((row) => {
+                      const busy = savingId === row.id || deletingId === row.id;
+                      const finalM2 = precioFinalM2(
+                        row.costo_mo_m2,
+                        row.costo_materiales_m2,
+                        row.ganancia_monto_m2
+                      );
+                      const baseRow = baseCostoM2(
+                        row.costo_mo_m2,
+                        row.costo_materiales_m2
+                      );
+                      const pctEquiv = pctDesdeMontoM2(
+                        row.costo_mo_m2,
+                        row.costo_materiales_m2,
+                        row.ganancia_monto_m2
+                      );
+                      return (
+                        <tr
+                          key={row.id}
+                          className="border-b border-cdm-line/40 last:border-b-0 transition-colors hover:bg-cdm-fg/[0.02]"
+                        >
+                          <td className="border-r border-cdm-line/40 px-4 py-3 align-middle">
+                            <input
+                              type="text"
+                              value={row.nombre_trabajo}
+                              disabled={busy}
+                              onChange={(e) =>
+                                setItems((prev) =>
+                                  prev.map((x) =>
+                                    x.id === row.id
+                                      ? { ...x, nombre_trabajo: e.target.value }
+                                      : x
+                                  )
+                                )
+                              }
+                              onBlur={() => {
+                                const v = row.nombre_trabajo.trim();
+                                if (!v) {
+                                  void load();
+                                  return;
+                                }
+                                void patchItem(row.id, { nombre_trabajo: v });
+                              }}
+                              className="font-geist w-full min-w-[12rem] rounded-lg border border-cdm-line bg-transparent px-3 py-2 text-sm text-cdm-fg focus-visible:border-cdm-accent focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-cdm-accent disabled:opacity-50"
+                            />
+                          </td>
+                          <td className="border-r border-cdm-line/40 px-4 py-3 align-middle">
+                            <MoneyM2Cell
+                              value={row.costo_mo_m2}
+                              disabled={busy}
+                              onSave={async (n) => {
+                                await patchItem(row.id, { costo_mo_m2: n });
+                              }}
+                            />
+                          </td>
+                          <td className="border-r border-cdm-line/40 px-4 py-3 align-middle">
+                            <MoneyM2Cell
+                              value={row.costo_materiales_m2}
+                              disabled={busy}
+                              onSave={async (n) => {
+                                await patchItem(row.id, {
+                                  costo_materiales_m2: n,
+                                });
+                              }}
+                            />
+                          </td>
+                          <td className="border-r border-cdm-line/40 px-3 py-3 align-middle">
+                            <div className="flex flex-row flex-wrap items-center justify-end gap-2">
+                              <div className="min-w-[4.5rem] max-w-[6.5rem] shrink">
+                                <MoneyM2Cell
+                                  value={row.ganancia_monto_m2}
+                                  disabled={busy}
+                                  onSave={async (n) => {
+                                    await patchItem(row.id, {
+                                      ganancia_monto_m2: n,
+                                    });
+                                  }}
+                                />
+                              </div>
+                              <div
+                                className="flex shrink-0 items-baseline gap-0.5 whitespace-nowrap text-right"
+                                title="Ganancia $ ÷ (M.O. + materiales)"
+                              >
+                                <span className="font-geist text-sm font-medium tabular-nums text-cdm-fg">
+                                  {baseRow > 0
+                                    ? formatNumber(pctEquiv, 2)
+                                    : "—"}
+                                </span>
+                                {baseRow > 0 ? (
+                                  <span className="font-mono-hud text-[10px] text-cdm-muted">
+                                    %
+                                  </span>
+                                ) : null}
+                              </div>
+                            </div>
+                          </td>
+                          {/* ---- columna SISMAT ---- */}
+                          <td
+                            className="border-r border-cdm-line/40 px-3 py-3 align-middle text-right"
+                            title={
+                              row.sismat_match
+                                ? `Match: "${row.sismat_match}"`
+                                : "Sin match SISMAT"
+                            }
+                          >
+                            {row.sismat_costo_mo != null ? (
+                              <div className="flex flex-col items-end gap-0.5">
+                                <span className="font-geist text-sm tabular-nums text-cdm-muted">
+                                  {formatMoneyInt(row.sismat_costo_mo)}
+                                </span>
+                                {row.costo_mo_m2 > 0 ? (
+                                  (() => {
+                                    const d = deltaPct(row.costo_mo_m2, row.sismat_costo_mo);
+                                    const positivo = d >= 0;
+                                    return (
+                                      <span
+                                        className={`font-geist text-[11px] font-semibold tabular-nums ${
+                                          positivo ? "text-emerald-400" : "text-red-400"
+                                        }`}
+                                      >
+                                        {positivo ? "+" : ""}
+                                        {d}%
+                                      </span>
+                                    );
+                                  })()
+                                ) : null}
+                              </div>
+                            ) : (
+                              <span className="font-mono-hud text-[10px] text-cdm-muted/50">—</span>
+                            )}
+                          </td>
+                          <td className="font-geist w-[7rem] min-w-[6.5rem] max-w-[8rem] border-r border-cdm-line/40 px-2 py-3 text-right text-sm font-semibold tabular-nums text-cdm-fg">
+                            {formatMoneyInt(finalM2)}
+                          </td>
+                          <td className="px-2 py-3 text-center align-middle">
+                            <button
+                              type="button"
+                              aria-label="Eliminar trabajo"
+                              disabled={busy}
+                              onClick={() => void eliminarItem(row.id)}
+                              className="flex h-7 w-7 items-center justify-center rounded-full text-cdm-muted/50 transition-all hover:bg-red-400/10 hover:text-red-400 disabled:opacity-40"
+                            >
+                              <Trash2 className="h-4 w-4" strokeWidth={1.5} />
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Sección gestión */}
+      <div className="relative z-10 px-6 pb-24 md:px-10">
+        <div className="rounded-[24px] ring-1 ring-cdm-line bg-white/60 dark:bg-zinc-900/40 p-6 md:p-8">
+          <p className="font-geist text-base font-semibold leading-snug text-cdm-fg">
+            Mi valor de gestión
+          </p>
+          <p className="font-mono-hud mt-0.5 text-[10px] uppercase tracking-[0.14em] text-cdm-muted">
+            Referencia aparte · no modifica el tarifario
+          </p>
+
+          <div className="mt-8 grid max-w-2xl gap-6 md:grid-cols-2">
+            <div>
+              <label
+                htmlFor="gestion-ganancia-mensual"
+                className="font-mono-hud mb-2 block text-[10px] font-semibold uppercase tracking-[0.14em] text-cdm-muted"
+              >
+                Ganancia mensual estimada ($)
+              </label>
+              <input
+                id="gestion-ganancia-mensual"
+                type="text"
+                inputMode="numeric"
+                disabled={!gestionLoaded && loading}
+                value={gananciaMensualStr}
+                onChange={(e) =>
+                  setGananciaMensualStr(
+                    formatArsEnteroDesdeDigitos(e.target.value)
+                  )
+                }
+                className="font-geist w-full rounded-lg border border-cdm-line bg-transparent px-4 py-3 text-sm text-cdm-fg focus-visible:border-cdm-accent focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-cdm-accent"
+                placeholder="Ej. 3.000.000"
+              />
+            </div>
+            <div>
+              <label
+                htmlFor="gestion-dias"
+                className="font-mono-hud mb-2 block text-[10px] font-semibold uppercase tracking-[0.14em] text-cdm-muted"
+              >
+                Días laborables del mes
+              </label>
+              <input
+                id="gestion-dias"
+                type="text"
+                inputMode="numeric"
+                disabled={!gestionLoaded && loading}
+                value={diasLaborablesStr}
+                onChange={(e) => setDiasLaborablesStr(e.target.value)}
+                className="font-geist w-full rounded-lg border border-cdm-line bg-transparent px-4 py-3 text-sm text-cdm-fg focus-visible:border-cdm-accent focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-cdm-accent"
+                placeholder="22"
+              />
+            </div>
+          </div>
+
+          {/* Stat: valor del día */}
+          <div className="mt-8 rounded-[16px] ring-1 ring-cdm-line bg-cdm-fg/[0.03] px-4 py-4 md:px-6">
+            <p className="font-mono-hud text-[10px] font-semibold uppercase tracking-[0.14em] text-cdm-muted">
+              Valor de mi día de gestión
+            </p>
+            <p className="font-geist mt-2 text-xl font-semibold tabular-nums text-cdm-fg">
+              {diasLaborablesNum > 0 ? formatMoneyInt(valorDiaCalculado) : "—"}
+            </p>
+            <p className="font-mono-hud mt-1 text-[10px] text-cdm-muted">
+              Ganancia mensual ÷ días laborables
             </p>
           </div>
-          <button
-            type="button"
-            onClick={() => void agregarTrabajo()}
-            disabled={adding || loading}
-            className="rounded-none border-2 border-ravn-accent bg-ravn-accent px-5 py-3 text-sm font-medium uppercase tracking-wider text-ravn-accent-contrast transition-opacity hover:opacity-80 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ravn-fg disabled:opacity-50"
-          >
-            {adding ? "Agregando…" : "Agregar trabajo"}
-          </button>
-        </div>
 
-        <div className="mt-8 overflow-x-auto rounded-none border border-ravn-line border-b-0">
-          {loading ? (
-            <div className="p-8">
-              <SkeletonGlass filas={5} anchos={["w-full", "w-3/4", "w-2/3", "w-5/6", "w-1/2"]} />
-            </div>
-          ) : (
-            <table className="w-full min-w-[1020px] border-collapse text-left text-sm">
-              <thead>
-                <tr className="border-b border-t border-ravn-line bg-ravn-surface text-xs font-medium uppercase tracking-wider text-ravn-muted">
-                  <th className="border-r border-ravn-line px-4 py-3">
-                    Nombre del trabajo
-                  </th>
-                  <th className="border-r border-ravn-line px-4 py-3 text-right">
-                    M.O. ($/m²)
-                  </th>
-                  <th className="border-r border-ravn-line px-4 py-3 text-right">
-                    Materiales ($/m²)
-                  </th>
-                  <th className="border-r border-ravn-line px-3 py-3 text-right min-w-[11rem]">
-                    <span className="block">Ganancia ($/m²)</span>
-                    <span className="mt-0.5 block text-[10px] font-normal normal-case tracking-normal text-ravn-muted">
-                      Equiv. %
-                    </span>
-                  </th>
-                  <th className="border-r border-ravn-line px-3 py-3 text-right min-w-[8rem]">
-                    <span className="block">SISMAT MO</span>
-                    <span className="mt-0.5 block text-[10px] font-normal normal-case tracking-normal text-ravn-muted">
-                      vs tu costo
-                    </span>
-                  </th>
-                  <th className="w-[7rem] min-w-[6.5rem] max-w-[8rem] border-r border-ravn-line px-2 py-3 text-right">
-                    Precio final ($/m²)
-                  </th>
-                  <th className="w-14 px-2 py-3 text-center"> </th>
-                </tr>
-              </thead>
-              <tbody>
-                {items.length === 0 ? (
-                  <tr>
-                    <td
-                      colSpan={7}
-                      className="border-b border-ravn-line px-4 py-10 text-center font-light text-ravn-muted"
-                    >
-                      No hay trabajos cargados. Usá{" "}
-                      <span className="text-ravn-fg">Agregar trabajo</span> para
-                      comenzar.
-                    </td>
-                  </tr>
-                ) : (
-                  items.map((row) => {
-                    const busy = savingId === row.id || deletingId === row.id;
-                    const finalM2 = precioFinalM2(
-                      row.costo_mo_m2,
-                      row.costo_materiales_m2,
-                      row.ganancia_monto_m2
-                    );
-                    const baseRow = baseCostoM2(
-                      row.costo_mo_m2,
-                      row.costo_materiales_m2
-                    );
-                    const pctEquiv = pctDesdeMontoM2(
-                      row.costo_mo_m2,
-                      row.costo_materiales_m2,
-                      row.ganancia_monto_m2
-                    );
-                    return (
-                      <tr
-                        key={row.id}
-                        className="border-b border-ravn-line last:border-b"
-                      >
-                        <td className="border-r border-ravn-line px-4 py-3 align-middle">
-                          <input
-                            type="text"
-                            value={row.nombre_trabajo}
-                            disabled={busy}
-                            onChange={(e) =>
-                              setItems((prev) =>
-                                prev.map((x) =>
-                                  x.id === row.id
-                                    ? { ...x, nombre_trabajo: e.target.value }
-                                    : x
-                                )
-                              )
-                            }
-                            onBlur={() => {
-                              const v = row.nombre_trabajo.trim();
-                              if (!v) {
-                                void load();
-                                return;
-                              }
-                              void patchItem(row.id, { nombre_trabajo: v });
-                            }}
-                            className="w-full min-w-[12rem] rounded-none border border-ravn-line bg-ravn-surface px-3 py-2 text-sm font-light text-ravn-fg focus-visible:border-ravn-fg focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ravn-fg disabled:opacity-50"
-                          />
-                        </td>
-                        <td className="border-r border-ravn-line px-4 py-3 align-middle">
-                          <MoneyM2Cell
-                            value={row.costo_mo_m2}
-                            disabled={busy}
-                            onSave={async (n) => {
-                              await patchItem(row.id, { costo_mo_m2: n });
-                            }}
-                          />
-                        </td>
-                        <td className="border-r border-ravn-line px-4 py-3 align-middle">
-                          <MoneyM2Cell
-                            value={row.costo_materiales_m2}
-                            disabled={busy}
-                            onSave={async (n) => {
-                              await patchItem(row.id, {
-                                costo_materiales_m2: n,
-                              });
-                            }}
-                          />
-                        </td>
-                        <td className="border-r border-ravn-line px-3 py-3 align-middle">
-                          <div className="flex flex-row flex-wrap items-center justify-end gap-2">
-                            <div className="min-w-[4.5rem] max-w-[6.5rem] shrink">
-                              <MoneyM2Cell
-                                value={row.ganancia_monto_m2}
-                                disabled={busy}
-                                onSave={async (n) => {
-                                  await patchItem(row.id, {
-                                    ganancia_monto_m2: n,
-                                  });
-                                }}
-                              />
-                            </div>
-                            <div
-                              className="flex shrink-0 items-baseline gap-0.5 whitespace-nowrap text-right"
-                              title="Ganancia $ ÷ (M.O. + materiales)"
-                            >
-                              <span className="text-sm font-medium tabular-nums text-ravn-fg">
-                                {baseRow > 0
-                                  ? formatNumber(pctEquiv, 2)
-                                  : "—"}
-                              </span>
-                              {baseRow > 0 ? (
-                                <span className="text-xs text-ravn-muted">
-                                  %
-                                </span>
-                              ) : null}
-                            </div>
-                          </div>
-                        </td>
-                        {/* ---- columna SISMAT ---- */}
-                        <td
-                          className="border-r border-ravn-line px-3 py-3 align-middle text-right"
-                          title={
-                            row.sismat_match
-                              ? `Match: "${row.sismat_match}"`
-                              : "Sin match SISMAT"
-                          }
-                        >
-                          {row.sismat_costo_mo != null ? (
-                            <div className="flex flex-col items-end gap-0.5">
-                              <span className="text-sm tabular-nums text-ravn-muted">
-                                {formatMoneyInt(row.sismat_costo_mo)}
-                              </span>
-                              {row.costo_mo_m2 > 0 ? (
-                                (() => {
-                                  const d = deltaPct(row.costo_mo_m2, row.sismat_costo_mo);
-                                  const positivo = d >= 0;
-                                  return (
-                                    <span
-                                      className={`text-[11px] font-semibold tabular-nums ${
-                                        positivo ? "text-emerald-400" : "text-red-400"
-                                      }`}
-                                    >
-                                      {positivo ? "+" : ""}
-                                      {d}%
-                                    </span>
-                                  );
-                                })()
-                              ) : null}
-                            </div>
-                          ) : (
-                            <span className="text-xs text-ravn-muted/50">—</span>
-                          )}
-                        </td>
-                        <td className="w-[7rem] min-w-[6.5rem] max-w-[8rem] border-r border-ravn-line px-2 py-3 text-right text-sm font-medium tabular-nums text-ravn-fg">
-                          {formatMoneyInt(finalM2)}
-                        </td>
-                        <td className="px-2 py-3 text-center align-middle">
-                          <button
-                            type="button"
-                            aria-label="Eliminar trabajo"
-                            disabled={busy}
-                            onClick={() => void eliminarItem(row.id)}
-                            className="rounded-none border border-transparent p-2 text-ravn-muted transition-colors hover:border-ravn-line hover:text-ravn-fg disabled:opacity-40"
-                          >
-                            <Trash2 className="h-4 w-4" strokeWidth={1.5} />
-                          </button>
-                        </td>
-                      </tr>
-                    );
-                  })
-                )}
-              </tbody>
-            </table>
-          )}
-        </div>
-      </section>
-
-      <section className="mt-10 rounded-none border border-ravn-line bg-ravn-surface p-6 md:p-8">
-        <h2 className="font-raleway text-lg font-medium uppercase tracking-wide text-ravn-fg">
-          Mi valor de gestión
-        </h2>
-        <p className="mt-2 max-w-2xl text-xs text-ravn-muted">
-          Referencia aparte: no modifica los precios por m² de la tabla anterior.
-        </p>
-
-        <div className="mt-8 grid max-w-2xl gap-6 md:grid-cols-2">
-          <div>
-            <label
-              htmlFor="gestion-ganancia-mensual"
-              className="mb-2 block text-xs font-medium uppercase tracking-wider text-ravn-muted"
+          <div className="mt-6">
+            <button
+              type="button"
+              onClick={() => void guardarGestion()}
+              disabled={savingGestion || loading}
+              className="font-mono-hud inline-flex items-center rounded-full px-4 py-2 text-[10px] font-semibold uppercase tracking-[0.14em] ring-1 text-cdm-muted ring-cdm-line transition-colors hover:text-cdm-fg hover:ring-cdm-accent/30 disabled:opacity-50"
             >
-              Ganancia mensual estimada ($)
-            </label>
-            <input
-              id="gestion-ganancia-mensual"
-              type="text"
-              inputMode="numeric"
-              disabled={!gestionLoaded && loading}
-              value={gananciaMensualStr}
-              onChange={(e) =>
-                setGananciaMensualStr(
-                  formatArsEnteroDesdeDigitos(e.target.value)
-                )
-              }
-              className="w-full rounded-none border border-ravn-line bg-ravn-surface px-4 py-3 text-sm text-ravn-fg focus-visible:border-ravn-fg focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ravn-fg"
-              placeholder="Ej. 3.000.000"
-            />
-          </div>
-          <div>
-            <label
-              htmlFor="gestion-dias"
-              className="mb-2 block text-xs font-medium uppercase tracking-wider text-ravn-muted"
-            >
-              Días laborables del mes
-            </label>
-            <input
-              id="gestion-dias"
-              type="text"
-              inputMode="numeric"
-              disabled={!gestionLoaded && loading}
-              value={diasLaborablesStr}
-              onChange={(e) => setDiasLaborablesStr(e.target.value)}
-              className="w-full rounded-none border border-ravn-line bg-ravn-surface px-4 py-3 text-sm text-ravn-fg focus-visible:border-ravn-fg focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ravn-fg"
-              placeholder="22"
-            />
+              {savingGestion ? "Guardando…" : "Guardar valor de gestión"}
+            </button>
           </div>
         </div>
-
-        <div className="mt-8 rounded-none border border-ravn-line bg-ravn-subtle/30 px-4 py-4 md:px-6">
-          <p className="text-xs font-medium uppercase tracking-wider text-ravn-muted">
-            Valor de mi día de gestión
-          </p>
-          <p className="mt-2 font-raleway text-xl font-medium tabular-nums text-ravn-fg">
-            {diasLaborablesNum > 0 ? formatMoneyInt(valorDiaCalculado) : "—"}
-          </p>
-          <p className="mt-1 text-xs text-ravn-muted">
-            Ganancia mensual ÷ días laborables
-          </p>
-        </div>
-
-        <div className="mt-6">
-          <button
-            type="button"
-            onClick={() => void guardarGestion()}
-            disabled={savingGestion || loading}
-            className="rounded-none border-2 border-ravn-line bg-ravn-surface px-6 py-3 text-sm font-medium uppercase tracking-wider text-ravn-fg transition-colors hover:bg-ravn-accent hover:text-ravn-accent-contrast disabled:opacity-50"
-          >
-            {savingGestion ? "Guardando…" : "Guardar valor de gestión"}
-          </button>
-        </div>
-      </section>
+      </div>
     </div>
   );
 }
