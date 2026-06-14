@@ -56,3 +56,33 @@ export async function PATCH(req: Request, ctx: Params) {
   }
   return NextResponse.json({ ok: true, presupuesto_id: presupuestoId });
 }
+
+/**
+ * DELETE /api/cotizaciones/[id] — borra una cotización (caso: rechazada o
+ * duplicada que ensucia la mesa). Borrado físico. Antes desvincula la lección
+ * de rechazo (cotizador_lecciones.cotizacion_id es FK sin ON DELETE) para no
+ * romper el FK y PRESERVAR el aprendizaje del rechazo.
+ */
+export async function DELETE(_req: Request, ctx: Params) {
+  const { id } = await ctx.params;
+  const sb = createSupabaseAdminClient();
+
+  // 1) Soltar la FK de las lecciones sin perderlas (el aprendizaje sobrevive).
+  const { error: lecErr } = await sb
+    .from("cotizador_lecciones")
+    .update({ cotizacion_id: null })
+    .eq("cotizacion_id", id);
+  if (lecErr) return NextResponse.json({ error: lecErr.message }, { status: 500 });
+
+  // 2) Borrar la cotización (con .select para verificar que existía).
+  const { data, error } = await sb
+    .from("cotizaciones")
+    .delete()
+    .eq("id", id)
+    .select("id");
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (!data || data.length === 0) {
+    return NextResponse.json({ error: "Cotización no encontrada" }, { status: 404 });
+  }
+  return NextResponse.json({ ok: true });
+}

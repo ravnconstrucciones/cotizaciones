@@ -55,6 +55,25 @@ export function CotizacionesScreen() {
   const [filtro, setFiltro] = useState<EstadoCotizacion | "todas">("todas");
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [eliminando, setEliminando] = useState<string | null>(null);
+
+  const eliminar = useCallback(async (c: CotizacionListada) => {
+    if (!window.confirm(`¿Borrar la cotización "${c.titulo}"? No se puede deshacer.`)) {
+      return;
+    }
+    setEliminando(c.id);
+    setError(null);
+    try {
+      const res = await fetch(`/api/cotizaciones/${c.id}`, { method: "DELETE" });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(json.error ?? "No se pudo borrar");
+      setCotizaciones((prev) => prev.filter((x) => x.id !== c.id));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "No se pudo borrar");
+    } finally {
+      setEliminando(null);
+    }
+  }, []);
 
   const cargar = useCallback(async () => {
     setCargando(true);
@@ -124,10 +143,13 @@ export function CotizacionesScreen() {
         ) : (
           <ul className="cdm-glass mt-6 px-4 sm:px-5">
             {cotizaciones.map((c, i) => (
-              <li key={c.id} className={i > 0 ? "border-t border-cdm-line" : ""}>
+              <li
+                key={c.id}
+                className={`flex items-stretch ${i > 0 ? "border-t border-cdm-line" : ""}`}
+              >
                 <Link
                   href={`/cotizaciones/${c.id}/revision`}
-                  className="flex items-center justify-between gap-4 px-1 py-4 transition-colors hover:bg-cdm-fg/[0.03]"
+                  className="flex flex-1 items-center justify-between gap-4 px-1 py-4 transition-colors hover:bg-cdm-fg/[0.03]"
                 >
                   <div className="min-w-0">
                     <p className="truncate text-sm font-medium">{c.titulo}</p>
@@ -145,6 +167,20 @@ export function CotizacionesScreen() {
                     </span>
                   </div>
                 </Link>
+                <button
+                  type="button"
+                  onClick={() => void eliminar(c)}
+                  disabled={eliminando === c.id}
+                  aria-label={`Borrar cotización ${c.titulo}`}
+                  title="Borrar cotización"
+                  className="flex shrink-0 items-center justify-center px-3 text-cdm-muted/60 transition-colors hover:text-red-400 disabled:opacity-40"
+                >
+                  {eliminando === c.id ? (
+                    <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-red-400/30 border-t-red-400" />
+                  ) : (
+                    <span className="text-lg leading-none">×</span>
+                  )}
+                </button>
               </li>
             ))}
           </ul>
