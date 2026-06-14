@@ -2,6 +2,13 @@
 
 > Próxima sesión: leé memoria `proyecto-centro-de-mando` + `feedback-*` y este archivo. Después "leé el handoff y continuá".
 
+## 👉 ARRANCÁ POR (decisiones abiertas de Eze)
+1. **Probar el botón Diagnóstico** en una obra (`/obras/[id]` → 🩺) con la Mac prendida → confirmar que la Mac lo genera Y lo engancha a la obra (obra_archivos). Si genera pero no adjunta, afinar el prompt en `POST /api/obras/[id]/diagnostico` o el daemon.
+2. **Terminal** (`/terminal`): ¿se convierte a cards/Geist o se deja con su estética de terminal (mono)? Es la única pantalla sin convertir.
+3. **Borrar presupuestos reales sobrantes**: en Proyectos → "Todas" hay tachito; quedan 8 de cliente real (Empresa caja [APROB], Lagomarsino, Consorcio, Sliding, Intendencia x5). Eze decide cuáles van.
+4. **ML (Tanda 5)**: parkeado. Registrar app en developers.mercadolibre.com.ar (necesita aceptar términos de developer) → setear `ML_ACCESS_TOKEN` donde corre el daemon y se prende la columna de desempate.
+5. **App RAVN está en rama `home-cards`, NO en main.** En algún momento decidir el merge a main / deploy productivo.
+
 ## CONTEXTO
 - Rama **`home-cards`** (NO main). Preview: https://ravn-app-one-git-home-cards-ravnconstrucciones-3776s-projects.vercel.app/login (`ravn.construcciones@gmail.com` / `Ravn-Mando-26`).
 - App: `/Users/ezeotero/Documents/ravn` (Next 15 + Supabase + Tailwind v4 + Framer Motion). Deploy Vercel auto desde la rama. Proyecto Vercel: `ravn-app-one`.
