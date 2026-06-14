@@ -60,8 +60,8 @@ const DIA_JSON = `{
 }`;
 
 describe("AREAS_ORDEN", () => {
-  it("tiene las 8 áreas de vida en orden (negocio primero, vida después)", () => {
-    expect(AREAS_ORDEN).toHaveLength(8);
+  it("enfoca en empresa + base operativa (sin áreas de ocio personal)", () => {
+    expect(AREAS_ORDEN).toHaveLength(5);
     expect(AREAS_ORDEN[0].archivo).toBe("Negocio");
     const archivos = AREAS_ORDEN.map((a) => a.archivo);
     expect(archivos).toEqual([
@@ -69,11 +69,12 @@ describe("AREAS_ORDEN", () => {
       "Construcción y Reformas",
       "Cuerpo",
       "Mente e Identidad",
-      "Música y Arte",
-      "Vínculos",
       "Finanzas personales",
-      "Disfrute",
     ]);
+    // Las de ocio personal salieron del panel (pedido de Eze).
+    expect(archivos).not.toContain("Música y Arte");
+    expect(archivos).not.toContain("Vínculos");
+    expect(archivos).not.toContain("Disfrute");
   });
 });
 

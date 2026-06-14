@@ -5,7 +5,6 @@ import { AnimatePresence, motion } from "framer-motion";
 import { createClient } from "@/lib/supabase/client";
 import { useRealtimeTable } from "@/hooks/use-realtime-table";
 import { ORIGEN_TAG } from "@/components/cockpit/modulo-actividad";
-import { WavesBackdrop } from "@/components/cockpit/waves-backdrop";
 import type { EstadoEvento, Evento, OrigenEvento } from "@/types/centro-mando";
 
 const ORIGENES: Array<"todos" | OrigenEvento> = [
@@ -64,89 +63,98 @@ export function ActividadScreen() {
   useRealtimeTable("eventos", cargar);
 
   return (
-    <div className="font-grotesk relative min-h-screen bg-cdm-bg px-4 pb-24 pt-14 text-cdm-fg sm:px-8">
-      <WavesBackdrop />
-      <div className="relative z-10 mx-auto max-w-4xl">
-        <div className="relative pb-3">
-          {/* Línea de horizonte detrás del header — mismo lenguaje que historial/obras. */}
-          <span aria-hidden className="cdm-horizon absolute inset-x-0 bottom-0" />
-          <h1 className="font-mono-hud flex items-baseline gap-2 text-[11px] font-medium uppercase tracking-[0.22em] text-cdm-muted">
-            <span aria-hidden className="text-cdm-accent/60">{"//////"}</span>
+    <div className="font-geist relative min-h-screen bg-cdm-bg text-cdm-fg">
+      {/* Header — mismo lenguaje que obras-screen */}
+      <header className="relative z-10 flex items-baseline justify-between px-6 pt-8 md:px-10">
+        <div>
+          <h1 className="font-geist text-3xl font-semibold tracking-tight text-cdm-fg">
             Actividad
           </h1>
+          <p className="font-mono-hud mt-1 text-[11px] uppercase tracking-[0.18em] text-cdm-muted">
+            Registro permanente del bot, daemon y tablero
+          </p>
         </div>
-        <p className="mt-4 text-sm text-cdm-muted">
-          Registro permanente: todo lo que hizo el bot, el daemon y el tablero.
-        </p>
+      </header>
 
-        <div className="mt-6 flex flex-wrap gap-1.5">
-          {ORIGENES.map((o) => (
-            <button
-              key={o}
-              onClick={() => setOrigen(o)}
-              className={`border px-3 py-1 text-[9px] uppercase tracking-[0.18em] transition-colors ${
-                origen === o
-                  ? "border-cdm-accent bg-cdm-accent text-cdm-bg"
-                  : "border-cdm-line text-cdm-muted hover:text-cdm-fg"
-              }`}
-            >
-              {o === "todos" ? "Todos" : o}
-            </button>
-          ))}
+      <div className="relative z-10 px-6 pt-6 md:px-10">
+        {/* Filtros de origen — pill style igual a toggle de obras */}
+        <div className="flex flex-wrap gap-2">
+          {ORIGENES.map((o) => {
+            const activo = origen === o;
+            return (
+              <button
+                key={o}
+                onClick={() => setOrigen(o)}
+                className={`font-mono-hud inline-flex items-center rounded-full px-3.5 py-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] ring-1 transition-colors ${
+                  activo
+                    ? "bg-cdm-accent/10 text-cdm-accent ring-cdm-accent/50"
+                    : "text-cdm-muted ring-cdm-line hover:text-cdm-fg hover:ring-cdm-accent/30"
+                }`}
+              >
+                {o === "todos" ? "Todos" : o}
+              </button>
+            );
+          })}
         </div>
 
         {error && <p className="mt-6 text-[11px] text-red-400">{error}</p>}
         {!error && cargando && (
-          <p className="mt-6 text-[11px] text-cdm-muted">Cargando…</p>
+          <p className="font-mono-hud mt-6 text-[11px] uppercase tracking-[0.14em] text-cdm-muted">
+            Cargando…
+          </p>
         )}
         {!error && !cargando && eventos.length === 0 && (
-          <div className="mt-6 flex h-24 items-center justify-center border border-dashed border-cdm-line">
-            <span className="text-[10px] uppercase tracking-[0.2em] text-cdm-muted/60">
+          <div className="mt-6 flex h-24 items-center justify-center rounded-[24px] ring-1 ring-cdm-line">
+            <span className="font-mono-hud text-[10px] uppercase tracking-[0.2em] text-cdm-muted/60">
               Sin eventos para este filtro
             </span>
           </div>
         )}
 
-        <ul
-          className={`cdm-glass mt-6 px-4 py-1 sm:px-5 ${
-            eventos.length === 0 ? "hidden" : ""
-          }`}
-        >
-          <AnimatePresence initial={false}>
-            {eventos.map((e, i) => (
-              <motion.li
-                key={e.id}
-                layout
-                initial={{ opacity: 0, x: -8 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0 }}
-                className={`flex items-baseline gap-3 px-1 py-3 text-[11px] ${
-                  i > 0 ? "border-t border-cdm-line" : ""
-                }`}
-              >
-                <span className="shrink-0 tabular-nums text-cdm-muted">
-                  {fmtFechaHora(e.creado_at)}
-                </span>
-                <span className="shrink-0 border border-cdm-line px-1 text-[8px] uppercase tracking-widest text-cdm-accent">
-                  {ORIGEN_TAG[e.origen]}
-                </span>
-                <span className="min-w-0 flex-1 truncate text-cdm-fg/85">
-                  {e.titulo}
-                </span>
-                {e.destino_tabla && (
-                  <span className="hidden shrink-0 text-[9px] uppercase tracking-widest text-cdm-muted/70 sm:inline">
-                    → {e.destino_tabla}
-                  </span>
-                )}
-                <span
-                  className={`shrink-0 text-[9px] uppercase tracking-[0.15em] ${ESTADO_UI[e.estado].cls}`}
+        {/* Feed de eventos — card geist */}
+        {eventos.length > 0 && (
+          <motion.ul
+            className="mt-6 rounded-[24px] ring-1 ring-cdm-line bg-white/60 dark:bg-zinc-900/40 px-4 py-1 sm:px-5"
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.25 }}
+          >
+            <AnimatePresence initial={false}>
+              {eventos.map((e, i) => (
+                <motion.li
+                  key={e.id}
+                  layout
+                  initial={{ opacity: 0, x: -8 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0 }}
+                  className={`flex items-baseline gap-3 px-1 py-3 ${
+                    i > 0 ? "border-t border-cdm-line" : ""
+                  }`}
                 >
-                  {ESTADO_UI[e.estado].label}
-                </span>
-              </motion.li>
-            ))}
-          </AnimatePresence>
-        </ul>
+                  <span className="font-mono-hud shrink-0 tabular-nums text-[10px] text-cdm-muted">
+                    {fmtFechaHora(e.creado_at)}
+                  </span>
+                  <span className="font-mono-hud shrink-0 rounded-full border border-cdm-accent/40 px-2 py-0.5 text-[9px] font-semibold uppercase tracking-[0.12em] text-cdm-accent">
+                    {ORIGEN_TAG[e.origen]}
+                  </span>
+                  <span className="font-geist min-w-0 flex-1 truncate text-[13px] text-cdm-fg/85">
+                    {e.titulo}
+                  </span>
+                  {e.destino_tabla && (
+                    <span className="font-mono-hud hidden shrink-0 text-[9px] uppercase tracking-widest text-cdm-muted/70 sm:inline">
+                      → {e.destino_tabla}
+                    </span>
+                  )}
+                  <span
+                    className={`font-mono-hud shrink-0 text-[9px] uppercase tracking-[0.15em] ${ESTADO_UI[e.estado].cls}`}
+                  >
+                    {ESTADO_UI[e.estado].label}
+                  </span>
+                </motion.li>
+              ))}
+            </AnimatePresence>
+          </motion.ul>
+        )}
       </div>
     </div>
   );

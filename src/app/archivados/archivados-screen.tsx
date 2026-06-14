@@ -9,7 +9,6 @@ import {
   textoDeEvento,
   type DestinoArchivado,
 } from "@/lib/archivados-destinos";
-import { WavesBackdrop } from "@/components/cockpit/waves-backdrop";
 import type { Evento } from "@/types/centro-mando";
 
 type ObraOpcion = {
@@ -39,7 +38,7 @@ const CATEGORIAS_GASTO = [
 ];
 
 const INPUT_CLS =
-  "w-full border border-cdm-line bg-transparent px-3 py-2 text-xs text-cdm-fg placeholder:text-cdm-muted/50 focus:border-cdm-accent focus:outline-none";
+  "font-geist w-full rounded-lg border border-cdm-line bg-white/40 dark:bg-zinc-900/30 px-3 py-2 text-xs text-cdm-fg placeholder:text-cdm-muted/50 focus:border-cdm-accent focus:outline-none";
 
 function fmtFechaHora(iso: string): string {
   return new Date(iso).toLocaleString("es-AR", {
@@ -109,10 +108,10 @@ function FormResolver({
             key={d}
             type="button"
             onClick={() => setDestino(d)}
-            className={`border px-2.5 py-1 text-[9px] uppercase tracking-[0.15em] transition-colors ${
+            className={`font-mono-hud rounded-full px-2.5 py-1 text-[9px] uppercase tracking-[0.15em] ring-1 transition-colors ${
               destino === d
-                ? "border-cdm-accent bg-cdm-accent text-cdm-bg"
-                : "border-cdm-line text-cdm-muted hover:text-cdm-fg"
+                ? "bg-cdm-accent/10 text-cdm-accent ring-cdm-accent/50"
+                : "text-cdm-muted ring-cdm-line hover:text-cdm-fg hover:ring-cdm-accent/30"
             }`}
           >
             {DESTINO_LABEL[d]}
@@ -174,7 +173,7 @@ function FormResolver({
       <button
         type="submit"
         disabled={enviando}
-        className="w-full border border-cdm-accent px-4 py-2 text-[10px] uppercase tracking-[0.2em] text-cdm-accent transition-colors hover:bg-cdm-accent hover:text-cdm-bg disabled:opacity-40"
+        className="font-mono-hud w-full rounded-full ring-1 ring-cdm-accent/50 bg-cdm-accent/10 px-4 py-2 text-[10px] uppercase tracking-[0.2em] text-cdm-accent transition-colors hover:bg-cdm-accent/20 disabled:opacity-40"
       >
         {enviando ? "Resolviendo…" : destino === "descartar" ? "Descartar" : "Resolver"}
       </button>
@@ -219,26 +218,26 @@ export function ArchivadosScreen() {
   }
 
   return (
-    <div className="font-grotesk relative min-h-screen bg-cdm-bg px-4 pb-24 pt-14 text-cdm-fg sm:px-8">
-      <WavesBackdrop />
+    <div className="font-geist relative min-h-screen bg-cdm-bg px-4 pb-24 pt-8 text-cdm-fg sm:px-8">
       <div className="relative z-10 mx-auto max-w-3xl">
-        <div className="relative pb-3">
-          {/* Línea de horizonte detrás del header — mismo lenguaje que historial/obras. */}
-          <span aria-hidden className="cdm-horizon absolute inset-x-0 bottom-0" />
-          <h1 className="font-mono-hud flex items-baseline gap-2 text-[11px] font-medium uppercase tracking-[0.22em] text-cdm-muted">
-            <span aria-hidden className="text-cdm-accent/60">{"//////"}</span>
+        {/* Header — mismo lenguaje que ObrasScreen */}
+        <header className="mb-6">
+          <h1 className="font-geist text-3xl font-semibold tracking-tight text-cdm-fg">
             Archivados
           </h1>
-        </div>
-        <p className="mt-4 text-sm text-cdm-muted">
-          Lo que el bot no pudo clasificar espera acá. Asignale un destino o descartalo —
-          pérdida: cero.
-        </p>
+          <p className="font-mono-hud mt-1 text-[11px] uppercase tracking-[0.18em] text-cdm-muted">
+            Bandeja sin clasificar · pérdida cero
+          </p>
+        </header>
 
-        {cargando && <p className="mt-8 text-[11px] text-cdm-muted">Cargando…</p>}
+        {cargando && (
+          <p className="font-mono-hud text-[11px] uppercase tracking-[0.14em] text-cdm-muted">
+            Cargando…
+          </p>
+        )}
         {!cargando && eventos.length === 0 && (
-          <div className="mt-8 flex h-24 items-center justify-center border border-dashed border-cdm-line">
-            <span className="text-[10px] uppercase tracking-[0.2em] text-cdm-muted/60">
+          <div className="mt-4 flex h-24 items-center justify-center rounded-[24px] ring-1 ring-cdm-line bg-white/60 dark:bg-zinc-900/40">
+            <span className="font-mono-hud text-[10px] uppercase tracking-[0.2em] text-cdm-muted/60">
               Nada sin clasificar. Pérdida: cero.
             </span>
           </div>
@@ -250,23 +249,23 @@ export function ArchivadosScreen() {
               key={e.id}
               layout
               exit={{ opacity: 0, x: 24 }}
-              className="cdm-glass mt-4"
+              className="mt-4 overflow-hidden rounded-[24px] ring-1 ring-cdm-line bg-white/60 dark:bg-zinc-900/40"
             >
               <button
                 onClick={() => setAbierto((a) => (a === e.id ? null : e.id))}
-                className="flex w-full items-baseline gap-3 px-4 py-3 text-left"
+                className="flex w-full items-center gap-3 px-4 py-3.5 text-left"
               >
-                <span className="h-1.5 w-1.5 shrink-0 self-center bg-red-400" />
-                <span className="min-w-0 flex-1 truncate text-sm text-cdm-fg">
+                <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-red-400" />
+                <span className="font-geist min-w-0 flex-1 truncate text-[13px] font-medium leading-snug text-cdm-fg">
                   {e.titulo}
                 </span>
-                <span className="shrink-0 text-[10px] tabular-nums text-cdm-muted">
+                <span className="font-mono-hud shrink-0 text-[10px] tabular-nums text-cdm-muted">
                   {fmtFechaHora(e.creado_at)}
                 </span>
               </button>
               {abierto === e.id && (
                 <>
-                  <p className="border-t border-cdm-line px-4 py-2 text-[11px] text-cdm-muted">
+                  <p className="border-t border-cdm-line px-4 py-2.5 font-geist text-[11px] italic text-cdm-muted">
                     &ldquo;{textoDeEvento(e)}&rdquo;
                   </p>
                   <FormResolver evento={e} obras={obras} onResuelto={quitarResuelto} />

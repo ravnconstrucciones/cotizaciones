@@ -2,9 +2,9 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
+import { motion } from "framer-motion";
 import type { EstadoCotizacion } from "@/lib/cotizador/tipos";
 import { formatMoneyInt } from "@/lib/format-currency";
-import { WavesBackdrop } from "@/components/cockpit/waves-backdrop";
 import { SkeletonGlass } from "@/components/cockpit/skeleton-glass";
 
 type CotizacionListada = {
@@ -26,11 +26,11 @@ export const ESTADO_LABEL: Record<EstadoCotizacion, string> = {
 };
 
 export const ESTADO_COLOR: Record<EstadoCotizacion, string> = {
-  borrador: "text-cdm-muted border-cdm-line",
-  en_revision: "text-amber-300 border-amber-300/40",
-  aprobada: "text-emerald-400 border-emerald-400/40",
-  rechazada: "text-red-400 border-red-400/40",
-  documento_emitido: "text-cdm-accent-2 border-cdm-accent-2/40",
+  borrador: "text-cdm-muted ring-cdm-line",
+  en_revision: "text-amber-400 ring-amber-400/40",
+  aprobada: "text-emerald-400 ring-emerald-400/40",
+  rechazada: "text-red-400 ring-red-400/40",
+  documento_emitido: "text-cdm-accent ring-cdm-accent/40",
 };
 
 const FILTROS: Array<{ valor: EstadoCotizacion | "todas"; etiqueta: string }> = [
@@ -96,84 +96,105 @@ export function CotizacionesScreen() {
   }, [cargar]);
 
   return (
-    <main className="font-grotesk relative min-h-screen bg-cdm-bg px-4 pb-24 pt-14 text-cdm-fg sm:px-8">
-      <WavesBackdrop />
-      <div className="relative z-10 mx-auto w-full max-w-5xl">
-        <div className="relative pb-3">
-          {/* Línea de horizonte detrás del header — mismo lenguaje que historial/obras. */}
-          <span aria-hidden className="cdm-horizon absolute inset-x-0 bottom-0" />
-          <h1 className="font-mono-hud flex items-baseline gap-2 text-[11px] font-medium uppercase tracking-[0.22em] text-cdm-muted">
-            <span aria-hidden className="text-cdm-accent/60">{"//////"}</span>
+    <div className="font-geist relative min-h-screen bg-cdm-bg text-cdm-fg">
+      {/* Header — mismo lenguaje que obras-screen */}
+      <header className="relative z-10 flex items-baseline justify-between px-6 pt-8 md:px-10">
+        <div>
+          <h1 className="font-geist text-3xl font-semibold tracking-tight text-cdm-fg">
             Cotizaciones
           </h1>
+          <p className="font-mono-hud mt-1 text-[11px] uppercase tracking-[0.18em] text-cdm-muted">
+            Mesa de revisión · Cotizador 2.0
+          </p>
         </div>
-        <p className="mt-4 text-sm text-cdm-muted">
-          Cotizador 2.0 — toda cotización pasa por la mesa de revisión antes del documento.
-        </p>
+      </header>
 
-        <div className="mt-6 flex flex-wrap gap-1.5">
-          {FILTROS.map((f) => (
+      {/* Chips de filtro — mismo lenguaje pill mono que obras-screen */}
+      <div className="relative z-10 flex flex-wrap gap-2 px-6 pt-6 md:px-10">
+        {FILTROS.map((f) => {
+          const activo = filtro === f.valor;
+          return (
             <button
               key={f.valor}
               onClick={() => setFiltro(f.valor)}
-              className={`cdm-chip cursor-pointer border px-3 py-1 text-[10px] uppercase tracking-[0.18em] transition-colors ${
-                filtro === f.valor
-                  ? "border-cdm-accent/70 bg-cdm-accent/15 text-cdm-accent shadow-[0_0_18px_-6px_rgba(34,211,238,0.55)]"
-                  : "border-cdm-line text-cdm-muted hover:border-cdm-accent/30 hover:text-cdm-fg"
+              className={`font-mono-hud inline-flex items-center rounded-full px-3.5 py-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] ring-1 transition-colors ${
+                activo
+                  ? "bg-cdm-accent/10 text-cdm-accent ring-cdm-accent/50"
+                  : "text-cdm-muted ring-cdm-line hover:text-cdm-fg hover:ring-cdm-accent/30"
               }`}
             >
               {f.etiqueta}
             </button>
-          ))}
-        </div>
+          );
+        })}
+      </div>
 
-        {error && <p className="mt-6 text-sm text-red-400">{error}</p>}
+      {/* Contenido */}
+      <div className="relative z-10 px-6 pt-8 pb-24 md:px-10">
+        {error && (
+          <p className="mb-4 text-[12px] text-red-400">{error}</p>
+        )}
 
         {cargando ? (
-          <div className="cdm-glass mt-6 p-5">
-            <SkeletonGlass filas={4} anchos={["w-2/3", "w-full", "w-1/2", "w-3/4"]} />
+          <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <SkeletonGlass key={i} filas={3} anchos={["w-2/3", "w-full", "w-1/2"]} />
+            ))}
           </div>
         ) : cotizaciones.length === 0 ? (
-          <div className="mt-6 flex h-28 items-center justify-center border border-dashed border-cdm-line">
-            <span className="max-w-md px-4 text-center text-[10px] uppercase tracking-[0.2em] leading-relaxed text-cdm-muted/60">
-              Sin cotizaciones acá. Llegan solas desde WhatsApp o la barra de
-              comando (cola → daemon → mesa de revisión)
-            </span>
+          <div className="flex min-h-[40vh] items-center justify-center">
+            <p className="px-6 text-center text-[12px] uppercase tracking-[0.2em] text-cdm-muted">
+              Sin cotizaciones. Llegan desde WhatsApp o la barra de comando.
+            </p>
           </div>
         ) : (
-          <ul className="cdm-glass mt-6 px-4 sm:px-5">
-            {cotizaciones.map((c, i) => (
-              <li
+          <motion.ul
+            variants={{ hidden: {}, visible: { transition: { staggerChildren: 0.05 } } }}
+            initial="hidden"
+            animate="visible"
+            className="flex flex-col gap-3"
+          >
+            {cotizaciones.map((c) => (
+              <motion.li
                 key={c.id}
-                className={`flex items-stretch ${i > 0 ? "border-t border-cdm-line" : ""}`}
+                variants={{
+                  hidden: { opacity: 0, y: 12 },
+                  visible: { opacity: 1, y: 0, transition: { duration: 0.4, ease: [0.22, 1, 0.36, 1] } },
+                }}
+                className="group flex items-stretch rounded-[24px] ring-1 ring-cdm-line bg-white/60 dark:bg-zinc-900/40 transition-shadow hover:ring-cdm-line/70"
               >
                 <Link
                   href={`/cotizaciones/${c.id}/revision`}
-                  className="flex flex-1 items-center justify-between gap-4 px-1 py-4 transition-colors hover:bg-cdm-fg/[0.03]"
+                  className="flex flex-1 items-center justify-between gap-4 rounded-l-[24px] px-5 py-4 transition-colors hover:bg-cdm-fg/[0.02]"
                 >
                   <div className="min-w-0">
-                    <p className="truncate text-sm font-medium">{c.titulo}</p>
-                    <p className="mt-0.5 text-xs text-cdm-muted">
+                    <p className="font-geist truncate text-[13px] font-medium leading-snug text-cdm-fg group-hover:text-cdm-accent transition-colors">
+                      {c.titulo}
+                    </p>
+                    <p className="font-mono-hud mt-1 text-[10px] uppercase tracking-[0.12em] text-cdm-muted">
                       {c.zona ? `${c.zona} · ` : ""}
                       {new Date(c.creado_at).toLocaleDateString("es-AR")}
                     </p>
                   </div>
-                  <div className="flex shrink-0 items-center gap-4">
-                    <span className="text-sm tabular-nums">{rangoTotal(c)}</span>
+                  <div className="flex shrink-0 items-center gap-3">
+                    <span className="font-geist text-[13px] tabular-nums text-cdm-fg/80">
+                      {rangoTotal(c)}
+                    </span>
                     <span
-                      className={`cdm-chip border px-2 py-0.5 text-[10px] uppercase tracking-[0.14em] ${ESTADO_COLOR[c.estado]}`}
+                      className={`font-mono-hud rounded-full px-2.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.12em] ring-1 ${ESTADO_COLOR[c.estado]}`}
                     >
                       {ESTADO_LABEL[c.estado]}
                     </span>
                   </div>
                 </Link>
+                {/* Botón borrar — preservado con su lógica `eliminar(c)` */}
                 <button
                   type="button"
                   onClick={() => void eliminar(c)}
                   disabled={eliminando === c.id}
                   aria-label={`Borrar cotización ${c.titulo}`}
                   title="Borrar cotización"
-                  className="flex shrink-0 items-center justify-center px-3 text-cdm-muted/60 transition-colors hover:text-red-400 disabled:opacity-40"
+                  className="flex shrink-0 items-center justify-center rounded-r-[24px] px-4 text-cdm-muted/50 transition-colors hover:text-red-400 disabled:opacity-40"
                 >
                   {eliminando === c.id ? (
                     <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-red-400/30 border-t-red-400" />
@@ -181,11 +202,11 @@ export function CotizacionesScreen() {
                     <span className="text-lg leading-none">×</span>
                   )}
                 </button>
-              </li>
+              </motion.li>
             ))}
-          </ul>
+          </motion.ul>
         )}
       </div>
-    </main>
+    </div>
   );
 }

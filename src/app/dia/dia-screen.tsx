@@ -1,7 +1,6 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { WavesBackdrop } from "@/components/cockpit/waves-backdrop";
 import { AREAS_ORDEN, type AreaNota, type TuDiaData } from "@/lib/tu-dia";
 
 /* dd/mm/aaaa a partir de un ISO YYYY-MM-DD. */
@@ -31,15 +30,20 @@ function CardArea({
       initial={{ opacity: 0, y: 14 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4, delay: 0.04 * i, ease: "easeOut" }}
-      className="cdm-glass flex flex-col p-5"
+      className="flex flex-col rounded-[24px] bg-white/60 p-5 ring-1 ring-cdm-line dark:bg-zinc-900/40"
     >
       <header className="flex items-baseline gap-2.5">
         <span aria-hidden className="text-lg leading-none">
           {emoji}
         </span>
-        <h3 className="text-sm font-medium tracking-tight text-cdm-fg">
-          {area.titulo}
-        </h3>
+        <div>
+          <p className="font-mono-hud text-[9px] uppercase tracking-[0.18em] text-cdm-muted">
+            Área
+          </p>
+          <h3 className="font-geist text-[14px] font-medium tracking-tight text-cdm-fg">
+            {area.titulo}
+          </h3>
+        </div>
       </header>
 
       {area.estado && (
@@ -47,7 +51,7 @@ function CardArea({
           <p className="font-mono-hud text-[9px] uppercase tracking-[0.2em] text-cdm-muted">
             Estado
           </p>
-          <p className="mt-1 text-[12px] leading-relaxed text-cdm-fg/80">
+          <p className="mt-1 font-geist text-[12px] leading-relaxed text-cdm-fg/80">
             {area.estado}
           </p>
         </div>
@@ -58,7 +62,7 @@ function CardArea({
         <p className="font-mono-hud text-[9px] uppercase tracking-[0.2em] text-cdm-accent/80">
           Próximo 1%
         </p>
-        <p className="mt-1 text-[13px] font-medium leading-snug text-cdm-fg">
+        <p className="mt-1 font-geist text-[13px] font-medium leading-snug text-cdm-fg">
           {area.proximo1 ?? (
             <span className="text-cdm-muted/70">sin definir</span>
           )}
@@ -71,13 +75,13 @@ function CardArea({
           <span className="font-mono-hud mt-0.5 shrink-0 text-[9px] uppercase tracking-[0.18em] text-cdm-accent">
             hoy:
           </span>
-          <p className="text-[11px] leading-relaxed text-cdm-fg/70">{hoy1}</p>
+          <p className="font-geist text-[11px] leading-relaxed text-cdm-fg/70">{hoy1}</p>
         </div>
       )}
 
       {/* Brújula — nota al pie, al fondo de la card. */}
       {area.brujula && (
-        <p className="mt-auto pt-4 text-[11px] italic leading-relaxed text-cdm-muted">
+        <p className="mt-auto pt-4 font-geist text-[11px] italic leading-relaxed text-cdm-muted">
           <span aria-hidden className="mr-1 text-cdm-accent/50">
             ↳
           </span>
@@ -94,67 +98,62 @@ export function DiaScreen({ data, hoy }: { data: TuDiaData; hoy: string }) {
   const fresco = dia.fecha === hoy;
 
   return (
-    <div className="font-grotesk relative min-h-screen bg-cdm-bg px-4 pb-24 pt-14 text-cdm-fg sm:px-8">
-      <WavesBackdrop />
-
+    <div className="font-geist relative min-h-screen bg-cdm-bg px-4 pb-24 pt-14 text-cdm-fg sm:px-8">
       <div className="relative z-10 mx-auto max-w-6xl">
-        {/* Header — mismo lenguaje que ADN / obras / historial. */}
-        <div className="relative pb-3">
-          <span aria-hidden className="cdm-horizon absolute inset-x-0 bottom-0" />
-          <h1 className="font-mono-hud flex items-baseline gap-2 text-[11px] font-medium uppercase tracking-[0.22em] text-cdm-muted">
-            <span aria-hidden className="text-cdm-accent/60">
-              {"//////"}
-            </span>
-            Tu Día
-          </h1>
-        </div>
-        <p className="mt-5 max-w-xl text-sm leading-relaxed text-cdm-muted">
-          Tus 8 áreas de vida y negocio. Una área, un 1%, por vez.
-        </p>
+        {/* Header — lenguaje Geist idéntico a /obras */}
+        <header className="relative flex items-baseline justify-between pb-0">
+          <div>
+            <h1 className="font-geist text-3xl font-semibold tracking-tight text-cdm-fg">
+              Tu Día
+            </h1>
+            <p className="font-mono-hud mt-1 text-[11px] uppercase tracking-[0.18em] text-cdm-muted">
+              {dia.fecha ? fmtFecha(dia.fecha) : "Áreas de vida y negocio"}
+            </p>
+          </div>
+        </header>
 
         {error && (
-          <p className="mt-6 border border-amber-400/30 bg-amber-400/5 px-4 py-3 text-[12px] text-amber-300">
+          <p className="mt-6 rounded-[16px] border border-amber-400/30 bg-amber-400/5 px-4 py-3 text-[12px] text-amber-300">
             {error}
           </p>
         )}
 
-        {/* 1% MAESTRO DE HOY — la acción más importante del día, destacada. */}
+        {/* 1% MAESTRO DE HOY — card protagonista */}
         {maestro && (
           <motion.section
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, ease: "easeOut" }}
-            className="cdm-glass mt-8 overflow-hidden p-6 sm:p-8"
+            className="mt-8 overflow-hidden rounded-[28px] bg-white/60 p-6 ring-1 ring-cdm-accent/30 dark:bg-zinc-900/40 sm:p-8"
+            style={{
+              boxShadow: "0 0 40px 0 color-mix(in srgb, var(--cdm-accent, #22d3ee) 8%, transparent)",
+            }}
           >
             <div className="flex flex-wrap items-baseline justify-between gap-2">
               <p className="font-mono-hud text-[10px] uppercase tracking-[0.24em] text-cdm-accent">
-                <span aria-hidden className="mr-1.5 text-cdm-accent/40">
-                  {"//////"}
-                </span>
                 El 1% maestro de hoy
               </p>
               <span className="font-mono-hud text-[10px] uppercase tracking-[0.18em] text-cdm-muted">
                 {maestro.area}
               </span>
             </div>
-            <p className="mt-4 text-lg font-medium leading-snug text-cdm-fg sm:text-xl">
+            <p className="mt-4 font-geist text-lg font-medium leading-snug text-cdm-fg sm:text-xl">
               {maestro.accion}
             </p>
-            <p className="mt-3 max-w-2xl text-[13px] leading-relaxed text-cdm-muted">
+            <p className="mt-3 max-w-2xl font-geist text-[13px] leading-relaxed text-cdm-muted">
               {maestro.porque}
             </p>
           </motion.section>
         )}
 
-        {/* Sello de frescura: si dia.json no es de hoy, avisar tenue
-            (el regenerado diario está pausado — NO es un error). */}
+        {/* Sello de frescura: si dia.json no es de hoy, avisar tenue */}
         {dia.fecha && !fresco && (
           <p className="font-mono-hud mt-3 text-[10px] uppercase tracking-[0.16em] text-cdm-muted/55">
             actualizado {fmtFecha(dia.fecha)} · el 1% del día se regenera en pausa
           </p>
         )}
 
-        {/* Grid de las 8 áreas. */}
+        {/* Grid de las áreas */}
         <div className="mt-10 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {areas.map((a, i) => (
             <CardArea
@@ -167,7 +166,7 @@ export function DiaScreen({ data, hoy }: { data: TuDiaData; hoy: string }) {
         </div>
 
         {areas.length === 0 && !error && (
-          <div className="mt-10 flex h-32 items-center justify-center border border-dashed border-cdm-line">
+          <div className="mt-10 flex h-32 items-center justify-center rounded-[20px] border border-dashed border-cdm-line">
             <span className="font-mono-hud px-4 text-center text-[10px] uppercase tracking-[0.2em] text-cdm-muted/60">
               Sin lectura del vault aún
             </span>
