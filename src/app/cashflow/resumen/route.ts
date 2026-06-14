@@ -77,6 +77,7 @@ type ObraRow = {
   cobranza_cerrada_at?: string | null;
   finalizada_at?: string | null;
   monto_total_a_cobrar_ars?: string | number | null;
+  foto_portada_path?: string | null;
   presupuestos: PresRow | PresRow[] | null;
 };
 
@@ -140,6 +141,7 @@ export async function GET() {
           cobranza_cerrada_at,
           finalizada_at,
           monto_total_a_cobrar_ars,
+          foto_portada_path,
           presupuestos (
             id,
             nombre_obra,
@@ -309,11 +311,35 @@ export async function GET() {
           referencia_propuesta_ars != null
             ? roundArs2(referencia_propuesta_ars - egTotal)
             : null,
+        // Portada del proyecto (rediseño /obras): path en bucket privado; la
+        // signed URL se completa abajo (foto_portada_url).
+        foto_portada_path: o.foto_portada_path ?? null,
+        foto_portada_url: null as string | null,
       };
     });
     obrasActivas.sort((a, b) =>
       a.nombre_obra.localeCompare(b.nombre_obra, "es")
     );
+
+    // Firma server-side de las portadas (bucket privado obra-archivos). Batch
+    // con createSignedUrls; TTL corto (la card se revalida con el resumen).
+    const portadaPaths = obrasActivas
+      .map((o) => o.foto_portada_path)
+      .filter((p): p is string => Boolean(p));
+    if (portadaPaths.length > 0) {
+      const { data: signed } = await supabase.storage
+        .from("obra-archivos")
+        .createSignedUrls(portadaPaths, 60 * 30);
+      const urlPorPath = new Map<string, string>();
+      for (const s of signed ?? []) {
+        if (s.path && s.signedUrl) urlPorPath.set(s.path, s.signedUrl);
+      }
+      for (const o of obrasActivas) {
+        if (o.foto_portada_path) {
+          o.foto_portada_url = urlPorPath.get(o.foto_portada_path) ?? null;
+        }
+      }
+    }
 
     let total_por_cobrar_clientes_ars = 0;
     for (const row of obrasActivas) {
