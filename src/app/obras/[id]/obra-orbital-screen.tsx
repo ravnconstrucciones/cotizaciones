@@ -34,6 +34,7 @@ type ResumenObra = {
   egresos_caja: number | null;
   saldo_caja: number | null;
   margen_al_dia_ars: number | null;
+  finalizada?: boolean;
 };
 
 export function ObraOrbitalScreen({ presupuestoId }: { presupuestoId: string }) {
@@ -41,6 +42,13 @@ export function ObraOrbitalScreen({ presupuestoId }: { presupuestoId: string }) 
   const [nodos, setNodos] = useState<NodoArtefacto[] | null>(null);
   const [margen, setMargen] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [finalizada, setFinalizada] = useState(false);
+  // Seguimiento (porté estas acciones desde la vieja /obras: la galería nueva
+  // es solo overview, el detalle vive acá).
+  const [avanceTexto, setAvanceTexto] = useState("");
+  const [enviando, setEnviando] = useState(false);
+  const [cerrando, setCerrando] = useState(false);
+  const [confirmCerrar, setConfirmCerrar] = useState(false);
 
   const cargar = useCallback(async () => {
     try {
@@ -100,6 +108,7 @@ export function ObraOrbitalScreen({ presupuestoId }: { presupuestoId: string }) 
         (o) => o.presupuesto_id === presupuestoId
       );
       setMargen(fila?.margen_al_dia_ars ?? null);
+      setFinalizada(Boolean(fila?.finalizada));
 
       setNodos(
         derivarArtefactosObra({
@@ -149,6 +158,47 @@ export function ObraOrbitalScreen({ presupuestoId }: { presupuestoId: string }) 
     [cargar]
   );
 
+  // Agregar avance (manual; el bot también mete avances por WhatsApp).
+  const agregarAvance = useCallback(async () => {
+    const texto = avanceTexto.trim();
+    if (!texto || enviando) return;
+    setEnviando(true);
+    try {
+      const supabase = createClient();
+      const { error } = await supabase
+        .from("obra_avances")
+        .insert({ presupuesto_id: presupuestoId, texto });
+      if (error) {
+        setError(error.message);
+        return;
+      }
+      setAvanceTexto("");
+      await cargar();
+    } finally {
+      setEnviando(false);
+    }
+  }, [avanceTexto, enviando, presupuestoId, cargar]);
+
+  // Cerrar obra (finalizar): setea finalizada_at vía el endpoint existente.
+  const cerrarObra = useCallback(async () => {
+    if (cerrando) return;
+    setCerrando(true);
+    try {
+      const res = await fetch(`/api/obras/${presupuestoId}/finalizar`, {
+        method: "POST",
+      });
+      const j = (await res.json().catch(() => ({}))) as { error?: string };
+      if (!res.ok) {
+        setError(j.error ?? "No se pudo cerrar la obra.");
+        return;
+      }
+      setConfirmCerrar(false);
+      await cargar();
+    } finally {
+      setCerrando(false);
+    }
+  }, [cerrando, presupuestoId, cargar]);
+
   return (
     <div className="font-grotesk relative flex h-dvh flex-col bg-cdm-bg p-4 text-cdm-fg">
       <WavesBackdrop />
@@ -192,6 +242,66 @@ export function ObraOrbitalScreen({ presupuestoId }: { presupuestoId: string }) 
           />
         )}
       </div>
+
+      {/* Seguimiento: agregar avance + cerrar obra (porté desde la vieja /obras). */}
+      {nodos && (
+        <footer className="relative z-10 mt-2 flex flex-col gap-2 border-t border-cdm-line px-1 pt-3 sm:flex-row sm:items-center">
+          {finalizada ? (
+            <span className="font-mono-hud text-[10px] uppercase tracking-[0.18em] text-emerald-400">
+              ✓ Obra cerrada
+            </span>
+          ) : (
+            <>
+              <div className="flex flex-1 items-stretch">
+                <input
+                  value={avanceTexto}
+                  onChange={(e) => setAvanceTexto(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") void agregarAvance();
+                  }}
+                  placeholder="+ avance…"
+                  className="font-grotesk w-full border border-cdm-line bg-transparent px-3 py-1.5 text-[12px] text-cdm-fg placeholder:text-cdm-muted/50 focus:border-emerald-400 focus:outline-none"
+                />
+                <button
+                  type="button"
+                  onClick={() => void agregarAvance()}
+                  disabled={enviando || !avanceTexto.trim()}
+                  className="font-mono-hud shrink-0 border border-l-0 border-cdm-line px-3 text-[11px] uppercase tracking-widest text-emerald-400 transition-colors hover:bg-emerald-400 hover:text-cdm-bg disabled:opacity-30"
+                >
+                  {enviando ? "…" : "+"}
+                </button>
+              </div>
+              {confirmCerrar ? (
+                <span className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => void cerrarObra()}
+                    disabled={cerrando}
+                    className="font-mono-hud border border-amber-300/60 bg-amber-300/10 px-3 py-1.5 text-[10px] uppercase tracking-[0.14em] text-amber-300 transition-colors hover:bg-amber-300 hover:text-cdm-bg disabled:opacity-40"
+                  >
+                    {cerrando ? "Cerrando…" : "Confirmar cierre"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setConfirmCerrar(false)}
+                    className="font-mono-hud text-[10px] uppercase tracking-[0.14em] text-cdm-muted hover:text-cdm-fg"
+                  >
+                    Cancelar
+                  </button>
+                </span>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setConfirmCerrar(true)}
+                  className="font-mono-hud shrink-0 border border-cdm-line px-3 py-1.5 text-[10px] uppercase tracking-[0.14em] text-cdm-muted transition-colors hover:border-amber-300/60 hover:text-amber-300"
+                >
+                  Cerrar obra
+                </button>
+              )}
+            </>
+          )}
+        </footer>
+      )}
     </div>
   );
 }
