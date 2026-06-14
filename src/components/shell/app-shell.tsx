@@ -3,89 +3,31 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
-import { motion } from "framer-motion";
 import { useTheme } from "next-themes";
 import { RavnLogo } from "@/components/ravn-logo";
 import { createClient } from "@/lib/supabase/client";
 import { useRealtimeTable } from "@/hooks/use-realtime-table";
 import { MenuOverlay } from "./menu-overlay";
-import {
-  NAV_COCKPIT,
-  NAV_DATOS,
-  NAV_HERRAMIENTAS,
-  type NavItem,
-} from "./nav-config";
 
 /** Rutas SIN carcasa (login, vistas de impresión/PDF y landing pública). */
 const SIN_CARCASA = ["/login", "/propuesta", "/remito", "/landing"];
 /** Sufijos de ruta que también omiten carcasa (documentos A4 de cotizaciones). */
 const SIN_CARCASA_SUFIJO = ["/documento"];
 
-function NavLink({
-  item,
-  activo,
-  badge,
-  secundario,
-}: {
-  item: NavItem;
-  activo: boolean;
-  badge?: number;
-  secundario?: boolean;
-}) {
-  return (
-    <Link
-      href={item.href}
-      className={`relative flex items-center justify-between px-5 transition-colors ${
-        secundario
-          ? "py-2 text-[10px] uppercase tracking-[0.14em]"
-          : "py-2.5 text-[11px] uppercase tracking-[0.14em]"
-      } ${
-        activo
-          ? "text-cdm-fg"
-          : secundario
-            ? "text-cdm-muted/60 hover:text-cdm-muted"
-            : "text-cdm-muted hover:text-cdm-fg"
-      }`}
-    >
-      {activo && (
-        <motion.span
-          layoutId="nav-activo"
-          className="absolute inset-y-0 left-0 w-[2px] bg-cdm-accent shadow-[0_0_10px_rgba(34,211,238,0.7)]"
-          transition={{ type: "spring", stiffness: 400, damping: 35 }}
-        />
-      )}
-      <span>{item.label}</span>
-      {badge ? (
-        <span className="cdm-chip border border-cdm-accent/50 px-1.5 py-0.5 text-[9px] font-bold tabular-nums text-cdm-accent shadow-[0_0_12px_-2px_rgba(34,211,238,0.45)]">
-          {badge}
-        </span>
-      ) : null}
-    </Link>
-  );
-}
-
-/**
- * Toggle de tema del cockpit (12/06 — reemplaza al cuadrado flotante que
- * murió): un comando más de la terminal, al fondo del sidebar junto a
- * [CERRAR SESIÓN]. El label nombra el DESTINO ([MODO CLARO] te lleva al
- * claro). Persistencia next-themes estándar; default oscuro. Antes del
- * mount se asume oscuro — mismo markup en SSR y primer render del
- * cliente, sin mismatch de hydration.
- */
+/** Toggle de tema compacto para la barra superior (el destino nombra el modo). */
 function ToggleTema() {
   const { resolvedTheme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
-
   const esClaro = mounted && resolvedTheme === "light";
   return (
     <button
       type="button"
       onClick={() => setTheme(esClaro ? "dark" : "light")}
-      className="font-mono-hud border-t border-cdm-line px-5 pb-2 pt-3.5 text-left text-[10px] uppercase tracking-[0.08em] text-cdm-muted transition-colors hover:text-cdm-accent"
+      className="font-mono-hud hidden text-[10px] uppercase tracking-[0.1em] text-cdm-muted transition-colors hover:text-cdm-accent sm:block"
       aria-label={esClaro ? "Activar modo oscuro" : "Activar modo claro"}
     >
-      {esClaro ? "[MODO OSCURO] ↑" : "[MODO CLARO] ↑"}
+      {esClaro ? "[MODO OSCURO]" : "[MODO CLARO]"}
     </button>
   );
 }
@@ -95,22 +37,32 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const [archivados, setArchivados] = useState(0);
   const [menuAbierto, setMenuAbierto] = useState(false);
+  // Cmd+K abre el menú directo en modo búsqueda (Spotlight); el botón lo abre
+  // para navegar. Distinguimos con esta bandera.
+  const [menuBuscar, setMenuBuscar] = useState(false);
 
   // Cierra el overlay al cambiar de ruta (navegaste → fuera el menú).
   useEffect(() => {
     setMenuAbierto(false);
   }, [pathname]);
 
-  const esActivo = useCallback(
-    (href: string) =>
-      href === "/" ? pathname === "/" : pathname.startsWith(href),
-    [pathname]
-  );
-  const herramientaActiva = NAV_HERRAMIENTAS.some((i) => esActivo(i.href));
-  const [herramientasAbiertas, setHerramientasAbiertas] = useState(false);
+  const abrirMenu = useCallback((buscar: boolean) => {
+    setMenuBuscar(buscar);
+    setMenuAbierto(true);
+  }, []);
+
+  // Atajo global tipo Spotlight: ⌘K / Ctrl+K abre el menú-buscador.
   useEffect(() => {
-    if (herramientaActiva) setHerramientasAbiertas(true);
-  }, [herramientaActiva]);
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        setMenuBuscar(true);
+        setMenuAbierto((v) => !v);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
 
   const cargarBadge = useCallback(async () => {
     const supabase = createClient();
@@ -139,150 +91,54 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     router.refresh();
   }
 
-  const grupos: Array<{ titulo: string; items: NavItem[] }> = [
-    { titulo: "Cockpit", items: NAV_COCKPIT },
-    { titulo: "Datos", items: NAV_DATOS },
-  ];
-
   return (
     <div className="min-h-screen bg-cdm-bg">
-      {/* Sidebar HUD: translúcido + blur sobre el shader del cockpit; marca con glow sutil */}
-      <aside className="font-grotesk fixed inset-y-0 left-0 z-40 hidden w-60 flex-col border-r border-cdm-line bg-cdm-bg/75 backdrop-blur-xl lg:flex print:hidden">
-        <div className="px-5 pb-6 pt-10">
-          <Link href="/" aria-label="Inicio">
-            <RavnLogo
-              align="start"
-              showTagline={false}
-              shimmer
-              sizeClassName="text-xl"
-              className="drop-shadow-[0_0_18px_rgba(34,211,238,0.30)]"
-            />
-          </Link>
-          {/* Disparador del menú overlay grande (formato B) */}
+      {/* Barra superior slim — única navegación persistente ahora que la sidebar
+          murió. Logo + tema + disparador del menú overlay (con hint ⌘K). */}
+      <header className="font-geist sticky top-0 z-40 flex items-center justify-between border-b border-cdm-line bg-cdm-bg/80 px-5 py-3 backdrop-blur-xl print:hidden">
+        <Link href="/" aria-label="Inicio">
+          <RavnLogo
+            align="start"
+            showTagline={false}
+            shimmer
+            sizeClassName="text-lg"
+            className="drop-shadow-[0_0_18px_rgba(34,211,238,0.30)]"
+          />
+        </Link>
+
+        <div className="flex items-center gap-5">
+          <ToggleTema />
           <button
             type="button"
-            onClick={() => setMenuAbierto(true)}
+            onClick={() => abrirMenu(false)}
             aria-haspopup="dialog"
             aria-expanded={menuAbierto}
-            className="font-mono-hud group mt-5 flex w-full items-center gap-2.5 text-left text-[10px] uppercase tracking-[0.2em] text-cdm-muted transition-colors hover:text-cdm-accent"
+            className="font-mono-hud group flex items-center gap-2.5 text-[11px] uppercase tracking-[0.18em] text-cdm-muted transition-colors hover:text-cdm-fg"
           >
             <span aria-hidden className="flex flex-col gap-[3px]">
               <span className="block h-px w-4 bg-current transition-all duration-300 group-hover:w-5" />
               <span className="block h-px w-3 bg-current transition-all duration-300 group-hover:w-5" />
               <span className="block h-px w-4 bg-current transition-all duration-300 group-hover:w-5" />
             </span>
-            Menú
+            <span>Menú</span>
+            {archivados > 0 && (
+              <span className="cdm-chip border border-cdm-accent/50 px-1.5 py-0.5 text-[9px] font-bold tabular-nums text-cdm-accent shadow-[0_0_12px_-2px_rgba(34,211,238,0.45)]">
+                {archivados}
+              </span>
+            )}
+            <kbd className="hidden rounded border border-cdm-line px-1.5 py-0.5 text-[9px] not-italic text-cdm-muted/70 sm:inline">
+              ⌘K
+            </kbd>
           </button>
         </div>
-        <nav
-          className="flex flex-1 flex-col overflow-y-auto"
-          aria-label="Navegación principal"
-        >
-          {grupos.map((g) => (
-            <div key={g.titulo} className="mb-8">
-              <p className="font-mono-hud px-5 pb-2.5 text-[9px] uppercase tracking-[0.24em] text-cdm-accent/60">
-                <span aria-hidden className="mr-1.5 text-cdm-accent/35">
-                  {"//////"}
-                </span>
-                {g.titulo}
-              </p>
-              {g.items.map((item) => (
-                <NavLink
-                  key={item.href}
-                  item={item}
-                  activo={esActivo(item.href)}
-                  badge={item.href === "/archivados" ? archivados : undefined}
-                />
-              ))}
-            </div>
-          ))}
-
-          {/* Herramientas de edición manual: secundarias, colapsadas al fondo */}
-          <div className="mt-auto border-t border-cdm-line/60 pb-3 pt-3">
-            <button
-              type="button"
-              onClick={() => setHerramientasAbiertas((v) => !v)}
-              aria-expanded={herramientasAbiertas}
-              className="group flex w-full items-baseline justify-between px-5 py-1.5 text-left"
-            >
-              <span className="font-mono-hud text-[9px] uppercase tracking-[0.24em] text-cdm-muted/50 transition-colors group-hover:text-cdm-muted">
-                <span aria-hidden className="mr-1.5 text-cdm-muted/30">
-                  {"//////"}
-                </span>
-                Herramientas
-              </span>
-              <span className="flex items-baseline gap-1.5">
-                <span className="font-mono-hud text-[8px] uppercase tracking-[0.12em] text-cdm-muted/35">
-                  edición manual
-                </span>
-                <motion.span
-                  animate={{ rotate: herramientasAbiertas ? 0 : -90 }}
-                  transition={{ duration: 0.2 }}
-                  className="inline-block text-[8px] text-cdm-muted/40"
-                >
-                  ▾
-                </motion.span>
-              </span>
-            </button>
-            <motion.div
-              initial={false}
-              animate={{
-                height: herramientasAbiertas ? "auto" : 0,
-                opacity: herramientasAbiertas ? 1 : 0,
-              }}
-              transition={{ duration: 0.25, ease: "easeOut" }}
-              className="overflow-hidden"
-            >
-              {NAV_HERRAMIENTAS.map((item) => (
-                <NavLink
-                  key={item.href}
-                  item={item}
-                  activo={esActivo(item.href)}
-                  secundario
-                />
-              ))}
-            </motion.div>
-          </div>
-        </nav>
-        <ToggleTema />
-        <button
-          onClick={cerrarSesion}
-          className="font-mono-hud px-5 pb-4 pt-2 text-left text-[10px] uppercase tracking-[0.08em] text-cdm-muted transition-colors hover:text-cdm-accent"
-        >
-          [CERRAR SESIÓN] ↑
-        </button>
-      </aside>
-
-      {/* Barra superior compacta < lg (el móvil real es WhatsApp) */}
-      <header className="font-grotesk flex items-center justify-between border-b border-cdm-line bg-cdm-bg/80 px-4 py-3 backdrop-blur-xl lg:hidden print:hidden">
-        <Link href="/" aria-label="Inicio">
-          <RavnLogo
-            align="start"
-            showTagline={false}
-            shimmer
-            sizeClassName="text-base"
-          />
-        </Link>
-        <button
-          type="button"
-          onClick={() => setMenuAbierto(true)}
-          aria-haspopup="dialog"
-          aria-expanded={menuAbierto}
-          className="font-mono-hud flex items-center gap-2 text-[10px] uppercase tracking-[0.2em] text-cdm-muted"
-        >
-          <span aria-hidden className="flex flex-col gap-[3px]">
-            <span className="block h-px w-4 bg-current" />
-            <span className="block h-px w-3 bg-current" />
-            <span className="block h-px w-4 bg-current" />
-          </span>
-          Menú
-        </button>
       </header>
 
-      <main className="min-w-0 lg:pl-60 print:pl-0">{children}</main>
+      <main className="min-w-0 print:pl-0">{children}</main>
 
       <MenuOverlay
         open={menuAbierto}
+        modoBuscar={menuBuscar}
+        archivados={archivados}
         onClose={() => setMenuAbierto(false)}
         onCerrarSesion={cerrarSesion}
       />

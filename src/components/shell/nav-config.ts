@@ -1,12 +1,14 @@
 /**
  * Configuración de navegación del cockpit — fuente única de verdad.
  *
- * La consumen DOS superficies:
- *   - app-shell.tsx  → la sidebar HUD clásica (riel lateral fijo).
- *   - menu-overlay.tsx → el menú overlay grande (takeover a pantalla completa).
+ * Hoy la consume SOLO el menú overlay (la sidebar murió: navegación 100% por
+ * el overlay grande + ⌘K). Un solo lugar para agregar/sacar/reordenar ítems.
  *
- * Antes vivía inline en app-shell; se extrajo acá para que el overlay y el
- * riel no se desincronicen (un solo lugar para agregar/sacar ítems).
+ * Reorganización (pedido de Eze, 14/06):
+ *   - Actividad pasó a DATOS (es control de que todo funcione, no operación).
+ *   - Precios SISMAT (maestro de precios) subió a DATOS como acceso rápido
+ *     para corroborar precios; las herramientas de edición manual quedan
+ *     abajo y secundarias.
  */
 
 export type NavItem = { href: string; label: string };
@@ -17,7 +19,6 @@ export const NAV_COCKPIT: NavItem[] = [
   { href: "/terminal", label: "Terminal" },
   { href: "/obras", label: "Proyectos" },
   { href: "/cotizaciones", label: "Cotizaciones" },
-  { href: "/actividad", label: "Actividad" },
   { href: "/archivados", label: "Archivados" },
   { href: "/adn", label: "ADN" },
 ];
@@ -27,6 +28,8 @@ export const NAV_DATOS: NavItem[] = [
   { href: "/control-gastos", label: "Control de gastos" },
   { href: "/rentabilidad", label: "Rentabilidad" },
   { href: "/finanzas", label: "Finanzas personales" },
+  { href: "/actividad", label: "Actividad" },
+  { href: "/maestro-precios", label: "Precios SISMAT" },
 ];
 
 /**
@@ -37,7 +40,6 @@ export const NAV_HERRAMIENTAS: NavItem[] = [
   { href: "/nuevo-presupuesto", label: "Nuevo presupuesto" },
   { href: "/historial", label: "Historial" },
   { href: "/catalogo", label: "Catálogo" },
-  { href: "/maestro-precios", label: "Maestro de precios" },
 ];
 
 export const NAV_GRUPOS: Array<{ titulo: string; items: NavItem[] }> = [
