@@ -49,45 +49,77 @@ type ProyectoRowResponse = {
   total: number;
 };
 
-function ProyectoCompacto({ p }: { p: ProyectoRow }) {
+function ProyectoCompacto({
+  p,
+  onDelete,
+  eliminando,
+}: {
+  p: ProyectoRow;
+  onDelete: (p: ProyectoRow) => void;
+  eliminando: boolean;
+}) {
   const aprobado = Boolean(p.presupuesto_aprobado);
   const nombre = p.nombre_obra?.trim() || p.nombre_cliente?.trim() || "Sin nombre";
   const cliente = p.nombre_cliente?.trim() || null;
 
   return (
-    <Link
-      href={`/obras/${p.id}`}
-      className={`group flex flex-col gap-2 rounded-[20px] p-4 ring-1 transition-colors ${
+    <div
+      className={`group relative flex flex-col gap-2 rounded-[20px] p-4 ring-1 transition-colors ${
         aprobado
           ? "ring-cdm-accent/25 hover:ring-cdm-accent/50"
           : "ring-cdm-line hover:ring-cdm-line/70"
       } bg-white/60 dark:bg-zinc-900/40`}
     >
-      <div className="flex items-start justify-between gap-2">
-        <span className="font-geist text-[13px] font-medium leading-snug text-cdm-fg transition-colors line-clamp-2 group-hover:text-cdm-accent">
-          {nombre}
-        </span>
-        {aprobado && (
-          <span className="font-mono-hud shrink-0 rounded-full border border-cdm-accent/40 px-2 py-0.5 text-[9px] font-semibold uppercase tracking-[0.12em] text-cdm-accent">
-            Aprobada
+      <Link href={`/obras/${p.id}`} className="flex flex-col gap-2">
+        <div className="flex items-start justify-between gap-2">
+          <span className="font-geist text-[13px] font-medium leading-snug text-cdm-fg transition-colors line-clamp-2 group-hover:text-cdm-accent">
+            {nombre}
           </span>
+          {aprobado && (
+            <span className="font-mono-hud mr-7 shrink-0 rounded-full border border-cdm-accent/40 px-2 py-0.5 text-[9px] font-semibold uppercase tracking-[0.12em] text-cdm-accent">
+              Aprobada
+            </span>
+          )}
+        </div>
+        {cliente && nombre !== cliente && (
+          <p className="font-mono-hud text-[10px] text-cdm-muted">{cliente}</p>
         )}
-      </div>
-      {cliente && nombre !== cliente && (
-        <p className="font-mono-hud text-[10px] text-cdm-muted">{cliente}</p>
-      )}
-      <div className="font-mono-hud mt-auto flex gap-3 text-[10px] text-cdm-muted/70">
-        {p.cant_items > 0 && (
-          <span>{p.cant_items} ítem{p.cant_items !== 1 ? "s" : ""}</span>
+        <div className="font-mono-hud mt-auto flex gap-3 text-[10px] text-cdm-muted/70">
+          {p.cant_items > 0 && (
+            <span>{p.cant_items} ítem{p.cant_items !== 1 ? "s" : ""}</span>
+          )}
+          {p.cant_gastos > 0 && (
+            <span>{p.cant_gastos} gasto{p.cant_gastos !== 1 ? "s" : ""}</span>
+          )}
+          {p.cant_items === 0 && p.cant_gastos === 0 && (
+            <span className="italic">Borrador</span>
+          )}
+        </div>
+      </Link>
+      {/* Tachito — aparece al hover, con confirm. Borra el presupuesto y su data. */}
+      <button
+        type="button"
+        onClick={() => onDelete(p)}
+        disabled={eliminando}
+        aria-label={`Borrar ${nombre}`}
+        title="Borrar presupuesto"
+        className="absolute right-2 top-2 flex h-7 w-7 items-center justify-center rounded-full text-cdm-muted/50 opacity-0 transition-all hover:bg-red-400/10 hover:text-red-400 focus:opacity-100 group-hover:opacity-100 disabled:opacity-40"
+      >
+        {eliminando ? (
+          <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-red-400/30 border-t-red-400" />
+        ) : (
+          <svg viewBox="0 0 24 24" fill="none" className="h-4 w-4" aria-hidden>
+            <path
+              d="M4 7h16M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2m2 0v12a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V7"
+              stroke="currentColor"
+              strokeWidth="1.6"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
         )}
-        {p.cant_gastos > 0 && (
-          <span>{p.cant_gastos} gasto{p.cant_gastos !== 1 ? "s" : ""}</span>
-        )}
-        {p.cant_items === 0 && p.cant_gastos === 0 && (
-          <span className="italic">Borrador</span>
-        )}
-      </div>
-    </Link>
+      </button>
+    </div>
   );
 }
 
@@ -98,6 +130,7 @@ export function ObrasScreen() {
   const [cargandoTodos, setCargandoTodos] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [modalAbierto, setModalAbierto] = useState(false);
+  const [eliminandoId, setEliminandoId] = useState<string | null>(null);
 
   const cargar = useCallback(async () => {
     try {
@@ -202,6 +235,30 @@ export function ObrasScreen() {
           )
         : prev
     );
+  }, []);
+
+  // Borrar un presupuesto desde "Todas" (limpiar los de muestra). Optimista.
+  const eliminarProyecto = useCallback(async (p: ProyectoRow) => {
+    const nombre = p.nombre_obra?.trim() || p.nombre_cliente?.trim() || "este presupuesto";
+    if (
+      !window.confirm(
+        `¿Borrar "${nombre}"? Se borra el presupuesto y su data (ítems, gastos, avances). No se puede deshacer.`
+      )
+    ) {
+      return;
+    }
+    setEliminandoId(p.id);
+    setError(null);
+    try {
+      const res = await fetch(`/api/presupuestos/${p.id}`, { method: "DELETE" });
+      const j = (await res.json().catch(() => ({}))) as { error?: string };
+      if (!res.ok) throw new Error(j.error ?? "No se pudo borrar");
+      setTodos((prev) => (prev ? prev.filter((x) => x.id !== p.id) : prev));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "No se pudo borrar");
+    } finally {
+      setEliminandoId(null);
+    }
   }, []);
 
   // ACTIVAS = en curso · FINALIZADAS = cerradas (finalizada o cobranza cerrada).
@@ -321,7 +378,12 @@ export function ObrasScreen() {
                 </p>
                 <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
                   {todosVisibles.map((p) => (
-                    <ProyectoCompacto key={p.id} p={p} />
+                    <ProyectoCompacto
+                      key={p.id}
+                      p={p}
+                      onDelete={eliminarProyecto}
+                      eliminando={eliminandoId === p.id}
+                    />
                   ))}
                 </div>
               </>
