@@ -6,9 +6,10 @@
  *
  * Reorganización (pedido de Eze, 14/06):
  *   - Actividad pasó a DATOS (es control de que todo funcione, no operación).
- *   - Precios SISMAT (maestro de precios) subió a DATOS como acceso rápido
- *     para corroborar precios; las herramientas de edición manual quedan
- *     abajo y secundarias.
+ *   - Maestro de precios subió a DATOS como acceso rápido para corroborar
+ *     precios; las herramientas de edición manual quedan abajo y secundarias.
+ *     (OJO: "Maestro de precios" es la tabla propia de la app — NO es SISMAT.
+ *     SISMAT es el servicio externo suscripto, sismat.com.ar, otra cosa.)
  */
 
 export type NavItem = { href: string; label: string };
@@ -29,7 +30,7 @@ export const NAV_DATOS: NavItem[] = [
   { href: "/rentabilidad", label: "Rentabilidad" },
   { href: "/finanzas", label: "Finanzas personales" },
   { href: "/actividad", label: "Actividad" },
-  { href: "/maestro-precios", label: "Precios SISMAT" },
+  { href: "/maestro-precios", label: "Maestro de precios" },
 ];
 
 /**
