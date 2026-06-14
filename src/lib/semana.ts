@@ -37,6 +37,26 @@ export function claveDia(d: Date): string {
   return `${d.getFullYear()}-${m}-${dia}`;
 }
 
+/**
+ * "Hoy" en zona Argentina, como Date a medianoche local de ESA fecha.
+ * Determinístico entre servidor (UTC) y cliente: ambos formatean el instante
+ * actual en America/Argentina/Buenos_Aires → mismo Y/M/D. Sin esto, después
+ * de las 21hs el SSR (UTC) calcula otro día que el cliente → error de
+ * hidratación (#418) en la home.
+ */
+export function hoyAR(): Date {
+  const partes = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Argentina/Buenos_Aires",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  })
+    .format(new Date())
+    .split("-")
+    .map(Number);
+  return new Date(partes[0], partes[1] - 1, partes[2]);
+}
+
 /** Los 7 días (lunes → domingo) de la semana de `hoy`. */
 export function semanaCorriente(hoy: Date): DiaSemana[] {
   const base = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate());

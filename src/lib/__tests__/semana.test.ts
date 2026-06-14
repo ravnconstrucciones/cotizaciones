@@ -1,6 +1,23 @@
 import { describe, expect, it } from "vitest";
-import { claveDia, itemsDelDia, semanaCorriente } from "@/lib/semana";
+import { claveDia, hoyAR, itemsDelDia, semanaCorriente } from "@/lib/semana";
 import type { CalendarioEvento, Tarea } from "@/types/centro-mando";
+
+describe("hoyAR (anti hydration #418)", () => {
+  it("devuelve una fecha válida a medianoche local", () => {
+    const h = hoyAR();
+    expect(h instanceof Date).toBe(true);
+    expect(Number.isNaN(h.getTime())).toBe(false);
+    expect(h.getHours()).toBe(0);
+    expect(h.getMinutes()).toBe(0);
+    expect(h.getSeconds()).toBe(0);
+  });
+
+  it("la semana de hoyAR tiene exactamente un día marcado como HOY", () => {
+    const dias = semanaCorriente(hoyAR());
+    expect(dias).toHaveLength(7);
+    expect(dias.filter((d) => d.esHoy)).toHaveLength(1);
+  });
+});
 
 function evento(parcial: Partial<CalendarioEvento>): CalendarioEvento {
   return {

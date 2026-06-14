@@ -47,11 +47,15 @@ export function CockpitHome({ cerebro }: { cerebro: CerebroData }) {
           </span>
           Centro de mando
         </h1>
-        <span className="font-mono-hud text-[10px] uppercase tracking-[0.12em] text-cdm-muted/60">
+        <span
+          suppressHydrationWarning
+          className="font-mono-hud text-[10px] uppercase tracking-[0.12em] text-cdm-muted/60"
+        >
           {new Date().toLocaleDateString("es-AR", {
             weekday: "long",
             day: "numeric",
             month: "long",
+            timeZone: "America/Argentina/Buenos_Aires",
           })}
         </span>
       </div>

@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useRealtimeTable } from "@/hooks/use-realtime-table";
 import { Panel } from "./panel";
-import { itemsDelDia, semanaCorriente, type DiaSemana } from "@/lib/semana";
+import { hoyAR, itemsDelDia, semanaCorriente, type DiaSemana } from "@/lib/semana";
 import type { CalendarioEvento, Tarea } from "@/types/centro-mando";
 
 /**
@@ -16,7 +16,7 @@ import type { CalendarioEvento, Tarea } from "@/types/centro-mando";
  */
 export function ModuloSemana({ className }: { className?: string }) {
   const [dias, setDias] = useState<DiaSemana[]>(() =>
-    semanaCorriente(new Date())
+    semanaCorriente(hoyAR())
   );
   const [eventos, setEventos] = useState<CalendarioEvento[]>([]);
   const [tareas, setTareas] = useState<Tarea[]>([]);
@@ -52,7 +52,7 @@ export function ModuloSemana({ className }: { className?: string }) {
     void cargar();
     // Si la pestaña queda abierta de un día para otro, HOY se recalcula.
     const timer = setInterval(
-      () => setDias(semanaCorriente(new Date())),
+      () => setDias(semanaCorriente(hoyAR())),
       60_000
     );
     return () => clearInterval(timer);
