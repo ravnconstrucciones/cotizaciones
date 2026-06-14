@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { IBM_Plex_Mono, Space_Grotesk } from "next/font/google";
+import { Geist, IBM_Plex_Mono, Space_Grotesk } from "next/font/google";
 import { ThemeProvider } from "@/components/theme-provider";
 import { AppShell } from "@/components/shell/app-shell";
 import { raleway } from "./raleway-local";
@@ -26,6 +26,18 @@ const plexMono = IBM_Plex_Mono({
   subsets: ["latin", "latin-ext"],
   weight: ["400", "500", "600"],
   variable: "--font-mono-hud",
+  display: "swap",
+});
+
+/**
+ * Geist = fuente de interfaz de la HOME nueva de cards (más limpia y menos
+ * futurista que Space Grotesk; pedido de Eze). Se aplica por scope con
+ * `font-geist`. El resto del cockpit sigue con Space Grotesk; la marca con
+ * Raleway. Mismo patrón: next/font define la var en <body>.
+ */
+const geist = Geist({
+  subsets: ["latin", "latin-ext"],
+  variable: "--font-geist",
   display: "swap",
 });
 
@@ -68,7 +80,7 @@ export default function RootLayout({
         <meta name="theme-color" content="#070707" />
       </head>
       <body
-        className={`min-h-screen font-sans ${raleway.variable} ${spaceGrotesk.variable} ${plexMono.variable}`}
+        className={`min-h-screen font-sans ${raleway.variable} ${spaceGrotesk.variable} ${plexMono.variable} ${geist.variable}`}
       >
         <ThemeProvider>
           <AppShell>{children}</AppShell>

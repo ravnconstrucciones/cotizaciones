@@ -5,6 +5,14 @@
    utilidades que el set de tokens claro no puede cubrir solo. */
 @custom-variant light (&:where(html.light, html.light *));
 
+/* Variante `dark:` ATADA A LA CLASE (no a prefers-color-scheme).
+   Tailwind v4 por defecto resuelve `dark:` por el media query del SO; acá
+   el tema lo maneja next-themes (attribute="class", agrega .dark/.light en
+   <html>), así que `dark:` debe seguir la CLASE. Sin esto, las cards HeroUI
+   (que usan `dark:`) ignorarían el toggle de la app. El resto del cockpit
+   no usa `dark:` directo (pinta por tokens cdm-*), así que esto no lo afecta. */
+@custom-variant dark (&:where(.dark, .dark *));
+
 /* Default dark (SSR / antes de next-themes); mismo token que html.dark */
 /* Blanco de marca: #fef7f2 (crema) en lugar de #fff */
 :root,
@@ -126,6 +134,8 @@ html.light {
   --font-raleway: var(--font-raleway), ui-sans-serif, system-ui, sans-serif;
   /* Space Grotesk = interfaz del cockpit (mismo patrón que raleway: next/font define la var en body) */
   --font-grotesk: var(--font-grotesk), ui-sans-serif, system-ui, sans-serif;
+  /* Geist = interfaz de la home nueva de cards (limpia, menos futurista) */
+  --font-geist: var(--font-geist), ui-sans-serif, system-ui, sans-serif;
   /* IBM Plex Mono = tipografía terminal del HUD: labels ////// SECCIÓN,
      timestamps, datos secundarios y links [VER] ↑ (iteración 5 — IGLOO) */
   --font-mono-hud: var(--font-mono-hud), ui-monospace, "SF Mono", Menlo, monospace;
@@ -143,6 +153,10 @@ html.light {
 
 .font-grotesk {
   font-family: var(--font-grotesk), "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
+}
+
+.font-geist {
+  font-family: var(--font-geist), "Geist", ui-sans-serif, system-ui, sans-serif;
 }
 
 /* compat: antes Public Sans; todo Raleway */
