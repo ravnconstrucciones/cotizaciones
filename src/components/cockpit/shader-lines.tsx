@@ -28,6 +28,9 @@ import * as THREE from "three";
 
 // ── Fragment shader ORIGINAL (21st.dev "shader lines"): líneas de colores
 //    RGB que se desplazan. NO TOCAR el GLSL — esto es lo que Eze quiere ver.
+// Shader exacto que pasó Eze (21st.dev "Shader Animation"): líneas que fluyen
+// en forma concéntrica. Adaptado solo en los nombres de uniforms (u_time /
+// u_resolution) para encajar con el andamiaje; la matemática es la del snippet.
 const fragmentShader = /* glsl */ `
   #ifdef GL_ES
   precision highp float;
@@ -36,42 +39,19 @@ const fragmentShader = /* glsl */ `
   uniform float u_time;
   uniform vec2 u_resolution;
 
-  // Una línea de colores: onda sinusoidal que cruza la pantalla en X, con su
-  // propio centro vertical (yOffset) → la familia de líneas llena todo el alto.
-  float lineFn(vec2 uv, float speed, float height, float yOffset) {
-    float y = uv.y - yOffset
-      + sin(u_time * speed + uv.x * height) * 0.18
-      + sin(u_time * speed * 0.6 + uv.x * height * 2.3) * 0.06;
-    // Grosor del trazo, apenas más fino hacia los bordes para que respire.
-    float w = 0.008 + 0.004 * abs(uv.x);
-    return smoothstep(w, 0.0, abs(y));
-  }
-
-  void main() {
-    // Coords normalizadas full-screen (X y Y a ancho/alto completo): las
-    // líneas llegan de borde a borde, no se aplastan en una franja central.
-    vec2 uv = (gl_FragCoord.xy * 2.0 - u_resolution.xy) / u_resolution.xy;
+  void main(void) {
+    vec2 uv = (gl_FragCoord.xy * 2.0 - u_resolution.xy) / min(u_resolution.x, u_resolution.y);
+    float t = u_time * 0.05;
+    float lineWidth = 0.002;
 
     vec3 color = vec3(0.0);
-    const float N = 9.0;
-    for (float i = 0.0; i < N; i += 1.0) {
-      // Centro vertical repartido por todo el alto (-0.8..0.8).
-      float yOffset = (i / (N - 1.0) - 0.5) * 1.6;
-      // Cada línea recibe un tinte rotado del espectro RGB que gira en el tiempo.
-      vec3 tint = 0.5 + 0.5 * sin(u_time * 0.22 + i * 0.9 + vec3(0.0, 2.0, 4.0));
-      float t = lineFn(
-        uv,
-        0.5 + i * 0.16,
-        3.0 + i * 0.7,
-        yOffset
-      );
-      // Composición ORIGINAL: color[2], color[1], color[0] (BGR del snippet).
-      color[2] += t * tint.x;
-      color[1] += t * tint.y;
-      color[0] += t * tint.z;
+    for (int j = 0; j < 3; j++) {
+      for (int i = 0; i < 5; i++) {
+        color[j] += lineWidth * float(i * i) / abs(fract(t - 0.01 * float(j) + float(i) * 0.01) * 5.0 - length(uv) + mod(uv.x + uv.y, 0.2));
+      }
     }
 
-    gl_FragColor = vec4(color, 1.0);
+    gl_FragColor = vec4(color[0], color[1], color[2], 1.0);
   }
 `;
 
