@@ -34,12 +34,12 @@ export const NAV_DATOS: NavItem[] = [
 ];
 
 /**
- * Herramientas de edición manual: el flujo principal del cockpit es el
- * diálogo (los presupuestos se elaboran conversando) — esto queda secundario.
+ * Herramientas secundarias. "SISMAT" es la pantalla /catalogo (recetas + rubros
+ * = la data del tarifario SISMAT, como la piensa Eze). Historial salió: era
+ * redundante con Proyectos (los documentos ya viven en el orbital de cada obra).
  */
 export const NAV_HERRAMIENTAS: NavItem[] = [
-  { href: "/historial", label: "Historial" },
-  { href: "/catalogo", label: "Catálogo" },
+  { href: "/catalogo", label: "SISMAT" },
 ];
 
 export const NAV_GRUPOS: Array<{ titulo: string; items: NavItem[] }> = [
