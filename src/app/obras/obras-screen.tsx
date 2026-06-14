@@ -42,7 +42,7 @@ function estadoLabelDe(o: ObraResumen): string {
   return "En curso";
 }
 
-type Vista = "activas" | "todas";
+type Vista = "activas" | "finalizadas" | "todas";
 
 type ProyectoRowResponse = {
   proyectos: ProyectoRow[];
@@ -204,6 +204,37 @@ export function ObrasScreen() {
     );
   }, []);
 
+  // ACTIVAS = en curso · FINALIZADAS = cerradas (finalizada o cobranza cerrada).
+  // Se derivan de la misma carga, así cambiar de pestaña es instantáneo.
+  const esCerrada = (p: ProyectoFoto) => p.finalizada || p.cobranzaCerrada;
+  const activas = proyectos?.filter((p) => !esCerrada(p)) ?? null;
+  const finalizadas = proyectos?.filter((p) => esCerrada(p)) ?? null;
+  // TODAS sin borradores (presupuestos vacíos: 0 ítems y 0 gastos).
+  const todosVisibles =
+    todos?.filter((p) => !(p.cant_items === 0 && p.cant_gastos === 0)) ?? null;
+
+  const renderGaleria = (lista: ProyectoFoto[] | null, vacio: string) => (
+    <>
+      {!error && lista === null && (
+        <div className="grid grid-cols-1 gap-5 px-6 sm:grid-cols-2 md:px-10 lg:grid-cols-3">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <SkeletonGlass key={i} filas={3} anchos={["w-3/4", "w-1/2", "w-2/3"]} />
+          ))}
+        </div>
+      )}
+      {lista !== null && lista.length === 0 && (
+        <div className="flex min-h-[50vh] items-center justify-center">
+          <p className="px-6 text-center text-[12px] uppercase tracking-[0.2em] text-cdm-muted">
+            {vacio}
+          </p>
+        </div>
+      )}
+      {lista !== null && lista.length > 0 && (
+        <GaleriaProyectos proyectos={lista} onFoto={onFoto} />
+      )}
+    </>
+  );
+
   return (
     <div className="font-geist relative min-h-screen bg-cdm-bg text-cdm-fg">
       <header className="relative z-10 flex items-baseline justify-between px-6 pt-8 md:px-10">
@@ -220,7 +251,13 @@ export function ObrasScreen() {
       {/* Toggle ACTIVAS / TODAS + alta de obra */}
       <div className="relative z-10 flex items-center justify-between gap-3 px-6 pt-6 md:px-10">
         <div className="flex gap-2">
-          {(["activas", "todas"] as const).map((v) => {
+          {(
+            [
+              ["activas", "Activas"],
+              ["finalizadas", "Finalizadas"],
+              ["todas", "Todas"],
+            ] as const
+          ).map(([v, label]) => {
             const activo = vista === v;
             return (
               <button
@@ -232,7 +269,7 @@ export function ObrasScreen() {
                     : "text-cdm-muted ring-cdm-line hover:text-cdm-fg hover:ring-cdm-accent/30"
                 }`}
               >
-                {v === "activas" ? "Activas" : "Todas"}
+                {label}
               </button>
             );
           })}
@@ -251,30 +288,18 @@ export function ObrasScreen() {
           <p className="px-6 pb-4 text-[12px] text-red-500 md:px-10">{error}</p>
         )}
 
-        {/* Vista ACTIVAS — galería de fotos */}
-        {vista === "activas" && (
-          <>
-            {!error && proyectos === null && (
-              <div className="grid grid-cols-1 gap-5 px-6 sm:grid-cols-2 md:px-10 lg:grid-cols-3">
-                {Array.from({ length: 3 }).map((_, i) => (
-                  <SkeletonGlass key={i} filas={3} anchos={["w-3/4", "w-1/2", "w-2/3"]} />
-                ))}
-              </div>
-            )}
-            {proyectos !== null && proyectos.length === 0 && (
-              <div className="flex min-h-[50vh] items-center justify-center">
-                <p className="text-[12px] uppercase tracking-[0.2em] text-cdm-muted">
-                  Sin obras activas. Aprobá un presupuesto para verla acá.
-                </p>
-              </div>
-            )}
-            {proyectos !== null && proyectos.length > 0 && (
-              <GaleriaProyectos proyectos={proyectos} onFoto={onFoto} />
-            )}
-          </>
-        )}
+        {/* Vista ACTIVAS — galería de obras EN CURSO */}
+        {vista === "activas" &&
+          renderGaleria(
+            activas,
+            "Sin obras en curso. Cuando aprobás un presupuesto aparece acá; al cerrarla pasa a Finalizadas."
+          )}
 
-        {/* Vista TODAS — lista compacta */}
+        {/* Vista FINALIZADAS — galería de obras cerradas */}
+        {vista === "finalizadas" &&
+          renderGaleria(finalizadas, "Todavía no hay obras finalizadas.")}
+
+        {/* Vista TODAS — lista compacta (sin borradores) */}
         {vista === "todas" && (
           <div className="px-6 pb-16 md:px-10">
             {cargandoTodos && todos === null && (
@@ -284,18 +309,18 @@ export function ObrasScreen() {
                 ))}
               </div>
             )}
-            {todos !== null && todos.length === 0 && (
+            {todosVisibles !== null && todosVisibles.length === 0 && (
               <p className="text-[11px] uppercase tracking-[0.2em] text-cdm-muted">
                 Sin proyectos registrados.
               </p>
             )}
-            {todos !== null && todos.length > 0 && (
+            {todosVisibles !== null && todosVisibles.length > 0 && (
               <>
                 <p className="font-mono-hud mb-4 text-[10px] uppercase tracking-[0.14em] text-cdm-muted">
-                  {todos.length} proyecto{todos.length !== 1 ? "s" : ""}
+                  {todosVisibles.length} proyecto{todosVisibles.length !== 1 ? "s" : ""}
                 </p>
                 <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
-                  {todos.map((p) => (
+                  {todosVisibles.map((p) => (
                     <ProyectoCompacto key={p.id} p={p} />
                   ))}
                 </div>
