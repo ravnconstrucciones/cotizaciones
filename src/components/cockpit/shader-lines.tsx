@@ -113,6 +113,11 @@ export function ShaderLines({ className }: ShaderLinesProps) {
     renderer.domElement.style.width = "100%";
     renderer.domElement.style.height = "100%";
 
+    // Fade-in: el canvas arranca invisible y entra suave recién cuando el
+    // primer frame está pintado — así nunca se ve el "pop" negro→líneas.
+    host.style.opacity = "0";
+    host.style.transition = "opacity 800ms ease-out";
+
     const uniforms = {
       u_time: { value: 0 },
       u_resolution: { value: new THREE.Vector2(1, 1) },
@@ -140,11 +145,16 @@ export function ShaderLines({ className }: ShaderLinesProps) {
     ro.observe(host);
 
     let raf: number | null = null;
+    let primerFrame = true;
     const reloj = new THREE.Clock();
 
     const frame = () => {
       uniforms.u_time.value = reloj.getElapsedTime();
       renderer.render(escena, camara);
+      if (primerFrame) {
+        primerFrame = false;
+        host.style.opacity = "1"; // dispara el fade-in con el primer frame ya pintado
+      }
     };
 
     const tick = () => {
