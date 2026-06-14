@@ -38,7 +38,6 @@ export const NAV_DATOS: NavItem[] = [
  * diálogo (los presupuestos se elaboran conversando) — esto queda secundario.
  */
 export const NAV_HERRAMIENTAS: NavItem[] = [
-  { href: "/nuevo-presupuesto", label: "Nuevo presupuesto" },
   { href: "/historial", label: "Historial" },
   { href: "/catalogo", label: "Catálogo" },
 ];
