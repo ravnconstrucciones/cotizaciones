@@ -61,40 +61,40 @@ export function BarraConsumoPresupuesto({
 
   // Alerta = semáforo negativo (token theme-aware: rojo profundo en claro,
   // rojo claro en oscuro). El relleno normal sigue la tinta de marca.
-  const fillBg = alerta ? "bg-[var(--cdm-negativo)]" : "bg-ravn-fg";
+  const fillBg = alerta ? "bg-[var(--cdm-negativo)]" : "bg-cdm-accent";
 
   return (
     <div className="space-y-4">
       <div className="grid gap-3 sm:grid-cols-3 sm:gap-6">
         <div>
-          <p className="text-[10px] font-medium uppercase tracking-[0.14em] text-ravn-muted">
+          <p className="text-[10px] font-medium uppercase tracking-[0.14em] text-cdm-muted">
             Presupuestado
           </p>
-          <p className="mt-1 font-raleway text-lg font-medium tabular-nums text-ravn-fg md:text-xl">
+          <p className="mt-1 font-raleway text-lg font-medium tabular-nums text-cdm-fg md:text-xl">
             {fmt(C)}
           </p>
         </div>
         <div>
-          <p className="text-[10px] font-medium uppercase tracking-[0.14em] text-ravn-muted">
+          <p className="text-[10px] font-medium uppercase tracking-[0.14em] text-cdm-muted">
             Gastado
           </p>
           <p
             className={`mt-1 font-raleway text-lg font-medium tabular-nums md:text-xl ${
-              alerta ? "text-[var(--cdm-negativo)]" : "text-ravn-fg"
+              alerta ? "text-[var(--cdm-negativo)]" : "text-cdm-fg"
             }`}
           >
             {fmt(G)}
           </p>
         </div>
         <div>
-          <p className="text-[10px] font-medium uppercase tracking-[0.14em] text-ravn-muted">
+          <p className="text-[10px] font-medium uppercase tracking-[0.14em] text-cdm-muted">
             Margen restante
           </p>
           <p
             className={`mt-1 font-raleway text-lg font-medium tabular-nums md:text-xl ${
               margenRestante < 0
                 ? "text-[var(--cdm-negativo)]"
-                : "text-ravn-fg"
+                : "text-cdm-fg"
             }`}
           >
             {fmt(margenRestante)}
@@ -103,28 +103,28 @@ export function BarraConsumoPresupuesto({
       </div>
 
       {base > 0 ? (
-        <div className="rounded-none border border-ravn-line bg-ravn-subtle/40 px-4 py-3">
-          <p className="text-[10px] font-medium uppercase tracking-[0.14em] text-ravn-muted">
+        <div className="rounded-none border border-cdm-line bg-cdm-fg/5 px-4 py-3">
+          <p className="text-[10px] font-medium uppercase tracking-[0.14em] text-cdm-muted">
             Margen sobre precio de referencia
           </p>
-          <p className="mt-1 text-xs text-ravn-muted">
+          <p className="mt-1 text-xs text-cdm-muted">
             Precio de referencia = costo directo + margen previsto:{" "}
-            <span className="tabular-nums text-ravn-fg">{fmt(base)}</span>
+            <span className="tabular-nums text-cdm-fg">{fmt(base)}</span>
           </p>
           {M > 0 ? (
-            <div className="mt-3 space-y-2 text-sm text-ravn-fg">
+            <div className="mt-3 space-y-2 text-sm text-cdm-fg">
               {margenConsumidoPorGasto ? (
                 <>
                   <p>
-                    <span className="text-ravn-muted">Margen previsto: </span>
+                    <span className="text-cdm-muted">Margen previsto: </span>
                     <span className="font-semibold tabular-nums">
                       {formatNumber(pctMargenPrevisto, 1)}%
                     </span>
-                    <span className="text-ravn-muted"> → </span>
+                    <span className="text-cdm-muted"> → </span>
                     <span className="font-medium tabular-nums">{fmt(M)}</span>
                   </p>
                   <p>
-                    <span className="text-ravn-muted">
+                    <span className="text-cdm-muted">
                       Margen que queda ahora:{" "}
                     </span>
                     <span
@@ -136,7 +136,7 @@ export function BarraConsumoPresupuesto({
                     >
                       {formatNumber(pctMargenQueQueda, 1)}%
                     </span>
-                    <span className="text-ravn-muted"> → </span>
+                    <span className="text-cdm-muted"> → </span>
                     <span
                       className={`font-medium tabular-nums ${
                         margenRestante < 0
@@ -150,18 +150,18 @@ export function BarraConsumoPresupuesto({
                 </>
               ) : (
                 <p>
-                  <span className="text-ravn-muted">
+                  <span className="text-cdm-muted">
                     Margen sobre ese precio:{" "}
                   </span>
                   <span className="font-semibold tabular-nums">
                     {formatNumber(pctMargenQueQueda, 1)}%
                   </span>
-                  <span className="text-ravn-muted"> → </span>
+                  <span className="text-cdm-muted"> → </span>
                   <span className="font-medium tabular-nums">
                     {fmt(margenRestante)}
                   </span>
                   {G <= C ? (
-                    <span className="text-ravn-muted">
+                    <span className="text-cdm-muted">
                       {" "}
                       (el gasto aún no consume margen)
                     </span>
@@ -170,13 +170,13 @@ export function BarraConsumoPresupuesto({
               )}
             </div>
           ) : (
-            <p className="mt-2 text-xs text-ravn-muted">
+            <p className="mt-2 text-xs text-cdm-muted">
               Sin margen previsto en la propuesta; el precio de referencia coincide
               con el costo directo.
             </p>
           )}
           {margenRestante === 0 && !excedeTodo && M > 0 ? (
-            <p className="mt-2 text-xs font-medium text-ravn-fg">
+            <p className="mt-2 text-xs font-medium text-cdm-fg">
               Llegaste al límite del precio de referencia: no queda margen
               previsto (0 %).
             </p>
@@ -185,7 +185,7 @@ export function BarraConsumoPresupuesto({
       ) : null}
 
       {base <= 0 ? (
-        <p className="text-sm text-ravn-muted">
+        <p className="text-sm text-cdm-muted">
           Sin costo directo ni margen de referencia en este presupuesto. Cargá
           ítems y definí rentabilidad para ver la barra.
         </p>
@@ -198,12 +198,12 @@ export function BarraConsumoPresupuesto({
           >
             <div className="absolute inset-0 flex">
               <div
-                className="h-full bg-ravn-subtle"
+                className="h-full bg-cdm-fg/10"
                 style={{ flex: costoFlex || 1 }}
               />
               {margenFlex > 0 ? (
                 <div
-                  className="h-full border-l border-ravn-line bg-[rgba(24,24,23,0.06)] dark:bg-[rgba(254,247,242,0.08)]"
+                  className="h-full border-l border-cdm-line bg-cdm-fg/5"
                   style={{ flex: margenFlex }}
                 />
               ) : null}
@@ -213,24 +213,24 @@ export function BarraConsumoPresupuesto({
               style={{ width: `${fillPct}%` }}
             />
           </div>
-          <div className="flex flex-wrap gap-x-6 gap-y-1 text-[10px] uppercase tracking-[0.12em] text-ravn-muted">
+          <div className="flex flex-wrap gap-x-6 gap-y-1 text-[10px] uppercase tracking-[0.12em] text-cdm-muted">
             <span>
               Costo directo{" "}
-              <span className="tabular-nums text-ravn-fg">{fmt(C)}</span>
+              <span className="tabular-nums text-cdm-fg">{fmt(C)}</span>
             </span>
             {M > 0 ? (
               <span>
                 Margen esperado{" "}
-                <span className="tabular-nums text-ravn-fg">{fmt(M)}</span>
+                <span className="tabular-nums text-cdm-fg">{fmt(M)}</span>
               </span>
             ) : hayPrecioObraDesdeRentabilidad ? (
-              <span className="text-ravn-muted">
+              <span className="text-cdm-muted">
                 Margen esperado{" "}
-                <span className="tabular-nums text-ravn-fg">{fmt(0)}</span>{" "}
+                <span className="tabular-nums text-cdm-fg">{fmt(0)}</span>{" "}
                 (precio sin IVA ≤ costo directo)
               </span>
             ) : (
-              <span className="text-ravn-muted">
+              <span className="text-cdm-muted">
                 Sin precio de obra guardado: usá Rentabilidad y guardá en la nube
               </span>
             )}

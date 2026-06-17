@@ -34,14 +34,14 @@ import {
 import type { RubroRow } from "@/types/ravn";
 
 const labelCls =
-  "mb-1 block text-[10px] font-medium uppercase tracking-[0.14em] text-ravn-muted";
+  "mb-1 block font-mono-hud text-[10px] font-medium uppercase tracking-[0.14em] text-cdm-muted";
 const inputCls =
-  "w-full rounded-none border border-ravn-line bg-ravn-surface px-3 py-2.5 text-sm text-ravn-fg placeholder:text-ravn-muted focus-visible:border-ravn-fg focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ravn-fg";
+  "w-full rounded-xl border border-cdm-line bg-cdm-panel px-3 py-2.5 text-sm text-cdm-fg placeholder:text-cdm-muted focus-visible:border-cdm-accent focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-cdm-accent";
 const sectionCls =
-  "rounded-none border border-ravn-line bg-ravn-surface p-6 md:p-8";
+  "rounded-[24px] ring-1 ring-cdm-line bg-white/60 dark:bg-zinc-900/40 p-6 md:p-8";
 const thCls =
-  "border-b border-ravn-line px-3 py-3 text-left text-[10px] font-bold uppercase tracking-[0.14em] text-ravn-muted md:px-4";
-const tdCls = "border-b border-ravn-line px-3 py-3 align-middle md:px-4";
+  "border-b border-cdm-line px-3 py-3 text-left font-mono-hud text-[10px] font-bold uppercase tracking-[0.14em] text-cdm-muted md:px-4";
+const tdCls = "border-b border-cdm-line px-3 py-3 align-middle md:px-4";
 
 type GastoDbRow = {
   id: string;
@@ -787,69 +787,69 @@ export function GastosScreen({
   );
 
   const headerNav = (
-    <header className="border-b border-ravn-line px-6 py-5 sm:px-10">
+    <header className="border-b border-cdm-line px-6 py-5 sm:px-10">
       <div className="mx-auto flex max-w-5xl flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <Link href="/" className="inline-block w-fit" aria-label="Inicio">
           <RavnLogo sizeClassName="text-xl sm:text-2xl" showTagline={false} />
         </Link>
-        <nav className="flex flex-wrap gap-3 font-raleway text-xs font-medium uppercase tracking-wider">
+        <nav className="flex flex-wrap gap-3 font-geist text-xs font-medium uppercase tracking-wider">
           {effectivePresupuestoId ? (
             <>
               <Link
                 href={`/propuesta/${encodeURIComponent(effectivePresupuestoId)}`}
-                className="text-ravn-muted underline-offset-4 transition-colors hover:text-ravn-fg hover:underline"
+                className="text-cdm-muted underline-offset-4 transition-colors hover:text-cdm-fg hover:underline"
               >
                 Propuesta
               </Link>
-              <span className="text-ravn-line" aria-hidden>
+              <span className="text-cdm-line" aria-hidden>
                 /
               </span>
               <Link
                 href={`/rentabilidad?id=${encodeURIComponent(effectivePresupuestoId)}`}
-                className="text-ravn-muted underline-offset-4 transition-colors hover:text-ravn-fg hover:underline"
+                className="text-cdm-muted underline-offset-4 transition-colors hover:text-cdm-fg hover:underline"
               >
                 Rentabilidad
               </Link>
               {obraCashflowId ? (
                 <>
-                  <span className="text-ravn-line" aria-hidden>
+                  <span className="text-cdm-line" aria-hidden>
                     /
                   </span>
                   <Link
                     href={`/cashflow/obra/${encodeURIComponent(obraCashflowId)}`}
-                    className="text-ravn-muted underline-offset-4 transition-colors hover:text-ravn-fg hover:underline"
+                    className="text-cdm-muted underline-offset-4 transition-colors hover:text-cdm-fg hover:underline"
                   >
                     Cashflow
                   </Link>
                 </>
               ) : null}
-              <span className="text-ravn-line" aria-hidden>
+              <span className="text-cdm-line" aria-hidden>
                 /
               </span>
             </>
           ) : null}
-          <span className="text-ravn-fg">Gastos de obra</span>
+          <span className="text-cdm-fg">Gastos de obra</span>
         </nav>
       </div>
     </header>
   );
 
   return (
-    <div className="min-h-screen bg-ravn-surface text-ravn-fg">
+    <div className="font-geist relative min-h-screen bg-cdm-bg text-cdm-fg">
       {headerNav}
 
       <main className="mx-auto max-w-5xl px-6 py-10 pb-24 sm:px-10">
         {presupuestoFijo == null && !obraElegida ? (
           obrasListaLoading ? (
-            <p className="text-sm text-ravn-muted">
+            <p className="text-sm text-cdm-muted">
               Cargando obras aprobadas…
             </p>
           ) : (
             <section className={sectionCls}>
-              <h1 className="font-raleway text-xl font-medium uppercase tracking-tight md:text-2xl">
+              <h1 className="font-geist text-xl font-medium uppercase tracking-tight md:text-2xl">
                 Registrar gasto de obra
               </h1>
-              <p className="mt-2 max-w-2xl text-sm text-ravn-muted">
+              <p className="mt-2 max-w-2xl text-sm text-cdm-muted">
                 Elegí la obra (presupuesto aprobado) y después podés cargar el
                 importe, descripción y una foto o audio como comprobante.
               </p>
@@ -882,7 +882,7 @@ export function GastosScreen({
                 </select>
               </div>
               {obrasOpciones.length === 0 && !obrasListaLoading ? (
-                <p className="mt-6 text-sm text-ravn-muted">
+                <p className="mt-6 text-sm text-cdm-muted">
                   No hay presupuestos aprobados. Marcá uno en el{" "}
                   <Link href="/historial" className="underline underline-offset-2">
                     historial
@@ -893,33 +893,33 @@ export function GastosScreen({
             </section>
           )
         ) : loading ? (
-          <p className="text-sm text-ravn-muted">Cargando panel de gastos…</p>
+          <p className="text-sm text-cdm-muted">Cargando panel de gastos…</p>
         ) : !presupuestoAprobado ? (
           <>
-            <h1 className="font-raleway text-2xl font-medium uppercase tracking-tight md:text-3xl">
+            <h1 className="font-geist text-2xl font-medium uppercase tracking-tight md:text-3xl">
               Ejecución y control de gastos
             </h1>
-            <p className="mt-2 max-w-3xl text-sm leading-relaxed text-ravn-muted">
-              <span className="font-medium text-ravn-fg">{numeroLabel}</span>
+            <p className="mt-2 max-w-3xl text-sm leading-relaxed text-cdm-muted">
+              <span className="font-medium text-cdm-fg">{numeroLabel}</span>
               {nombreCliente || nombreObra ? (
                 <>
                   {" "}
                   ·{" "}
-                  <span className="text-ravn-fg">
+                  <span className="text-cdm-fg">
                     {etiquetaObraVisible(nombreObra, nombreCliente)}
                   </span>
                 </>
               ) : null}
             </p>
             {nombreObra ? (
-              <p className="mt-1 max-w-3xl text-xs text-ravn-muted">
+              <p className="mt-1 max-w-3xl text-xs text-cdm-muted">
                 Cliente: {nombreCliente || "—"}
               </p>
             ) : null}
             <div
-              className={`${sectionCls} mt-10 max-w-2xl border-ravn-line bg-ravn-subtle/30`}
+              className={`${sectionCls} mt-10 max-w-2xl border-cdm-line bg-cdm-fg/5`}
             >
-              <p className="text-sm leading-relaxed text-ravn-fg">
+              <p className="text-sm leading-relaxed text-cdm-fg">
                 Para cargar gastos de obra tenés que marcar este presupuesto
                 como <strong className="font-medium">aprobado</strong> en el{" "}
                 <Link
@@ -942,23 +942,23 @@ export function GastosScreen({
           </>
         ) : (
           <>
-            <h1 className="font-raleway text-2xl font-medium uppercase tracking-tight md:text-3xl">
+            <h1 className="font-geist text-2xl font-medium uppercase tracking-tight md:text-3xl">
               Ejecución y control de gastos
             </h1>
-            <p className="mt-2 max-w-3xl text-sm leading-relaxed text-ravn-muted">
-              <span className="font-medium text-ravn-fg">{numeroLabel}</span>
+            <p className="mt-2 max-w-3xl text-sm leading-relaxed text-cdm-muted">
+              <span className="font-medium text-cdm-fg">{numeroLabel}</span>
               {nombreCliente || nombreObra ? (
                 <>
                   {" "}
                   ·{" "}
-                  <span className="text-ravn-fg">
+                  <span className="text-cdm-fg">
                     {etiquetaObraVisible(nombreObra, nombreCliente)}
                   </span>
                 </>
               ) : null}
             </p>
             {nombreObra ? (
-              <p className="mt-1 max-w-3xl text-xs text-ravn-muted">
+              <p className="mt-1 max-w-3xl text-xs text-cdm-muted">
                 Cliente: {nombreCliente || "—"}
               </p>
             ) : null}
@@ -972,14 +972,14 @@ export function GastosScreen({
                     setGastos([]);
                     setError(null);
                   }}
-                  className="text-xs font-medium uppercase tracking-wider text-ravn-muted underline-offset-4 hover:text-ravn-fg hover:underline"
+                  className="text-xs font-medium uppercase tracking-wider text-cdm-muted underline-offset-4 hover:text-cdm-fg hover:underline"
                 >
                   Elegir otra obra
                 </button>
               </p>
             ) : null}
             {pdfGenerado === false ? (
-              <p className="mt-4 max-w-3xl text-xs leading-relaxed text-ravn-muted">
+              <p className="mt-4 max-w-3xl text-xs leading-relaxed text-cdm-muted">
                 Este presupuesto aún no tiene PDF generado. El panel de gastos
                 está pensado sobre todo para obras con propuesta cerrada; podés
                 registrar gastos igualmente.
@@ -993,13 +993,13 @@ export function GastosScreen({
             ) : null}
 
             <section className={`${sectionCls} mt-10`}>
-              <h2 className="font-raleway text-xs font-medium uppercase tracking-wider text-ravn-muted">
+              <h2 className="font-geist text-xs font-medium uppercase tracking-wider text-cdm-muted">
                 Consumo del presupuesto
               </h2>
               {esPresupuestoUsd ? (
-                <p className="mt-2 max-w-3xl text-xs leading-relaxed text-ravn-muted">
+                <p className="mt-2 max-w-3xl text-xs leading-relaxed text-cdm-muted">
                   Presupuesto en{" "}
-                  <span className="text-ravn-fg">dólares</span>: costo y margen
+                  <span className="text-cdm-fg">dólares</span>: costo y margen
                   se convierten con el tipo de cambio guardado en Rentabilidad (
                   {formatNumber(cotProp, 2)} ARS/US$). Los gastos se cargan en
                   pesos y cada uno usa la cotización venta que elijas al cargarlo.
@@ -1031,26 +1031,26 @@ export function GastosScreen({
 
             {esPresupuestoUsd ? (
               <section className={`${sectionCls} mt-10`}>
-                <h2 className="font-raleway text-xs font-medium uppercase tracking-wider text-ravn-muted">
+                <h2 className="font-geist text-xs font-medium uppercase tracking-wider text-cdm-muted">
                   Tipo de cambio (nuevos gastos)
                 </h2>
-                <p className="mt-2 max-w-3xl text-xs leading-relaxed text-ravn-muted">
+                <p className="mt-2 max-w-3xl text-xs leading-relaxed text-cdm-muted">
                   Al guardar un gasto, el importe en pesos se divide por la
-                  cotización <span className="text-ravn-fg">venta</span> (ARS por
+                  cotización <span className="text-cdm-fg">venta</span> (ARS por
                   US$ 1). Elegí la misma referencia que en Rentabilidad; contrastá
                   con{" "}
                   <a
                     href={CRONISTA_DOLAR_URL}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-ravn-fg underline underline-offset-2"
+                    className="text-cdm-fg underline underline-offset-2"
                   >
                     El Cronista — Dólar
                   </a>
                   .
                 </p>
                 {cotizLoading ? (
-                  <p className="mt-4 text-sm text-ravn-muted">
+                  <p className="mt-4 text-sm text-cdm-muted">
                     Cotizaciones…
                   </p>
                 ) : null}
@@ -1096,9 +1096,9 @@ export function GastosScreen({
                     />
                   </div>
                 </div>
-                <p className="mt-3 text-[10px] text-ravn-muted">
+                <p className="mt-3 text-[10px] text-cdm-muted">
                   Vigente para el próximo gasto:{" "}
-                  <span className="tabular-nums text-ravn-fg">
+                  <span className="tabular-nums text-cdm-fg">
                     {ventaEfectivaParaGastos > 0
                       ? `${formatNumber(ventaEfectivaParaGastos, 2)} ARS / US$ 1`
                       : "—"}
@@ -1110,27 +1110,27 @@ export function GastosScreen({
             <section className={`${sectionCls} mt-10`}>
               <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex flex-col gap-2">
-                  <h2 className="font-raleway text-xs font-medium uppercase tracking-wider text-ravn-muted">
+                  <h2 className="font-geist text-xs font-medium uppercase tracking-wider text-cdm-muted">
                     Registro de gastos
                   </h2>
-                  <p className="max-w-2xl text-[10px] leading-relaxed text-ravn-muted">
+                  <p className="max-w-2xl text-[10px] leading-relaxed text-cdm-muted">
                     En{" "}
                     <Link
                       href="/cashflow"
-                      className="text-ravn-fg underline underline-offset-2"
+                      className="text-cdm-fg underline underline-offset-2"
                     >
                       Caja / tesorería
                     </Link>{" "}
                     cargá ingresos o egresos de esta obra (manual, foto o audio).
                     Con monto y fecha reales aparecen acá; los{" "}
-                    <span className="text-ravn-fg">egresos</span> suman al total
+                    <span className="text-cdm-fg">egresos</span> suman al total
                     ejecutado de arriba. Los{" "}
-                    <span className="text-ravn-fg">ingresos</span> se listan pero
+                    <span className="text-cdm-fg">ingresos</span> se listan pero
                     no son gasto.
                   </p>
-                  <p className="mt-2 max-w-2xl text-[10px] leading-relaxed text-ravn-muted">
+                  <p className="mt-2 max-w-2xl text-[10px] leading-relaxed text-cdm-muted">
                     Cada gasto que guardás con{" "}
-                    <span className="text-ravn-fg">+ NUEVO GASTO</span> genera
+                    <span className="text-cdm-fg">+ NUEVO GASTO</span> genera
                     también un egreso en Caja para esta obra (mismo importe y
                     fecha). Los ingresos y egresos cargados solo en Caja aparecen
                     como filas &quot;Caja&quot;. Para editar esos movimientos usá
@@ -1141,7 +1141,7 @@ export function GastosScreen({
                   type="button"
                   onClick={abrirNuevoGasto}
                   disabled={draft != null}
-                  className="inline-flex w-full items-center justify-center rounded-none bg-ravn-accent px-6 py-3.5 font-raleway text-xs font-semibold uppercase tracking-[0.14em] text-ravn-accent-contrast transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40 sm:w-auto"
+                  className="inline-flex w-full cursor-pointer items-center justify-center rounded-full bg-cdm-accent/10 px-6 py-3.5 font-mono-hud text-xs font-semibold uppercase tracking-[0.14em] text-cdm-accent ring-1 ring-cdm-accent/50 transition-colors hover:bg-cdm-accent/20 disabled:cursor-not-allowed disabled:opacity-40 sm:w-auto"
                 >
                   + NUEVO GASTO
                 </button>
@@ -1149,7 +1149,7 @@ export function GastosScreen({
 
               <div className="mt-8 overflow-x-auto">
                 <table
-                  className={`w-full border-collapse font-raleway text-sm ${esPresupuestoUsd ? "min-w-[920px]" : "min-w-[640px]"}`}
+                  className={`w-full border-collapse font-geist text-sm ${esPresupuestoUsd ? "min-w-[920px]" : "min-w-[640px]"}`}
                 >
                   <thead>
                     <tr>
@@ -1170,7 +1170,7 @@ export function GastosScreen({
                   </thead>
                   <tbody>
                     {draft ? (
-                      <tr className="bg-ravn-subtle/40">
+                      <tr className="bg-cdm-fg/5">
                         <td className={tdCls}>
                           <label className={labelCls}>Fecha</label>
                           <input
@@ -1238,14 +1238,14 @@ export function GastosScreen({
                         {esPresupuestoUsd ? (
                           <>
                             <td
-                              className={`${tdCls} text-right text-xs tabular-nums text-ravn-muted`}
+                              className={`${tdCls} text-right text-xs tabular-nums text-cdm-muted`}
                             >
                               {ventaEfectivaParaGastos > 0
                                 ? formatNumber(ventaEfectivaParaGastos, 2)
                                 : "—"}
                             </td>
                             <td
-                              className={`${tdCls} text-right text-xs tabular-nums text-ravn-fg`}
+                              className={`${tdCls} text-right text-xs tabular-nums text-cdm-fg`}
                             >
                               {ventaEfectivaParaGastos > 0 &&
                               parseFormattedNumber(draft.importeStr) > 0
@@ -1266,7 +1266,7 @@ export function GastosScreen({
                               type="button"
                               onClick={() => void guardarDraft()}
                               disabled={savingDraft}
-                              className="rounded-none bg-ravn-accent px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-ravn-accent-contrast hover:opacity-90 disabled:opacity-40"
+                              className="cursor-pointer rounded-full bg-cdm-accent/10 px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-cdm-accent ring-1 ring-cdm-accent/50 transition-colors hover:bg-cdm-accent/20 disabled:opacity-40"
                             >
                               Guardar
                             </button>
@@ -1276,7 +1276,7 @@ export function GastosScreen({
                                 setDraft(null);
                                 setError(null);
                               }}
-                              className="text-[10px] font-medium uppercase tracking-wider text-ravn-muted underline-offset-2 hover:underline"
+                              className="text-[10px] font-medium uppercase tracking-wider text-cdm-muted underline-offset-2 hover:underline"
                             >
                               Cancelar
                             </button>
@@ -1290,14 +1290,14 @@ export function GastosScreen({
                       <tr>
                         <td
                           colSpan={esPresupuestoUsd ? 7 : 5}
-                          className="px-4 py-10 text-center text-sm text-ravn-muted"
+                          className="px-4 py-10 text-center text-sm text-cdm-muted"
                         >
                           No hay filas todavía. Cargá un gasto con{" "}
-                          <span className="text-ravn-fg">+ NUEVO GASTO</span> o
+                          <span className="text-cdm-fg">+ NUEVO GASTO</span> o
                           registrá movimientos en{" "}
                           <Link
                             href="/cashflow"
-                            className="text-ravn-fg underline underline-offset-2"
+                            className="text-cdm-fg underline underline-offset-2"
                           >
                             Caja
                           </Link>{" "}
@@ -1325,30 +1325,30 @@ export function GastosScreen({
                         return (
                           <tr key={`gasto-${g.id}`}>
                             <td
-                              className={`${tdCls} tabular-nums text-ravn-fg`}
+                              className={`${tdCls} tabular-nums text-cdm-fg`}
                             >
                               {fechaIsoToDisplay(String(g.fecha))}
                             </td>
-                            <td className={`${tdCls} text-ravn-fg`}>
+                            <td className={`${tdCls} text-cdm-fg`}>
                               {rubLabel}
                             </td>
-                            <td className={`${tdCls} text-ravn-fg`}>
+                            <td className={`${tdCls} text-cdm-fg`}>
                               {g.descripcion?.trim() || "—"}
                             </td>
                             <td
-                              className={`${tdCls} text-right font-medium tabular-nums text-ravn-fg`}
+                              className={`${tdCls} text-right font-medium tabular-nums text-cdm-fg`}
                             >
                               {formatMoney(imp)}
                             </td>
                             {esPresupuestoUsd ? (
                               <>
                                 <td
-                                  className={`${tdCls} text-right tabular-nums text-ravn-muted`}
+                                  className={`${tdCls} text-right tabular-nums text-cdm-muted`}
                                 >
                                   {cotG > 0 ? formatNumber(cotG, 2) : "—"}
                                 </td>
                                 <td
-                                  className={`${tdCls} text-right font-medium tabular-nums text-ravn-fg`}
+                                  className={`${tdCls} text-right font-medium tabular-nums text-cdm-fg`}
                                 >
                                   {formatMoneyMoneda(usdG, "USD")}
                                 </td>
@@ -1360,7 +1360,7 @@ export function GastosScreen({
                                 aria-label="Eliminar gasto"
                                 disabled={busy}
                                 onClick={() => void eliminarGasto(g.id)}
-                                className="rounded-none border border-transparent p-2 text-ravn-muted transition-colors hover:border-ravn-line hover:text-ravn-fg disabled:opacity-40"
+                                className="rounded-none border border-transparent p-2 text-cdm-muted transition-colors hover:border-cdm-line hover:text-cdm-fg disabled:opacity-40"
                               >
                                 <Trash2
                                   className="h-4 w-4"
@@ -1389,24 +1389,24 @@ export function GastosScreen({
                       return (
                         <tr
                           key={`caja-${m.id}`}
-                          className="bg-ravn-subtle/25 dark:bg-ravn-subtle/15"
+                          className="bg-cdm-fg/5"
                         >
                           <td
-                            className={`${tdCls} tabular-nums text-ravn-fg`}
+                            className={`${tdCls} tabular-nums text-cdm-fg`}
                           >
                             {fechaIsoToDisplay(m.fecha_real)}
                           </td>
-                          <td className={`${tdCls} text-ravn-fg`}>
+                          <td className={`${tdCls} text-cdm-fg`}>
                             {rubCaja}
                           </td>
-                          <td className={`${tdCls} text-ravn-fg`}>
+                          <td className={`${tdCls} text-cdm-fg`}>
                             {m.descripcion?.trim() || "—"}
                           </td>
                           <td
                             className={`${tdCls} text-right font-medium tabular-nums ${
                               m.tipo === "ingreso"
                                 ? "text-emerald-700 dark:text-emerald-300"
-                                : "text-ravn-fg"
+                                : "text-cdm-fg"
                             }`}
                           >
                             {m.tipo === "ingreso" ? "+" : ""}
@@ -1415,7 +1415,7 @@ export function GastosScreen({
                           {esPresupuestoUsd ? (
                             <>
                               <td
-                                className={`${tdCls} text-right tabular-nums text-ravn-muted`}
+                                className={`${tdCls} text-right tabular-nums text-cdm-muted`}
                               >
                                 {cotCaja > 0 ? formatNumber(cotCaja, 2) : "—"}
                               </td>
@@ -1423,7 +1423,7 @@ export function GastosScreen({
                                 className={`${tdCls} text-right font-medium tabular-nums ${
                                   m.tipo === "ingreso"
                                     ? "text-emerald-700 dark:text-emerald-300"
-                                    : "text-ravn-fg"
+                                    : "text-cdm-fg"
                                 }`}
                               >
                                 {m.tipo === "ingreso" ? "+" : ""}
@@ -1440,7 +1440,7 @@ export function GastosScreen({
                                 onClick={() =>
                                   void eliminarMovimientoCajaSoloLibreta(m.id)
                                 }
-                                className="rounded-none border border-transparent p-2 text-ravn-muted transition-colors hover:border-ravn-line hover:text-ravn-fg disabled:opacity-40"
+                                className="rounded-none border border-transparent p-2 text-cdm-muted transition-colors hover:border-cdm-line hover:text-cdm-fg disabled:opacity-40"
                               >
                                 <Trash2
                                   className="h-4 w-4"
@@ -1450,7 +1450,7 @@ export function GastosScreen({
                               {obraCashflowId ? (
                                 <Link
                                   href={`/cashflow/obra/${encodeURIComponent(obraCashflowId)}`}
-                                  className="text-[10px] font-medium uppercase tracking-wider text-ravn-muted underline-offset-2 hover:text-ravn-fg hover:underline"
+                                  className="text-[10px] font-medium uppercase tracking-wider text-cdm-muted underline-offset-2 hover:text-cdm-fg hover:underline"
                                 >
                                   Caja
                                 </Link>
@@ -1466,11 +1466,11 @@ export function GastosScreen({
               {gastos.length > 0 ||
               egresosCajaArs > 0 ||
               ingresosCajaArs > 0 ? (
-                <div className="mt-6 space-y-1 text-right text-sm text-ravn-muted">
+                <div className="mt-6 space-y-1 text-right text-sm text-cdm-muted">
                   {gastos.length > 0 ? (
                     <p>
                       Suma tabla (ARS):{" "}
-                      <span className="font-medium tabular-nums text-ravn-fg">
+                      <span className="font-medium tabular-nums text-cdm-fg">
                         {formatMoney(totalTablaGastosArs)}
                       </span>
                     </p>
@@ -1478,7 +1478,7 @@ export function GastosScreen({
                   {egresosCajaArs > 0 ? (
                     <p>
                       Egresos Caja ya registrados (ARS):{" "}
-                      <span className="font-medium tabular-nums text-ravn-fg">
+                      <span className="font-medium tabular-nums text-cdm-fg">
                         {formatMoney(egresosCajaArs)}
                       </span>
                     </p>
@@ -1493,14 +1493,14 @@ export function GastosScreen({
                   ) : null}
                   <p>
                     Total ejecutado (ARS):{" "}
-                    <span className="font-medium tabular-nums text-ravn-fg">
+                    <span className="font-medium tabular-nums text-cdm-fg">
                       {formatMoney(totalGastado)}
                     </span>
                   </p>
                   {esPresupuestoUsd ? (
                     <p>
                       Total ejecutado (USD):{" "}
-                      <span className="font-medium tabular-nums text-ravn-fg">
+                      <span className="font-medium tabular-nums text-cdm-fg">
                         {formatMoneyMoneda(totalGastadoUsd, "USD")}
                       </span>
                     </p>
