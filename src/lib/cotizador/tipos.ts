@@ -251,4 +251,15 @@ export type CotizacionRow = {
   revision: Revision | null;
   motivo_rechazo: string | null;
   presupuesto_id: string | null;
+  foto_portada_path: string | null;
+};
+
+/** Fila de cotizacion_archivos — una propuesta adjunta (cara PROPUESTA). */
+export type CotizacionArchivo = {
+  id: string;
+  tipo: string;
+  titulo: string | null;
+  creado_at: string;
+  /** Signed URL del bucket privado (server-side). null si la firma falló. */
+  url: string | null;
 };
