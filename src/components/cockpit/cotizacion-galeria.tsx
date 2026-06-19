@@ -9,9 +9,17 @@ import { formatMoneyInt } from "@/lib/format-currency";
 /**
  * GALERÍA DE COTIZACIONES (cara de tarjeta, espejo de /obras). Cada tarjeta
  * tiene foto de portada cargable, título + zona, badge de estado, rango de
- * precio y dos accesos: CÁLCULO (mesa de revisión) y PROPUESTA (los archivos
- * adjuntos; menú A/B si hay varios). Estética calcada de ProyectoFotoCard.
+ * precio y tres accesos: CÁLCULO (mesa de revisión), DIAGNÓSTICO y PROPUESTA
+ * (los archivos adjuntos por tipo; menú A/B si hay varios del mismo tipo).
+ * Estética calcada de ProyectoFotoCard.
  */
+
+type TipoDoc = "diagnostico" | "propuesta";
+
+const TIPO_LABEL: Record<TipoDoc, string> = {
+  diagnostico: "Diagnóstico",
+  propuesta: "Propuesta",
+};
 
 export type CotizacionFoto = {
   id: string;
@@ -75,9 +83,14 @@ function CotizacionFotoCard({
 }) {
   const [subiendo, setSubiendo] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [menuPropuesta, setMenuPropuesta] = useState(false);
+  // Menú A/B abierto: de qué tipo, o null si no hay menú.
+  const [menuTipo, setMenuTipo] = useState<TipoDoc | null>(null);
+  // Lista completa de archivos (todos los tipos), null hasta el primer fetch.
   const [archivos, setArchivos] = useState<CotizacionArchivo[] | null>(null);
-  const [cargandoArchivos, setCargandoArchivos] = useState(false);
+  // Tipo cuyo doc se está cargando (para el spinner del botón correcto).
+  const [cargandoTipo, setCargandoTipo] = useState<TipoDoc | null>(null);
+  // A qué tipo adjunta el input cuando lo dispara un botón sin archivos.
+  const tipoDestinoRef = useRef<TipoDoc>("propuesta");
   const inputRef = useRef<HTMLInputElement>(null);
 
   async function subir(file: File) {
@@ -103,47 +116,61 @@ function CotizacionFotoCard({
     }
   }
 
-  // Abre la propuesta. 0 → input de adjuntar; 1 → abre directo; varios → menú.
-  async function abrirPropuesta() {
-    setError(null);
-    if (c.archivosCount === 0) {
-      inputRef.current?.click();
-      return;
+  // Carga la lista completa (todos los tipos) una sola vez y la cachea.
+  async function cargarArchivos(): Promise<CotizacionArchivo[] | null> {
+    if (archivos) return archivos;
+    const res = await fetch(`/api/cotizaciones/${c.id}/archivos`, { cache: "no-store" });
+    const j = (await res.json().catch(() => ({}))) as {
+      archivos?: CotizacionArchivo[];
+      error?: string;
+    };
+    if (!res.ok) {
+      setError(j.error ?? "No se pudieron leer los documentos.");
+      return null;
     }
-    setCargandoArchivos(true);
+    const list = j.archivos ?? [];
+    setArchivos(list);
+    return list;
+  }
+
+  // Abre el doc del tipo pedido. 0 → adjuntar; 1 → abre directo; varios → menú.
+  async function abrirDoc(tipo: TipoDoc) {
+    setError(null);
+    setMenuTipo(null);
+    setCargandoTipo(tipo);
     try {
-      const res = await fetch(`/api/cotizaciones/${c.id}/archivos`, { cache: "no-store" });
-      const j = (await res.json().catch(() => ({}))) as {
-        archivos?: CotizacionArchivo[];
-        error?: string;
-      };
-      if (!res.ok) {
-        setError(j.error ?? "No se pudo abrir la propuesta.");
-        return;
-      }
-      const list = j.archivos ?? [];
-      setArchivos(list);
-      if (list.length === 1 && list[0].url) {
-        window.open(list[0].url, "_blank", "noopener");
-      } else if (list.length > 1) {
-        setMenuPropuesta(true);
+      const list = await cargarArchivos();
+      if (list === null) return;
+      const propios = list.filter((a) => a.tipo === tipo);
+      if (propios.length === 0) {
+        adjuntar(tipo); // todavía no hay de este tipo → a adjuntar
+      } else if (propios.length === 1 && propios[0].url) {
+        window.open(propios[0].url, "_blank", "noopener");
+      } else if (propios.length > 1) {
+        setMenuTipo(tipo);
       } else {
-        setError("La propuesta no se pudo firmar.");
+        setError(`${TIPO_LABEL[tipo]}: el documento no se pudo firmar.`);
       }
     } catch {
       setError("Error de red.");
     } finally {
-      setCargandoArchivos(false);
+      setCargandoTipo(null);
     }
   }
 
-  async function adjuntarPropuesta(file: File) {
+  // Dispara el selector de archivo apuntando el upload al tipo dado.
+  function adjuntar(tipo: TipoDoc) {
+    tipoDestinoRef.current = tipo;
+    inputRef.current?.click();
+  }
+
+  async function adjuntarDoc(file: File, tipo: TipoDoc) {
     setSubiendo(true);
     setError(null);
     try {
       const fd = new FormData();
       fd.append("file", file);
-      fd.append("tipo", "propuesta");
+      fd.append("tipo", tipo);
       const res = await fetch(`/api/cotizaciones/${c.id}/archivos`, {
         method: "POST",
         body: fd,
@@ -165,7 +192,35 @@ function CotizacionFotoCard({
     }
   }
 
-  const tieneArchivos = (archivos?.length ?? c.archivosCount) > 0;
+  // Archivos ya cargados de un tipo (vacío si todavía no se hizo el fetch).
+  function docs(tipo: TipoDoc): CotizacionArchivo[] {
+    return (archivos ?? []).filter((a) => a.tipo === tipo);
+  }
+
+  // Botón de documento (DIAGNÓSTICO / PROPUESTA). Antes del primer fetch usa
+  // el conteo global como hint de "hay algo"; después manda el conteo por tipo.
+  function DocBoton({ tipo }: { tipo: TipoDoc }) {
+    const cargando = cargandoTipo === tipo;
+    const tieneHint = archivos ? docs(tipo).length > 0 : c.archivosCount > 0;
+    return (
+      <button
+        type="button"
+        onClick={() => void abrirDoc(tipo)}
+        disabled={cargandoTipo !== null || subiendo}
+        className={`font-mono-hud inline-flex flex-1 items-center justify-center rounded-full px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.14em] ring-1 transition-colors disabled:opacity-50 ${
+          tieneHint
+            ? "text-cdm-fg ring-cdm-line hover:ring-cdm-accent/40 hover:text-cdm-accent"
+            : "text-cdm-muted ring-cdm-line hover:text-cdm-fg hover:ring-cdm-accent/30"
+        }`}
+      >
+        {cargando ? (
+          <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-cdm-accent/30 border-t-cdm-accent" />
+        ) : (
+          TIPO_LABEL[tipo]
+        )}
+      </button>
+    );
+  }
 
   return (
     <motion.article
@@ -267,34 +322,18 @@ function CotizacionFotoCard({
             Cálculo
           </Link>
 
-          <button
-            type="button"
-            onClick={() => void abrirPropuesta()}
-            disabled={cargandoArchivos || subiendo}
-            className={`font-mono-hud inline-flex flex-1 items-center justify-center rounded-full px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.14em] ring-1 transition-colors disabled:opacity-50 ${
-              tieneArchivos
-                ? "text-cdm-fg ring-cdm-line hover:ring-cdm-accent/40 hover:text-cdm-accent"
-                : "text-cdm-muted ring-cdm-line hover:text-cdm-fg hover:ring-cdm-accent/30"
-            }`}
-          >
-            {cargandoArchivos ? (
-              <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-cdm-accent/30 border-t-cdm-accent" />
-            ) : tieneArchivos ? (
-              "Propuesta"
-            ) : (
-              "Adjuntar"
-            )}
-          </button>
+          <DocBoton tipo="diagnostico" />
+          <DocBoton tipo="propuesta" />
 
-          {/* Menú A/B cuando hay varias propuestas */}
-          {menuPropuesta && archivos && archivos.length > 1 && (
+          {/* Menú A/B cuando hay varios documentos del mismo tipo */}
+          {menuTipo && docs(menuTipo).length > 1 && (
             <div className="absolute bottom-full right-0 z-20 mb-2 w-48 overflow-hidden rounded-2xl bg-white p-1 shadow-xl ring-1 ring-cdm-line dark:bg-zinc-900">
-              {archivos.map((a, i) => (
+              {docs(menuTipo).map((a, i) => (
                 <button
                   key={a.id}
                   type="button"
                   onClick={() => {
-                    setMenuPropuesta(false);
+                    setMenuTipo(null);
                     if (a.url) window.open(a.url, "_blank", "noopener");
                   }}
                   disabled={!a.url}
@@ -306,8 +345,9 @@ function CotizacionFotoCard({
               <button
                 type="button"
                 onClick={() => {
-                  setMenuPropuesta(false);
-                  inputRef.current?.click();
+                  const t = menuTipo;
+                  setMenuTipo(null);
+                  if (t) adjuntar(t);
                 }}
                 className="block w-full rounded-xl px-3 py-2 text-left font-mono-hud text-[10px] uppercase tracking-[0.12em] text-cdm-muted transition-colors hover:bg-cdm-accent/10 hover:text-cdm-accent"
               >
@@ -322,10 +362,10 @@ function CotizacionFotoCard({
         <p className="bg-white px-5 pb-2 text-[11px] text-red-500 dark:bg-zinc-900/70">{error}</p>
       )}
 
-      {/* Input compartido: portada (imagen) y adjuntar propuesta (cualquier doc).
-          Se distingue por de dónde se dispara: la cámara sube portada; el botón
-          PROPUESTA sin archivos adjunta propuesta. Para no duplicar inputs,
-          uso uno solo y resuelvo por el estado del menú/conteo. */}
+      {/* Input compartido: portada (imagen) y adjuntar documento (PDF/doc).
+          La cámara sube portada; los botones DIAGNÓSTICO/PROPUESTA sin archivo
+          adjuntan al tipo que dejaron en tipoDestinoRef. Para no duplicar
+          inputs, uso uno solo y resuelvo por tipo de archivo + ref. */}
       <input
         ref={inputRef}
         type="file"
@@ -335,11 +375,11 @@ function CotizacionFotoCard({
           const f = e.target.files?.[0];
           e.target.value = "";
           if (!f) return;
-          // Imagen → portada; cualquier otra cosa (PDF) → propuesta.
+          // Imagen → portada; cualquier otra cosa (PDF) → doc del tipo destino.
           if (f.type.startsWith("image/")) {
             void subir(f);
           } else {
-            void adjuntarPropuesta(f);
+            void adjuntarDoc(f, tipoDestinoRef.current);
           }
         }}
       />

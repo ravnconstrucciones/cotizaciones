@@ -117,7 +117,9 @@ export async function POST(req: Request, ctx: Params) {
     }
 
     const ext = (file.name.split(".").pop() || "pdf").toLowerCase().replace(/[^a-z0-9]/g, "");
-    const path = `propuestas/${cotizacionId}/${Date.now()}.${ext || "pdf"}`;
+    // Carpeta por tipo (propuestas/diagnosticos) para mantener ordenado el bucket.
+    const carpeta = tipo === "diagnostico" ? "diagnosticos" : "propuestas";
+    const path = `${carpeta}/${cotizacionId}/${Date.now()}.${ext || "pdf"}`;
 
     const buffer = Buffer.from(await file.arrayBuffer());
     const { error: eUp } = await sb.storage
