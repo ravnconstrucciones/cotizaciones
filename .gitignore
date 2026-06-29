@@ -19,3 +19,7 @@ src/fonts/canva-extracted/
 .vercel
 
 .claude/worktrees/
+
+# Artefactos de build / caches (no versionar)
+*.tsbuildinfo
+__pycache__/
