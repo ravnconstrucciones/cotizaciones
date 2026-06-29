@@ -38,7 +38,10 @@ class TestResumenReferencias(unittest.TestCase):
 
 class TestPrompt(unittest.TestCase):
     def test_prompt_contiene_flujo_fecha_refs_y_patrones(self):
-        p = job_inbox.armar_prompt("2026-06-12", "- [estetica] cartel", ["tipografia: 3 capturas"])
+        p = job_inbox.armar_prompt(
+            "2026-06-12", "- [estetica] cartel", ["tipografia: 3 capturas"],
+            "- Pueyrredón 1100 [USD]: presupuesto Aprobado, OBRA ABIERTA → YA CERRADA",
+        )
         self.assertIn("procesá mi inbox", p)
         self.assertIn("/Users/ezeotero/Obsidian/RAVN/CLAUDE.md", p)
         self.assertIn("Orientación/2026-06-12.md", p)
@@ -46,6 +49,10 @@ class TestPrompt(unittest.TestCase):
         self.assertIn("- [estetica] cartel", p)
         self.assertIn("tipografia: 3 capturas", p)
         self.assertIn("NO hagas git", p)
+        # el estado real del pipeline y su regla de precedencia tienen que viajar al prompt
+        self.assertIn("ESTADO REAL DEL PIPELINE", p)
+        self.assertIn("Pueyrredón 1100", p)
+        self.assertIn("GANA App RAVN", p)
 
 
 if __name__ == "__main__":
