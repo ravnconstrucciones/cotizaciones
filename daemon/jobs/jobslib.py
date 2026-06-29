@@ -5,7 +5,7 @@ Parte 1 (pura, testeada): parse de .env, vencimientos, estado local, payload de 
 Parte 2 (red/procesos, Tarea 2): Supabase REST, git del vault, Claude Code headless.
 """
 import json
-from datetime import datetime
+from datetime import date, datetime, timedelta
 from pathlib import Path
 
 # ---------- parsing de .env ----------
@@ -258,6 +258,104 @@ def rest(cfg, token, path, data=None, method="GET"):
 def registrar_evento(cfg, token, tipo, titulo, contenido, estado="procesado"):
     """Inserta una fila en `eventos` (origen='daemon'). Cada corrida de job pasa por acá."""
     rest(cfg, token, "eventos", data=evento_payload(tipo, titulo, contenido, estado), method="POST")
+
+
+# ---------- snapshot del estado real del negocio (fuente de verdad para el cerebro) ----------
+
+def snapshot_negocio(cfg, token):
+    """Snapshot FRESCO del estado real del negocio desde App RAVN.
+
+    Razón de ser: los generadores del cerebro (Orientación nocturna y "Tu Día")
+    se alimentaban SOLO del texto del vault y se retroalimentaban de su propia
+    salida anterior — así nacieron alarmas zombie (Pueyrredón "esperando señal"
+    cuando ya estaba firmada; "credenciales expuestas" inventadas de un doc). El
+    vault es texto y se desactualiza; ESTO es lo que el sistema sabe HOY. Devuelve
+    un bloque de texto autocontenido (con encabezado) que se inyecta a los prompts
+    con precedencia sobre el vault. Cada sección degrada sola si su fuente falla:
+    nunca tumba al generador, a lo sumo informa que el dato no está disponible.
+    """
+    hoy = date.today()
+    bloques = []
+
+    # --- OBRAS / PIPELINE (presupuestos últimos 90 días + estado de su obra) ---
+    try:
+        corte = (hoy - timedelta(days=90)).isoformat()
+        presus = rest(cfg, token,
+            "presupuestos?select=id,nombre_obra,nombre_cliente,estado,presupuesto_aprobado,fecha,moneda"
+            f"&fecha=gte.{corte}&order=fecha.desc") or []
+        obras = rest(cfg, token,
+            "obras?select=presupuesto_id,created_at,finalizada_at,cobranza_cerrada_at") or []
+        obra_por_presu = {o.get("presupuesto_id"): o for o in obras if o.get("presupuesto_id")}
+        cerradas, en_venta = [], []
+        for p in presus:
+            nombre = p.get("nombre_obra") or p.get("nombre_cliente") or "(sin nombre)"
+            moneda = p.get("moneda") or "ARS"
+            estado = p.get("estado") or "?"
+            o = obra_por_presu.get(p.get("id"))
+            if p.get("presupuesto_aprobado") or o:
+                if o:
+                    desde = (o.get("created_at") or "")[:10]
+                    ejec = "FINALIZADA" if o.get("finalizada_at") else "en ejecución"
+                    cob = "cobranza CERRADA" if o.get("cobranza_cerrada_at") else "saldo por cobrar ABIERTO"
+                    cerradas.append(f"  - {nombre} [{moneda}]: obra abierta {desde}, {ejec}, {cob}")
+                else:
+                    cerradas.append(f"  - {nombre} [{moneda}]: presupuesto {estado}, aprobado, sin obra creada aún")
+            else:
+                en_venta.append(f"  - {nombre} [{moneda}]: presupuesto '{estado}'")
+        ob = ["OBRAS YA CERRADAS / EN CURSO (firmadas — PROHIBIDO recomendar pedir señal/anticipo/cierre de venta acá; lo único válido es seguimiento de EJECUCIÓN o COBRANZA del saldo):"]
+        ob += cerradas or ["  - (ninguna)"]
+        if en_venta:
+            ob.append("PRESUPUESTOS EN PIPELINE DE VENTA (no aprobados — acá SÍ vale follow-up comercial):")
+            ob += en_venta
+        bloques.append("\n".join(ob))
+    except Exception as e:
+        log(f"snapshot obras no disponible: {e}")
+        bloques.append("OBRAS: dato NO disponible esta corrida — NO afirmes nada sobre el pipeline ni inventes el estado de una obra.")
+
+    # --- COTIZACIONES EN MESA DE REVISIÓN (trabajo pendiente de Eze en la app) ---
+    try:
+        cots = rest(cfg, token,
+            "cotizaciones?select=titulo,zona,estado&estado=eq.en_revision&order=creado_at.desc") or []
+        if cots:
+            lin = ["COTIZACIONES EN MESA DE REVISIÓN (listas, esperan que vos las apruebes/emitas en la app):"]
+            lin += [f"  - {c.get('titulo') or '(sin título)'}" + (f" — {c.get('zona')}" if c.get('zona') else "")
+                    for c in cots[:10]]
+            bloques.append("\n".join(lin))
+    except Exception as e:
+        log(f"snapshot cotizaciones no disponible: {e}")
+
+    # --- PENDIENTES ABIERTOS (tareas) ---
+    try:
+        tareas = rest(cfg, token,
+            "tareas?select=texto,categoria,fecha&estado=eq.pendiente&order=fecha.asc.nullslast") or []
+        if tareas:
+            lin = ["PENDIENTES ABIERTOS (ya están registrados — no los recomiendes como si fueran una idea nueva):"]
+            for t in tareas[:15]:
+                f = (t.get("fecha") or "")[:10]
+                cat = t.get("categoria") or "—"
+                lin.append(f"  - [{cat}] {t.get('texto')}" + (f" ({f})" if f else ""))
+            bloques.append("\n".join(lin))
+    except Exception as e:
+        log(f"snapshot tareas no disponible: {e}")
+
+    # --- DÓLAR DEL DÍA (último evento job_dolar) ---
+    try:
+        ev = rest(cfg, token,
+            "eventos?select=contenido,creado_at&tipo=eq.job_dolar&order=creado_at.desc&limit=1") or []
+        if ev:
+            cont = ev[0].get("contenido") or {}
+            if isinstance(cont, str):
+                cont = json.loads(cont)
+            blue = (cont.get("blue") or {}).get("venta")
+            fdolar = (ev[0].get("creado_at") or "")[:10]
+            if blue:
+                bloques.append(f"DÓLAR HOY ({fdolar}): blue venta ${blue:g}. Las obras en USD se valúan a ESTE número, no a uno viejo de hace días.")
+    except Exception as e:
+        log(f"snapshot dolar no disponible: {e}")
+
+    encabezado = (f"ESTADO REAL DEL NEGOCIO — App RAVN al {hoy.isoformat()} "
+                  "(FUENTE DE VERDAD: si algo del vault o de una orientación anterior contradice esto, GANA esto):")
+    return encabezado + "\n\n" + "\n\n".join(bloques)
 
 # ---------- git del vault (boveda) ----------
 

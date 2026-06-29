@@ -49,10 +49,10 @@ class TestPrompt(unittest.TestCase):
         self.assertIn("- [estetica] cartel", p)
         self.assertIn("tipografia: 3 capturas", p)
         self.assertIn("NO hagas git", p)
-        # el estado real del pipeline y su regla de precedencia tienen que viajar al prompt
-        self.assertIn("ESTADO REAL DEL PIPELINE", p)
-        self.assertIn("Pueyrredón 1100", p)
+        # el snapshot del negocio y su regla de precedencia tienen que viajar al prompt
+        self.assertIn("Pueyrredón 1100", p)  # el snapshot pasado se inserta literal
         self.assertIn("GANA App RAVN", p)
+        self.assertIn("PRECEDENCIA", p)
 
 
 if __name__ == "__main__":
