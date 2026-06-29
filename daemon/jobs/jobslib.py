@@ -287,13 +287,25 @@ def snapshot_negocio(cfg, token):
             "obras?select=presupuesto_id,created_at,finalizada_at,cobranza_cerrada_at") or []
         obra_por_presu = {o.get("presupuesto_id"): o for o in obras if o.get("presupuesto_id")}
         cerradas, en_venta = [], []
+        vistos = set()
         for p in presus:
             nombre = p.get("nombre_obra") or p.get("nombre_cliente") or "(sin nombre)"
+            nl = nombre.strip().lower()
+            # La "obra" contenedora de gastos generales no es pipeline, es contabilidad: fuera.
+            if "gastos generales" in nl or "empresa (gastos" in nl:
+                continue
+            # Dedup por nombre: presus viene fecha desc → la 1ª ocurrencia es la más reciente.
+            if nl in vistos:
+                continue
+            vistos.add(nl)
             moneda = p.get("moneda") or "ARS"
             estado = p.get("estado") or "?"
             o = obra_por_presu.get(p.get("id"))
             if p.get("presupuesto_aprobado") or o:
                 if o:
+                    # Finalizada Y cobrada = historia cerrada: ni ejecución ni cobranza que seguir.
+                    if o.get("finalizada_at") and o.get("cobranza_cerrada_at"):
+                        continue
                     desde = (o.get("created_at") or "")[:10]
                     ejec = "FINALIZADA" if o.get("finalizada_at") else "en ejecución"
                     cob = "cobranza CERRADA" if o.get("cobranza_cerrada_at") else "saldo por cobrar ABIERTO"
