@@ -1,11 +1,13 @@
 import { NextResponse } from "next/server";
 import { parseNum, todayBuenosAires, totalesReales } from "@/lib/cashflow-compute";
 import { importeGastoObraArs } from "@/lib/cashflow-gastos-obra";
-import { roundArs2 } from "@/lib/format-currency";
+import { parseFormattedNumber, roundArs2 } from "@/lib/format-currency";
 import {
   importeArsParaPropuesta,
   parsePropuestaPrefJsonDesdeMismaFila,
 } from "@/lib/ravn-propuesta-pref";
+import { parseRentabilidadInputsJson } from "@/lib/ravn-rentabilidad-inputs";
+import { costoEstimadoArs, valuarObraUsd } from "@/lib/salud-negocio";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
 
 type PresRow = {
@@ -14,6 +16,7 @@ type PresRow = {
   nombre_cliente: string | null;
   presupuesto_aprobado: boolean | null;
   propuesta_comercial_pref?: unknown;
+  rentabilidad_inputs?: unknown;
   libreta_caja_empresa?: boolean | null;
   fecha?: string | null;
 };
@@ -36,6 +39,8 @@ type JoinedRow = {
   fecha_real: string | null;
   estado: string;
   notas: string;
+  moneda?: string | null;
+  monto_usd?: string | number | null;
   obras: ObraJoin | ObraJoin[] | null;
 };
 
@@ -64,11 +69,100 @@ function rowToItem(row: JoinedRow) {
     fecha_real: row.fecha_real ? String(row.fecha_real).slice(0, 10) : null,
     estado: row.estado,
     notas: row.notas ?? "",
+    moneda: row.moneda === "USD" ? ("USD" as const) : ("ARS" as const),
+    monto_usd: row.monto_usd == null ? null : parseNum(row.monto_usd),
   };
+}
+
+/**
+ * Totales de caja de una obra separando moneda: los pesos van a la caja en
+ * pesos; los cobros en dólares se acumulan aparte (van a la caja en dólares,
+ * valuados al blue del día en el tablero). Los egresos se asumen en pesos.
+ */
+function totalesObra(
+  items: {
+    tipo: "ingreso" | "egreso";
+    monto_real: number | null;
+    moneda: "ARS" | "USD";
+    monto_usd: number | null;
+  }[]
+): { ingresosArs: number; ingresosUsd: number; egresosArs: number } {
+  let ingArs = 0;
+  let ingUsd = 0;
+  let egr = 0;
+  for (const it of items) {
+    if (it.tipo === "ingreso") {
+      if (it.moneda === "USD") ingUsd += parseNum(it.monto_usd);
+      else if (it.monto_real != null) ingArs += it.monto_real;
+    } else if (it.monto_real != null) {
+      egr += it.monto_real;
+    }
+  }
+  return {
+    ingresosArs: roundArs2(ingArs),
+    ingresosUsd: roundArs2(ingUsd),
+    egresosArs: roundArs2(egr),
+  };
+}
+
+async function fetchBlueVenta(): Promise<number | null> {
+  try {
+    const r = await fetch("https://dolarapi.com/v1/dolares/blue", {
+      next: { revalidate: 600 },
+    });
+    if (!r.ok) return null;
+    const j = (await r.json()) as { venta?: number };
+    const v = Number(j?.venta);
+    return Number.isFinite(v) && v > 0 ? v : null;
+  } catch {
+    return null;
+  }
 }
 
 function esLibretaEmpresa(p: PresRow | null): boolean {
   return Boolean(p?.libreta_caja_empresa);
+}
+
+/**
+ * Costo total estimado del presupuesto en pesos nominales: costo directo
+ * (material + M.O.) + costos internos + cargos adicionales, leídos de
+ * `rentabilidad_inputs`. Misma fórmula que control-gastos (sin contingencia: el
+ * cupo de imprevistos es colchón = parte del margen salvo que se use). null si
+ * no hay rentabilidad cargada o el costo no es usable (≤ 0).
+ */
+function costoNominalArsDeRentab(p: PresRow | null): number | null {
+  if (!p?.id) return null;
+  const ri = parseRentabilidadInputsJson(p.rentabilidad_inputs, p.id);
+  if (!ri) return null;
+  const costo = roundArs2(
+    parseFormattedNumber(ri.costoMaterialStr) +
+      parseFormattedNumber(ri.costoMoStr) +
+      parseFormattedNumber(ri.costosInternosStr) +
+      parseFormattedNumber(ri.cargosAdicionalesStr)
+  );
+  return costo > 0 ? costo : null;
+}
+
+/**
+ * Cotización (ARS por 1 USD) a la que se dolarizó la obra, para floatear el
+ * costo al mismo blue que el contrato. Prioriza la cotización manual fijada en
+ * Rentabilidad; si no, la de la propuesta comercial. null si no hay ninguna.
+ */
+function cotizacionDolarizacionObra(p: PresRow | null): number | null {
+  if (!p?.id) return null;
+  const ri = parseRentabilidadInputsJson(p.rentabilidad_inputs, p.id);
+  if (ri) {
+    const manual = parseFormattedNumber(ri.cotizacionManualStr);
+    if (manual > 0) return manual;
+  }
+  const pref = parsePropuestaPrefJsonDesdeMismaFila(
+    p.propuesta_comercial_pref,
+    p.id
+  );
+  if (pref && pref.cotizacionVentaArsPorUsd > 0) {
+    return pref.cotizacionVentaArsPorUsd;
+  }
+  return null;
 }
 
 type ObraRow = {
@@ -77,6 +171,7 @@ type ObraRow = {
   cobranza_cerrada_at?: string | null;
   finalizada_at?: string | null;
   monto_total_a_cobrar_ars?: string | number | null;
+  monto_total_a_cobrar_usd?: string | number | null;
   foto_portada_path?: string | null;
   presupuestos: PresRow | PresRow[] | null;
 };
@@ -93,6 +188,8 @@ export async function GET() {
   try {
     const supabase = createSupabaseAdminClient();
     const hoy = todayBuenosAires();
+    // Blue venta del día para valuar obras en dólares (en paralelo con la DB).
+    const bluePromise = fetchBlueVenta();
 
     // Las tres operaciones son independientes — las lanzamos en paralelo.
     const [, itemsResult, obrasResult] = await Promise.all([
@@ -121,6 +218,8 @@ export async function GET() {
           fecha_real,
           estado,
           notas,
+          moneda,
+          monto_usd,
           obras (
             id,
             presupuesto_id,
@@ -141,6 +240,7 @@ export async function GET() {
           cobranza_cerrada_at,
           finalizada_at,
           monto_total_a_cobrar_ars,
+          monto_total_a_cobrar_usd,
           foto_portada_path,
           presupuestos (
             id,
@@ -148,6 +248,7 @@ export async function GET() {
             nombre_cliente,
             presupuesto_aprobado,
             propuesta_comercial_pref,
+            rentabilidad_inputs,
             libreta_caja_empresa,
             fecha
           )
@@ -252,6 +353,8 @@ export async function GET() {
       );
     }
 
+    const blue = await bluePromise;
+
     const obrasActivas = obrasAprobadas.map((o) => {
       const p = unwrapPres(o.presupuestos);
       const nombre =
@@ -260,34 +363,77 @@ export async function GET() {
       const sliceFull = rows
         .filter((row) => row.obra_id === o.id)
         .map(rowToItem);
-      const tr = totalesReales(sliceFull);
-      const pref =
-        p?.id != null
-          ? parsePropuestaPrefJsonDesdeMismaFila(
-              p.propuesta_comercial_pref,
-              p.id
-            )
-          : null;
-      const referencia_propuesta_ars = pref ? importeArsParaPropuesta(pref) : null;
-      const pendiente_ingreso_referencia_ars =
-        referencia_propuesta_ars != null
-          ? roundArs2(referencia_propuesta_ars - tr.ingresos)
-          : null;
+      const t = totalesObra(sliceFull);
 
       const egGastos = gastosTotalPorObraId.get(o.id) ?? 0;
-      const egLib = tr.egresos;
+      const egLib = t.egresosArs;
       const egTotal = roundArs2(egLib + egGastos);
-      const saldoObra = roundArs2(tr.ingresos - egTotal);
 
       const cobCerrada = Boolean(o.cobranza_cerrada_at);
-      const montoCobrarSnap = parseNum(o.monto_total_a_cobrar_ars);
+      const montoUsdTotal = parseNum(o.monto_total_a_cobrar_usd);
+      const esUsd = montoUsdTotal > 0 || t.ingresosUsd > 0;
 
+      let ingresosArs: number;
+      let referencia_propuesta_ars: number | null;
+      let pendiente_ingreso_referencia_ars: number | null;
+      let monto_total_a_cobrar_ars_resp: number | null;
       let saldo_por_cobrar_ars: number | null = null;
-      if (cobCerrada && montoCobrarSnap > 0) {
-        saldo_por_cobrar_ars = roundArs2(Math.max(0, montoCobrarSnap - tr.ingresos));
-      } else if (pendiente_ingreso_referencia_ars != null) {
-        saldo_por_cobrar_ars = pendiente_ingreso_referencia_ars;
+
+      if (esUsd && blue) {
+        // Obra en dólares: contrato y cobrado valuados al blue del día (flotan).
+        // Los USD cobrados NO entran a la caja en pesos (van a la caja USD).
+        const v = valuarObraUsd({
+          contratoUsd: montoUsdTotal,
+          cobradoUsd: t.ingresosUsd,
+          cobradoArs: t.ingresosArs,
+          blue,
+        });
+        ingresosArs = v.cobradoArs;
+        referencia_propuesta_ars = null;
+        pendiente_ingreso_referencia_ars = null;
+        monto_total_a_cobrar_ars_resp = v.cerradoArs > 0 ? v.cerradoArs : null;
+        saldo_por_cobrar_ars = v.cerradoArs > 0 ? v.porCobrarArs : null;
+      } else {
+        // Obra en pesos: lógica original.
+        ingresosArs = t.ingresosArs;
+        const pref =
+          p?.id != null
+            ? parsePropuestaPrefJsonDesdeMismaFila(
+                p.propuesta_comercial_pref,
+                p.id
+              )
+            : null;
+        referencia_propuesta_ars = pref ? importeArsParaPropuesta(pref) : null;
+        pendiente_ingreso_referencia_ars =
+          referencia_propuesta_ars != null
+            ? roundArs2(referencia_propuesta_ars - ingresosArs)
+            : null;
+        const montoCobrarSnap = parseNum(o.monto_total_a_cobrar_ars);
+        monto_total_a_cobrar_ars_resp =
+          montoCobrarSnap > 0 ? montoCobrarSnap : null;
+        if (cobCerrada && montoCobrarSnap > 0) {
+          saldo_por_cobrar_ars = roundArs2(
+            Math.max(0, montoCobrarSnap - ingresosArs)
+          );
+        } else if (pendiente_ingreso_referencia_ars != null) {
+          saldo_por_cobrar_ars = pendiente_ingreso_referencia_ars;
+        }
       }
+
+      const saldoObra = roundArs2(ingresosArs - egTotal);
+
+      // Costo total estimado del presupuesto, coherente con la moneda del
+      // "cerrado": para obras USD se floatea al MISMO blue que el contrato (así
+      // el margen proyectado es el que se fijó al vender en dólares).
+      const valuadoUsd = esUsd && Boolean(blue);
+      const costo_total_estimado_ars = costoEstimadoArs({
+        costoNominalArs: costoNominalArsDeRentab(p) ?? 0,
+        esUsd: valuadoUsd,
+        cotizacionPricingArsPorUsd: valuadoUsd
+          ? cotizacionDolarizacionObra(p)
+          : null,
+        blue,
+      });
 
       return {
         obra_id: o.id,
@@ -296,7 +442,10 @@ export async function GET() {
         // Expuestos para evitar un segundo fetch desde el cliente.
         nombre_cliente: p?.nombre_cliente?.trim() ?? null,
         fecha_presupuesto: p?.fecha ? String(p.fecha).slice(0, 10) : null,
-        ingresos_caja: tr.ingresos,
+        // ingresos_caja = cobrado (en pesos; para obras USD, valuado al blue).
+        ingresos_caja: ingresosArs,
+        ingresos_caja_usd: t.ingresosUsd,
+        moneda: esUsd ? ("USD" as const) : ("ARS" as const),
         egresos_libreta_ars: egLib,
         egresos_gastos_obra_ars: egGastos,
         egresos_caja: egTotal,
@@ -304,6 +453,10 @@ export async function GET() {
         referencia_propuesta_ars,
         pendiente_ingreso_referencia_ars,
         saldo_por_cobrar_ars,
+        // Contrato (cerrado): snapshot ARS para obras en pesos; valuado al blue
+        // para obras en dólares. El módulo Salud lo usa como "cerrado".
+        monto_total_a_cobrar_ars: monto_total_a_cobrar_ars_resp,
+        monto_total_a_cobrar_usd: montoUsdTotal > 0 ? montoUsdTotal : null,
         cobranza_cerrada: cobCerrada,
         finalizada: Boolean(o.finalizada_at),
         // Margen al día (spec §4.2): propuesta − gastado real acumulado.
@@ -311,6 +464,9 @@ export async function GET() {
           referencia_propuesta_ars != null
             ? roundArs2(referencia_propuesta_ars - egTotal)
             : null,
+        // Costo total estimado (ARS, valuado al blue si la obra es USD): el
+        // módulo Salud lo usa para el rédito proyectado real.
+        costo_total_estimado_ars,
         // Portada del proyecto (rediseño /obras): path en bucket privado; la
         // signed URL se completa abajo (foto_portada_url).
         foto_portada_path: o.foto_portada_path ?? null,
@@ -353,7 +509,7 @@ export async function GET() {
     const sliceSaldo = rows
       .filter((row) => saldoObraIds.has(row.obra_id))
       .map(rowToItem);
-    const totGlob = totalesReales(sliceSaldo);
+    const totGlob = totalesObra(sliceSaldo);
 
     let gastosGlobalArs = 0;
     for (const g of gastosRows) {
@@ -361,8 +517,10 @@ export async function GET() {
       if (!oid || !saldoObraIds.has(oid)) continue;
       gastosGlobalArs = roundArs2(gastosGlobalArs + importeGastoObraArs(g));
     }
-    const ingresosGlob = totGlob.ingresos;
-    const egresosLibGlob = totGlob.egresos;
+    // Caja en PESOS: solo cobros en pesos. Los cobros en dólares van aparte.
+    const ingresosGlob = totGlob.ingresosArs;
+    const cajaObrasUsd = totGlob.ingresosUsd; // caja en dólares de las obras
+    const egresosLibGlob = totGlob.egresosArs;
     const egresosTotGlob = roundArs2(egresosLibGlob + gastosGlobalArs);
     const saldoGlob = roundArs2(ingresosGlob - egresosTotGlob);
 
@@ -377,6 +535,8 @@ export async function GET() {
       if (it.monto_real == null) continue;
       const f = it.fecha_real ?? it.fecha_proyectada;
       if (it.tipo === "ingreso") {
+        // Los cobros en dólares no son caja en pesos del mes.
+        if (it.moneda === "USD") continue;
         if (f.startsWith(mesActual)) ingresosMes = roundArs2(ingresosMes + it.monto_real);
       } else {
         if (f.startsWith(mesActual)) egresosLibMes = roundArs2(egresosLibMes + it.monto_real);
@@ -542,6 +702,9 @@ export async function GET() {
     const payload = NextResponse.json({
       fecha_referencia: hoy,
       saldo_caja_total: saldoGlob,
+      // Caja en dólares de las obras (cobros en USD), separada de los pesos.
+      caja_obras_usd: cajaObrasUsd,
+      blue_venta: blue,
       total_por_cobrar_clientes_ars,
       totales_caja: {
         ingresos: ingresosGlob,
