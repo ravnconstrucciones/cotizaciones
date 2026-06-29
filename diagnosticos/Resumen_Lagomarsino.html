@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RAVN · Trabajos Realizados — Lagomarsino</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,700;1,700&family=Raleway:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,300&family=Barlow:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  :root { --k:#070707; --w:#f2efe8; --g:#b8c8a0; --dim:#5a5754; --red:#6e1010; }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  .slide { width:1920px; height:1080px; font-family:'Barlow',sans-serif; color:var(--w); background:var(--k); overflow:hidden; position:relative; display:block; margin-bottom:4px; }
+  .serif { font-family:'Cormorant Garamond',serif; font-weight:700; }
+  .label { font-family:'Raleway',sans-serif; font-weight:400; letter-spacing:0.22em; text-transform:uppercase; font-size:24px; color:var(--dim); }
+  .fill { font-family:'Raleway',sans-serif; font-weight:900; text-transform:uppercase; line-height:0.88; letter-spacing:-0.03em; color:var(--w); }
+  .stroke { font-family:'Raleway',sans-serif; font-weight:900; text-transform:uppercase; line-height:0.88; letter-spacing:-0.03em; color:transparent; -webkit-text-stroke:2px var(--w); }
+  .stroke-dim { font-family:'Raleway',sans-serif; font-weight:900; text-transform:uppercase; line-height:0.88; letter-spacing:-0.03em; color:transparent; -webkit-text-stroke:1px #242424; }
+  .topbar { display:flex; justify-content:space-between; align-items:center; padding:36px 80px; position:relative; z-index:10; flex-shrink:0; }
+  .brand { font-family:'Raleway',sans-serif; font-weight:300; font-size:28px; letter-spacing:0.35em; text-transform:uppercase; color:var(--w); }
+  .topbar-label { font-family:'Raleway',sans-serif; font-weight:400; font-size:24px; letter-spacing:0.14em; text-transform:uppercase; color:var(--dim); }
+  .photo { background:#0c0c0c; position:relative; display:flex; align-items:center; justify-content:center; overflow:hidden; }
+  .photo::before { content:''; position:absolute; inset:20px; border:1px solid #1c1c1c; pointer-events:none; z-index:2; }
+  .photo::after { content:''; position:absolute; width:24px; height:24px; border-left:1px solid var(--g); border-top:1px solid var(--g); top:28px; left:28px; pointer-events:none; z-index:2; }
+  .photo .photo-ref { position:absolute; bottom:28px; right:32px; font-family:'Raleway',sans-serif; font-weight:500; font-size:24px; letter-spacing:0.12em; color:rgba(242,239,232,0.92); background:rgba(7,7,7,0.6); padding:8px 14px; text-shadow:0 1px 6px rgba(0,0,0,0.9); z-index:3; }
+  .photo .photo-date { position:absolute; top:28px; right:32px; font-family:'Raleway',sans-serif; font-weight:700; font-size:24px; letter-spacing:0.1em; color:var(--w); background:rgba(7,7,7,0.68); padding:9px 16px; text-shadow:0 1px 6px rgba(0,0,0,0.9); z-index:3; }
+  .photo .corner-br { position:absolute; bottom:28px; left:28px; width:24px; height:24px; border-right:1px solid var(--g); border-bottom:1px solid var(--g); z-index:2; }
+  .photo .placeholder { position:relative; z-index:1; text-align:center; padding:40px; }
+  .bcard { padding:22px 26px; display:flex; flex-direction:column; gap:12px; }
+  .bcard.primary { background:#111; border-top:2px solid var(--g); }
+  .bcard.secondary { background:transparent; border-top:1px solid #222; }
+  .bcard .bc-tag { font-family:'Raleway',sans-serif; font-weight:600; font-size:18px; letter-spacing:0.2em; text-transform:uppercase; color:var(--g); }
+  .bcard.secondary .bc-tag { color:var(--dim); }
+  .bcard .bc-name { font-family:'Raleway',sans-serif; font-weight:700; font-size:24px; color:var(--w); line-height:1.15; }
+  .bcard .bc-desc { font-family:'Barlow',sans-serif; font-size:21px; color:var(--dim); line-height:1.45; }
+  .step { display:flex; gap:24px; align-items:flex-start; padding:20px 0; border-bottom:1px solid #161616; }
+  .step:last-child { border-bottom:none; }
+  .step-n { font-family:'Raleway',sans-serif; font-weight:900; font-size:40px; color:transparent; -webkit-text-stroke:1px var(--g); line-height:1; min-width:64px; }
+  .step-t { font-family:'Raleway',sans-serif; font-weight:700; font-size:25px; color:var(--w); margin-bottom:6px; }
+  .step-d { font-family:'Barlow',sans-serif; font-size:20px; color:var(--dim); line-height:1.45; font-weight:300; }
+  .chip { font-family:'Raleway',sans-serif; font-weight:600; font-size:19px; letter-spacing:0.12em; text-transform:uppercase; border:1px solid #2a2a2a; color:var(--dim); padding:10px 18px; display:inline-block; }
+  .chip b { color:var(--g); font-weight:700; }
+  body { background:#000; padding:20px; }
+  .slide-wrapper { width:1920px; transform-origin:top left; margin-bottom:8px; }
+  @media screen { body { display:flex; flex-direction:column; align-items:flex-start; } }
+  @media print {
+    @page { size: 1920px 1080px; margin: 0; }
+    body { padding: 0; background: #000; display: block; }
+    .slide-wrapper { page-break-after: always; break-after: page; width: 1920px !important; height: 1080px !important; margin: 0 !important; transform: none !important; }
+    .slide { transform: none !important; width: 1920px !important; height: 1080px !important; }
+  }
+</style>
+</head>
+<body>
+<script>
+  function scaleSlides() {
+    const vw = window.innerWidth - 40;
+    const scale = vw / 1920;
+    document.querySelectorAll('.slide').forEach(s => {
+      s.style.transform = `scale(${scale})`;
+      s.style.transformOrigin = 'top left';
+      s.parentElement.style.height = (1080 * scale) + 'px';
+      s.parentElement.style.width = (1920 * scale) + 'px';
+    });
+  }
+  window.addEventListener('load', scaleSlides);
+  window.addEventListener('resize', scaleSlides);
+</script>
+
+<!-- ══ SLIDE 01 — PORTADA ══ -->
+<div class="slide-wrapper">
+<section class="slide" data-label="01 Portada">
+  <div style="position:absolute;bottom:-60px;right:-20px;font-family:'Raleway',sans-serif;font-weight:900;font-size:580px;line-height:1;color:transparent;-webkit-text-stroke:1px #131313;letter-spacing:-0.04em;pointer-events:none;user-select:none;z-index:0;">R</div>
+  <div class="topbar" style="border-bottom:1px solid #151515;">
+    <span class="brand">RAVN.</span>
+    <span class="topbar-label">REF &nbsp;·&nbsp; 2026-004 · CIERRE</span>
+  </div>
+  <div style="position:relative;z-index:1;padding:60px 80px 0;display:flex;flex-direction:column;gap:8px;">
+    <div class="label" style="margin-bottom:24px;">Resumen de obra · Trabajos realizados</div>
+    <div style="font-family:'Raleway',sans-serif;font-weight:900;text-transform:uppercase;line-height:0.88;letter-spacing:-0.03em;color:var(--w);font-size:168px;margin-bottom:16px;">Trabajos</div>
+    <div class="stroke" style="font-size:168px;-webkit-text-stroke:3px #f2efe8;">Realizados</div>
+    <div style="border-top:1px solid #222;margin-top:48px;padding-top:36px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:0;">
+      <div>
+        <div class="label" style="font-size:20px;margin-bottom:8px;">Cliente</div>
+        <div style="font-family:'Raleway',sans-serif;font-size:30px;font-weight:600;color:var(--w);">Lucila Lagomarsino</div>
+      </div>
+      <div>
+        <div class="label" style="font-size:20px;margin-bottom:8px;">Dirección · Frente</div>
+        <div style="font-family:'Raleway',sans-serif;font-size:26px;font-weight:400;color:var(--dim);">Correa 3750 · Baño superior</div>
+      </div>
+      <div>
+        <div class="label" style="font-size:20px;margin-bottom:8px;">Fecha de cierre</div>
+        <div style="font-family:'Raleway',sans-serif;font-size:30px;font-weight:600;color:var(--w);">17 · 06 · 2026</div>
+      </div>
+    </div>
+  </div>
+</section>
+</div>
+
+<!-- ══ SLIDE 02 — PUNTO DE PARTIDA ══ -->
+<div class="slide-wrapper">
+<section class="slide" data-label="02 Punto de partida" style="display:grid;grid-template-rows:auto 1fr auto;grid-template-columns:1fr;">
+  <div class="topbar" style="border-bottom:1px solid #151515;grid-column:1;grid-row:1;">
+    <span class="brand">RAVN.</span>
+    <span class="topbar-label">Trabajos Realizados</span>
+  </div>
+  <div style="display:grid;grid-template-columns:460px 1fr 400px;grid-row:2;min-height:0;overflow:hidden;">
+
+    <!-- Col 1 -->
+    <div style="border-right:1px solid #151515;padding:36px 36px 36px 80px;display:flex;flex-direction:column;justify-content:space-between;position:relative;overflow:hidden;">
+      <div class="stroke-dim" style="position:absolute;font-size:340px;bottom:-60px;left:-20px;letter-spacing:-0.06em;z-index:0;">01</div>
+      <div style="position:relative;z-index:1;display:flex;flex-direction:column;gap:20px;">
+        <div>
+          <div class="label" style="font-size:20px;margin-bottom:16px;">Punto de partida · Baño superior</div>
+          <div class="fill" style="font-size:44px;line-height:0.94;">Filtración directa a la losa por múltiples focos simultáneos</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Col 2: Foto antes -->
+    <div class="photo" style="border-right:1px solid #151515;">
+      <div class="corner-br"></div>
+      <img src="lagomarsino_03.jpg" alt="Estado previo del piso" style="width:100%;height:100%;object-fit:cover;object-position:center;display:block;">
+      <span class="photo-date">ANTES · 08.06.2026</span>
+      <span class="photo-ref">IMG · 01.A</span>
+    </div>
+
+    <!-- Col 3 -->
+    <div style="display:flex;flex-direction:column;overflow:hidden;">
+      <div style="padding:28px 32px 20px 28px;border-bottom:1px solid #151515;flex-shrink:0;">
+        <div class="label" style="font-size:20px;color:var(--g);margin-bottom:12px;">Diagnóstico</div>
+        <p style="font-size:20px;color:var(--dim);line-height:1.55;font-weight:300;">La filtración hacia el departamento inferior tenía su origen en el baño superior. La impermeabilización original estaba vencida hasta la carpeta: ya no quedaba barrera hídrica. Con el revestimiento dañado, el agua llegaba directamente a la losa en cada uso.</p>
+      </div>
+      <div class="bcard primary" style="flex:1;">
+        <div class="bc-tag">Focos detectados</div>
+        <div class="bc-name">Cuatro causas actuando en simultáneo</div>
+        <div class="bc-desc">· Cerámicas rotas en el piso, especialmente en la zona del desagüe.<br>· Juntas sin pastina, con paso de agua al contrapiso.<br>· Reparaciones previas mal ejecutadas.<br>· Llave de paso con pérdida activa.</div>
+      </div>
+    </div>
+  </div>
+  <div style="grid-row:3;border-top:1px solid #151515;padding:16px 80px;display:flex;justify-content:space-between;align-items:center;">
+    <span class="label" style="font-size:22px;text-transform:lowercase;letter-spacing:0.08em;">ravnconstrucciones.com.ar</span>
+    <span class="label" style="font-size:22px;">02 / 05</span>
+  </div>
+</section>
+</div>
+
+<!-- ══ SLIDE 03 — INTERVENCIÓN EJECUTADA ══ -->
+<div class="slide-wrapper">
+<section class="slide" data-label="03 Intervención" style="display:grid;grid-template-rows:auto 1fr auto;grid-template-columns:1fr;">
+  <div class="topbar" style="border-bottom:1px solid #151515;grid-column:1;grid-row:1;">
+    <span class="brand">RAVN.</span>
+    <span class="topbar-label">Trabajos Realizados</span>
+  </div>
+  <div style="display:grid;grid-template-columns:560px 1fr;grid-row:2;min-height:0;overflow:hidden;">
+
+    <!-- Col 1 -->
+    <div style="border-right:1px solid #151515;padding:48px 48px 48px 80px;display:flex;flex-direction:column;justify-content:space-between;position:relative;overflow:hidden;">
+      <div class="stroke-dim" style="position:absolute;font-size:340px;bottom:-60px;left:-20px;letter-spacing:-0.06em;z-index:0;">02</div>
+      <div style="position:relative;z-index:1;display:flex;flex-direction:column;gap:28px;">
+        <div>
+          <div class="label" style="font-size:20px;margin-bottom:16px;">Intervención ejecutada</div>
+          <div class="fill" style="font-size:38px;line-height:0.96;">Sistema de impermeabilización reconstruido desde la base</div>
+        </div>
+        <p style="font-size:21px;color:var(--dim);line-height:1.55;font-weight:300;">Se atacaron todos los focos de filtración del baño superior. Resuelta la fuente, el departamento inferior queda sin riesgo de filtración por esta causa.</p>
+        <div style="display:flex;flex-wrap:wrap;gap:12px;margin-top:8px;">
+          <span class="chip">Barrera hídrica · <b>SikaTop Seal-107</b></span>
+          <span class="chip">Adhesivo flexible · <b>Superflex</b></span>
+          <span class="chip">Pastina impermeable</span>
+          <span class="chip">Llave de paso nueva</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Col 2: Pasos -->
+    <div style="padding:40px 64px 32px 56px;display:flex;flex-direction:column;justify-content:center;overflow:hidden;">
+      <div class="step">
+        <div class="step-n">01</div>
+        <div><div class="step-t">Levantamiento de la zona afectada</div><div class="step-d">Retiro del cerámico dañado y de la carpeta vencida sobre el foco de filtración, hasta llegar a base sana.</div></div>
+      </div>
+      <div class="step">
+        <div class="step-n">02</div>
+        <div><div class="step-t">Barrera hidrófuga · SikaTop Seal-107</div><div class="step-d">Aplicación de un revestimiento cementicio hidrófugo sobre la superficie húmeda, dejándola sellada, seca y preparada para revestir.</div></div>
+      </div>
+      <div class="step">
+        <div class="step-n">03</div>
+        <div><div class="step-t">Carpeta nueva</div><div class="step-d">Reconstrucción de la carpeta sobre la barrera, recuperando nivel y soporte para el revestimiento.</div></div>
+      </div>
+      <div class="step">
+        <div class="step-n">04</div>
+        <div><div class="step-t">Cerámico con adhesivo Superflex</div><div class="step-d">Colocación del revestimiento con pegamento preparado para variaciones térmicas y contacto constante con agua.</div></div>
+      </div>
+      <div class="step">
+        <div class="step-n">05</div>
+        <div><div class="step-t">Empastinado completo</div><div class="step-d">Sellado de todas las juntas.</div></div>
+      </div>
+      <div class="step">
+        <div class="step-n">06</div>
+        <div><div class="step-t">Reemplazo de la llave de paso</div><div class="step-d">Cambio de la llave que presentaba pérdida, eliminando el último foco de filtración.</div></div>
+      </div>
+    </div>
+  </div>
+  <div style="grid-row:3;border-top:1px solid #151515;padding:16px 80px;display:flex;justify-content:space-between;align-items:center;">
+    <span class="label" style="font-size:22px;text-transform:lowercase;letter-spacing:0.08em;">ravnconstrucciones.com.ar</span>
+    <span class="label" style="font-size:22px;">03 / 05</span>
+  </div>
+</section>
+</div>
+
+<!-- ══ SLIDE 04 — ANTES / DESPUÉS ══ -->
+<div class="slide-wrapper">
+<section class="slide" data-label="04 Antes Después" style="display:grid;grid-template-rows:auto 1fr auto;grid-template-columns:1fr;">
+  <div class="topbar" style="border-bottom:1px solid #151515;grid-column:1;grid-row:1;">
+    <span class="brand">RAVN.</span>
+    <span class="topbar-label">Antes / Después</span>
+  </div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;grid-row:2;min-height:0;overflow:hidden;">
+
+    <!-- Antes (izquierda) -->
+    <div class="photo" style="border-right:1px solid #151515;">
+      <div class="corner-br"></div>
+      <img src="lagomarsino_before_main.jpg" alt="Antes" style="width:100%;height:100%;object-fit:contain;object-position:center;display:block;">
+      <span class="photo-date">ANTES · 08.06.2026</span>
+      <span class="photo-ref">IMG · 04.A</span>
+    </div>
+
+    <!-- Después (derecha) -->
+    <div class="photo">
+      <div class="corner-br"></div>
+      <img src="lagomarsino_after_03.jpg" alt="Después" style="width:100%;height:100%;object-fit:contain;object-position:center;display:block;">
+      <span class="photo-date">DESPUÉS · 17.06.2026</span>
+      <span class="photo-ref">IMG · 04.B</span>
+    </div>
+  </div>
+  <div style="grid-row:3;border-top:1px solid #151515;padding:16px 80px;display:flex;justify-content:space-between;align-items:center;">
+    <span class="label" style="font-size:22px;text-transform:lowercase;letter-spacing:0.08em;">ravnconstrucciones.com.ar</span>
+    <span class="label" style="font-size:22px;">04 / 05</span>
+  </div>
+</section>
+</div>
+
+<!-- ══ SLIDE 05 — CIERRE Y GARANTÍA ══ -->
+<div class="slide-wrapper">
+<section class="slide" data-label="05 Cierre y garantía" style="display:grid;grid-template-rows:auto 1fr auto;grid-template-columns:1fr;">
+  <div class="topbar" style="border-bottom:1px solid #151515;grid-column:1;grid-row:1;">
+    <span class="brand">RAVN.</span>
+    <span class="topbar-label">Cierre de obra</span>
+  </div>
+  <div style="grid-row:2;display:grid;grid-template-columns:1fr 1fr;min-height:0;overflow:hidden;">
+    <!-- Izq -->
+    <div style="padding:72px 64px 72px 80px;border-right:1px solid #151515;display:flex;flex-direction:column;justify-content:center;gap:32px;">
+      <div>
+        <div class="label" style="font-size:20px;margin-bottom:18px;">Resultado</div>
+        <div class="fill" style="font-size:56px;line-height:0.96;">Foco de filtración<br>resuelto en origen</div>
+      </div>
+      <p style="font-size:22px;color:var(--dim);line-height:1.6;font-weight:300;">El baño superior pasó de tener la losa expuesta al agua a contar con un sistema completo de impermeabilización: barrera hídrica, carpeta nueva, revestimiento con adhesivo flexible, juntas selladas y la instalación sin pérdidas. Las cuatro causas que podían originar la filtración hacia el departamento inferior, detectadas en el relevamiento, quedaron resueltas y eliminadas.</p>
+    </div>
+    <!-- Der -->
+    <div style="padding:72px 80px 72px 64px;display:flex;flex-direction:column;justify-content:center;gap:28px;">
+      <div class="bcard primary">
+        <div class="bc-desc" style="font-size:23px;color:var(--w);font-weight:300;line-height:1.6;">El trabajo realizado cuenta con garantía de 1 año sobre la intervención de impermeabilización y revestimiento ejecutada. No cubre vicios preexistentes u ocultos de la construcción, negligencia en el uso, roturas accidentales ni intervenciones de terceros sobre lo realizado.</div>
+      </div>
+      <div class="bcard secondary">
+        <div class="bc-tag">Verificación y próxima etapa</div>
+        <div class="bc-desc" style="color:var(--dim);">A partir del 18.06.2026 se verifica, con el uso normal de la zona reparada, que no se produzca filtración. Se deja secar durante 4 días (jueves a domingo). De no registrarse ninguna anomalía, la semana siguiente se interviene el cielorraso del departamento inferior.</div>
+      </div>
+    </div>
+  </div>
+  <div style="grid-row:3;border-top:1px solid #151515;padding:24px 80px;display:flex;justify-content:space-between;align-items:center;">
+    <span class="brand" style="font-size:24px;">RAVN.</span>
+    <span class="label" style="font-size:22px;text-transform:lowercase;letter-spacing:0.08em;">ravnconstrucciones.com.ar &nbsp;·&nbsp; 05 / 05</span>
+  </div>
+</section>
+</div>
+
+</body>
+</html>

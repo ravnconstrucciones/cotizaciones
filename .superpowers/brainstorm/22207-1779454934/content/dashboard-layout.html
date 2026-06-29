@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RAVN — Layout del tablero</title>
+<link href="https://fonts.googleapis.com/css2?family=Raleway:wght@300;400;500;600;700;900&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Raleway', sans-serif;
+    background: #fafafa; color: #0a0a0a; min-height: 100vh; padding: 40px 36px;
+  }
+  .header {
+    display: flex; align-items: baseline; gap: 16px;
+    margin-bottom: 40px; border-bottom: 1px solid #0a0a0a; padding-bottom: 18px;
+  }
+  .logo { font-size: 11px; font-weight: 700; letter-spacing: 0.25em; text-transform: uppercase; }
+  .logo span { color: #c8b89a; }
+  .header-tag { font-size: 10px; letter-spacing: 0.15em; text-transform: uppercase; color: #6b6b6b; }
+  h1 { font-size: clamp(1.8rem, 4vw, 2.6rem); font-weight: 700; letter-spacing: -0.03em; line-height: 1.05; margin-bottom: 10px; }
+  h1 em { font-style: normal; color: #c8b89a; }
+  .subtitle { font-size: 13px; color: #6b6b6b; margin-bottom: 40px; line-height: 1.7; max-width: 560px; }
+  .label { font-size: 9px; font-weight: 700; letter-spacing: 0.3em; text-transform: uppercase; color: #6b6b6b; margin-bottom: 20px; display: block; }
+
+  .split { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 36px; }
+
+  .variant { cursor: pointer; transition: transform 150ms ease; }
+  .variant:hover { transform: translateY(-2px); }
+  .variant.selected .vlabel { background: #0a0a0a; color: #fafafa; }
+  .variant.selected .vlabel .vnum { color: #c8b89a; }
+  .variant.selected .frame { border-color: #0a0a0a; border-width: 2px; }
+
+  .vlabel {
+    display: flex; align-items: center; gap: 10px; padding: 12px 16px;
+    border: 1px solid #0a0a0a; border-bottom: none; background: #fafafa;
+    font-size: 13px; font-weight: 700; letter-spacing: -0.01em;
+    transition: background 150ms ease;
+  }
+  .vlabel .vnum { font-size: 10px; font-weight: 700; letter-spacing: 0.15em; color: #c8b89a; text-transform: uppercase; }
+  .vlabel .vmeta { margin-left: auto; font-size: 9px; font-weight: 500; letter-spacing: 0.1em; text-transform: uppercase; color: #9b9b9b; }
+
+  .frame {
+    border: 1px solid #0a0a0a; background: #fff; aspect-ratio: 4/3; overflow: hidden;
+    transition: border-color 150ms ease;
+  }
+
+  /* ===== Mockup atoms ===== */
+  .m-topbar { height: 26px; background: #0a0a0a; display: flex; align-items: center; padding: 0 10px; gap: 8px; }
+  .m-dot { width: 5px; height: 5px; background: #c8b89a; }
+  .m-topbar-txt { font-size: 6px; color: #fafafa; letter-spacing: 0.15em; text-transform: uppercase; font-weight: 600; }
+  .m-topbar-right { margin-left: auto; display: flex; gap: 6px; }
+  .m-pill { font-size: 5px; color: rgba(255,255,255,0.6); border: 1px solid rgba(255,255,255,0.25); padding: 2px 5px; letter-spacing: 0.1em; }
+
+  /* Variant A: Map-first */
+  .a-body { display: flex; height: calc(100% - 26px); }
+  .a-map { flex: 1.6; background: linear-gradient(135deg, #ece7df 0%, #e0d9cc 100%); position: relative; }
+  .a-zone { position: absolute; border: 1px solid rgba(10,10,10,0.15); }
+  .z1 { top: 12%; left: 14%; width: 28%; height: 30%; background: rgba(10,10,10,0.55); }
+  .z2 { top: 12%; left: 44%; width: 24%; height: 22%; background: rgba(200,184,154,0.7); }
+  .z3 { top: 38%; left: 40%; width: 30%; height: 34%; background: rgba(10,10,10,0.3); }
+  .z4 { top: 46%; left: 14%; width: 22%; height: 26%; background: rgba(200,184,154,0.4); }
+  .z5 { top: 70%; left: 38%; width: 26%; height: 20%; background: rgba(10,10,10,0.15); }
+  .a-zone-label { position: absolute; font-size: 5px; color: #fff; font-weight: 700; top: 3px; left: 3px; letter-spacing: 0.05em; }
+  .a-side { flex: 1; padding: 10px 9px; display: flex; flex-direction: column; gap: 7px; border-left: 1px solid #eee; }
+  .a-side-title { font-size: 6px; font-weight: 700; letter-spacing: 0.2em; text-transform: uppercase; color: #9b9b9b; }
+  .a-metric { border-bottom: 1px solid #f0f0f0; padding-bottom: 6px; }
+  .a-metric-label { font-size: 5px; color: #9b9b9b; letter-spacing: 0.1em; text-transform: uppercase; }
+  .a-metric-val { font-size: 13px; font-weight: 700; letter-spacing: -0.02em; }
+  .a-metric-val span { font-size: 6px; color: #c8b89a; font-weight: 600; }
+  .a-bars { display: flex; align-items: flex-end; gap: 2px; height: 24px; margin-top: 2px; }
+  .a-bars i { flex: 1; background: #0a0a0a; }
+  .a-legend { display: flex; gap: 4px; margin-top: auto; }
+  .a-legend i { width: 8px; height: 4px; }
+
+  /* Variant B: Data-first */
+  .b-body { padding: 10px 11px; height: calc(100% - 26px); display: flex; flex-direction: column; gap: 8px; }
+  .b-kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+  .b-kpi { border: 1px solid #eee; padding: 6px 7px; }
+  .b-kpi-label { font-size: 4.5px; color: #9b9b9b; letter-spacing: 0.1em; text-transform: uppercase; }
+  .b-kpi-val { font-size: 11px; font-weight: 700; letter-spacing: -0.02em; margin-top: 2px; }
+  .b-kpi-val small { font-size: 5px; color: #c8b89a; }
+  .b-main { display: flex; gap: 8px; flex: 1; }
+  .b-chart { flex: 1.3; border: 1px solid #eee; padding: 7px; display: flex; flex-direction: column; }
+  .b-chart-title { font-size: 5px; font-weight: 700; letter-spacing: 0.15em; text-transform: uppercase; color: #9b9b9b; margin-bottom: 6px; }
+  .b-line { flex: 1; position: relative; }
+  .b-line svg { width: 100%; height: 100%; }
+  .b-table { flex: 1; border: 1px solid #eee; }
+  .b-tr { display: flex; justify-content: space-between; padding: 4px 7px; border-bottom: 1px solid #f4f4f4; font-size: 6px; }
+  .b-tr.head { background: #0a0a0a; color: #fafafa; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; font-size: 5px; }
+  .b-tr .neigh { font-weight: 600; }
+  .b-tr .price { font-weight: 700; letter-spacing: -0.02em; }
+  .b-tr .delta { color: #c8b89a; font-weight: 700; }
+
+  .vdesc { font-size: 11px; color: #6b6b6b; line-height: 1.6; margin-top: 14px; padding: 0 2px; }
+  .vdesc strong { color: #0a0a0a; font-weight: 700; }
+
+  .footer-note { font-size: 11px; color: #9b9b9b; letter-spacing: 0.05em; margin-top: 8px; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="logo">RAVN <span>·</span> Inmobiliario</div>
+  <div class="header-tag">Pregunta visual — Layout del tablero de control</div>
+</div>
+
+<h1>¿Mapa primero<br>o <em>datos primero?</em></h1>
+<p class="subtitle">Las dos versiones muestran lo mismo (precio/m² por zona, tendencias, ranking). La diferencia es qué domina la pantalla al entrar. Click para elegir.</p>
+
+<span class="label">Dos direcciones de layout</span>
+
+<div class="split">
+
+  <!-- Variant A -->
+  <div class="variant" data-choice="A" onclick="select(this)">
+    <div class="vlabel"><span class="vnum">A</span> Mapa protagonista <span class="vmeta">Visual · Exploratorio</span></div>
+    <div class="frame">
+      <div class="m-topbar">
+        <div class="m-dot"></div><div class="m-topbar-txt">RAVN Inmobiliario</div>
+        <div class="m-topbar-right"><div class="m-pill">CABA</div><div class="m-pill">GBA Norte</div><div class="m-pill">USD/m²</div></div>
+      </div>
+      <div class="a-body">
+        <div class="a-map">
+          <div class="a-zone z1"><span class="a-zone-label">Núñez</span></div>
+          <div class="a-zone z2"><span class="a-zone-label" style="color:#0a0a0a">Palermo</span></div>
+          <div class="a-zone z3"><span class="a-zone-label">Belgrano</span></div>
+          <div class="a-zone z4"><span class="a-zone-label" style="color:#0a0a0a">Caballito</span></div>
+          <div class="a-zone z5"><span class="a-zone-label">Almagro</span></div>
+        </div>
+        <div class="a-side">
+          <div class="a-side-title">Palermo</div>
+          <div class="a-metric">
+            <div class="a-metric-label">Venta USD/m²</div>
+            <div class="a-metric-val">2.840 <span>+3,2%</span></div>
+          </div>
+          <div class="a-metric">
+            <div class="a-metric-label">Construcción USD/m²</div>
+            <div class="a-metric-val">680</div>
+          </div>
+          <div class="a-metric" style="border:none">
+            <div class="a-metric-label">Actividad 90d</div>
+            <div class="a-bars">
+              <i style="height:40%"></i><i style="height:55%"></i><i style="height:48%"></i><i style="height:72%"></i><i style="height:65%"></i><i style="height:88%"></i><i style="height:80%"></i>
+            </div>
+          </div>
+          <div class="a-legend">
+            <i style="background:#0a0a0a"></i><i style="background:#c8b89a"></i><i style="background:#e0d9cc"></i>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="vdesc"><strong>Entrás y ves el mapa.</strong> Clickeás una zona y el panel lateral te da los números. Ideal para explorar y comparar geográficamente de un vistazo.</div>
+  </div>
+
+  <!-- Variant B -->
+  <div class="variant" data-choice="B" onclick="select(this)">
+    <div class="vlabel"><span class="vnum">B</span> Datos protagonistas <span class="vmeta">Analítico · Denso</span></div>
+    <div class="frame">
+      <div class="m-topbar">
+        <div class="m-dot"></div><div class="m-topbar-txt">RAVN Inmobiliario</div>
+        <div class="m-topbar-right"><div class="m-pill">Filtros</div><div class="m-pill">Mapa</div><div class="m-pill">Exportar</div></div>
+      </div>
+      <div class="b-body">
+        <div class="b-kpis">
+          <div class="b-kpi"><div class="b-kpi-label">Venta prom.</div><div class="b-kpi-val">2.410<small> /m²</small></div></div>
+          <div class="b-kpi"><div class="b-kpi-label">Construcción</div><div class="b-kpi-val">640<small> /m²</small></div></div>
+          <div class="b-kpi"><div class="b-kpi-label">Avisos act.</div><div class="b-kpi-val">14.2k</div></div>
+          <div class="b-kpi"><div class="b-kpi-label">Var. mensual</div><div class="b-kpi-val">+2,1<small>%</small></div></div>
+        </div>
+        <div class="b-main">
+          <div class="b-chart">
+            <div class="b-chart-title">Evolución USD/m² — 12 meses</div>
+            <div class="b-line">
+              <svg viewBox="0 0 100 50" preserveAspectRatio="none">
+                <polyline points="0,42 9,40 18,38 27,39 36,34 45,30 54,31 63,26 72,22 81,20 90,16 100,12" fill="none" stroke="#0a0a0a" stroke-width="1.5"/>
+                <polyline points="0,46 9,45 18,44 27,44 36,42 45,41 54,41 63,39 72,38 81,37 90,36 100,35" fill="none" stroke="#c8b89a" stroke-width="1.2" stroke-dasharray="2,2"/>
+              </svg>
+            </div>
+          </div>
+          <div class="b-table">
+            <div class="b-tr head"><span>Barrio</span><span>USD/m²</span><span>Var</span></div>
+            <div class="b-tr"><span class="neigh">Puerto Madero</span><span class="price">5.980</span><span class="delta">+4%</span></div>
+            <div class="b-tr"><span class="neigh">Palermo</span><span class="price">2.840</span><span class="delta">+3%</span></div>
+            <div class="b-tr"><span class="neigh">Belgrano</span><span class="price">2.610</span><span class="delta">+2%</span></div>
+            <div class="b-tr"><span class="neigh">Núñez</span><span class="price">2.480</span><span class="delta">+3%</span></div>
+            <div class="b-tr"><span class="neigh">Caballito</span><span class="price">2.090</span><span class="delta">+1%</span></div>
+            <div class="b-tr"><span class="neigh">Villa Urquiza</span><span class="price">1.940</span><span class="delta">+2%</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="vdesc"><strong>Entrás y ves los números.</strong> KPIs arriba, tendencia y ranking de barrios abajo. El mapa está a un click. Ideal para análisis y decisiones rápidas.</div>
+  </div>
+
+</div>
+
+<p class="footer-note">Elegí A o B y respondé en el terminal. Lo que no elijas igual existe — solo definimos qué ves al entrar.</p>
+
+<script>
+  function select(el) {
+    document.querySelectorAll('.variant').forEach(o => o.classList.remove('selected'));
+    el.classList.add('selected');
+  }
+</script>
+
+</body>
+</html>

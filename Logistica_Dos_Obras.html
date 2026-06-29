@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RAVN · Logística — Siding + Baño Pueyrredón</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Raleway:wght@100;200;300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#070707; --panel:#0f0f0f; --panel2:#141414;
+    --fg:#f2efe8; --muted:rgba(242,239,232,0.46); --faint:rgba(242,239,232,0.28);
+    --line:rgba(242,239,232,0.10); --line2:rgba(242,239,232,0.16);
+    --cont:#cda876;        /* acento Siding */
+    --bano:#7fae9e;         /* acento Baño */
+    --warn:#e0795b;         /* alerta */
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--fg);font-family:'Raleway',sans-serif;-webkit-font-smoothing:antialiased;line-height:1.55;font-weight:300}
+  .wrap{max-width:1080px;margin:0 auto;padding:64px 32px 120px}
+  .brand{font-weight:200;letter-spacing:.32em;font-size:13px;text-transform:uppercase;color:var(--fg)}
+  h1{font-weight:100;font-size:40px;letter-spacing:.01em;line-height:1.05;margin:28px 0 6px}
+  h1 .accent{font-weight:300}
+  .sub{color:var(--muted);font-size:14px;letter-spacing:.04em;font-weight:300}
+  h2{font-weight:200;font-size:13px;letter-spacing:.28em;text-transform:uppercase;color:var(--muted);margin:64px 0 22px;padding-bottom:12px;border-bottom:1px solid var(--line)}
+  h2 b{color:var(--fg);font-weight:400}
+
+  .heads{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-top:36px}
+  .head{background:var(--panel);border:1px solid var(--line);padding:24px}
+  .head .tag{font-size:11px;letter-spacing:.24em;text-transform:uppercase;font-weight:500}
+  .head.c .tag{color:var(--cont)} .head.b .tag{color:var(--bano)}
+  .head .nm{font-size:20px;font-weight:300;margin:8px 0 14px}
+  .head .row{display:flex;justify-content:space-between;font-size:13px;padding:5px 0;border-top:1px solid var(--line)}
+  .head .row span:first-child{color:var(--muted)}
+
+  .rules{display:grid;gap:14px;margin-top:8px}
+  .rule{background:var(--panel);border:1px solid var(--line);border-left:2px solid var(--warn);padding:18px 22px}
+  .rule .t{font-weight:500;font-size:14px;letter-spacing:.02em;margin-bottom:6px;color:var(--fg)}
+  .rule .d{color:var(--muted);font-size:13.5px}
+  .rule .d b{color:var(--fg);font-weight:500}
+
+  table{width:100%;border-collapse:collapse;font-size:13px;margin-top:6px}
+  th,td{text-align:left;padding:11px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+  th{font-weight:500;font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted)}
+  td.day{white-space:nowrap;color:var(--muted);font-weight:400}
+  td.day b{color:var(--fg);display:block;font-weight:500}
+  .cell-c{color:var(--fg)} .cell-c .k{color:var(--cont);font-weight:500}
+  .cell-b{color:var(--fg)} .cell-b .k{color:var(--bano);font-weight:500}
+  .off{color:var(--faint);font-style:italic}
+  tr.collide td{background:rgba(224,121,91,0.06)}
+  .foco{color:var(--warn);font-weight:500;font-size:12px}
+  .gate{color:var(--warn)}
+
+  .track{margin-top:8px}
+  .dcard{display:grid;grid-template-columns:84px 1fr;border:1px solid var(--line);border-top:none}
+  .dcard:first-of-type{border-top:1px solid var(--line)}
+  .dcard .dn{padding:18px 14px;border-right:1px solid var(--line);background:var(--panel)}
+  .dcard .dn .d1{font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--muted)}
+  .dcard .dn .d2{font-size:22px;font-weight:200;margin-top:4px}
+  .dcard.c .dn .d2{color:var(--cont)} .dcard.b .dn .d2{color:var(--bano)}
+  .dcard .body{padding:18px 22px}
+  .dcard .task{font-size:15px;font-weight:400;margin-bottom:12px}
+  .dcard .task .badge{font-size:10px;letter-spacing:.12em;text-transform:uppercase;border:1px solid var(--warn);color:var(--warn);padding:2px 7px;margin-left:8px;vertical-align:middle}
+  .meta{display:grid;gap:7px;font-size:13px}
+  .meta .m{display:grid;grid-template-columns:130px 1fr;gap:10px}
+  .meta .m .lab{color:var(--faint);font-size:11px;letter-spacing:.12em;text-transform:uppercase;padding-top:2px}
+  .meta .m .val{color:var(--muted)}
+  .meta .m .val b{color:var(--fg);font-weight:500}
+  .meta .m.mat .val{color:var(--fg)}
+
+  .buy{background:var(--panel);border:1px solid var(--line);margin-top:6px}
+  .buy .brow{display:grid;grid-template-columns:160px 1fr 150px;gap:16px;padding:16px 22px;border-bottom:1px solid var(--line);font-size:13.5px;align-items:start}
+  .buy .brow:last-child{border-bottom:none}
+  .buy .when{font-weight:500;letter-spacing:.04em}
+  .buy .when.urge{color:var(--warn)}
+  .buy .it b{color:var(--fg);font-weight:500} .buy .it{color:var(--muted)}
+  .buy .lead{color:var(--faint);font-size:12px;text-align:right}
+  .buy .lead.long{color:var(--warn)}
+
+  .note{color:var(--faint);font-size:12px;margin-top:14px;line-height:1.7}
+  .cf{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;margin-top:6px}
+  .cf .c{background:var(--panel);border:1px solid var(--line);padding:18px}
+  .cf .c .l{font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--muted)}
+  .cf .c .v{font-size:24px;font-weight:200;margin:8px 0 2px}
+  .cf .c .w{font-size:12px;color:var(--faint)}
+  @media(max-width:720px){.heads,.cf{grid-template-columns:1fr}.buy .brow{grid-template-columns:1fr}.dcard{grid-template-columns:64px 1fr}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="brand">R&nbsp;A&nbsp;V&nbsp;N&nbsp;.</div>
+  <h1>Logística cruzada<br><span class="accent">Siding · Baño Pueyrredón</span></h1>
+  <div class="sub">Plan diario para seguir al pie de la letra — dos obras en paralelo, sin pisarse · Semana del 30 jun al 24 jul 2026</div>
+
+  <div class="heads">
+    <div class="head c">
+      <div class="tag">Obra A · Siding</div>
+      <div class="nm">Revestimiento siding fibrocemento · container Las Glorietas</div>
+      <div class="row"><span>Arranca</span><span>Mié 01/07</span></div>
+      <div class="row"><span>Duración</span><span>5–6 días hábiles</span></div>
+      <div class="row"><span>Cuadrilla</span><span>2 personas</span></div>
+      <div class="row"><span>Materiales</span><span>Los pone el barrio</span></div>
+      <div class="row"><span>Precio</span><span>$2.170.000</span></div>
+    </div>
+    <div class="head b">
+      <div class="tag">Obra B · Baño Pueyrredón</div>
+      <div class="nm">Reforma integral · llave en mano</div>
+      <div class="row"><span>Arranca</span><span>Lun 06/07</span></div>
+      <div class="row"><span>Duración</span><span>~3 semanas (15 hábiles)</span></div>
+      <div class="row"><span>Cuadrilla</span><span>2–3 personas</span></div>
+      <div class="row"><span>Contrato</span><span>USD 8.050 · seña 40% ok</span></div>
+      <div class="row"><span>Materiales</span><span>Los pone RAVN</span></div>
+    </div>
+  </div>
+
+  <!-- ===================== REGLAS DE ORO ===================== -->
+  <h2><b>Reglas de oro</b> — lo que te come el margen si no lo anticipás</h2>
+  <div class="rules">
+    <div class="rule">
+      <div class="t">1 · Mar 30/06: confirmar que el barrio tenga TODO el material del siding en obra</div>
+      <div class="d">Los materiales los pone el barrio. Si el miércoles tu cuadrilla llega y falta el siding, los rastreles, el Tyvek o los tornillos, <b>tus 2 tipos cobran el día sin producir</b> y eso sale de tu bolsillo. Pasá el martes 30/06, contá el material contra la lista y dejá por escrito lo que falte. Es una obra de 5-6 días: un día perdido es ~20% del plazo.</div>
+    </div>
+    <div class="rule">
+      <div class="t">2 · El mueble laqueado + mesada Silestone del baño se encarga ESTA SEMANA</div>
+      <div class="d">El bajo-mesada laqueado a medida y la mesada de cuarzo (Silestone) tienen <b>2–3 semanas de fabricación</b>. Se coloca el <b>mié 22/07 (día 13 del baño)</b>. Si no lo encargás antes del <b>vie 03/07</b>, llega tarde y la obra queda parada con todo terminado menos el mueble. Tomá medidas finas y dejá la seña ya.</div>
+    </div>
+    <div class="rule">
+      <div class="t">3 · La grifería de ducha EMPOTRADA (Piazza) tiene que estar comprada ANTES de la sanitaria</div>
+      <div class="d">El cuerpo de la grifería empotrada se mete <b>dentro de la pared</b> el día de sanitaria (<b>mié 08/07</b>). Si la comprás después, hay que picar la pared de nuevo. Mismo criterio para el nicho con tira LED: dejá pasado el caño antes de revestir.</div>
+    </div>
+    <div class="rule">
+      <div class="t">4 · Siding: montaje seco — el único paso húmedo es el detalle de esquinas</div>
+      <div class="d">El siding va atornillado, no depende del fraguado. <b>No va tarquinado general</b>: las aristas se rematan con un <b>detalle de tarquinado solo en las esquinas</b> (último día). Cuidados: no instalar el Tyvek ni la lana con lluvia (la lana mojada pierde aislación), ojo con viento fuerte al manipular placas, y que el día del tarquinado de esquinas no llueva ni haga mucho frío para que fragüe bien. Sin gates de clima dramáticos.</div>
+    </div>
+  </div>
+
+  <!-- ===================== CALENDARIO CRUZADO ===================== -->
+  <h2><b>Calendario cruzado</b> — las dos obras casi no se pisan</h2>
+  <table>
+    <thead><tr><th style="width:120px">Día</th><th style="width:42%"><span style="color:var(--cont)">● Siding</span></th><th><span style="color:var(--bano)">● Baño Pueyrredón</span></th><th style="width:120px">Tu foco</th></tr></thead>
+    <tbody>
+      <tr><td class="day"><b>Lun 29/06</b>Hoy</td><td class="cell-c"><span class="off">Preparación</span></td><td class="cell-b"><span class="off">Encargar mueble + grifería empotrada</span></td><td class="foco">Encargos largos</td></tr>
+      <tr><td class="day"><b>Mar 30/06</b></td><td class="cell-c"><span class="k">Verificar material del barrio en obra</span></td><td class="cell-b"><span class="off">Confirmar volquete + sanitarios</span></td><td class="foco">Material siding</td></tr>
+      <tr><td class="day"><b>Mié 01/07</b></td><td class="cell-c"><span class="k">D1</span> Replanteo + estructura/rastreles</td><td class="cell-b"><span class="off">—</span></td><td class="foco">Arranque siding</td></tr>
+      <tr><td class="day"><b>Jue 02/07</b></td><td class="cell-c"><span class="k">D2</span> Barrera Tyvek + lana + framing aberturas</td><td class="cell-b"><span class="off">—</span></td><td>Siding</td></tr>
+      <tr><td class="day"><b>Vie 03/07</b></td><td class="cell-c"><span class="k">D3</span> Arranque siding (perfil inicio + 2 caras)</td><td class="cell-b"><span class="off">Cierre encargo mueble</span></td><td class="foco">Seña carpintero</td></tr>
+      <tr><td class="day"><b>Sáb 04 · Dom 05</b></td><td class="cell-c"><span class="off">Descanso</span></td><td class="cell-b"><span class="off">Descanso</span></td><td class="off">—</td></tr>
+      <tr class="collide"><td class="day"><b>Lun 06/07</b></td><td class="cell-c"><span class="k">D4</span> Siding caras 3 y 4 + esquineros</td><td class="cell-b"><span class="k">D1</span> Demolición + volquete</td><td class="foco">Arranque baño (estás acá)</td></tr>
+      <tr class="collide"><td class="day"><b>Mar 07/07</b></td><td class="cell-c"><span class="k">D5</span> Tarquinado de esquinas + terminaciones + entrega</td><td class="cell-b"><span class="k">D2</span> Fin demolición + replanteo</td><td>Cierre siding</td></tr>
+      <tr><td class="day"><b>Mié 08/07</b></td><td class="cell-c"><span class="off">Buffer / repasos</span></td><td class="cell-b"><span class="k">D3</span> Instalación sanitaria <span class="gate">⚠ grifería</span></td><td class="foco">Grifería empotrada</td></tr>
+      <tr><td class="day"><b>Jue 09/07</b></td><td class="cell-c"><span class="off">— entregado</span></td><td class="cell-b"><span class="k">D4</span> Electricidad + prueba hidráulica</td><td>Baño</td></tr>
+      <tr><td class="day"><b>Vie 10/07</b></td><td class="cell-c"><span class="off">—</span></td><td class="cell-b"><span class="k">D5</span> Impermeabilización ducha <span class="gate">⚠ crítico</span></td><td class="foco">Estanqueidad</td></tr>
+      <tr><td class="day"><b>Lun 13/07</b></td><td class="cell-c"><span class="off">—</span></td><td class="cell-b"><span class="k">D6</span> Carpeta + autonivelante</td><td>Baño</td></tr>
+      <tr><td class="day"><b>Mar 14/07</b></td><td class="cell-c"><span class="off">—</span></td><td class="cell-b"><span class="k">D7</span> Cielorraso RH</td><td>Baño</td></tr>
+      <tr><td class="day"><b>Mié 15/07</b></td><td class="cell-c"><span class="off">—</span></td><td class="cell-b"><span class="k">D8</span> Revestimiento muros (porcelanato)</td><td class="foco">Material reves. en obra</td></tr>
+      <tr><td class="day"><b>Jue 16/07</b></td><td class="cell-c"><span class="off">—</span></td><td class="cell-b"><span class="k">D9</span> Piso + piso ducha + nicho</td><td>Baño</td></tr>
+      <tr><td class="day"><b>Vie 17/07</b></td><td class="cell-c"><span class="off">—</span></td><td class="cell-b"><span class="k">D10</span> Listón verde/rosa + medir mampara <span class="gate">⚠ encargar vidrio</span></td><td class="foco">Encargo mampara</td></tr>
+      <tr><td class="day"><b>Lun 20/07</b></td><td class="cell-c"><span class="off">—</span></td><td class="cell-b"><span class="k">D11</span> Pastinado + sellado</td><td>Baño</td></tr>
+      <tr><td class="day"><b>Mar 21/07</b></td><td class="cell-c"><span class="off">—</span></td><td class="cell-b"><span class="k">D12</span> Artefactos (inodoro, grifería, espejo)</td><td>Baño</td></tr>
+      <tr><td class="day"><b>Mié 22/07</b></td><td class="cell-c"><span class="off">—</span></td><td class="cell-b"><span class="k">D13</span> Mueble + mesada + bacha <span class="gate">⚠ debe estar</span></td><td class="foco">Llega el mueble</td></tr>
+      <tr><td class="day"><b>Jue 23/07</b></td><td class="cell-c"><span class="off">—</span></td><td class="cell-b"><span class="k">D14</span> Iluminación + extractor + pintura</td><td>Baño</td></tr>
+      <tr><td class="day"><b>Vie 24/07</b></td><td class="cell-c"><span class="off">—</span></td><td class="cell-b"><span class="k">D15</span> Limpieza fina + entrega</td><td class="foco">Entrega + cobro</td></tr>
+    </tbody>
+  </table>
+  <div class="note">Con el siding en 5-6 días, las obras solo conviven el <b>lun 06</b> y <b>mar 07/07</b> (franja anaranjada). Y justo esos días el siding ya está en caras finales / terminaciones, así que la cuadrilla puede ir sola mientras vos arrancás el baño. El cruce real es casi nulo — el problema dejó de ser "se pisan" y pasó a ser "no perder ningún día del siding".</div>
+
+  <!-- ===================== SIDING PLAN DIARIO ===================== -->
+  <h2><b>Obra A · Siding</b> — plan diario (5-6 días)</h2>
+  <div class="track">
+
+    <div class="dcard c"><div class="dn"><div class="d1">Mié 01/07</div><div class="d2">D1</div></div><div class="body">
+      <div class="task">Replanteo + estructura / rastreles</div>
+      <div class="meta">
+        <div class="m"><div class="lab">Tarea</div><div class="val">Montaje de la estructura de rastreles/perfilería sobre las caras del container, a <b>plomo y nivel</b> (nivel láser), con la separación que pide el siding. Es el paso que define que todo el revestimiento quede derecho — el más importante de los 5 días.</div></div>
+        <div class="m mat"><div class="lab">Material (barrio)</div><div class="val"><b>Perfilería/rastreles, tornillos autoperforantes</b></div></div>
+        <div class="m"><div class="lab">Tu check</div><div class="val">Que la estructura esté a plomo antes de cerrar nada. Todo error de acá se ve en el siding terminado.</div></div>
+      </div>
+    </div></div>
+
+    <div class="dcard c"><div class="dn"><div class="d1">Jue 02/07</div><div class="d2">D2</div></div><div class="body">
+      <div class="task">Barrera hidrófuga + lana + framing de aberturas <span class="badge">no con lluvia</span></div>
+      <div class="meta">
+        <div class="m"><div class="lab">Tarea</div><div class="val">Membrana hidrófuga tipo Tyvek/Wichi en toda la envolvente, <b>solapada</b> y sellada, con lana de vidrio entre rastreles (aislación térmica/acústica). Marco perimetral en las aberturas para apoyo y remate.</div></div>
+        <div class="m mat"><div class="lab">Material (barrio)</div><div class="val"><b>Membrana Tyvek/Wichi, lana de vidrio, cinta/grapas</b></div></div>
+        <div class="m"><div class="lab">Ojo</div><div class="val gate">No instalar con lluvia: la lana mojada pierde aislación y queda humedad atrapada.</div></div>
+      </div>
+    </div></div>
+
+    <div class="dcard c"><div class="dn"><div class="d1">Vie 03/07</div><div class="d2">D3</div></div><div class="body">
+      <div class="task">Arranque del siding — perfil de inicio + 2 caras</div>
+      <div class="meta">
+        <div class="m"><div class="lab">Tarea</div><div class="val">Perfil de arranque <b>perfectamente nivelado</b> (la primera placa manda toda la fila). Colocación de placas de siding de abajo hacia arriba, solapadas y atornilladas a los rastreles, en las dos primeras caras.</div></div>
+        <div class="m mat"><div class="lab">Material (barrio)</div><div class="val"><b>Placas siding fibrocemento, tornillos, perfil de inicio</b></div></div>
+        <div class="m"><div class="lab">Tu check</div><div class="val">Que el perfil de arranque salga a nivel — si arranca torcido, sube torcido toda la pared.</div></div>
+      </div>
+    </div></div>
+
+    <div class="dcard c"><div class="dn"><div class="d1">Lun 06/07</div><div class="d2">D4</div></div><div class="body">
+      <div class="task">Siding caras 3 y 4</div>
+      <div class="meta">
+        <div class="m"><div class="lab">Tarea</div><div class="val">Completar las dos caras restantes, respetando la línea de solape entre caras. Las aristas quedan listas para el <b>detalle de tarquinado de las esquinas</b> (se hace en la terminación, no lleva esquinero de chapa/PVC).</div></div>
+        <div class="m mat"><div class="lab">Material (barrio)</div><div class="val"><b>Placas restantes de siding, tornillos</b></div></div>
+        <div class="m"><div class="lab">Ojo</div><div class="val">Hoy arranca el baño. Dejá la cuadrilla con la instrucción clara — esta etapa va sola.</div></div>
+      </div>
+    </div></div>
+
+    <div class="dcard c"><div class="dn"><div class="d1">Mar 07/07</div><div class="d2">D5</div></div><div class="body">
+      <div class="task">Detalle de tarquinado en esquinas + terminaciones + entrega <span class="badge">único paso húmedo</span></div>
+      <div class="meta">
+        <div class="m"><div class="lab">Tarea</div><div class="val"><b>Tarquinado solo en las esquinas</b>, como detalle de terminación de las aristas (no es revestimiento general, es el remate de las cuatro columnas). Más: remates de aberturas, zócalo/goterón inferior, sellado de encuentros y repaso general. Limpieza y recorrida final.</div></div>
+        <div class="m mat"><div class="lab">Material (barrio)</div><div class="val"><b>Tarquini (poca cantidad, solo esquinas), perfiles de remate, goterón, sellador</b></div></div>
+        <div class="m"><div class="lab">Ojo</div><div class="val gate">Es el único paso con revoque del siding: que ese día no haya lluvia ni temp muy baja para que el tarquinado de las esquinas frague bien.</div></div>
+        <div class="m"><div class="lab">Buffer</div><div class="val">Mié 08/07 queda como colchón si algo se atrasó.</div></div>
+      </div>
+    </div></div>
+
+  </div>
+
+  <!-- ===================== BAÑO PLAN DIARIO ===================== -->
+  <h2><b>Obra B · Baño Pueyrredón</b> — plan diario</h2>
+  <div class="track">
+
+    <div class="dcard b"><div class="dn"><div class="d1">Lun 06/07</div><div class="d2">D1</div></div><div class="body">
+      <div class="task">Demolición y retiro</div>
+      <div class="meta">
+        <div class="m"><div class="lab">Tarea</div><div class="val">Retiro total de artefactos, grifería y revestimientos. Picado de canaletas en muros y piso para la nueva instalación.</div></div>
+        <div class="m mat"><div class="lab">Material en obra</div><div class="val"><b>Volquete pedido, bolsas, protección de accesos</b></div></div>
+        <div class="m"><div class="lab">Tu check</div><div class="val">Estar al arranque (define el orden de toda la obra). Coordiná entrada/salida del volquete con el edificio.</div></div>
+      </div>
+    </div></div>
+
+    <div class="dcard b"><div class="dn"><div class="d1">Mar 07/07</div><div class="d2">D2</div></div><div class="body">
+      <div class="task">Fin de demolición + replanteo de instalación</div>
+      <div class="meta">
+        <div class="m"><div class="lab">Tarea</div><div class="val">Retiro de escombros, limpieza del local y marcado de recorridos de agua, desagües y puntos eléctricos (bocas de vanitory, inodoro, ducha; tomas y comandos).</div></div>
+        <div class="m mat"><div class="lab">Material en obra</div><div class="val">—</div></div>
+      </div>
+    </div></div>
+
+    <div class="dcard b"><div class="dn"><div class="d1">Mié 08/07</div><div class="d2">D3</div></div><div class="body">
+      <div class="task">Instalación sanitaria <span class="badge">grifería empotrada</span></div>
+      <div class="meta">
+        <div class="m"><div class="lab">Tarea</div><div class="val">Agua fría/caliente en termofusión (PP) + desagües PVC, empalmando a columnas del edificio. <b>Reemplazo de la cañería de plomo</b> por termofusión (adicional acordado). Empotrar el <b>cuerpo de la grifería de ducha Piazza</b> y dejar pasado el caño del nicho LED.</div></div>
+        <div class="m mat"><div class="lab">Material en obra</div><div class="val"><b>Caño termofusión PP + accesorios, PVC, llaves de paso, grifería empotrada Piazza</b></div></div>
+        <div class="m"><div class="lab">Regla de oro</div><div class="val gate">Sin la grifería empotrada comprada, se pica la pared de nuevo. Verificalo antes.</div></div>
+      </div>
+    </div></div>
+
+    <div class="dcard b"><div class="dn"><div class="d1">Jue 09/07</div><div class="d2">D4</div></div><div class="body">
+      <div class="task">Electricidad gruesa + prueba hidráulica</div>
+      <div class="meta">
+        <div class="m"><div class="lab">Tarea</div><div class="val">Canalización de tomas, comandos y puntos de spots/apliques/extractor. <b>Prueba hidráulica</b> de la instalación de agua ANTES de cerrar canaletas.</div></div>
+        <div class="m mat"><div class="lab">Material en obra</div><div class="val"><b>Caño corrugado, cajas, cable</b></div></div>
+        <div class="m"><div class="lab">Tu check</div><div class="val">No se cierra ninguna canaleta sin la prueba hidráulica pasada.</div></div>
+      </div>
+    </div></div>
+
+    <div class="dcard b"><div class="dn"><div class="d1">Vie 10/07</div><div class="d2">D5</div></div><div class="body">
+      <div class="task">Impermeabilización + albañilería húmeda <span class="badge">crítico</span></div>
+      <div class="meta">
+        <div class="m"><div class="lab">Tarea</div><div class="val">Reconstrucción de revoques con <b>azotado hidrófugo</b>, tratamiento impermeable del sector de ducha y conformación de pendientes hacia la <b>rejilla lineal</b>. El piso de ducha se resuelve con azotado + carpeta hidrófuga (no membrana). Estanqueidad garantizada antes de revestir.</div></div>
+        <div class="m mat"><div class="lab">Material en obra</div><div class="val"><b>Hidrófugo, cemento, rejilla lineal, SikaTop Seal-107 (revestimiento cementicio)</b></div></div>
+        <div class="m"><div class="lab">Tu check</div><div class="val gate">El punto que más filtra si sale mal. Presencia tuya — sin el siding compitiendo, podés estar acá tranquilo.</div></div>
+      </div>
+    </div></div>
+
+    <div class="dcard b"><div class="dn"><div class="d1">Lun 13/07</div><div class="d2">D6</div></div><div class="body">
+      <div class="task">Carpeta y nivelación</div>
+      <div class="meta">
+        <div class="m"><div class="lab">Tarea</div><div class="val">Carpeta con puente de adherencia sobre el contrapiso + mortero autonivelante, dejando plano y a nivel para recibir el porcelanato. Respetar curado.</div></div>
+        <div class="m mat"><div class="lab">Material en obra</div><div class="val"><b>Puente de adherencia, autonivelante, mortero</b></div></div>
+      </div>
+    </div></div>
+
+    <div class="dcard b"><div class="dn"><div class="d1">Mar 14/07</div><div class="d2">D7</div></div><div class="body">
+      <div class="task">Cielorraso placa RH</div>
+      <div class="meta">
+        <div class="m"><div class="lab">Tarea</div><div class="val">Estructura + placas resistentes a la humedad. Se ejecuta antes de revestir para no manchar la terminación. Deja pasados los puntos de spots y extractor.</div></div>
+        <div class="m mat"><div class="lab">Material en obra</div><div class="val"><b>Placa RH, perfilería, tornillos</b></div></div>
+      </div>
+    </div></div>
+
+    <div class="dcard b"><div class="dn"><div class="d1">Mié 15/07</div><div class="d2">D8</div></div><div class="body">
+      <div class="task">Revestimiento de muros (porcelanato)</div>
+      <div class="meta">
+        <div class="m"><div class="lab">Tarea</div><div class="val">Porcelanato símil cemento beige en muros con <b>doble encolado</b>, adhesivo impermeable de alta performance y separadores para junta uniforme.</div></div>
+        <div class="m mat"><div class="lab">Material en obra</div><div class="val"><b>Porcelanato beige, adhesivo impermeable, separadores</b> (en obra antes de hoy)</div></div>
+      </div>
+    </div></div>
+
+    <div class="dcard b"><div class="dn"><div class="d1">Jue 16/07</div><div class="d2">D9</div></div><div class="body">
+      <div class="task">Piso + piso de ducha continuo + nicho</div>
+      <div class="meta">
+        <div class="m"><div class="lab">Tarea</div><div class="val">Porcelanato en piso, piso de ducha continuo (sin saltos) y armado del nicho embutido con su caja para tira LED.</div></div>
+        <div class="m mat"><div class="lab">Material en obra</div><div class="val">Porcelanato + adhesivo (mismo lote)</div></div>
+      </div>
+    </div></div>
+
+    <div class="dcard b"><div class="dn"><div class="d1">Vie 17/07</div><div class="d2">D10</div></div><div class="body">
+      <div class="task">Listón bastonado + medición de mampara <span class="badge">encargar vidrio</span></div>
+      <div class="meta">
+        <div class="m"><div class="lab">Tarea</div><div class="val">Listón verde agua en la pared de ducha y rosa en la del lavatorio. <b>Tomar medida fina de la mampara</b> sobre el revestimiento ya colocado y encargar el vidrio templado (cola 5–7 días).</div></div>
+        <div class="m mat"><div class="lab">Material en obra</div><div class="val"><b>Listón verde agua, listón rosa</b></div></div>
+        <div class="m"><div class="lab">Encargo</div><div class="val gate">Mampara templado a medida — encargar HOY para que llegue al día 14.</div></div>
+      </div>
+    </div></div>
+
+    <div class="dcard b"><div class="dn"><div class="d1">Lun 20/07</div><div class="d2">D11</div></div><div class="body">
+      <div class="task">Pastinado + sellado</div>
+      <div class="meta">
+        <div class="m"><div class="lab">Tarea</div><div class="val">Pastinado final de piso y muros, limpieza de pastina y sellado sanitario de encuentros y juntas.</div></div>
+        <div class="m mat"><div class="lab">Material en obra</div><div class="val"><b>Pastina, sellador sanitario</b></div></div>
+      </div>
+    </div></div>
+
+    <div class="dcard b"><div class="dn"><div class="d1">Mar 21/07</div><div class="d2">D12</div></div><div class="body">
+      <div class="task">Artefactos y grifería</div>
+      <div class="meta">
+        <div class="m"><div class="lab">Tarea</div><div class="val">Inodoro corto con mochila, terminación de grifería de ducha negra Piazza (lluvia + mano), monocomando de pared, espejo circular de aro negro.</div></div>
+        <div class="m mat"><div class="lab">Material en obra</div><div class="val"><b>Inodoro, juego grifería Piazza, espejo aro negro</b></div></div>
+      </div>
+    </div></div>
+
+    <div class="dcard b"><div class="dn"><div class="d1">Mié 22/07</div><div class="d2">D13</div></div><div class="body">
+      <div class="task">Mueble + mesada + bacha <span class="badge">debe estar fabricado</span></div>
+      <div class="meta">
+        <div class="m"><div class="lab">Tarea</div><div class="val">Colocación del bajo-mesada laqueado a medida, mesada de cuarzo Silestone y bacha de apoyar, con conexión. Mampara templada colocada con herrajes negro mate.</div></div>
+        <div class="m mat"><div class="lab">Material en obra</div><div class="val"><b>Mueble laqueado, mesada Silestone, bacha, mampara templado, sifón/flexibles</b></div></div>
+        <div class="m"><div class="lab">Regla de oro</div><div class="val gate">Esto es lo que se encargó la semana del 30/06. Si no está, la obra queda parada acá.</div></div>
+      </div>
+    </div></div>
+
+    <div class="dcard b"><div class="dn"><div class="d1">Jue 23/07</div><div class="d2">D14</div></div><div class="body">
+      <div class="task">Iluminación, extractor y pintura</div>
+      <div class="meta">
+        <div class="m"><div class="lab">Tarea</div><div class="val">Apliques globo opal a los lados del espejo, dos spots embutidos, tira LED en el nicho, extractor de 4". Pintura satinada de cielorraso y puerta.</div></div>
+        <div class="m mat"><div class="lab">Material en obra</div><div class="val"><b>Apliques, spots, tira LED, extractor 4", pintura satinada</b></div></div>
+      </div>
+    </div></div>
+
+    <div class="dcard b"><div class="dn"><div class="d1">Vie 24/07</div><div class="d2">D15</div></div><div class="body">
+      <div class="task">Limpieza fina + verificación + entrega</div>
+      <div class="meta">
+        <div class="m"><div class="lab">Tarea</div><div class="val">Limpieza fina de obra, verificación de funcionamiento de todas las instalaciones y artefactos, recorrida con el cliente y entrega.</div></div>
+        <div class="m"><div class="lab">Plata</div><div class="val">Cobrar el 30% final (USD 2.415) a la entrega.</div></div>
+      </div>
+    </div></div>
+
+  </div>
+
+  <!-- ===================== COMPRAS / ENCARGOS ===================== -->
+  <h2><b>Compras y encargos</b> — qué mover y cuándo</h2>
+  <div class="buy">
+    <div class="brow"><div class="when urge">Esta semana<br>(antes 03/07)</div><div class="it"><b>Mueble laqueado a medida + mesada Silestone + bacha</b> (baño) · tomar medidas finas y dejar seña al carpintero/marmolería</div><div class="lead long">Cola 2–3 sem<br>se coloca 22/07</div></div>
+    <div class="brow"><div class="when urge">Esta semana</div><div class="it"><b>Grifería de ducha empotrada Piazza</b> (baño) · se empotra el 08/07 durante la sanitaria</div><div class="lead long">Debe estar el 08/07</div></div>
+    <div class="brow"><div class="when">Mar 30/06</div><div class="it"><b>VERIFICAR material del siding</b> que pone el barrio: perfilería, Tyvek, lana, placas, tornillos, esquineros, remates. Contar contra lista y dejar faltantes por escrito.</div><div class="lead">arranca 01/07</div></div>
+    <div class="brow"><div class="when">Antes 08/07</div><div class="it"><b>Volquete + sanitarios del baño</b> · caños termofusión PP, PVC, llaves de paso, hidrófugo, rejilla lineal</div><div class="lead">se usa del 06 al 10/07</div></div>
+    <div class="brow"><div class="when">Antes 15/07</div><div class="it"><b>Porcelanato símil cemento beige + listón verde agua + listón rosa</b> · confirmar stock/color y comprar</div><div class="lead">en obra el 15/07</div></div>
+    <div class="brow"><div class="when">El 17/07</div><div class="it"><b>Mampara de vidrio templado a medida</b> · se mide sobre el revestimiento ya colocado y se encarga</div><div class="lead long">Cola 5–7 días</div></div>
+    <div class="brow"><div class="when">Antes 21–23/07</div><div class="it"><b>Inodoro, espejo aro negro, apliques, spots, tira LED, extractor 4", pintura satinada</b></div><div class="lead">tramo final</div></div>
+  </div>
+  <div class="note">El siding no te genera compras (las pone el barrio) — tu trabajo ahí es <b>controlar que el material esté</b>, no comprarlo. Toda la logística de compra real es del baño: lo que se fabrica a medida (mueble, mesada, mampara) se encarga apenas tenés la medida; lo de corralón, el día antes de usarlo; y lo que va dentro de la pared (grifería empotrada, caño del nicho), antes de cerrar canaletas.</div>
+
+  <!-- ===================== CASHFLOW ===================== -->
+  <h2><b>Plata</b> — cobros del Baño Pueyrredón</h2>
+  <div class="cf">
+    <div class="c"><div class="l">40% inicio</div><div class="v">USD 3.220</div><div class="w">Cobrado (seña 26/06) ✓</div></div>
+    <div class="c"><div class="l">30% avance</div><div class="v">USD 2.415</div><div class="w">Cobrar ~mitad de obra (sem 15–17/07, con revestimiento en marcha)</div></div>
+    <div class="c"><div class="l">30% entrega</div><div class="v">USD 2.415</div><div class="w">A la entrega final · vie 24/07</div></div>
+  </div>
+  <div class="note">El cobro del 30% de avance financia la compra del mueble y la mampara — coordiná que entre antes de pagar esos encargos. Valores en USD, se abonan en pesos al blue (punta vendedora) del día de cada pago.</div>
+
+  <div class="note" style="margin-top:48px;border-top:1px solid var(--line);padding-top:18px">RAVN Construcciones · Plan de obra interno · generado 29/06/2026 · siding 5-6 días (materiales del barrio) · baño ~3 semanas · sujeto a ajuste por avance real.</div>
+
+</div>
+</body>
+</html>

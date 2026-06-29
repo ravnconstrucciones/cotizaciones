@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RAVN — Validación de fuentes</title>
+<link href="https://fonts.googleapis.com/css2?family=Raleway:wght@300;400;500;600;700;900&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Raleway', sans-serif; background: #fafafa; color: #0a0a0a; min-height: 100vh; padding: 44px 40px; }
+  .header { display: flex; align-items: baseline; gap: 16px; margin-bottom: 32px; border-bottom: 1px solid #0a0a0a; padding-bottom: 16px; }
+  .logo { font-size: 11px; font-weight: 700; letter-spacing: 0.25em; text-transform: uppercase; }
+  .logo span { color: #c8b89a; }
+  .header-tag { font-size: 10px; letter-spacing: 0.15em; text-transform: uppercase; color: #6b6b6b; }
+  h1 { font-size: clamp(1.8rem, 4vw, 2.6rem); font-weight: 700; letter-spacing: -0.03em; line-height: 1.05; margin-bottom: 10px; }
+  h1 em { font-style: normal; color: #c8b89a; }
+  .subtitle { font-size: 12.5px; color: #6b6b6b; margin-bottom: 38px; line-height: 1.7; max-width: 640px; }
+
+  .lights { display: grid; grid-template-columns: repeat(3,1fr); gap: 1px; background: #0a0a0a; border: 1px solid #0a0a0a; margin-bottom: 14px; }
+  .light { background: #fafafa; padding: 24px 22px; }
+  .dot { width: 12px; height: 12px; border-radius: 50%; margin-bottom: 14px; }
+  .dot.green { background: #1a7a4a; }
+  .dot.amber { background: #b8860b; }
+  .dot.red { background: #b3261e; }
+  .light-name { font-size: 14px; font-weight: 700; letter-spacing: -0.01em; margin-bottom: 4px; }
+  .light-status { font-size: 9px; font-weight: 700; letter-spacing: 0.15em; text-transform: uppercase; margin-bottom: 12px; }
+  .light-status.green { color: #1a7a4a; }
+  .light-status.amber { color: #b8860b; }
+  .light-status.red { color: #b3261e; }
+  .light-desc { font-size: 11.5px; line-height: 1.6; color: #555; }
+
+  .nub { border: 1px solid #0a0a0a; background: #0a0a0a; color: #fafafa; padding: 24px 28px; margin: 30px 0; }
+  .nub-label { font-size: 9px; font-weight: 700; letter-spacing: 0.25em; text-transform: uppercase; color: #c8b89a; margin-bottom: 12px; }
+  .nub-text { font-size: 13px; line-height: 1.75; color: rgba(255,255,255,0.85); }
+  .nub-text b { color: #fff; }
+
+  .choice-label { font-size: 9px; font-weight: 700; letter-spacing: 0.3em; text-transform: uppercase; color: #6b6b6b; margin: 30px 0 18px; display: block; }
+  .opts { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1px; background: #0a0a0a; border: 1px solid #0a0a0a; }
+  .opt { background: #fafafa; padding: 22px 20px; }
+  .opt.rec { background: #fdfaf2; }
+  .opt-tag { font-size: 9px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: #c8b89a; margin-bottom: 8px; }
+  .opt-title { font-size: 14px; font-weight: 700; margin-bottom: 10px; letter-spacing: -0.01em; line-height: 1.2; }
+  .opt-desc { font-size: 11px; line-height: 1.55; color: #555; margin-bottom: 12px; }
+  .opt-cost { font-size: 10px; font-weight: 600; letter-spacing: 0.05em; color: #0a0a0a; border-top: 1px solid #e8e8e8; padding-top: 10px; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="logo">RAVN <span>·</span> Inmobiliario</div>
+  <div class="header-tag">Etapa 0 — qué encontré al probar las fuentes</div>
+</div>
+
+<h1>Probé las fuentes.<br>Hay una <em>decisión</em> para vos.</h1>
+<p class="subtitle">Esto es exactamente por qué probamos las fuentes ANTES de construir: dos de las tres tienen un detalle. Ninguno es fatal, pero uno depende de una acción tuya de 10 minutos.</p>
+
+<div class="lights">
+  <div class="light">
+    <div class="dot green"></div>
+    <div class="light-name">Noticias</div>
+    <div class="light-status green">Funciona</div>
+    <div class="light-desc">Ámbito Financiero entrega 20 noticias actuales por sección. El feed del Top 10 está listo para construir, sin trabas.</div>
+  </div>
+  <div class="light">
+    <div class="dot amber"></div>
+    <div class="light-name">Datos CABA</div>
+    <div class="light-status amber">Real, pero vieja</div>
+    <div class="light-desc">El gobierno publica precio/m² por barrio (Palermo, Belgrano, etc.) con estructura perfecta... pero los datos se congelaron en 2019. Sirve de base histórica, no de precio de hoy.</div>
+  </div>
+  <div class="light">
+    <div class="dot red"></div>
+    <div class="light-name">MercadoLibre</div>
+    <div class="light-status red">Bloqueada</div>
+    <div class="light-desc">Cerró su API al público: exige autenticación. No es un "no" definitivo — es un "registrate primero". Eso lo tenés que hacer vos (gratis, 10 min).</div>
+  </div>
+</div>
+
+<div class="nub">
+  <div class="nub-label">El nudo, sin vueltas</div>
+  <div class="nub-text">No existe una fuente <b>gratis + actual + automática</b> de precio/m² abierta. La data actual del mercado está detrás de portales que bloquean robots. La oficial y gratis (CABA) está vieja. <b>Para tener el "precio de hoy" automático hay que elegir un camino.</b> La buena noticia: el plano del sistema sigue intacto — esto es solo de dónde sacamos el dato, no cómo lo mostramos.</div>
+</div>
+
+<span class="choice-label">¿Por dónde vamos para el precio actual?</span>
+<div class="opts">
+  <div class="opt rec">
+    <div class="opt-tag">Recomendado · más barato</div>
+    <div class="opt-title">A — Registrar app en MercadoLibre</div>
+    <div class="opt-desc">Entrás a developers.mercadolibre.com.ar, creás una app (gratis, 10 min), me pasás 2 claves. Yo conecto todo. Probamos si la búsqueda de inmuebles funciona autenticada.</div>
+    <div class="opt-cost">Costo: $0 · Tu tiempo: ~10 min</div>
+  </div>
+  <div class="opt">
+    <div class="opt-tag">Más potente</div>
+    <div class="opt-title">B — Scraping de Zonaprop / Argenprop</div>
+    <div class="opt-desc">Adelantamos la Fase 2. Data actual sin depender de ML, pero más desarrollo y mantenimiento, y puede necesitar un servicio de proxies.</div>
+    <div class="opt-cost">Costo: ~USD 10-30/mes · Más tiempo de obra</div>
+  </div>
+  <div class="opt">
+    <div class="opt-tag">Honesto pero limitado</div>
+    <div class="opt-title">C — Base histórica + noticias</div>
+    <div class="opt-desc">Arranco ya con CABA (2010-2019) como estructura de precios + noticias actuales. Útil, pero no es "el precio de hoy" — difícil ganarle al sistema de tu novia.</div>
+    <div class="opt-cost">Costo: $0 · Listo rápido</div>
+  </div>
+</div>
+
+</body>
+</html>

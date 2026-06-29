@@ -1,0 +1,18 @@
+{
+  "permissions": {
+    "defaultMode": "bypassPermissions",
+    "allow": [
+      "mcp__computer-use__computer_batch",
+      "mcp__computer-use__screenshot",
+      "mcp__computer-use__left_click",
+      "mcp__computer-use__request_access",
+      "mcp__computer-use__open_application",
+      "mcp__Claude_in_Chrome__browser_batch",
+      "mcp__Claude_in_Chrome__tabs_context_mcp"
+    ],
+    "ask": [
+      "Bash(sudo *)",
+      "Bash(sudo)"
+    ]
+  }
+}

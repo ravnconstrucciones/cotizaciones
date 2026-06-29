@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RAVN · Presupuesto — Baño Correa</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Raleway:wght@200;300;400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #1c1c1a; --fg: #f2efe8;
+    --muted: rgba(242,239,232,0.48);
+    --line: rgba(242,239,232,0.18);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #111; font-family: 'Raleway', sans-serif; -webkit-font-smoothing: antialiased; color: var(--fg); }
+  .page { background: var(--bg); width: 210mm; min-height: 297mm; padding: 14mm 16mm; margin: 0 auto 4mm; display: flex; flex-direction: column; position: relative; overflow: hidden; }
+  .header { display: flex; justify-content: flex-end; margin-bottom: 9mm; }
+  .brand { font-weight: 300; font-size: 15pt; letter-spacing: 0.28em; padding-right: 0.28em; text-transform: uppercase; color: var(--fg); }
+  .title-propuesta { font-weight: 300; font-size: 48pt; line-height: 1.05; letter-spacing: -0.01em; margin-bottom: 7mm; }
+  .meta { display: grid; grid-template-columns: 22mm 1fr; gap: 1.5mm 0; margin-bottom: 8mm; }
+  .meta-label { font-size: 8.5pt; color: var(--muted); letter-spacing: 0.04em; }
+  .meta-value { font-size: 9.5pt; color: var(--fg); }
+  .section-title { font-size: 13pt; font-weight: 400; color: var(--fg); margin-bottom: 2mm; }
+  .section-rule { height: 0.3pt; background: var(--line); margin-bottom: 6mm; }
+  .render-wrap { width: 100%; display: flex; justify-content: center; margin-bottom: 0; }
+  .render-wrap img { max-height: 188mm; max-width: 100%; object-fit: contain; }
+
+  /* prosa servicios */
+  .body { font-size: 9pt; font-weight: 300; line-height: 1.72; color: rgba(242,239,232,0.82); }
+  .body > p { margin-bottom: 4.5mm; }
+  .etapa-label { font-size: 8pt; font-weight: 600; letter-spacing: 0.18em; text-transform: uppercase; color: var(--muted); margin: 5mm 0 3mm; }
+  .item-title { font-size: 9pt; font-weight: 600; color: var(--fg); margin-bottom: 1.5mm; }
+  .item-nota { font-size: 8pt; font-weight: 300; color: var(--muted); font-style: italic; margin-top: 2mm; }
+
+  /* importe / pago / plazo */
+  .importe-number { font-size: 44pt; font-weight: 200; letter-spacing: -0.02em; line-height: 1; margin: 3mm 0 2mm; font-variant-numeric: tabular-nums; }
+  .importe-letras { font-size: 7.5pt; letter-spacing: 0.2em; text-transform: uppercase; color: var(--muted); margin-bottom: 4mm; }
+  .importe-nota { font-size: 8pt; font-weight: 300; color: rgba(242,239,232,0.55); line-height: 1.6; }
+  .p2-section { margin-bottom: 7mm; }
+  .p2-text { font-size: 8.5pt; font-weight: 300; color: rgba(242,239,232,0.78); line-height: 1.7; }
+  .p2-text p { margin-bottom: 2mm; }
+  .p2-text b { font-weight: 600; color: var(--fg); }
+
+  /* tablas */
+  .rubro-label { font-size: 8pt; font-weight: 600; letter-spacing: 0.18em; text-transform: uppercase; color: var(--muted); margin: 6mm 0 2.5mm; }
+  .rubro-label:first-of-type { margin-top: 0; }
+  .mat-table { width: 100%; border-collapse: collapse; }
+  .mat-table th { font-size: 7pt; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); text-align: left; padding: 0 0 2mm 0; border-bottom: 0.3pt solid var(--line); }
+  .mat-table th.num, .mat-table td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .mat-table td { font-size: 8.5pt; font-weight: 300; color: rgba(242,239,232,0.9); padding: 2.2mm 0; border-bottom: 0.3pt solid rgba(242,239,232,0.08); line-height: 1.4; vertical-align: top; }
+  .mat-table td .det { display: block; font-size: 7.3pt; color: var(--muted); margin-top: 0.5mm; }
+  .mat-table tr.subtotal td { border-bottom: none; padding-top: 2.4mm; font-size: 8.5pt; font-weight: 500; color: var(--fg); }
+  .col-mat { width: 56%; padding-right: 4mm; }
+  .col-cant { width: 14%; }
+  .col-unit { width: 15%; }
+  .col-sub { width: 15%; }
+  .total-box { margin-top: 8mm; padding-top: 4mm; border-top: 0.5pt solid var(--line); display: flex; justify-content: space-between; align-items: baseline; }
+  .total-box .tl { font-size: 10pt; font-weight: 500; }
+  .total-box .tv { font-size: 16pt; font-weight: 300; font-variant-numeric: tabular-nums; }
+
+  /* anexo */
+  .anexo-intro { font-size: 8.5pt; font-weight: 300; line-height: 1.62; color: rgba(242,239,232,0.72); margin-bottom: 7mm; }
+  .ml-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 7mm; }
+  .ml-item { display: flex; flex-direction: column; }
+  .ml-shot { background: #f4f1ea; border: 0.3pt solid var(--line); padding: 3mm; height: 58mm; display: flex; align-items: center; justify-content: center; }
+  .ml-shot img { max-width: 100%; max-height: 100%; object-fit: contain; }
+  .ml-nombre { font-size: 8.7pt; font-weight: 600; margin-top: 3mm; line-height: 1.3; }
+  .ml-precio { font-size: 8.2pt; color: var(--muted); margin-top: 1mm; }
+
+  /* referencias */
+  .ref-list { font-size: 7.3pt; font-weight: 300; color: rgba(242,239,232,0.6); line-height: 1.5; }
+  .ref-list .r { margin-bottom: 1.8mm; }
+  .ref-list .r b { font-weight: 600; color: rgba(242,239,232,0.82); }
+  .ref-list .r span { color: rgba(242,239,232,0.45); word-break: break-all; }
+
+  /* footer */
+  .footer { margin-top: auto; padding-top: 6mm; border-top: 0.3pt solid var(--line); display: flex; justify-content: space-between; align-items: flex-end; }
+  .footer-contacts { display: flex; flex-direction: column; gap: 2.5mm; }
+  .footer-contact-row { display: flex; align-items: center; gap: 3mm; }
+  .footer-contact-row svg { flex-shrink: 0; opacity: 0.7; }
+  .footer-contact-text { font-size: 8pt; font-weight: 300; color: rgba(242,239,232,0.7); }
+  .footer-brand { display: flex; flex-direction: column; align-items: center; }
+  .footer-brand-name { font-size: 11pt; font-weight: 300; letter-spacing: 0.28em; padding-left: 0.28em; text-transform: uppercase; line-height: 1; }
+  .footer-brand-sub { font-size: 6pt; font-weight: 400; letter-spacing: 0.28em; padding-left: 0.28em; text-transform: uppercase; color: var(--muted); margin-top: 1.5mm; }
+
+  @media print { @page { size: A4; margin: 0; } body { background: var(--bg); } .page { margin: 0; page-break-after: always; } .page:last-child { page-break-after: avoid; } }
+  @media screen { body { padding: 8mm 0; } }
+</style>
+</head>
+<body>
+
+<!-- ══ P1 · PORTADA ══ -->
+<div class="page">
+  <div class="header"><span class="brand">R &nbsp;A &nbsp;V &nbsp;N .</span></div>
+  <div class="title-propuesta">Propuesta</div>
+  <div class="meta">
+    <span class="meta-label">Obra</span><span class="meta-value">Reforma Integral de Baño</span>
+    <span class="meta-label">Lugar</span><span class="meta-value">Correa — Saavedra · departamento (2.º piso)</span>
+    <span class="meta-label">Fecha</span><span class="meta-value">18 de junio de 2026</span>
+  </div>
+  <div class="render-wrap"><img src="render_bano_correa.png" alt="Render del baño"></div>
+</div>
+
+<!-- ══ P2 · SERVICIOS ══ -->
+<div class="page">
+  <div class="header"><span class="brand">R &nbsp;A &nbsp;V &nbsp;N .</span></div>
+  <div class="section-title">Servicios Presupuestados</div>
+  <div class="section-rule"></div>
+  <div class="body">
+    <p>Reforma integral del baño según el diseño del render. Se renuevan por completo las instalaciones, los revestimientos, la iluminación y los artefactos. El sector de ducha (piso e impermeabilización) ya fue ejecutado en la intervención anterior y se conserva.</p>
+
+    <div class="item-title">1 — Retiro y preparación</div>
+    <p>Retiro de los artefactos y del revestimiento existente en la zona seca. Picado de canaletas en pared y piso para la nueva instalación sanitaria. Carga de escombros al volquete.</p>
+
+    <div class="item-title">2 — Instalación sanitaria</div>
+    <p>Renovación completa de la instalación de agua en termofusión (fría y caliente) y de los desagües, empalmando a la columna existente del edificio. Bocas para vanitory, inodoro y ducha.</p>
+
+    <div class="item-title">3 — Reparación de la pared</div>
+    <p>Tratamiento del sector de pared afectado por la filtración: picado del revoque flojo y reconstrucción con azotado hidrófugo.</p>
+
+    <div class="item-title">4 — Carpeta y nivelación</div>
+    <p>Ejecución de la carpeta en la zona seca con puente de adherencia sobre el contrapiso existente, dejando niveles para recibir el revestimiento.</p>
+
+    <div class="item-title">5 — Revestimiento</div>
+    <p>Colocación de cerámica en piso y paredes hasta 2,30 m de altura, con adhesivo impermeable y doble encolado, juntas con separadores y pastinado.</p>
+
+    <div class="item-title">6 — Colocación de artefactos</div>
+    <p>Instalación del vanitory con bacha, inodoro, mampara de vidrio, espejo y grifería.</p>
+
+    <div class="item-title">7 — Iluminación y terminaciones</div>
+    <p>Colocación del aplique sobre el espejo y de la tira LED del nicho. Sellado de juntas, ajustes finales y limpieza de obra.</p>
+
+    <div class="item-nota">La grifería queda a elección del propietario. Los materiales y el volquete son provistos por el propietario (ver cómputo de referencia).</div>
+  </div>
+</div>
+
+<!-- ══ P3 · IMPORTE / PAGO / PLAZO ══ -->
+<div class="page">
+  <div class="header"><span class="brand">R &nbsp;A &nbsp;V &nbsp;N .</span></div>
+
+  <div class="p2-section">
+    <div class="section-title">Importe — Mano de obra</div>
+    <div class="section-rule"></div>
+    <div class="importe-number">$4.500.000</div>
+    <div class="importe-letras">Cuatro millones quinientos mil pesos</div>
+    <div class="importe-nota">Incluye la mano de obra y la dirección de obra. No incluye materiales ni volquete, que son provistos por el propietario (ver cómputo de referencia en las páginas siguientes). No contempla el Impuesto al Valor Agregado (IVA).</div>
+  </div>
+
+  <div class="p2-section">
+    <div class="section-title">Forma de Pago</div>
+    <div class="section-rule"></div>
+    <div class="p2-text">
+      <p>50% al inicio de obra — $2.250.000</p>
+      <p>30% por avance de obra — $1.350.000</p>
+      <p>20% a la entrega final — $900.000</p>
+    </div>
+  </div>
+
+  <div class="p2-section">
+    <div class="section-title">Plazo</div>
+    <div class="section-rule"></div>
+    <div class="p2-text"><p>Duración total estimada: 10 días hábiles.</p></div>
+  </div>
+
+  <div class="p2-section">
+    <div class="section-title">Notas</div>
+    <div class="section-rule"></div>
+    <div class="p2-text">
+      <p><b>Grifería a cargo del propietario:</b> el monocomando del vanitory y la grifería de ducha quedan a elección del propietario (el modelo que prefiera) y no están incluidos en el cómputo.</p>
+      <p><b>Materiales y volquete</b> son provistos por el propietario, según el cómputo de referencia.</p>
+      <p>VALIDEZ DE OFERTA: 10 DÍAS CORRIDOS.</p>
+      <p>El presupuesto podrá modificarse en base a los cambios que se convengan.</p>
+    </div>
+  </div>
+
+  <div class="footer">
+    <div class="footer-contacts">
+      <div class="footer-contact-row"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#f2efe8" stroke-width="1.4"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg><span class="footer-contact-text">ravnconstrucciones.com.ar</span></div>
+      <div class="footer-contact-row"><svg width="13" height="13" viewBox="0 0 24 24" fill="#f2efe8"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.435 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg><span class="footer-contact-text">11 7385-6263</span></div>
+      <div class="footer-contact-row"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#f2efe8" stroke-width="1.4"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/></svg><span class="footer-contact-text">contacto@ravnconstrucciones.com.ar</span></div>
+    </div>
+    <div class="footer-brand"><div class="footer-brand-name">R &nbsp;A &nbsp;V &nbsp;N .</div><div class="footer-brand-sub">Obra · Diseño</div></div>
+  </div>
+</div>
+
+<!-- ══ P4 · MATERIALES 1 ══ -->
+<div class="page">
+  <div class="header"><span class="brand">R &nbsp;A &nbsp;V &nbsp;N .</span></div>
+  <div class="section-title">Materiales — a cargo del propietario</div>
+  <div class="section-rule"></div>
+  <div class="anexo-intro">Cómputo de referencia con precios reales verificados en comercios online (junio 2026). Los enlaces de cada precio están en la página de Referencias. Los valores pueden variar según comercio, stock y fecha de compra.</div>
+
+  <div class="rubro-label">Albañilería y piso · zona seca</div>
+  <table class="mat-table">
+    <thead><tr><th class="col-mat">Material</th><th class="col-cant">Cantidad</th><th class="col-unit num">Unitario</th><th class="col-sub num">Subtotal</th></tr></thead>
+    <tbody>
+      <tr><td class="col-mat">Cemento Portland Loma Negra 25 kg<span class="det">MercadoLibre</span></td><td>5 bolsas</td><td class="num">$7.600</td><td class="num">$38.000</td></tr>
+      <tr><td class="col-mat">Arena gruesa 25 kg<span class="det">MercadoLibre</span></td><td>6 bolsas</td><td class="num">$9.150</td><td class="num">$54.900</td></tr>
+      <tr><td class="col-mat">Puente de adherencia Sika Látex 1 L<span class="det">MercadoLibre · confirmar al comprar</span></td><td>1</td><td class="num">$10.000</td><td class="num">$10.000</td></tr>
+      <tr><td class="col-mat">Aditivo hidrófugo Sika 1, 1 kg<span class="det">MercadoLibre</span></td><td>1</td><td class="num">$2.000</td><td class="num">$2.000</td></tr>
+      <tr class="subtotal"><td class="col-mat">Subtotal</td><td></td><td></td><td class="num">$104.900</td></tr>
+    </tbody>
+  </table>
+
+  <div class="rubro-label">Plomería · agua y desagües</div>
+  <table class="mat-table">
+    <tbody>
+      <tr><td class="col-mat">Caño PPR Ø20 × 4 m<span class="det">Termofusión · MercadoLibre</span></td><td>4 tiras</td><td class="num">$5.251</td><td class="num">$21.004</td></tr>
+      <tr><td class="col-mat">Codo 90° Ø20<span class="det">MercadoLibre</span></td><td>10</td><td class="num">$2.300</td><td class="num">$23.000</td></tr>
+      <tr><td class="col-mat">Te Ø20 · Cupla Ø20<span class="det">MercadoLibre</span></td><td>5 + 4</td><td class="num">$1.595 / $300</td><td class="num">$9.175</td></tr>
+      <tr><td class="col-mat">Transición PPR-rosca ½" Ø20<span class="det">MercadoLibre</span></td><td>5</td><td class="num">$2.190</td><td class="num">$10.950</td></tr>
+      <tr><td class="col-mat">Llave de paso esférica Ø20<span class="det">MercadoLibre</span></td><td>2</td><td class="num">$6.594</td><td class="num">$13.188</td></tr>
+      <tr><td class="col-mat">Caño PVC Ø110 × 3 m + 2 curvas 45°<span class="det">MercadoLibre · confirmar caño Ø110</span></td><td>1 + 2</td><td class="num">$9.000 / $10.540</td><td class="num">$30.080</td></tr>
+      <tr><td class="col-mat">Caño PVC Ø40 + 3 curvas 45°<span class="det">MercadoLibre · confirmar al comprar</span></td><td>1 + 3</td><td class="num">$5.000 / $1.500</td><td class="num">$9.500</td></tr>
+      <tr><td class="col-mat">Sopapa sifonada de ducha<span class="det">MercadoLibre</span></td><td>1</td><td class="num">$23.000</td><td class="num">$23.000</td></tr>
+      <tr><td class="col-mat">Anillo de cera + pegamento PVC<span class="det">MercadoLibre</span></td><td>1 + 1</td><td class="num">$1.000 / $8.000</td><td class="num">$9.000</td></tr>
+      <tr class="subtotal"><td class="col-mat">Subtotal</td><td></td><td></td><td class="num">$148.897</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- ══ P5 · MATERIALES 2 ══ -->
+<div class="page">
+  <div class="header"><span class="brand">R &nbsp;A &nbsp;V &nbsp;N .</span></div>
+  <div class="section-title">Materiales — a cargo del propietario</div>
+  <div class="section-rule"></div>
+
+  <div class="rubro-label">Revestimiento · piso y paredes</div>
+  <table class="mat-table">
+    <thead><tr><th class="col-mat">Material</th><th class="col-cant">Cantidad</th><th class="col-unit num">Unitario</th><th class="col-sub num">Subtotal</th></tr></thead>
+    <tbody>
+      <tr><td class="col-mat">Cerámica Cortines 50×50 Sierra Gris<span class="det">~20 m² · junta 2 mm · MercadoLibre</span></td><td>12 cajas</td><td class="num">$22.132</td><td class="num">$265.584</td></tr>
+      <tr><td class="col-mat">Adhesivo Weber Flex porcelanato 25 kg<span class="det">Doble encolado · MercadoLibre</span></td><td>6 bolsas</td><td class="num">$22.000</td><td class="num">$132.000</td></tr>
+      <tr><td class="col-mat">Pastina gris antihongo 5 kg<span class="det">MercadoLibre · confirmar al comprar</span></td><td>1</td><td class="num">$10.000</td><td class="num">$10.000</td></tr>
+      <tr><td class="col-mat">Crucetas separadoras 2 mm<span class="det">Set × 1.000 · MercadoLibre</span></td><td>1</td><td class="num">$15.400</td><td class="num">$15.400</td></tr>
+      <tr class="subtotal"><td class="col-mat">Subtotal</td><td></td><td></td><td class="num">$422.984</td></tr>
+    </tbody>
+  </table>
+
+  <div class="rubro-label">Iluminación</div>
+  <table class="mat-table">
+    <tbody>
+      <tr><td class="col-mat">Aplique 3 luces negro GU10<span class="det">Sobre el espejo · MercadoLibre</span></td><td>1</td><td class="num">$13.991</td><td class="num">$13.991</td></tr>
+      <tr><td class="col-mat">Kit tira LED 5 m + fuente<span class="det">Nicho de ducha · MercadoLibre</span></td><td>1</td><td class="num">$15.000</td><td class="num">$15.000</td></tr>
+      <tr class="subtotal"><td class="col-mat">Subtotal</td><td></td><td></td><td class="num">$28.991</td></tr>
+    </tbody>
+  </table>
+
+  <div class="rubro-label">Artefactos y terminaciones</div>
+  <table class="mat-table">
+    <tbody>
+      <tr><td class="col-mat">Vanitory de madera + bacha 50 cm</td><td>1</td><td class="num">$109.554</td><td class="num">$109.554</td></tr>
+      <tr><td class="col-mat">Inodoro Piazza Garda B0400</td><td>1</td><td class="num">$195.999</td><td class="num">$195.999</td></tr>
+      <tr><td class="col-mat">Mampara Blindex fija 180×70 negra</td><td>1</td><td class="num">$139.680</td><td class="num">$139.680</td></tr>
+      <tr><td class="col-mat">Espejo redondo 70 cm marco negro</td><td>1</td><td class="num">$45.000</td><td class="num">$45.000</td></tr>
+      <tr class="subtotal"><td class="col-mat">Subtotal</td><td></td><td></td><td class="num">$490.233</td></tr>
+    </tbody>
+  </table>
+
+  <div class="rubro-label">Volquete</div>
+  <table class="mat-table">
+    <tbody>
+      <tr><td class="col-mat">Volquete para escombros (~5 m³)<span class="det">Cotización local · Zona Norte</span></td><td>1</td><td class="num">$170.000</td><td class="num">$170.000</td></tr>
+    </tbody>
+  </table>
+
+  <div class="total-box">
+    <span class="tl">Total materiales + volquete (a cargo del propietario)</span>
+    <span class="tv">≈ $1.366.005</span>
+  </div>
+</div>
+
+<!-- ══ P6 · ANEXO IMÁGENES ══ -->
+<div class="page">
+  <div class="header"><span class="brand">R &nbsp;A &nbsp;V &nbsp;N .</span></div>
+  <div class="section-title">Referencia de materiales</div>
+  <div class="section-rule"></div>
+  <div class="anexo-intro">Publicaciones de referencia de los principales artefactos y materiales, para orientar la compra. Los modelos y precios pueden variar según el comercio y la disponibilidad.</div>
+  <div class="ml-grid">
+    <div class="ml-item"><div class="ml-shot"><img src="ml/01-vanitory.png"></div><div class="ml-nombre">Vanitory colgante de madera con bacha</div><div class="ml-precio">$109.554</div></div>
+    <div class="ml-item"><div class="ml-shot"><img src="ml/02-inodoro.png"></div><div class="ml-nombre">Inodoro con depósito mochila y tapa</div><div class="ml-precio">$195.999</div></div>
+    <div class="ml-item"><div class="ml-shot"><img src="ml/03-mampara.png"></div><div class="ml-nombre">Mampara de vidrio con perfil negro</div><div class="ml-precio">$139.680</div></div>
+    <div class="ml-item"><div class="ml-shot"><img src="ml/04-espejo.png"></div><div class="ml-nombre">Espejo redondo con marco negro</div><div class="ml-precio">$45.000</div></div>
+    <div class="ml-item"><div class="ml-shot"><img src="ml/05-ceramica.png"></div><div class="ml-nombre">Cerámica gris 50×50 símil cemento</div><div class="ml-precio">$12.646 por m²</div></div>
+    <div class="ml-item"><div class="ml-shot"><img src="ml/06-aplique.png"></div><div class="ml-nombre">Aplique de 3 luces, color negro</div><div class="ml-precio">Sobre el espejo</div></div>
+  </div>
+</div>
+
+<!-- ══ P7 · REFERENCIAS ══ -->
+<div class="page">
+  <div class="header"><span class="brand">R &nbsp;A &nbsp;V &nbsp;N .</span></div>
+  <div class="section-title">Referencias de precios</div>
+  <div class="section-rule"></div>
+  <div class="anexo-intro">Origen de cada precio del cómputo de materiales (verificado en junio de 2026).</div>
+  <div class="ref-list">
+    <div class="r" style="margin-bottom:3mm;">Todos los precios fueron verificados en <b>MercadoLibre Argentina</b> en junio de 2026, salvo el volquete (cotización local).</div>
+    <div class="r"><b>Cemento 25 kg · Arena · Sika Látex 1 L · Hidrófugo Sika 1</b> — MercadoLibre</div>
+    <div class="r"><b>Plomería</b> (caño PPR Ø20, PVC Ø110 / Ø40, codos, tes, cuplas, transiciones, llaves de paso, curvas 45°, sopapa sifonada, anillo de cera, pegamento PVC) — MercadoLibre</div>
+    <div class="r"><b>Cerámica Cortines · Adhesivo Weber Flex porcelanato · Pastina gris · Crucetas 2 mm</b> — MercadoLibre</div>
+    <div class="r"><b>Aplique 3 luces negro GU10 · Kit tira LED + fuente</b> — MercadoLibre</div>
+    <div class="r"><b>Vanitory · Inodoro Piazza Garda · Mampara Blindex · Espejo redondo</b> — MercadoLibre (publicaciones del anexo)</div>
+    <div class="r"><b>Volquete</b> — Cotización local Zona Norte</div>
+    <div class="r" style="margin-top:3mm;">Los ítems indicados como “confirmar al comprar” (Sika Látex, pastina, caño PVC Ø110 y Ø40) tienen variación de precio entre vendedores: conviene verificar la publicación vigente al momento de la compra.</div>
+  </div>
+
+  <div class="footer">
+    <div class="footer-contacts">
+      <div class="footer-contact-row"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#f2efe8" stroke-width="1.4"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg><span class="footer-contact-text">ravnconstrucciones.com.ar</span></div>
+      <div class="footer-contact-row"><svg width="13" height="13" viewBox="0 0 24 24" fill="#f2efe8"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.435 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg><span class="footer-contact-text">11 7385-6263</span></div>
+      <div class="footer-contact-row"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#f2efe8" stroke-width="1.4"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/></svg><span class="footer-contact-text">contacto@ravnconstrucciones.com.ar</span></div>
+    </div>
+    <div class="footer-brand"><div class="footer-brand-name">R &nbsp;A &nbsp;V &nbsp;N .</div><div class="footer-brand-sub">Obra · Diseño</div></div>
+  </div>
+</div>
+
+</body>
+</html>

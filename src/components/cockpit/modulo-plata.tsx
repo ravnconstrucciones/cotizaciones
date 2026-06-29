@@ -24,13 +24,24 @@ type ResumenCaja = {
   gastos_obra_hoy_ars?: number;
 };
 
+/** Contrato nuevo de /api/finanzas (presupuesto personal por ciclo de tarjeta). */
 type FinanzasResumen = {
-  gastado_hoy: number;
-  total_mes: number;
-  presupuesto_mensual: number;
-  semaforo_dia: Semaforo;
-  semaforo_mes: Semaforo;
+  ciclo: { label: string };
+  gastado_variable: number;
+  discrecional_mes: number;
+  semaforo: Semaforo;
+  ultimos_gastos: { fecha: string; monto: number }[];
 };
+
+/** Hoy en zona BA (YYYY-MM-DD) para aislar los gastos personales del día. */
+function hoyIsoBA(): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Argentina/Buenos_Aires",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
+}
 
 const DOT: Record<Semaforo, string> = {
   verde: "bg-emerald-400",
@@ -75,9 +86,15 @@ export function ModuloPlata({ className }: { className?: string }) {
   }, [cargar]);
 
   const gastosObraHoy = caja?.gastos_obra_hoy_ars ?? 0;
+  // Gasto personal de HOY: del ciclo, los que caen en la fecha de hoy (BA).
+  const gastadoPersonalHoy = fin
+    ? fin.ultimos_gastos
+        .filter((g) => g.fecha.slice(0, 10) === hoyIsoBA())
+        .reduce((acc, g) => acc + Number(g.monto || 0), 0)
+    : 0;
   // Gastos de HOY = obra + personales (spec §4.3). Sin /api/finanzas no se
   // puede armar el total: se muestra "—" en lugar de un número incompleto.
-  const gastosHoyTotal = fin ? gastosObraHoy + fin.gastado_hoy : null;
+  const gastosHoyTotal = fin ? gastosObraHoy + gastadoPersonalHoy : null;
 
   return (
     <Panel
@@ -139,27 +156,27 @@ export function ModuloPlata({ className }: { className?: string }) {
             </p>
             <p className="text-[10px] tabular-nums text-cdm-muted">
               Obra {formatMoneyInt(gastosObraHoy)} · Personal{" "}
-              {fin ? formatMoneyInt(fin.gastado_hoy) : "—"}
+              {fin ? formatMoneyInt(gastadoPersonalHoy) : "—"}
             </p>
           </div>
-          {fin && <PuntoSemaforo s={fin.semaforo_dia} />}
+          {fin && <PuntoSemaforo s={fin.semaforo} />}
         </div>
         <div className="flex items-baseline justify-between border-t border-cdm-line pt-3">
           <div>
             <p className="text-[10px] uppercase tracking-[0.24em] text-cdm-muted">
-              Mes personal
+              Personal — ciclo{fin ? ` ${fin.ciclo.label}` : ""}
             </p>
             <p className="text-lg font-light tabular-nums">
-              {fin ? formatMoneyInt(fin.total_mes) : "—"}
+              {fin ? formatMoneyInt(fin.gastado_variable) : "—"}
               {fin && (
                 <span className="text-[10px] text-cdm-muted">
                   {" "}
-                  / {formatMoneyInt(fin.presupuesto_mensual)}
+                  / {formatMoneyInt(fin.discrecional_mes)}
                 </span>
               )}
             </p>
           </div>
-          {fin && <PuntoSemaforo s={fin.semaforo_mes} />}
+          {fin && <PuntoSemaforo s={fin.semaforo} />}
         </div>
       </div>
     </Panel>

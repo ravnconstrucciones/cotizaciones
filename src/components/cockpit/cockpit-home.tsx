@@ -1,13 +1,12 @@
 "use client";
 
-import Link from "next/link";
 import { motion } from "framer-motion";
-import { ArrowUpRight, Terminal } from "lucide-react";
 import { useEntradaAnimada } from "@/hooks/use-entrada-animada";
 import type { CerebroData } from "@/types/centro-mando";
 import { CommandBar } from "./command-bar";
 import { PanelVariantProvider } from "./panel";
-import { Card } from "@/components/ui/heroui-card";
+import { ModuloSaludNegocio } from "./modulo-salud-negocio";
+import { ModuloFinanzas } from "./modulo-finanzas";
 import { ModuloObras } from "./modulo-obras";
 import { ModuloPlata } from "./modulo-plata";
 import { ModuloPendientes } from "./modulo-pendientes";
@@ -83,6 +82,12 @@ export function CockpitHome({ cerebro }: { cerebro: CerebroData }) {
             animate="visible"
             className="grid grid-cols-1 gap-5 lg:grid-cols-12"
           >
+            {/* Fila 0 — SALUD DEL NEGOCIO: lo primero que se ve (pedido 25/06) */}
+            <ModuloSaludNegocio className="lg:col-span-12" />
+
+            {/* Fila 0b — FINANZAS PERSONALES: la libreta personal, hermana de Salud */}
+            <ModuloFinanzas className="lg:col-span-12" />
+
             {/* Fila 1 — Obras (grande) + Plata */}
             <ModuloObras className="lg:col-span-7" />
             <ModuloPlata className="lg:col-span-5" />
@@ -98,56 +103,11 @@ export function CockpitHome({ cerebro }: { cerebro: CerebroData }) {
             <ModuloActividad className="lg:col-span-7" />
             <ModuloCotizaciones className="lg:col-span-5" />
 
-            {/* Fila 5 — chicas: ADN (teaser) + Terminal (acceso) */}
-            <ModuloAdn className="lg:col-span-7" />
-            <TarjetaTerminal className="lg:col-span-5" />
+            {/* Fila 5 — ADN (teaser) a todo el ancho */}
+            <ModuloAdn className="lg:col-span-12" />
           </motion.div>
         </div>
       </div>
     </PanelVariantProvider>
-  );
-}
-
-/**
- * Tarjeta chica de acceso a la Terminal: la misma piel HeroUI, un atajo
- * limpio al espacio de trabajo conversacional.
- */
-function TarjetaTerminal({ className }: { className?: string }) {
-  return (
-    <motion.div
-      variants={{
-        hidden: { opacity: 0, y: 14 },
-        visible: {
-          opacity: 1,
-          y: 0,
-          transition: { duration: 0.4, ease: "easeOut" },
-        },
-      }}
-      className={className}
-    >
-      <Link href="/terminal" className="block h-full">
-        <Card
-          interactive
-          variant="accent"
-          className="group flex h-full flex-col justify-between gap-4 p-6 sm:p-7"
-        >
-          <div className="flex items-start justify-between gap-3">
-            <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-cyan-500/10 text-cyan-600 dark:bg-cyan-400/10 dark:text-cyan-300">
-              <Terminal className="h-5 w-5" />
-            </span>
-            <ArrowUpRight className="h-5 w-5 text-zinc-400 transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5 dark:text-zinc-500" />
-          </div>
-          <div>
-            <h2 className="text-[15px] font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">
-              Terminal
-            </h2>
-            <p className="mt-1 text-[13px] leading-relaxed text-zinc-500 dark:text-zinc-400">
-              Tu espacio de trabajo conversacional. Cotizá, redactá y dirigí
-              el sistema por chat.
-            </p>
-          </div>
-        </Card>
-      </Link>
-    </motion.div>
   );
 }

@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RAVN — Cerebro Inmobiliario</title>
+<link href="https://fonts.googleapis.com/css2?family=Raleway:wght@300;400;500;600;700;900&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Raleway', sans-serif; background: #fafafa; color: #0a0a0a; min-height: 100vh; padding: 36px 32px; }
+  .header { display: flex; align-items: baseline; gap: 16px; margin-bottom: 28px; border-bottom: 1px solid #0a0a0a; padding-bottom: 16px; }
+  .logo { font-size: 11px; font-weight: 700; letter-spacing: 0.25em; text-transform: uppercase; }
+  .logo span { color: #c8b89a; }
+  .header-tag { font-size: 10px; letter-spacing: 0.15em; text-transform: uppercase; color: #6b6b6b; }
+  h1 { font-size: clamp(1.6rem, 3.5vw, 2.2rem); font-weight: 700; letter-spacing: -0.03em; line-height: 1.05; margin-bottom: 8px; }
+  h1 em { font-style: normal; color: #c8b89a; }
+  .subtitle { font-size: 12px; color: #6b6b6b; margin-bottom: 28px; line-height: 1.6; max-width: 600px; }
+
+  /* === Live mockup of the actual dashboard === */
+  .app { border: 1px solid #0a0a0a; background: #fff; overflow: hidden; }
+  .topbar { background: #0a0a0a; display: flex; align-items: center; padding: 0 16px; height: 44px; gap: 10px; }
+  .topbar .dot { width: 6px; height: 6px; background: #c8b89a; }
+  .topbar .brand { font-size: 9px; color: #fafafa; letter-spacing: 0.2em; text-transform: uppercase; font-weight: 700; }
+  .topbar .live { margin-left: 14px; display: flex; align-items: center; gap: 5px; font-size: 8px; color: #c8b89a; letter-spacing: 0.15em; text-transform: uppercase; font-weight: 600; }
+  .topbar .live .pulse { width: 6px; height: 6px; border-radius: 50%; background: #4ade80; animation: pulse 2s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
+  .topbar .nav { margin-left: auto; display: flex; gap: 14px; }
+  .topbar .nav a { font-size: 9px; color: rgba(255,255,255,0.6); letter-spacing: 0.1em; text-transform: uppercase; font-weight: 500; }
+  .topbar .nav a.active { color: #fafafa; }
+
+  .body { display: grid; grid-template-columns: 1.55fr 1fr; }
+  .col-left { padding: 18px; border-right: 1px solid #ececec; }
+  .col-right { padding: 18px; background: #0a0a0a; }
+
+  /* KPIs */
+  .kpis { display: grid; grid-template-columns: repeat(4,1fr); gap: 1px; background:#ececec; border:1px solid #ececec; margin-bottom: 16px; }
+  .kpi { background: #fff; padding: 12px 13px; }
+  .kpi-label { font-size: 7px; color: #9b9b9b; letter-spacing: 0.12em; text-transform: uppercase; margin-bottom: 5px; }
+  .kpi-val { font-size: 20px; font-weight: 700; letter-spacing: -0.03em; line-height: 1; }
+  .kpi-val small { font-size: 9px; color: #9b9b9b; font-weight: 500; }
+  .kpi-delta { font-size: 8px; font-weight: 700; color: #c8b89a; margin-top: 4px; letter-spacing: 0.05em; }
+
+  .section-title { font-size: 8px; font-weight: 700; letter-spacing: 0.22em; text-transform: uppercase; color: #9b9b9b; margin-bottom: 10px; }
+
+  /* Chart */
+  .chart-box { border: 1px solid #ececec; padding: 13px; margin-bottom: 16px; }
+  .chart-area { height: 90px; position: relative; }
+  .chart-area svg { width: 100%; height: 100%; }
+  .chart-x { display: flex; justify-content: space-between; font-size: 6px; color: #bbb; margin-top: 4px; letter-spacing: 0.05em; }
+
+  /* Ranking table */
+  .rank { border: 1px solid #ececec; }
+  .rank-row { display: grid; grid-template-columns: 1.4fr 0.8fr 0.8fr 0.6fr; padding: 7px 13px; border-bottom: 1px solid #f4f4f4; font-size: 9px; align-items: center; }
+  .rank-row.head { background: #0a0a0a; color: #fafafa; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; font-size: 7px; }
+  .rank-row .neigh { font-weight: 600; }
+  .rank-row .v { font-weight: 700; letter-spacing: -0.02em; }
+  .rank-row .d { font-weight: 700; color: #1a7a4a; font-size: 8px; }
+  .rank-row .verdict { font-size: 7px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; }
+  .verdict.build { color: #b8860b; }
+  .verdict.buy { color: #0369a1; }
+  .verdict.hold { color: #9b9b9b; }
+
+  /* === RIGHT: The Brain === */
+  .brain-head { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+  .brain-icon { width: 16px; height: 16px; }
+  .brain-title { font-size: 11px; font-weight: 700; color: #fafafa; letter-spacing: 0.05em; }
+  .brain-sub { font-size: 8px; color: #c8b89a; letter-spacing: 0.15em; text-transform: uppercase; font-weight: 600; margin-bottom: 16px; }
+
+  /* AI verdict card */
+  .verdict-card { border: 1px solid rgba(200,184,154,0.4); padding: 14px; margin-bottom: 18px; }
+  .vc-label { font-size: 7px; color: #c8b89a; letter-spacing: 0.18em; text-transform: uppercase; font-weight: 700; margin-bottom: 8px; }
+  .vc-headline { font-size: 14px; font-weight: 700; color: #fafafa; line-height: 1.3; letter-spacing: -0.01em; margin-bottom: 8px; }
+  .vc-headline b { color: #c8b89a; }
+  .vc-text { font-size: 9.5px; color: rgba(255,255,255,0.65); line-height: 1.6; }
+
+  /* News feed */
+  .news-label { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+  .news-label .t { font-size: 8px; font-weight: 700; letter-spacing: 0.2em; text-transform: uppercase; color: rgba(255,255,255,0.5); }
+  .news-label .upd { font-size: 7px; color: #c8b89a; letter-spacing: 0.1em; }
+  .news-item { display: flex; gap: 9px; padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.08); }
+  .news-num { font-size: 9px; font-weight: 700; color: #c8b89a; min-width: 14px; }
+  .news-content { flex: 1; }
+  .news-title { font-size: 9.5px; font-weight: 600; color: rgba(255,255,255,0.9); line-height: 1.4; margin-bottom: 2px; }
+  .news-meta { font-size: 7px; color: rgba(255,255,255,0.4); letter-spacing: 0.05em; }
+  .news-tag { font-size: 6px; color: #0a0a0a; background: #c8b89a; padding: 1px 4px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; }
+
+  .footer-note { font-size: 11px; color: #9b9b9b; letter-spacing: 0.05em; margin-top: 22px; line-height: 1.6; }
+  .footer-note strong { color: #0a0a0a; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="logo">RAVN <span>·</span> Inmobiliario</div>
+  <div class="header-tag">Visión completa — Tablero + Cerebro de IA</div>
+</div>
+
+<h1>El <em>cerebro</em> inmobiliario</h1>
+<p class="subtitle">Datos automáticos a la izquierda, inteligencia a la derecha. Todo se actualiza solo, sin que toques nada. Esto es lo que vamos a construir.</p>
+
+<div class="app">
+  <div class="topbar">
+    <div class="dot"></div>
+    <div class="brand">RAVN Inmobiliario</div>
+    <div class="live"><div class="pulse"></div> En vivo</div>
+    <div class="nav">
+      <a class="active">Tablero</a><a>Mapa</a><a>Rentabilidad</a><a>Análisis</a>
+    </div>
+  </div>
+
+  <div class="body">
+
+    <!-- LEFT: data -->
+    <div class="col-left">
+      <div class="kpis">
+        <div class="kpi"><div class="kpi-label">Venta prom. CABA</div><div class="kpi-val">2.410<small>/m²</small></div><div class="kpi-delta">▲ +2,1% mes</div></div>
+        <div class="kpi"><div class="kpi-label">Construcción</div><div class="kpi-val">640<small>/m²</small></div><div class="kpi-delta">▲ +1,4% mes</div></div>
+        <div class="kpi"><div class="kpi-label">Avisos activos</div><div class="kpi-val">14,2<small>k</small></div><div class="kpi-delta">▲ +680 sem</div></div>
+        <div class="kpi"><div class="kpi-label">Brecha constr/venta</div><div class="kpi-val">3,7<small>x</small></div><div class="kpi-delta">favorable</div></div>
+      </div>
+
+      <div class="chart-box">
+        <div class="section-title">Evolución USD/m² — venta vs. construcción · 12 meses</div>
+        <div class="chart-area">
+          <svg viewBox="0 0 100 50" preserveAspectRatio="none">
+            <line x1="0" y1="12.5" x2="100" y2="12.5" stroke="#f0f0f0" stroke-width="0.5"/>
+            <line x1="0" y1="25" x2="100" y2="25" stroke="#f0f0f0" stroke-width="0.5"/>
+            <line x1="0" y1="37.5" x2="100" y2="37.5" stroke="#f0f0f0" stroke-width="0.5"/>
+            <polyline points="0,40 9,39 18,37 27,38 36,33 45,29 54,30 63,25 72,21 81,19 90,15 100,11" fill="none" stroke="#0a0a0a" stroke-width="1.5"/>
+            <polyline points="0,46 9,45 18,45 27,44 36,43 45,42 54,42 63,41 72,40 81,39 90,38 100,37" fill="none" stroke="#c8b89a" stroke-width="1.3" stroke-dasharray="2,2"/>
+          </svg>
+        </div>
+        <div class="chart-x"><span>Jun</span><span>Ago</span><span>Oct</span><span>Dic</span><span>Feb</span><span>Abr</span><span>Hoy</span></div>
+      </div>
+
+      <div class="section-title">Ranking de barrios — veredicto del cerebro</div>
+      <div class="rank">
+        <div class="rank-row head"><span>Barrio</span><span>USD/m²</span><span>Var anual</span><span>Veredicto</span></div>
+        <div class="rank-row"><span class="neigh">Puerto Madero</span><span class="v">5.980</span><span class="d">+9%</span><span class="verdict hold">Hold</span></div>
+        <div class="rank-row"><span class="neigh">Palermo</span><span class="v">2.840</span><span class="d">+12%</span><span class="verdict build">Construir</span></div>
+        <div class="rank-row"><span class="neigh">Villa Urquiza</span><span class="v">1.940</span><span class="d">+18%</span><span class="verdict build">Construir</span></div>
+        <div class="rank-row"><span class="neigh">Caballito</span><span class="v">2.090</span><span class="d">+7%</span><span class="verdict buy">Comprar</span></div>
+        <div class="rank-row"><span class="neigh">Saavedra</span><span class="v">1.780</span><span class="d">+15%</span><span class="verdict build">Construir</span></div>
+      </div>
+    </div>
+
+    <!-- RIGHT: the brain -->
+    <div class="col-right">
+      <div class="brain-head">
+        <svg class="brain-icon" viewBox="0 0 24 24" fill="none" stroke="#c8b89a" stroke-width="1.5">
+          <path d="M12 4a3 3 0 0 0-3 3v1a3 3 0 0 0-1 5.8V16a3 3 0 0 0 6 0M12 4a3 3 0 0 1 3 3v1a3 3 0 0 1 1 5.8V16a3 3 0 0 1-6 0M12 4v12"/>
+        </svg>
+        <div class="brain-title">Cerebro RAVN</div>
+      </div>
+      <div class="brain-sub">Análisis del mercado en tiempo real</div>
+
+      <div class="verdict-card">
+        <div class="vc-label">Conclusión de hoy</div>
+        <div class="vc-headline">Momento para <b>construir</b> en zona norte CABA</div>
+        <div class="vc-text">La brecha entre costo de construcción (640 USD/m²) y valor de venta (2.410 USD/m²) está en su punto más amplio en 8 meses. Villa Urquiza y Saavedra suben +18% y +15% anual con costo de obra estable. El dólar construcción favorece terminar antes de Q3.</div>
+      </div>
+
+      <div class="news-label">
+        <div class="t">Top 10 del sector — hoy</div>
+        <div class="upd">Actualizado hace 4 min</div>
+      </div>
+
+      <div class="news-item">
+        <div class="news-num">01</div>
+        <div class="news-content">
+          <div class="news-title">Los créditos hipotecarios UVA crecieron 40% en el último trimestre</div>
+          <div class="news-meta"><span class="news-tag">Alto impacto</span> · Infobae · 2h</div>
+        </div>
+      </div>
+      <div class="news-item">
+        <div class="news-num">02</div>
+        <div class="news-content">
+          <div class="news-title">Zona norte lidera la suba de precios con Nordelta a la cabeza</div>
+          <div class="news-meta"><span class="news-tag">Tu zona</span> · Reporte Inmobiliario · 5h</div>
+        </div>
+      </div>
+      <div class="news-item">
+        <div class="news-num">03</div>
+        <div class="news-content">
+          <div class="news-title">El costo de construcción en dólares cayó 3% por estabilidad cambiaria</div>
+          <div class="news-meta">La Nación · 6h</div>
+        </div>
+      </div>
+      <div class="news-item">
+        <div class="news-num">04</div>
+        <div class="news-content">
+          <div class="news-title">Récord de escrituras en CABA: el mejor abril en 6 años</div>
+          <div class="news-meta">Colegio de Escribanos · 8h</div>
+        </div>
+      </div>
+      <div class="news-item">
+        <div class="news-num">05</div>
+        <div class="news-content">
+          <div class="news-title">Barrios privados: la demanda de lotes superó la oferta en zona norte</div>
+          <div class="news-meta"><span class="news-tag">Tu zona</span> · Clarín · 9h</div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<p class="footer-note">
+<strong>Cómo funciona el cerebro:</strong> un proceso automático lee los portales de noticias del sector cada hora, la IA selecciona las 10 más relevantes (priorizando tu zona), las cruza con los datos de precio/m² y costo de construcción, y genera la conclusión de "construir vs. comprar vs. esperar" por zona. Todo solo, sin que cargues nada. ¿Te cierra esta visión completa para pasar al plan de implementación?
+</p>
+
+</body>
+</html>

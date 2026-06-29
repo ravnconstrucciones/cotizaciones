@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RAVN · Cotización — Baño Terrazzo Palermo</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Raleway:wght@100;200;300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#1c1c1a; --fg:#f2efe8; --muted:rgba(242,239,232,0.48);
+    --line:rgba(242,239,232,0.16); --accent:#c9a98a;
+    --green:#7ea27a; --rose:#c98fa3; --warn:#d8b169;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{background:#111;font-family:'Raleway',sans-serif;-webkit-font-smoothing:antialiased;color:var(--fg);line-height:1.6;}
+  .wrap{max-width:980px;margin:0 auto;padding:48px 32px 80px;}
+  .brand{font-weight:300;font-size:13pt;letter-spacing:0.32em;text-transform:uppercase;text-align:right;color:var(--fg);margin-bottom:40px;}
+  h1{font-weight:200;font-size:42pt;line-height:1.04;letter-spacing:-0.01em;margin-bottom:6px;}
+  .sub{font-weight:300;font-size:11pt;color:var(--muted);letter-spacing:0.02em;margin-bottom:6px;}
+  .pill{display:inline-block;font-size:8pt;font-weight:600;letter-spacing:0.16em;text-transform:uppercase;padding:4px 11px;border:1px solid var(--line);color:var(--accent);margin-top:14px;}
+  .modalidad{margin:34px 0 10px;font-size:10pt;font-weight:300;color:rgba(242,239,232,0.82);border-left:2px solid var(--accent);padding:10px 0 10px 18px;}
+  h2{font-weight:300;font-size:16pt;margin:54px 0 4px;letter-spacing:0.01em;}
+  .rule{height:1px;background:var(--line);margin-bottom:22px;}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:18px;}
+  .card{border:1px solid var(--line);padding:24px 24px 22px;background:rgba(242,239,232,0.015);}
+  .card.fiel{border-color:rgba(201,143,163,0.5);}
+  .card .tag{font-size:8pt;font-weight:600;letter-spacing:0.16em;text-transform:uppercase;color:var(--muted);}
+  .card .tag.rose{color:var(--rose);}
+  .card .big{font-weight:200;font-size:27pt;letter-spacing:-0.01em;margin:10px 0 2px;}
+  .card .small{font-size:9pt;color:var(--muted);}
+  .card .price{font-weight:300;font-size:20pt;color:var(--fg);margin-top:16px;}
+  .card .price b{font-weight:600;}
+  .card .margin{font-size:8.5pt;color:var(--green);letter-spacing:0.04em;margin-top:3px;}
+  table{width:100%;border-collapse:collapse;font-size:9.5pt;font-weight:300;}
+  th{text-align:left;font-size:7.5pt;font-weight:600;letter-spacing:0.14em;text-transform:uppercase;color:var(--muted);padding:0 8px 10px;border-bottom:1px solid var(--line);}
+  th.r,td.r{text-align:right;}
+  td{padding:9px 8px;border-bottom:1px solid rgba(242,239,232,0.07);}
+  tr:last-child td{border-bottom:none;}
+  .etapa td{padding-top:18px;font-size:7.5pt;font-weight:600;letter-spacing:0.14em;text-transform:uppercase;color:var(--accent);border-bottom:none;}
+  .mo td{color:var(--fg);font-weight:500;}
+  .tot td{border-top:1px solid var(--line);font-weight:600;padding-top:14px;font-size:10.5pt;}
+  .num{font-variant-numeric:tabular-nums;}
+  ul.dudas{list-style:none;margin-top:8px;}
+  ul.dudas li{position:relative;padding:11px 0 11px 30px;border-bottom:1px solid rgba(242,239,232,0.07);font-size:9.5pt;font-weight:300;color:rgba(242,239,232,0.85);}
+  ul.dudas li:before{content:attr(data-n);position:absolute;left:0;top:11px;font-size:8pt;font-weight:600;color:var(--warn);letter-spacing:0.1em;}
+  ul.dudas li b{font-weight:600;color:var(--fg);}
+  .diverg{display:flex;gap:14px;margin-top:6px;font-size:9pt;font-weight:300;color:rgba(242,239,232,0.78);padding:12px 0;border-bottom:1px solid rgba(242,239,232,0.07);}
+  .diverg .d-tag{flex:0 0 auto;font-size:7.5pt;font-weight:600;letter-spacing:0.1em;text-transform:uppercase;color:var(--warn);padding-top:2px;}
+  .foot{margin-top:54px;padding-top:20px;border-top:1px solid var(--line);font-size:8.5pt;color:var(--muted);letter-spacing:0.02em;}
+  .foot code{color:var(--accent);font-family:inherit;}
+  .note{font-size:8.5pt;color:var(--muted);font-style:normal;margin-top:8px;}
+  @media(max-width:720px){.grid2{grid-template-columns:1fr;}h1{font-size:32pt;}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="brand">R A V N</div>
+
+  <h1>Baño Terrazzo<br>Palermo</h1>
+  <div class="sub">Reforma integral · render aprobado por la clienta · Palermo, CABA</div>
+  <span class="pill">Cotización en revisión · 17 jun 2026</span>
+
+  <div class="modalidad">
+    Número <b>CERRADO</b> a la clienta · los materiales los compra <b>Eze</b> ·
+    mano de obra cerrada con la cuadrilla <b>$2.800.000</b> (incluye plomería por termofusión) ·
+    margen piso <b>≥ 30 %</b>.<br>
+    <span class="note">El total del motor es el COSTO. El precio a la clienta sale de aplicarle el margen al emitir desde la mesa.</span>
+  </div>
+
+  <h2>Dos escenarios · la única variable abierta es la pared rosa</h2>
+  <div class="rule"></div>
+  <div class="grid2">
+    <div class="card fiel">
+      <div class="tag rose">Fiel al render · listón rosa</div>
+      <div class="big num">$8.089.400 – $8.424.416</div>
+      <div class="small">Costo total (materiales + MO + extras + imprevistos 10%)</div>
+      <div class="price">Cierre sugerido &nbsp;<b class="num">$11.000.000</b></div>
+      <div class="margin">margen real ~30–33 % (sostiene el piso incluso en el techo de costo)</div>
+    </div>
+    <div class="card">
+      <div class="tag">Alternativa · microcemento rosa</div>
+      <div class="big num">$7.429.400 – $7.764.416</div>
+      <div class="small">Costo total — baja ~$660.000 de costo vs. listón</div>
+      <div class="price">Cierre sugerido &nbsp;<b class="num">$10.100.000</b></div>
+      <div class="margin">margen real ~30 % · diferencia a la clienta ~$900.000</div>
+    </div>
+  </div>
+  <div class="note">Markup sobre costo (fiel): 30 % → $10,52–10,95 M · 35 % → $10,92–11,37 M · 40 % → $11,33–11,79 M. La guardada en la mesa es la <b>fiel al render</b>.</div>
+
+  <h2>Desglose · escenario fiel al render</h2>
+  <div class="rule"></div>
+  <table class="num">
+    <thead><tr><th>Ítem</th><th>Cant.</th><th class="r">Subtotal</th></tr></thead>
+    <tbody>
+      <tr class="etapa"><td colspan="3">Plomería + albañilería húmeda</td></tr>
+      <tr><td>Materiales plomería termofusión (PPR + PVC, 1 baño)</td><td>global</td><td class="r">$200.000</td></tr>
+      <tr><td>Albañilería húmeda — piso ducha azotado + carpeta hidrófuga, nicho</td><td>global</td><td class="r">$85.000</td></tr>
+      <tr class="etapa"><td colspan="3">Revestimientos</td></tr>
+      <tr><td>Porcelanato símil terrazo 60×120 (Ilva Ceppo Di Gré)</td><td>5 m²</td><td class="r">$215.000</td></tr>
+      <tr><td>Listón verde agua ducha (Iceland)</td><td>4 m²</td><td class="r">$444.000</td></tr>
+      <tr><td>Pared rosa — listón ranurado (fiel al render)</td><td>6 m²</td><td class="r">$666.000</td></tr>
+      <tr><td>Microcemento paredes neutras (sistema Recuplast / Full Cover)</td><td>9 m²</td><td class="r">$99.000 – 191.700</td></tr>
+      <tr><td>Pegamento Klaukol impermeable + pastina</td><td>2 b + 4 kg</td><td class="r">$48.000</td></tr>
+      <tr class="etapa"><td colspan="3">Artefactos y grifería</td></tr>
+      <tr><td>Inodoro corto blanco (Ferrum Bari Corto)</td><td>1</td><td class="r">$213.000 – 274.860</td></tr>
+      <tr><td>Grifería ducha negra empotrada lluvia + ducha de mano (Piazza Level)</td><td>1</td><td class="r">$360.000</td></tr>
+      <tr><td>Monocomando negro de bacha (Peirano Paris)</td><td>1</td><td class="r">$104.000</td></tr>
+      <tr><td>Plato de ducha acrílico 80×80</td><td>1</td><td class="r">$130.000</td></tr>
+      <tr><td>Mampara de ducha negra a medida (vidrio + perfilería)</td><td>1</td><td class="r">$400.000</td></tr>
+      <tr><td>Bacha de apoyo ovalada (Peirano)</td><td>1</td><td class="r">$95.000</td></tr>
+      <tr class="etapa"><td colspan="3">Mueble, mesada, iluminación y cielorraso</td></tr>
+      <tr><td>Mueble bajo mesada laqueado verde 1 m (a medida)</td><td>1</td><td class="r">$650.000</td></tr>
+      <tr><td>Mesada Silestone Blanco Norte ~0,40 m² c/colocación</td><td>1</td><td class="r">$320.000</td></tr>
+      <tr><td>Espejo Ø70 + apliques globo + spots/tira LED + eléctrico + accesorios</td><td>—</td><td class="r">$335.000</td></tr>
+      <tr><td>Cielorraso — enduido + fijador + látex antihongo</td><td>global</td><td class="r">$40.000</td></tr>
+      <tr class="etapa"><td colspan="3">Mano de obra y extras</td></tr>
+      <tr class="mo"><td>Mano de obra reforma completa — CERRADA (incl. termofusión, demolición, albañilería, colocación, mesada)</td><td>global</td><td class="r">$2.800.000</td></tr>
+      <tr><td>Volquete + retiro de escombros + fletes / acopio</td><td>—</td><td class="r">$150.000 – 300.000</td></tr>
+      <tr class="tot"><td>COSTO TOTAL (imprevistos 10 % incluidos)</td><td></td><td class="r">$8.089.400 – $8.424.416</td></tr>
+    </tbody>
+  </table>
+
+  <h2>Divergencias que marca la mesa <span style="font-size:9pt;color:var(--muted);font-weight:300;">(correctas — explicadas)</span></h2>
+  <div class="rule"></div>
+  <div class="diverg"><div class="d-tag">Microcemento</div><div>SISMAT $21.300/m² (kit Recuplast prorrateado) vs internet $11.000/m² (Full Cover base) — <b>94 %</b>. El $11k es el producto base; el sistema completo (base + imprimación + protector + fratachado) se acerca al SISMAT. Por eso el ítem va con banda $99k–$191k, no con un solo número.</div></div>
+  <div class="diverg"><div class="d-tag">Inodoro</div><div>SISMAT $274.860 (Ferrum Bari <b>Largo</b>) vs internet $213.000 (Bari <b>Corto</b>) — <b>29 %</b>. Es otro modelo: el corto es el del render.</div></div>
+
+  <h2>Lo que falta definir antes de emitir</h2>
+  <div class="rule"></div>
+  <ul class="dudas">
+    <li data-n="01"><b>Vincular la obra</b> en la mesa (selector de presupuesto): no hay presupuesto cargado para esta clienta → sin vínculo el contraste al cerrar la obra no corre.</li>
+    <li data-n="02"><b>Pared rosa.</b> La guardada es la fiel (listón ~$111k/m²). Microcemento rosa baja ~$660k de costo (~$900k a la clienta). Definir con la clienta — el listón rosa es difícil de conseguir igual que el verde.</li>
+    <li data-n="03"><b>Reposición del terrazo</b> (Ilva Ceppo Di Gré): confirmar stock y mostrarle muestra física — el símil-terrazo speckled real está suspendido en varias marcas.</li>
+    <li data-n="04"><b>Hueco de ducha vs. plato 80×80:</b> confirmar que entra; si no, plato/contrapiso a medida (suma costo y MO).</li>
+    <li data-n="05"><b>Extractor / ventilación:</b> no está en esta cotización — definir si va.</li>
+    <li data-n="06"><b>Banda $/m²:</b> no aplica a un baño chico con equipamiento (cada baño es un mundo). El costo se contrastó contra la MO cerrada + materiales relevados.</li>
+  </ul>
+
+  <h2>Tiempo de obra</h2>
+  <div class="rule"></div>
+  <p style="font-size:10pt;font-weight:300;color:rgba(242,239,232,0.85);">2-3 personas, <b>~3-4 semanas</b> (las etapas se solapan, no se suman). Es el único baño de la casa → coordinar con la clienta los días sin servicio.</p>
+
+  <div class="foot">
+    Receta <code>reforma-bano-completo</code> v1 (investigada) · se promueve a confiable tras el primer contraste real de obra.<br>
+    Mesa de revisión → <code>/cotizaciones/42222dfd-232d-461f-9f6d-980b73ec1d61/revision</code> · ahí aprobás y emitís el documento (nunca desde el cotizador).
+  </div>
+</div>
+</body>
+</html>

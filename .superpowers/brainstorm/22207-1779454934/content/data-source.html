@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RAVN — Fuente de datos</title>
+<link href="https://fonts.googleapis.com/css2?family=Raleway:wght@300;400;500;600;700;900&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Raleway', sans-serif;
+    background: #fafafa;
+    color: #0a0a0a;
+    min-height: 100vh;
+    padding: 48px 40px;
+  }
+  .header {
+    display: flex; align-items: baseline; gap: 16px;
+    margin-bottom: 64px; border-bottom: 1px solid #0a0a0a; padding-bottom: 20px;
+  }
+  .logo { font-size: 11px; font-weight: 700; letter-spacing: 0.25em; text-transform: uppercase; }
+  .logo span { color: #c8b89a; }
+  .header-tag { font-size: 10px; font-weight: 400; letter-spacing: 0.15em; text-transform: uppercase; color: #6b6b6b; }
+  h1 { font-size: clamp(2rem, 5vw, 3.2rem); font-weight: 700; letter-spacing: -0.03em; line-height: 1.05; margin-bottom: 12px; }
+  h1 em { font-style: normal; color: #c8b89a; }
+  .subtitle { font-size: 13px; color: #6b6b6b; letter-spacing: 0.03em; margin-bottom: 56px; line-height: 1.7; max-width: 500px; }
+  .label { font-size: 9px; font-weight: 700; letter-spacing: 0.3em; text-transform: uppercase; color: #6b6b6b; margin-bottom: 24px; display: block; }
+
+  .options { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1px; background: #0a0a0a; border: 1px solid #0a0a0a; margin-bottom: 40px; }
+
+  .option {
+    background: #fafafa; padding: 36px 28px; cursor: pointer;
+    transition: background 150ms ease; position: relative; user-select: none;
+  }
+  .option:hover { background: #f0ebe3; }
+  .option.selected { background: #0a0a0a; color: #fafafa; }
+  .option.selected .opt-num { color: #c8b89a; }
+  .option.selected .opt-tag { color: rgba(255,255,255,0.45); }
+  .option.selected .opt-desc { color: rgba(255,255,255,0.7); }
+  .option.selected .opt-pros li { color: rgba(255,255,255,0.75); }
+  .option.selected .opt-pros li::before { color: #c8b89a; }
+  .option.selected .opt-cons li { color: rgba(255,255,255,0.5); }
+  .option.selected .opt-effort { color: #c8b89a; border-color: rgba(200,184,154,0.3); }
+
+  .opt-tag { position: absolute; top: 18px; right: 18px; font-size: 9px; font-weight: 700; letter-spacing: 0.15em; text-transform: uppercase; color: #6b6b6b; }
+  .opt-num { font-size: 10px; font-weight: 700; letter-spacing: 0.2em; text-transform: uppercase; color: #c8b89a; margin-bottom: 14px; }
+  .opt-title { font-size: 16px; font-weight: 700; letter-spacing: -0.01em; margin-bottom: 12px; line-height: 1.25; }
+  .opt-desc { font-size: 12px; color: #6b6b6b; line-height: 1.65; margin-bottom: 20px; }
+
+  .opt-pros, .opt-cons { list-style: none; margin-bottom: 10px; }
+  .opt-pros li, .opt-cons li { font-size: 11px; line-height: 1.6; padding-left: 14px; position: relative; color: #3a3a3a; }
+  .opt-pros li::before { content: '+'; position: absolute; left: 0; color: #c8b89a; font-weight: 700; }
+  .opt-cons li::before { content: '−'; position: absolute; left: 0; color: #9b9b9b; font-weight: 700; }
+
+  .opt-effort {
+    font-size: 10px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase;
+    color: #6b6b6b; border-top: 1px solid #e8e8e8; padding-top: 14px; margin-top: 16px;
+  }
+
+  .rec {
+    border: 1px solid #0a0a0a; padding: 24px 32px;
+    display: flex; gap: 32px; align-items: flex-start; margin-bottom: 24px;
+  }
+  .rec-label { font-size: 9px; font-weight: 700; letter-spacing: 0.3em; text-transform: uppercase; color: #c8b89a; white-space: nowrap; padding-top: 3px; min-width: 100px; }
+  .rec-text { font-size: 13px; color: #0a0a0a; line-height: 1.7; }
+  .rec-text strong { font-weight: 700; }
+
+  .footer-note { font-size: 11px; color: #9b9b9b; letter-spacing: 0.05em; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="logo">RAVN <span>·</span> Inmobiliario</div>
+  <div class="header-tag">Pregunta clave — Fuente de datos</div>
+</div>
+
+<h1>¿De dónde vienen<br>los <em>precios?</em></h1>
+<p class="subtitle">Esta decisión define toda la arquitectura del sistema. No hay respuesta incorrecta — cada opción tiene su momento.</p>
+
+<span class="label">Seleccioná la estrategia de datos</span>
+
+<div class="options">
+
+  <div class="option" data-choice="A" onclick="select(this)">
+    <div class="opt-tag">Recomendado MVP</div>
+    <div class="opt-num">Opción A</div>
+    <div class="opt-title">Manual + Curado</div>
+    <div class="opt-desc">Vos cargás los precios por zona desde fuentes confiables (Zonaprop, REMAX, CUCICBA). Panel de admin en la app para actualizar valores.</div>
+    <ul class="opt-pros">
+      <li>Listo en días, no semanas</li>
+      <li>Datos limpios y verificados</li>
+      <li>Control total sobre la calidad</li>
+    </ul>
+    <ul class="opt-cons">
+      <li>Requiere actualización periódica tuya</li>
+      <li>No escala sin esfuerzo manual</li>
+    </ul>
+    <div class="opt-effort">Esfuerzo: Bajo · Velocidad: Alta</div>
+  </div>
+
+  <div class="option" data-choice="B" onclick="select(this)">
+    <div class="opt-tag">Automático</div>
+    <div class="opt-num">Opción B</div>
+    <div class="opt-title">Scraping automático</div>
+    <div class="opt-desc">Cron jobs que extraen precios de Zonaprop, Argenprop y MercadoLibre Inmuebles. Datos frescos sin intervención manual.</div>
+    <ul class="opt-pros">
+      <li>Actualización automática continua</li>
+      <li>Miles de datos reales del mercado</li>
+      <li>Base para análisis de tendencias</li>
+    </ul>
+    <ul class="opt-cons">
+      <li>3–4 semanas de desarrollo</li>
+      <li>Los portales pueden bloquear el scraping</li>
+      <li>Datos crudos requieren limpieza</li>
+    </ul>
+    <div class="opt-effort">Esfuerzo: Alto · Velocidad: Baja</div>
+  </div>
+
+  <div class="option" data-choice="C" onclick="select(this)">
+    <div class="opt-tag">Híbrido</div>
+    <div class="opt-num">Opción C</div>
+    <div class="opt-title">Manual ahora, auto después</div>
+    <div class="opt-desc">Arrancás con datos manuales para tener el sistema funcionando rápido. El scraping se agrega en una segunda fase cuando el core esté probado.</div>
+    <ul class="opt-pros">
+      <li>MVP en días</li>
+      <li>Arquitectura preparada para el auto</li>
+      <li>Sin riesgo de datos sucios al lanzar</li>
+    </ul>
+    <ul class="opt-cons">
+      <li>Dos fases de desarrollo</li>
+      <li>Carga manual transitoria</li>
+    </ul>
+    <div class="opt-effort">Esfuerzo: Medio · Velocidad: Media</div>
+  </div>
+
+</div>
+
+<div class="rec">
+  <div class="rec-label">Mi recomendación</div>
+  <div class="rec-text"><strong>Opción C.</strong> Arrancar con datos manuales te da el sistema funcionando esta semana. Mientras lo usás y lo afinás, construimos el scraping en paralelo. La arquitectura queda preparada desde el día 1 para recibir datos automáticos.</div>
+</div>
+
+<p class="footer-note">Elegí una opción y respondé en el terminal.</p>
+
+<script>
+  function select(el) {
+    document.querySelectorAll('.option').forEach(o => o.classList.remove('selected'));
+    el.classList.add('selected');
+  }
+</script>
+
+</body>
+</html>

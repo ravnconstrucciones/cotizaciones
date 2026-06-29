@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RAVN — Plan listo</title>
+<link href="https://fonts.googleapis.com/css2?family=Raleway:wght@300;400;500;600;700;900&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Raleway', sans-serif; background: #fafafa; color: #0a0a0a; min-height: 100vh; padding: 44px 40px; }
+  .header { display: flex; align-items: baseline; gap: 16px; margin-bottom: 36px; border-bottom: 1px solid #0a0a0a; padding-bottom: 16px; }
+  .logo { font-size: 11px; font-weight: 700; letter-spacing: 0.25em; text-transform: uppercase; }
+  .logo span { color: #c8b89a; }
+  .header-tag { font-size: 10px; letter-spacing: 0.15em; text-transform: uppercase; color: #6b6b6b; }
+  h1 { font-size: clamp(1.9rem, 4.5vw, 2.8rem); font-weight: 700; letter-spacing: -0.03em; line-height: 1.05; margin-bottom: 8px; }
+  h1 em { font-style: normal; color: #c8b89a; }
+  .subtitle { font-size: 12.5px; color: #6b6b6b; margin-bottom: 40px; line-height: 1.7; max-width: 620px; }
+
+  .stages { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; background: #0a0a0a; border: 1px solid #0a0a0a; margin-bottom: 36px; }
+  .stage { background: #fafafa; padding: 22px 20px; }
+  .stage.block { background: #fdfaf2; }
+  .stage-num { font-size: 9px; font-weight: 700; letter-spacing: 0.2em; text-transform: uppercase; color: #c8b89a; margin-bottom: 10px; }
+  .stage-title { font-size: 13.5px; font-weight: 700; letter-spacing: -0.01em; margin-bottom: 10px; line-height: 1.25; }
+  .stage ul { list-style: none; }
+  .stage li { font-size: 11px; line-height: 1.55; color: #555; padding-left: 13px; position: relative; margin-bottom: 5px; }
+  .stage li::before { content: '—'; position: absolute; left: 0; color: #c8b89a; }
+  .stage-flag { display: inline-block; font-size: 8px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; background: #b8860b; color: #fff; padding: 2px 7px; margin-top: 10px; }
+
+  .stat-row { display: flex; gap: 1px; background: #0a0a0a; border: 1px solid #0a0a0a; margin-bottom: 36px; }
+  .stat { flex: 1; background: #0a0a0a; color: #fafafa; padding: 18px 20px; }
+  .stat-val { font-size: 24px; font-weight: 700; letter-spacing: -0.03em; line-height: 1; }
+  .stat-val span { color: #c8b89a; font-size: 12px; }
+  .stat-label { font-size: 9px; color: rgba(255,255,255,0.5); letter-spacing: 0.12em; text-transform: uppercase; margin-top: 6px; }
+
+  .choice-label { font-size: 9px; font-weight: 700; letter-spacing: 0.3em; text-transform: uppercase; color: #6b6b6b; margin-bottom: 18px; display: block; }
+  .choices { display: grid; grid-template-columns: 1fr 1fr; gap: 1px; background: #0a0a0a; border: 1px solid #0a0a0a; }
+  .choice { background: #fafafa; padding: 26px 24px; }
+  .choice.rec { background: #0a0a0a; color: #fafafa; }
+  .choice-tag { font-size: 9px; font-weight: 700; letter-spacing: 0.15em; text-transform: uppercase; color: #c8b89a; margin-bottom: 8px; }
+  .choice-title { font-size: 15px; font-weight: 700; margin-bottom: 10px; letter-spacing: -0.01em; }
+  .choice-desc { font-size: 11.5px; line-height: 1.6; color: #555; }
+  .choice.rec .choice-desc { color: rgba(255,255,255,0.7); }
+
+  .heads-up { border: 1px solid #b8860b; padding: 18px 22px; margin: 32px 0; background: #fdfaf2; }
+  .heads-up-label { font-size: 9px; font-weight: 700; letter-spacing: 0.2em; text-transform: uppercase; color: #b8860b; margin-bottom: 8px; }
+  .heads-up-text { font-size: 12px; line-height: 1.65; color: #3a3a3a; }
+  .heads-up-text b { color: #0a0a0a; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="logo">RAVN <span>·</span> Inmobiliario</div>
+  <div class="header-tag">Plan de implementación — listo para ejecutar</div>
+</div>
+
+<h1>El plano está <em>terminado</em></h1>
+<p class="subtitle">Diseño y plan paso a paso, commiteados en el repo. El plan tiene 6 etapas y ~25 tareas chicas, cada una con su test y su commit. Acá está el mapa.</p>
+
+<div class="stat-row">
+  <div class="stat"><div class="stat-val">6</div><div class="stat-label">Etapas</div></div>
+  <div class="stat"><div class="stat-val">~25</div><div class="stat-label">Tareas</div></div>
+  <div class="stat"><div class="stat-val">~USD 0<span>/mes</span></div><div class="stat-label">Costo Fase 1</div></div>
+  <div class="stat"><div class="stat-val">±10<span>%</span></div><div class="stat-label">Meta de precisión</div></div>
+</div>
+
+<div class="stages">
+  <div class="stage block">
+    <div class="stage-num">Etapa 0</div>
+    <div class="stage-title">Validar fuentes</div>
+    <ul>
+      <li>Probar API MercadoLibre</li>
+      <li>Datos Abiertos CABA</li>
+      <li>Feeds de noticias</li>
+    </ul>
+    <div class="stage-flag">Bloqueante</div>
+  </div>
+  <div class="stage">
+    <div class="stage-num">Etapa 1</div>
+    <div class="stage-title">Fundación + matemática</div>
+    <ul>
+      <li>Tablas en Supabase</li>
+      <li>Mediana, factor de ajuste</li>
+      <li>Veredicto (con tests)</li>
+      <li>Costo de construcción</li>
+    </ul>
+  </div>
+  <div class="stage">
+    <div class="stage-num">Etapa 2</div>
+    <div class="stage-title">Fuentes de datos</div>
+    <ul>
+      <li>MercadoLibre</li>
+      <li>Escrituras CABA</li>
+      <li>Referencia</li>
+      <li>Noticias RSS</li>
+    </ul>
+  </div>
+  <div class="stage">
+    <div class="stage-num">Etapa 3</div>
+    <div class="stage-title">Automatización</div>
+    <ul>
+      <li>Cron de precios (diario)</li>
+      <li>Cron de noticias (horario)</li>
+      <li>API del tablero</li>
+    </ul>
+  </div>
+  <div class="stage">
+    <div class="stage-num">Etapa 4</div>
+    <div class="stage-title">El tablero (UI)</div>
+    <ul>
+      <li>KPIs + gráfico</li>
+      <li>Ranking + veredictos</li>
+      <li>Feed de noticias</li>
+    </ul>
+  </div>
+  <div class="stage">
+    <div class="stage-num">Etapa 5</div>
+    <div class="stage-title">Verificación</div>
+    <ul>
+      <li>Tests + build verdes</li>
+      <li>Check precisión vs. sistema novia</li>
+      <li>Prueba de resiliencia</li>
+    </ul>
+  </div>
+</div>
+
+<div class="heads-up">
+  <div class="heads-up-label">⚠ Lo que puede necesitar 5 min tuyos</div>
+  <div class="heads-up-text">La Etapa 0 verifica que la API de MercadoLibre responda. <b>Si pide registro</b>, vas a tener que crear una app gratis en developers.mercadolibre.com.ar y pasarme dos claves. Lo sabremos apenas arranque — y si pasa, te aviso exactamente qué hacer.</div>
+</div>
+
+<span class="choice-label">¿Cómo ejecutamos el plan?</span>
+<div class="choices">
+  <div class="choice rec">
+    <div class="choice-tag">Recomendado</div>
+    <div class="choice-title">Por sub-agentes</div>
+    <div class="choice-desc">Lanzo un agente fresco por tarea, reviso entre cada una. Más rápido, más ordenado, menos chance de que se enrede. Vos solo intervenís en el checkpoint de la Etapa 0.</div>
+  </div>
+  <div class="choice">
+    <div class="choice-tag">Alternativa</div>
+    <div class="choice-title">En esta sesión</div>
+    <div class="choice-desc">Ejecuto las tareas acá mismo, en tandas, con puntos de control para que revises. Más conversacional, un poco más lento.</div>
+  </div>
+</div>
+
+</body>
+</html>

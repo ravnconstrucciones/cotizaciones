@@ -16,3 +16,6 @@ supabase/.temp/
 
 # Fuentes crudas extraídas del PDF de Canva (opcional; lo versionado va en src/fonts/raleway/)
 src/fonts/canva-extracted/
+.vercel
+
+.claude/worktrees/

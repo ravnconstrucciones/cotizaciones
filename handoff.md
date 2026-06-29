@@ -1,56 +1,61 @@
-# HANDOFF — RAVN Cockpit · Rediseño "cards + overlay" + precios (rama `home-cards`)
+# HANDOFF
 
-> Próxima sesión: leé memoria `proyecto-centro-de-mando` + `feedback-*` y este archivo. Después "leé el handoff y continuá".
+> Próxima sesión: "leé el handoff y continuá".
+>
+> **✅ ACTUALIZACIÓN 2026-06-29 (sesión 2):** Correa RESUELTO. Total real = **$3.300.000** ($2,9M base ya cobrado + $400k cielorraso). El `monto_total_a_cobrar_ars` ya era $3,3M; se subió la `propuesta_comercial_pref` de $2,9M→$3,3M para que aparezcan los **$400.000 por cobrar**. `rentabilidad_inputs` de Correa cargados (costo $1.628.534 = mat $850k + MO $778.534) → Rédito calcula. **PENDIENTE solo:** que Eze CONFIRME que la base era $2,9M (no $3,3M) — si la base ya era $3,3M, el cielorraso sería un +$400k extra → total $3,7M (avisar).
+>
+> **▶ Lo que queda (necesita a Eze):** confirmar costos-estimación de rentabilidad (abajo) + push del commit `d891b2f`.
 
-## 👉 ARRANCÁ POR (decisiones abiertas de Eze)
-1. **Probar el botón Diagnóstico** en una obra (`/obras/[id]` → 🩺) con la Mac prendida → confirmar que la Mac lo genera Y lo engancha a la obra (obra_archivos). Si genera pero no adjunta, afinar el prompt en `POST /api/obras/[id]/diagnostico` o el daemon.
-2. **Terminal** (`/terminal`): ¿se convierte a cards/Geist o se deja con su estética de terminal (mono)? Es la única pantalla sin convertir.
-3. **Borrar presupuestos reales sobrantes**: en Proyectos → "Todas" hay tachito; quedan 8 de cliente real (Empresa caja [APROB], Lagomarsino, Consorcio, Sliding, Intendencia x5). Eze decide cuáles van.
-4. **ML (Tanda 5)**: parkeado. Registrar app en developers.mercadolibre.com.ar (necesita aceptar términos de developer) → setear `ML_ACCESS_TOKEN` donde corre el daemon y se prende la columna de desempate.
-5. **App RAVN está en rama `home-cards`, NO en main.** En algún momento decidir el merge a main / deploy productivo.
+---
 
-## CONTEXTO
-- Rama **`home-cards`** (NO main). Preview: https://ravn-app-one-git-home-cards-ravnconstrucciones-3776s-projects.vercel.app/login (`ravn.construcciones@gmail.com` / `Ravn-Mando-26`).
-- App: `/Users/ezeotero/Documents/ravn` (Next 15 + Supabase + Tailwind v4 + Framer Motion). Deploy Vercel auto desde la rama. Proyecto Vercel: `ravn-app-one`.
-- Bot: `/Users/ezeotero/Documents/ravn-bots` (Railway). Skills en `~/.claude/skills`.
-- Eze dio luz verde a TODO "por tandas, sin drama de cuota (Max 20x)". Se va tanda por tanda, verificando y pusheando cada una.
+## ⭐ SESIÓN 2026-06-29 — leer primero
 
-## CONTRATO DE DISEÑO (reusar)
-- `src/components/ui/heroui-card.tsx` (Card rounded-[32px]). `src/components/cockpit/panel.tsx` (contexto PanelVariant "hud"|"card"). Tokens `--cdm-*`. Fuente **Geist** (`.font-geist`, LA elegida — NO Space Grotesk). `font-mono-hud` para micro-labels `//////`.
+Eze pidió hacer 3 frentes en orden. Estado:
 
-## HECHO Y PUSHEADO ✅ (esta sesión)
-1. **Menú overlay (B)** `menu-overlay.tsx` — takeover full-screen, labels Geist, flecha+cyan al hover.
-2. **Nav v2** `app-shell.tsx` + `nav-config.ts` — sidebar ELIMINADA (barra slim arriba: logo+tema+"Menú"+⌘K), contenido full-width. **⌘K = Spotlight** (input filtra destinos, ↑/↓+Enter). Actividad→Datos. Maestro de precios en Datos (OJO: "Maestro de precios" ≠ SISMAT, son cosas distintas — corregido).
-3. **Proyectos = galería "Projects"** `proyecto-galeria.tsx` + `obras-screen.tsx` — carrusel de cards con FOTO (upload manual, cámara), card VERDE + RENTABILIDAD al cerrar (ganancia verde/pérdida roja). Migración `obras.foto_portada_path` + `POST /api/obras/[id]/portada` (bucket privado `obra-archivos`) + resumen devuelve `foto_portada_url`. Pipeline validado e2e.
-4. **Orbital `/obras/[id]`** — porté "+ avance" y "Cerrar obra" (la galería es solo overview; el detalle vive en el orbital).
-5. **Tanda 1 — RUIDO DE PRECIOS** `cotizador/cotizar.ts`+`tipos.ts`+`revision-screen.tsx` — divergencia con nivel "critica" (≥100% = uno ≥2x el otro) + fuentes de cada precio; mesa muestra alerta roja "verificá especificación". 57/57 tests. Skill `cotizador-maestro` suma la regla DOMINIO SISMAT anti-pileta (en `~/.claude/skills`, fuera del repo).
-6. **Tanda 2 — BOT ANTI-ARCHIVADO** (repo `ravn-bots`, pusheado a main → Railway) — "¿cuánto llevo gastado en X?" ya NO se archiva. Tres capas en `advisorService.js`: (1) SYSTEM prompt distingue REGISTRAR gasto vs PREGUNTAR por plata → preguntas van a `pesado`/orden; (2) guard en `case 'gasto'`: pregunta sin monto → encola orden, no inserta; (3) los `throw 'no hay obras activas'` (gasto y avance) pasaron a `return` con aviso (no archivan). 100/100 tests. **Fix 4 (Mac):** `scripts/gastos-obra.ts` en repo `ravn` suma `presupuestos_gastos` real por obra (probado: Polder $541.586, Daromy $40.500); el prompt `orden` del daemon (`~/.ravn-cotizador/daemon.py`, fuera de git) lo invoca. Daemon REINICIADO (launchd `com.ravn.cotizador`, pid nuevo) → ya vivo.
+### ✅ FRENTE 1 — Plan diario logística 2 obras (HECHO)
+- Entregable: **`/Users/ezeotero/Documents/ravn/Logistica_Dos_Obras.html`** (dark premium, abierto y aprobado tras correcciones).
+- **OJO error corregido en vivo:** primero armé el plan con la cotización equivocada del vault (`Cotizaciones/2026-06-09-revestimiento-container-plegable.md` = sistema EIFS/Tarquini, 10-12 días). Eze lo cazó: "12 días me fundo". La obra real es **SIDING de fibrocemento**, no Tarquini.
+- **Datos reales confirmados por Eze:**
+  - Obra A = **"Siding de fibrocemento"** ($2.170.000), **5-6 días**, **2 personas**, **materiales los pone el BARRIO** (Las Glorietas). Arranca **mié 01/07**.
+  - Sistema: estructura/rastreles → barrera Tyvek + lana → placas fibrocemento atornilladas → **tarquinado SOLO en las esquinas** como detalle de remate (único paso húmedo, último día). NO va tarquinado general.
+  - Regla de oro siding: el 30/06 Eze **verifica que el barrio tenga el material**, no compra nada.
+  - Obra B = **Baño Pueyrredón** (reforma integral llave en mano, USD 8.050, ~3 sem / 15 días hábiles, cuadrilla 2-3, material RAVN). Arranca **lun 06/07**.
+  - Cuadrillas **separadas en paralelo** → casi no se pisan (solo conviven 06 y 07/07; el siding ya está en terminaciones, va solo mientras arranca el baño).
+- Reglas de oro del baño (en el HTML): mueble laqueado + mesada Silestone se encarga ESTA semana (cola 2-3 sem, se coloca 22/07); grifería ducha empotrada Piazza comprada ANTES de la sanitaria (08/07, se empotra en pared); mampara templado se mide el 17/07 y se encarga (cola 5-7 días).
+- Pendiente opcional: pasar el método del siding por el cerebro de Seia (no crítico, la estructura ya es correcta).
 
-## DIAGNÓSTICOS CLAVE (de 2 investigaciones, ya hechas)
-- **Bot (Saavedra→Archivados):** la lógica está en `ravn-bots/src/advisorService.js` (clasificador Haiku, SYSTEM ~líneas 34-129, `ejecutar()` ~203). "¿Cuánto llevo gastado en Saavedra?" se clasificó como `gasto` (REGISTRAR), buscó la obra, no matcheó → `throw 'no hay obras activas'` → el `catch` de `portero.js` archiva. Archivados = cajón de lo que crashea.
-- **SISMAT:** NO está viejo (sync mensual via `daemon/jobs/job_sismat.py`→`sync.py` contra admin.sismat.com.ar con la suscripción de Eze; última 10/06). El problema fue DOMINIO sin cobertura (no tiene ítems de pileta). MercadoLibre tiene API pública gratis: `GET https://api.mercadolibre.com/sites/MLA/search?q=<q>` (techo retail, no corralón).
+### 🔄 FRENTE 2 — Rentabilidad CARGADA con estimaciones (falta SOLO precio de Correa + que Eze confirme números)
+**Cargado vía SQL el 29/06:** Siding costo $700k → margen 68% · Pueyrredón costo USD 5.600 @1520 → margen 30,4%. Los costos son estimación mía, Eze los ajusta.
+**Correa (actualizado):** costo cargado = **$1.628.534** = gastos $1.428.534 + $200k MO pendiente (poner rasos + pintura). Eze va a hacer un **cielorraso extra que cobra $400.000** (mat+MO, para recuperar gastos; obra tuvo errores/rework "no salió lo que quisimos"). ⚠️ **FALTA: el precio TOTAL de Correa = base pactada + $400k extra.** Con ese número, setear `obras.monto_total_a_cobrar_ars` (obra `6e5e171c-e657-4c1b-ae10-a5c5fa19b58e`) y el rédito calcula. Eze quiere que el extra quede BIEN sumado en la salud del trabajo para no aparecer como pérdida por las materias/MO/errores ya absorbidos.
 
-## HECHO Y PUSHEADO ✅ (sesión 2026-06-14 tarde — modo "lanza todo")
-7. **PEDIDO EN VIVO — galería Proyectos** `obras-screen.tsx` — pestañas **Activas (en curso) / Finalizadas (nueva) / Todas**; antes "Activas" mezclaba finalizadas y confundía. En "Todas" se ocultan los **borradores** (presupuestos 0 ítems y 0 gastos). 226 tests.
-8. **Tanda 3 — TU DÍA** — saqué las áreas de ocio personal (Música y Arte, Vínculos, Disfrute) de `/dia`. Repo: `src/lib/tu-dia.ts` AREAS_ORDEN (quedan Negocio, Construcción, Cuerpo, Mente, Finanzas personales). Vault (repo boveda, pusheado): `Sistema/panel/build_panel.py` (EXCLUDE/ORDER) + `morning.sh` (prompt). **DECISIÓN A CONFIRMAR:** dejé Cuerpo/Mente/Finanzas personales (base operativa). Si Eze quiere "SOLO empresa", sacar esas 3 también (1 edit en cada lado). El job morning está PAUSADO (com.ravn.tudia exit 127) → el surface vivo es la web /dia.
-9. **Tanda 4 — ELIMINAR COTIZACIÓN** — `DELETE /api/cotizaciones/[id]` (nulea `cotizador_lecciones.cotizacion_id` para no romper FK y preservar la lección, después borra) + botón × por fila en `cotizaciones-screen.tsx` (window.confirm + borrado optimista).
-10. **Tanda 5 — MERCADOLIBRE** — ML como TERCER precio de REFERENCIA (NO toca el total): `tipos.ts` (PrecioItem.mercadolibre + Divergencia.{mercadolibre,ml_respalda}), `cotizar.ts` (desempate: a cuál se acerca ML), `mercadolibre.ts` (fetch mediana, timeout, falla en silencio, soporta `ML_ACCESS_TOKEN`), daemon CLI `scripts/cotizador/instanciar.ts` (enriquece materiales con doble precio), mesa: columna "ML ref." + línea de desempate. +10 tests. **OJO: ML cerró el search anónimo (403)** → no devuelve nada hasta registrar app en developers.mercadolibre.com.ar y setear `ML_ACCESS_TOKEN` donde corre el daemon. Sin token todo sigue igual (columna vacía).
-11. **Tanda 6 — CARDS ROLLOUT (wave 1)** — convertidas al lenguaje cards/Geist (matcheando la galería): **cotizaciones, actividad, archivados, dia**. Build + typecheck + 236 tests OK.
+Objetivo: que el KPI "Rédito proyectado" muestre margen real (hoy muestra "—" porque ninguna obra activa tiene `rentabilidad_inputs`).
 
-## HECHO Y PUSHEADO ✅ (sesión 2026-06-14 noche — review en vivo con Eze)
-12. **Galería Proyectos — tachito + limpieza:** botón × por card en "Todas" (DELETE /api/presupuestos/[id], borrado seguro con FKs) + ya borradas las 19 de muestra "Ezequiel Otero". Quedan 11 presupuestos (3 obras reales + 8 de cliente real). OJO: las 8 reales (Empresa gastos generales [APROB], Lagomarsino, Consorcio, Sliding, Intendencia x5) NO se borraron — Eze decide.
-13. **Nav:** sacado "Nuevo presupuesto" (sigue accesible desde Rentabilidad/Propuesta). "Catálogo" → label **"SISMAT"**. "Historial" sacado del nav (redundante con Proyectos; los docs ya están en el orbital). Archivos `/historial` y `/nuevo-presupuesto` siguen existiendo, solo no están en el menú.
-14. **Botón "Generar diagnóstico"** en el orbital `/obras/[id]` → `POST /api/obras/[id]/diagnostico` encola un `orden` que la Mac arma + adjunta a la obra (obra_archivos tipo=diagnostico). ⚠️ FALTA VERIFICAR end-to-end: el lado daemon (que genere + adjunte de verdad) no se probó con la Mac. Si genera pero no engancha, afinar el prompt/daemon.
-15. **Tanda 6 — CARDS ROLLOUT casi completa:** convertidas cotizaciones, actividad, archivados, dia, catalogo(SISMAT), maestro-precios (wave 1+catalogo/maestro) + rentabilidad, finanzas, control-gastos, adn (wave 2). Todas: build + 236 tests OK.
+**Lo investigado (NO re-investigar):**
+- Tabla: `presupuestos.rentabilidad_inputs` (jsonb). Gastos reales = tabla **`presupuestos_gastos`** (col `importe`, `presupuesto_id` uuid). El KPI calcula **costo estimado = costoMaterial + costoMo + costosInternos + cargosAdicionales** (sin contingencia).
+- **Formato exacto del jsonb** (sacado de obras que ya lo tienen):
+  ```json
+  {"v":1,"casaDolar":"blue","costoMoStr":"1.500.000,00","mostrarIva":false,
+   "presupuestoId":"<uuid>","costoMaterialStr":"2.345.965,10","precioObraManual":null,
+   "remarqueMoPctStr":"40","costosInternosStr":"200000","contingenciaPctStr":"10",
+   "monedaPresentacion":"ARS","cotizacionManualStr":"","cargosAdicionalesStr":"",
+   "remarqueMaterialPctStr":"40","bonificacionComercialPctStr":"0"}
+  ```
+- **Las 3 obras a cargar (presupuesto_id / obra_id / estado):**
+  1. **Siding de fibrocemento** — presup `36dfddb0-e113-46dc-984c-dbf63f9c163c` / obra `23b7011c-4804-461b-ae55-2967aba4677e`. Precio $2.170.000 (ya en `monto_total_a_cobrar_ars`). Material **$0** (lo pone el barrio). **FALTA: costo MO + internos.** Eze tiró "le tendría que sacar mínimo unos 700.000" → confirmar si es costo total (~margen 68%).
+  2. **Baño Correa** (Lagomarsino) — presup `762f49eb-a364-4bed-a9c7-3f31062a5f64` / obra `6e5e171c-e657-4c1b-ae10-a5c5fa19b58e`. Casi cerrada. Costo ≈ gastos ya cargados = **$1.428.534** (17 gastos). ⚠️ **FALTA: precio de cierre** (la obra tiene `monto_total_a_cobrar` NULL en la base → sin precio el rédito da null).
+  3. **Pueyrredón 1100** — presup `9a3c7543-d4b6-43d9-a202-a4259d5c1fa9` / obra `d3c1e076-...`. Obra USD: 8.050 congelado a **$1.520/USD** (= $12.236.000 ars). Desde cero. **FALTA: costo material + MO.** ⚠️ **RIESGO #1:** dolarizar el costo a la MISMA cotización del contrato ($1.520), no a otra, o el margen miente.
+- **Forma de cargar:** escribir el jsonb vía SQL (mcp supabase `execute_sql`/`apply_migration`) o que Eze lo cargue en la pantalla Rentabilidad. NO cargar con números inventados — esperar los de Eze.
 
-## PENDIENTE
-- **terminal** (`/terminal`): única pantalla sin convertir — a propósito (es una terminal, su estética mono es intencional). Eze tiene que decidir si igual la quiere en cards.
-- **ML (Tanda 5):** parkeado por Eze "hasta el final". Código listo; falta registrar app en developers.mercadolibre.com.ar (el menú "Mis aplicaciones" no le aparecía → quizás falta aceptar términos de developer) y setear `ML_ACCESS_TOKEN`.
-- **Receta de conversión (probada): ** tema oscuro `bg-cdm-bg`, `font-grotesk`→`font-geist`, header grande Geist + sublabel `font-mono-hud`, `.cdm-glass`→cards `rounded-[24px] ring-1 ring-cdm-line bg-white/60 dark:bg-zinc-900/40`, pills mono, números `tabular-nums`. Subagente Sonnet por pantalla, theme-only sin tocar lógica, después tsc+build+push.
+### ✅ FRENTE 3 — Commit fix Rédito (HECHO)
+- Commit **`d891b2f`** en branch `home-cards`: SOLO los 4 archivos del fix (salud-negocio.ts/.test.ts, cashflow/resumen/route.ts, modulo-salud-negocio.tsx). El resto del working tree sucio quedó sin tocar (Eze decide). **NO pusheado** aún (Eze decide push).
+- Branch `home-cards`. Working tree sigue sucio con lo no relacionado (landing + inmobiliario + dia + borrados de terminal).
+- El fix de Rédito proyectado YA ESTÁ VIVO en prod FIVE (se deployó con el working tree) pero **sin commitear**. Archivos del fix: `src/lib/salud-negocio.ts`, `salud-negocio.test.ts`, `src/app/cashflow/resumen/route.ts`, `src/components/cockpit/modulo-salud-negocio.tsx`. Tests 270 verde, tsc 0 errores, review hecho (3 🟡 menores, ver más abajo).
+- Hacer: commit limpio separando SOLO los archivos del fix Rédito de lo no relacionado. Eze decide qué más commitear.
 
-## GOTCHAS
-- iCloud rompe `.next`: ENOENT → `rm -rf .next && ln -s .next.nosync .next`.
-- **Login Playwright**: la página tiene shader Three.js → `goto(waitUntil:"networkidle")` + `waitForTimeout(1500)` ANTES de fill/click (si no, submit nativo = queda en /login). Botón "Ingresar". Después NO usar waitForURL (router.push soft) → esperar el shell (`header` con botón "Menú"). Scripts en /tmp/shot-*.mjs. Dev: `bash scripts/dev.sh` (log /tmp/ravn-dev.log).
-- Migraciones a remoto: `POST https://api.supabase.com/v1/projects/lryelzsstyghylphvgju/database/query` con `Authorization: Bearer $(security find-generic-password -s "Supabase CLI" -w)`.
-- Commitear SOLO archivos propios con `git add <file>` (working tree con muchos untracked).
-- Hay un dev server corriendo en background (localhost:3000) de esta sesión.
+---
+
+## Pendientes operativos (de memoria, retomar)
+- Procesar charlas de la **expo** (revestimientos + impermeabilización techos) → destilar a cerebro construcción.
+
+---
+*(Frente 3 — detalle del review del fix Rédito, 3 🟡 a confirmar: #1 obra USD cotización de dolarización debe = la del contrato congelado; #2 `esUsd` flipea si hay cobro USD por error; #3 alarma roja USD compara gastado nominal vs costo floteado al blue. Núcleo 🟢 OK.)*

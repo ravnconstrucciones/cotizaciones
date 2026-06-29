@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RAVN · Diagnóstico Técnico — Tejido en Polder</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,700;1,700&family=Raleway:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,300&family=Barlow:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  :root { --k:#070707; --w:#f2efe8; --g:#b8c8a0; --dim:#5a5754; --red:#6e1010; --ok:#3a6e3a; }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  .slide { width:1920px; height:1080px; font-family:'Barlow',sans-serif; color:var(--w); background:var(--k); overflow:hidden; position:relative; display:block; margin-bottom:4px; }
+  .serif { font-family:'Cormorant Garamond',serif; font-weight:700; }
+  .label { font-family:'Raleway',sans-serif; font-weight:400; letter-spacing:0.22em; text-transform:uppercase; font-size:24px; color:var(--dim); }
+  .fill { font-family:'Raleway',sans-serif; font-weight:900; text-transform:uppercase; line-height:0.88; letter-spacing:-0.03em; color:var(--w); }
+  .stroke { font-family:'Raleway',sans-serif; font-weight:900; text-transform:uppercase; line-height:0.88; letter-spacing:-0.03em; color:transparent; -webkit-text-stroke:2px var(--w); }
+  .stroke-dim { font-family:'Raleway',sans-serif; font-weight:900; text-transform:uppercase; line-height:0.88; letter-spacing:-0.03em; color:transparent; -webkit-text-stroke:1px #242424; }
+  .topbar { display:flex; justify-content:space-between; align-items:center; padding:36px 80px; position:relative; z-index:10; flex-shrink:0; }
+  .brand { font-family:'Raleway',sans-serif; font-weight:300; font-size:28px; letter-spacing:0.35em; text-transform:uppercase; color:var(--w); }
+  .topbar-label { font-family:'Raleway',sans-serif; font-weight:400; font-size:24px; letter-spacing:0.14em; text-transform:uppercase; color:var(--dim); }
+  .photo { background:#0c0c0c; position:relative; display:flex; align-items:center; justify-content:center; overflow:hidden; }
+  .photo::before { content:''; position:absolute; inset:20px; border:1px solid #1c1c1c; pointer-events:none; z-index:2; }
+  .photo::after { content:''; position:absolute; width:24px; height:24px; border-left:1px solid var(--g); border-top:1px solid var(--g); top:28px; left:28px; pointer-events:none; z-index:2; }
+  .photo .photo-ref { position:absolute; bottom:28px; right:32px; font-family:'Raleway',sans-serif; font-size:24px; letter-spacing:0.12em; color:rgba(242,239,232,0.55); z-index:3; }
+  .photo .photo-date { position:absolute; top:28px; right:32px; font-family:'Raleway',sans-serif; font-size:24px; letter-spacing:0.08em; color:rgba(242,239,232,0.55); z-index:3; }
+  .photo .corner-br { position:absolute; bottom:28px; left:28px; width:24px; height:24px; border-right:1px solid var(--g); border-bottom:1px solid var(--g); z-index:2; }
+  .photo .ph-label { font-family:'Raleway',sans-serif; font-size:22px; letter-spacing:0.18em; color:#2a2a2a; text-transform:uppercase; z-index:1; }
+  .bcard { padding:22px 26px; display:flex; flex-direction:column; gap:12px; }
+  .bcard.primary { background:#111; border-top:2px solid var(--g); }
+  .bcard.secondary { background:transparent; border-top:1px solid #222; }
+  .bcard .bc-tag { font-family:'Raleway',sans-serif; font-weight:600; font-size:18px; letter-spacing:0.2em; text-transform:uppercase; color:var(--g); }
+  .bcard.secondary .bc-tag { color:var(--dim); }
+  .bcard .bc-name { font-family:'Raleway',sans-serif; font-weight:700; font-size:24px; color:var(--w); line-height:1.15; }
+  .bcard .bc-desc { font-family:'Barlow',sans-serif; font-size:21px; color:var(--dim); line-height:1.45; }
+  .bcard .bc-price { font-family:'Raleway',sans-serif; font-weight:700; font-size:26px; color:var(--g); margin-top:auto; padding-top:14px; border-top:1px solid #222; }
+  .bdg { font-family:'Raleway',sans-serif; font-weight:700; font-size:22px; letter-spacing:0.22em; text-transform:uppercase; padding:7px 18px; display:inline-block; }
+  .bdg-ok { background:var(--ok); color:var(--w); }
+  .bdg-obs { background:#5a4a10; color:var(--w); }
+  .bdg-pend { background:var(--red); color:var(--w); }
+  body { background:#000; padding:20px; }
+  .slide-wrapper { width:1920px; transform-origin:top left; margin-bottom:8px; }
+  @media screen { body { display:flex; flex-direction:column; align-items:flex-start; } }
+  [contenteditable="true"] { outline:1px dashed rgba(184,200,160,0.3); cursor:text; }
+  [contenteditable="true"]:focus { outline:1px solid var(--g); }
+  .check-row { display:grid; grid-template-columns:28px 1fr 120px; gap:16px; align-items:start; padding:14px 0; border-bottom:1px solid #161616; }
+  .check-dot { width:10px; height:10px; border-radius:50%; margin-top:6px; }
+  .check-dot.ok { background:var(--g); }
+  .check-dot.obs { background:#d4a012; }
+  .check-dot.pend { background:#9e2222; }
+  .check-text { font-size:19px; color:var(--dim); line-height:1.5; }
+  .check-badge { font-family:'Raleway',sans-serif; font-size:16px; font-weight:700; letter-spacing:0.18em; text-transform:uppercase; padding:4px 10px; }
+</style>
+</head>
+<body>
+<script>
+  function scaleSlides() {
+    const vw = window.innerWidth - 40;
+    const scale = vw / 1920;
+    document.querySelectorAll('.slide').forEach(s => {
+      s.style.transform = `scale(${scale})`;
+      s.style.transformOrigin = 'top left';
+      s.parentElement.style.height = (1080 * scale) + 'px';
+      s.parentElement.style.width = (1920 * scale) + 'px';
+    });
+  }
+  window.addEventListener('load', scaleSlides);
+  window.addEventListener('resize', scaleSlides);
+</script>
+
+<!-- ══ SLIDE 01 — PORTADA ══ -->
+<div class="slide-wrapper">
+<section class="slide" data-label="01 Portada">
+  <div style="position:absolute;bottom:-60px;right:-20px;font-family:'Raleway',sans-serif;font-weight:900;font-size:580px;line-height:1;color:transparent;-webkit-text-stroke:1px #131313;letter-spacing:-0.04em;pointer-events:none;user-select:none;z-index:0;">D</div>
+  <div class="topbar" style="border-bottom:1px solid #151515;">
+    <span class="brand">RAVN.</span>
+    <span class="topbar-label">REF &nbsp;·&nbsp; 2026-004</span>
+  </div>
+  <div style="position:relative;z-index:1;padding:60px 80px 0;display:flex;flex-direction:column;gap:8px;">
+    <div class="label" style="margin-bottom:24px;">Informe de diagnóstico</div>
+    <div class="fill" style="font-size:168px;margin-bottom:16px;">Diagnóstico</div>
+    <div class="stroke" style="font-size:168px;-webkit-text-stroke:3px #f2efe8;">Técnico</div>
+    <div style="border-top:1px solid #222;margin-top:48px;padding-top:36px;display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:0;">
+      <div>
+        <div class="label" style="font-size:20px;margin-bottom:8px;">Cliente</div>
+        <div style="font-family:'Raleway',sans-serif;font-size:28px;font-weight:600;color:var(--w);">Intendencia</div>
+        <div style="font-family:'Raleway',sans-serif;font-size:28px;font-weight:600;color:var(--w);">Barrio Las Glorietas</div>
+      </div>
+      <div>
+        <div class="label" style="font-size:20px;margin-bottom:8px;">Dirección</div>
+        <div style="font-family:'Raleway',sans-serif;font-size:26px;font-weight:400;color:var(--dim);">Barrio Las Glorietas</div>
+        <div style="font-family:'Raleway',sans-serif;font-size:26px;font-weight:400;color:var(--dim);">Nordelta</div>
+      </div>
+      <div>
+        <div class="label" style="font-size:20px;margin-bottom:8px;">Fecha</div>
+        <div style="font-family:'Raleway',sans-serif;font-size:30px;font-weight:600;color:var(--w);">15 · 06 · 2026</div>
+      </div>
+      <div>
+        <div class="label" style="font-size:20px;margin-bottom:8px;">Alcance del relevamiento</div>
+        <div style="font-family:'Raleway',sans-serif;font-size:22px;font-weight:400;color:var(--dim);line-height:1.4;">Tejido perimetral colocado · tensado · postes · puerta</div>
+      </div>
+    </div>
+  </div>
+</section>
+</div>
+
+<!-- ══ SLIDE 02 — TENSADO DEL ALAMBRE ══ -->
+<div class="slide-wrapper">
+<section class="slide" data-label="02 Tensado del Alambre" style="display:grid;grid-template-rows:auto 1fr auto;grid-template-columns:1fr;">
+  <div class="topbar" style="border-bottom:1px solid #151515;grid-column:1;grid-row:1;">
+    <span class="brand">RAVN.</span>
+    <span class="topbar-label">Diagnóstico Técnico · Tejido en Polder</span>
+  </div>
+  <div style="display:grid;grid-template-columns:460px 1fr 400px;grid-row:2;min-height:0;overflow:hidden;">
+
+    <!-- Col 1 -->
+    <div style="border-right:1px solid #151515;padding:36px 36px 36px 80px;display:flex;flex-direction:column;justify-content:space-between;position:relative;overflow:hidden;">
+      <div class="stroke-dim" style="position:absolute;font-size:340px;bottom:-60px;left:-20px;letter-spacing:-0.06em;z-index:0;">01</div>
+      <div style="position:relative;z-index:1;display:flex;flex-direction:column;gap:20px;">
+        <span class="bdg bdg-ok" contenteditable="true">Conforme</span>
+        <div>
+          <div class="label" style="font-size:20px;margin-bottom:16px;">ZONA · Cerramiento perimetral</div>
+          <div class="fill" style="font-size:44px;line-height:0.94;" contenteditable="true">Tensado del tejido de alambre</div>
+        </div>
+      </div>
+      <div style="position:relative;z-index:1;">
+        <div class="label" style="font-size:18px;margin-bottom:10px;">Criterio técnico</div>
+        <p style="font-size:19px;color:#3a3a3a;line-height:1.55;">El tejido debe quedar sin ondulaciones, bolsillos ni sectores flojos. El tensado se logra desde los postes extremos (tensores o tensado manual previo al enganche). Tensión insuficiente permite deformación ante carga lateral (viento, apoyo humano) y reduce la vida útil del cerco.</p>
+      </div>
+    </div>
+
+    <!-- Col 2: Foto -->
+    <div class="photo" style="border-right:1px solid #151515;">
+      <div class="corner-br"></div>
+      <img id="photo-01" src="" alt="Tensado alambre" style="width:100%;height:100%;object-fit:cover;object-position:center;display:block;" onerror="this.style.display='none'">
+      <span class="ph-label">Foto de campo</span>
+      <span class="photo-date">15.06.2026</span>
+      <span class="photo-ref">IMG · 01.A</span>
+    </div>
+
+    <!-- Col 3 -->
+    <div style="display:flex;flex-direction:column;overflow:hidden;">
+      <div style="padding:28px 32px 20px 28px;border-bottom:1px solid #151515;flex-shrink:0;">
+        <div class="label" style="font-size:20px;color:var(--g);margin-bottom:12px;">Observación de campo</div>
+        <p style="font-size:21px;color:var(--dim);line-height:1.55;font-weight:300;" contenteditable="true">Relevar tramo por tramo: ¿el tejido presenta tensión uniforme? ¿Hay sectores con caída visible o bolsillo entre postes? Verificar que los alambres de borde (superior e inferior) estén correctamente asegurados y sin puntos de aflojamiento. Anotar los metros lineales con déficit de tensado.</p>
+      </div>
+      <div class="bcard primary" style="flex:1;">
+        <div class="bc-tag">Estado verificado</div>
+        <div class="bc-name" contenteditable="true">Tensado general</div>
+        <div class="bc-desc" contenteditable="true">Completar con resultado de campo: tramos conformes / tramos con retensado necesario / metros lineales a corregir.</div>
+      </div>
+      <div class="bcard secondary" style="flex:1;border-top:1px solid #1a1a1a;">
+        <div class="bc-tag">Corrección si aplica</div>
+        <div class="bc-name" contenteditable="true">Retensado puntual</div>
+        <div class="bc-desc" contenteditable="true">Aflojar el alambre en el poste más cercano al sector flojo, tensar con tensor de gancho o palanca de caño, reasegurar. Sin costo adicional si es dentro de garantía de ejecución.</div>
+      </div>
+    </div>
+  </div>
+  <div style="grid-row:3;border-top:1px solid #151515;padding:16px 80px;display:flex;justify-content:space-between;align-items:center;">
+    <span class="label" style="font-size:22px;text-transform:lowercase;letter-spacing:0.08em;">ravnconstrucciones.com.ar</span>
+    <span class="label" style="font-size:22px;">02 / 04</span>
+  </div>
+</section>
+</div>
+
+<!-- ══ SLIDE 03 — APLOMADO Y FIJACIÓN DE POSTES ══ -->
+<div class="slide-wrapper">
+<section class="slide" data-label="03 Aplomado de Postes" style="display:grid;grid-template-rows:auto 1fr auto;grid-template-columns:1fr;">
+  <div class="topbar" style="border-bottom:1px solid #151515;grid-column:1;grid-row:1;">
+    <span class="brand">RAVN.</span>
+    <span class="topbar-label">Diagnóstico Técnico · Tejido en Polder</span>
+  </div>
+  <div style="display:grid;grid-template-columns:460px 1fr 400px;grid-row:2;min-height:0;overflow:hidden;">
+
+    <!-- Col 1 -->
+    <div style="border-right:1px solid #151515;padding:36px 36px 36px 80px;display:flex;flex-direction:column;justify-content:space-between;position:relative;overflow:hidden;">
+      <div class="stroke-dim" style="position:absolute;font-size:340px;bottom:-60px;left:-20px;letter-spacing:-0.06em;z-index:0;">02</div>
+      <div style="position:relative;z-index:1;display:flex;flex-direction:column;gap:20px;">
+        <span class="bdg bdg-ok" contenteditable="true">Conforme</span>
+        <div>
+          <div class="label" style="font-size:20px;margin-bottom:16px;">ZONA · Postes de sujeción</div>
+          <div class="fill" style="font-size:44px;line-height:0.94;" contenteditable="true">Aplomado, fijación y base de postes</div>
+        </div>
+      </div>
+      <div style="position:relative;z-index:1;">
+        <div class="label" style="font-size:18px;margin-bottom:10px;">Criterio técnico</div>
+        <p style="font-size:19px;color:#3a3a3a;line-height:1.55;">Los postes deben estar perfectamente verticales (aplomados). La base se empotra en dados de hormigón de al menos 40–60 cm de profundidad según el tipo de suelo. Un poste desaplomado transmite carga oblicua a la base y al tejido, afectando la estética y la resistencia. Los postes intermedios deben estar a la distancia constante proyectada (generalmente 2,00–3,00 m entre sí).</p>
+      </div>
+    </div>
+
+    <!-- Col 2: Foto -->
+    <div class="photo" style="border-right:1px solid #151515;">
+      <div class="corner-br"></div>
+      <img id="photo-02" src="" alt="Postes aplomados" style="width:100%;height:100%;object-fit:cover;object-position:center;display:block;" onerror="this.style.display='none'">
+      <span class="ph-label">Foto de campo</span>
+      <span class="photo-date">15.06.2026</span>
+      <span class="photo-ref">IMG · 02.A</span>
+    </div>
+
+    <!-- Col 3 -->
+    <div style="display:flex;flex-direction:column;overflow:hidden;">
+      <div style="padding:28px 32px 20px 28px;border-bottom:1px solid #151515;flex-shrink:0;">
+        <div class="label" style="font-size:20px;color:var(--g);margin-bottom:12px;">Observación de campo</div>
+        <p style="font-size:21px;color:var(--dim);line-height:1.55;font-weight:300;" contenteditable="true">Verificar aplome visual de cada poste con nivel o cuerda tensa longitudinal. Revisar que ningún poste presente movimiento al empujar manualmente (base floja en hormigón). Constatar que los postes extremos (tensores) estén arriostrados con tirantes laterales si los hubiera, y que no presenten pandeo lateral por efecto del tensado del alambre.</p>
+      </div>
+      <div class="bcard primary" style="flex:1;">
+        <div class="bc-tag">Estado verificado</div>
+        <div class="bc-name" contenteditable="true">Verticalidad y anclaje</div>
+        <div class="bc-desc" contenteditable="true">Completar: cantidad de postes relevados / postes conformes / postes con desvío de aplome mayor a 1 cm/m / postes con base floja que requieran recalce de hormigón.</div>
+      </div>
+      <div class="bcard secondary" style="flex:1;border-top:1px solid #1a1a1a;">
+        <div class="bc-tag">Corrección si aplica</div>
+        <div class="bc-name" contenteditable="true">Recalce y reaplomado</div>
+        <div class="bc-desc" contenteditable="true">Destensar el tramo afectado, corregir la vertical del poste con cuña o mediante nuevo hormigonado de base, retener. Tiempo: 24–48 hs de fragüe mínimo antes de retensado.</div>
+      </div>
+    </div>
+  </div>
+  <div style="grid-row:3;border-top:1px solid #151515;padding:16px 80px;display:flex;justify-content:space-between;align-items:center;">
+    <span class="label" style="font-size:22px;text-transform:lowercase;letter-spacing:0.08em;">ravnconstrucciones.com.ar</span>
+    <span class="label" style="font-size:22px;">03 / 04</span>
+  </div>
+</section>
+</div>
+
+<!-- ══ SLIDE 04 — TERMINACIÓN GENERAL Y RESUMEN ══ -->
+<div class="slide-wrapper">
+<section class="slide" data-label="04 Resumen y Terminación" style="display:grid;grid-template-rows:auto 1fr auto;">
+  <div class="topbar" style="border-bottom:1px solid #151515;grid-column:1;grid-row:1;">
+    <span class="brand">RAVN.</span>
+    <span class="topbar-label">Diagnóstico Técnico · Tejido en Polder</span>
+  </div>
+  <div style="grid-row:2;display:grid;grid-template-columns:1fr 1fr;min-height:0;">
+
+    <!-- LEFT — Terminación y puerta -->
+    <div style="border-right:1px solid #151515;padding:48px 60px 40px 80px;display:flex;flex-direction:column;gap:28px;position:relative;overflow:hidden;">
+      <div class="stroke-dim" style="position:absolute;font-size:400px;bottom:-100px;right:-60px;letter-spacing:-0.08em;z-index:0;">T</div>
+      <div style="position:relative;z-index:1;">
+        <div class="label" style="margin-bottom:20px;">Terminación general · Puerta de acceso al canal</div>
+        <div class="fill" style="font-size:72px;line-height:0.92;margin-bottom:24px;">Terminación</div>
+        <div class="stroke" style="font-size:72px;line-height:0.92;-webkit-text-stroke:2px var(--w);">y puerta</div>
+      </div>
+      <!-- Check list terminación -->
+      <div style="position:relative;z-index:1;margin-top:8px;">
+        <div class="check-row">
+          <div class="check-dot ok"></div>
+          <div class="check-text">Extremos del tejido correctamente rematados y enganchados al poste (sin filamentos sueltos que representen riesgo).</div>
+          <span class="check-badge" style="background:#1a2e1a;color:var(--g);" contenteditable="true">OK</span>
+        </div>
+        <div class="check-row">
+          <div class="check-dot ok"></div>
+          <div class="check-text">Uniformidad estética con el cerramiento existente del barrio (mismo tipo de tejido y postes).</div>
+          <span class="check-badge" style="background:#1a2e1a;color:var(--g);" contenteditable="true">OK</span>
+        </div>
+        <div class="check-row">
+          <div class="check-dot obs"></div>
+          <div class="check-text">Puerta de acceso al canal reubicada: batiente libre sin obstrucciones, aldaba/pasador funcionales, hoja sin arrastre en suelo.</div>
+          <span class="check-badge" style="background:#2e250a;color:#d4a012;" contenteditable="true">VER</span>
+        </div>
+        <div class="check-row">
+          <div class="check-dot ok"></div>
+          <div class="check-text">Zona de trabajo limpia — sin retazos de alambre, alambres sobrantes ni herramientas olvidadas en el sector.</div>
+          <span class="check-badge" style="background:#1a2e1a;color:var(--g);" contenteditable="true">OK</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- RIGHT — Estado final y pendientes -->
+    <div style="padding:48px 80px 40px 60px;display:flex;flex-direction:column;gap:0;justify-content:center;">
+      <div class="label" style="margin-bottom:24px;">Resumen del relevamiento</div>
+      <!-- Header tabla -->
+      <div style="display:grid;grid-template-columns:2fr 1fr;gap:0;background:var(--w);padding:16px 24px;">
+        <span style="font-family:'Raleway',sans-serif;font-weight:700;font-size:22px;letter-spacing:0.14em;text-transform:uppercase;color:#080808;">Punto verificado</span>
+        <span style="font-family:'Raleway',sans-serif;font-weight:700;font-size:22px;letter-spacing:0.14em;text-transform:uppercase;color:#080808;">Estado</span>
+      </div>
+      <div style="display:grid;grid-template-columns:2fr 1fr;gap:0;padding:18px 24px;border-bottom:1px solid #1a1a1a;align-items:center;">
+        <span style="font-family:'Raleway',sans-serif;font-size:22px;color:var(--dim);"><span style="color:var(--g);">01 &nbsp;</span>Tensado del alambre</span>
+        <span class="bdg bdg-ok" style="font-size:18px;" contenteditable="true">Conforme</span>
+      </div>
+      <div style="display:grid;grid-template-columns:2fr 1fr;gap:0;padding:18px 24px;border-bottom:1px solid #1a1a1a;align-items:center;">
+        <span style="font-family:'Raleway',sans-serif;font-size:22px;color:var(--dim);"><span style="color:var(--g);">02 &nbsp;</span>Aplomado y fijación de postes</span>
+        <span class="bdg bdg-ok" style="font-size:18px;" contenteditable="true">Conforme</span>
+      </div>
+      <div style="display:grid;grid-template-columns:2fr 1fr;gap:0;padding:18px 24px;border-bottom:1px solid #1a1a1a;align-items:center;">
+        <span style="font-family:'Raleway',sans-serif;font-size:22px;color:var(--dim);"><span style="color:var(--g);">03 &nbsp;</span>Terminación y remates</span>
+        <span class="bdg bdg-ok" style="font-size:18px;" contenteditable="true">Conforme</span>
+      </div>
+      <div style="display:grid;grid-template-columns:2fr 1fr;gap:0;padding:18px 24px;border-bottom:1px solid #1a1a1a;align-items:center;">
+        <span style="font-family:'Raleway',sans-serif;font-size:22px;color:var(--dim);"><span style="color:var(--g);">04 &nbsp;</span>Puerta reubicada al canal</span>
+        <span class="bdg bdg-obs" style="font-size:18px;" contenteditable="true">Verificar</span>
+      </div>
+      <!-- Total / conclusión -->
+      <div style="padding:24px 24px;background:#0e0e0e;margin-top:24px;border-top:2px solid var(--g);">
+        <div class="label" style="font-size:18px;margin-bottom:10px;">Observaciones y pendientes</div>
+        <p style="font-family:'Barlow',sans-serif;font-size:20px;color:var(--dim);line-height:1.6;" contenteditable="true">Completar con observaciones de campo. Si no hay correcciones: "Trabajo ejecutado dentro de los estándares técnicos requeridos. Sin pendientes. Obra entregada conforme." Si hay correcciones: listar ítem, tramo y medida correctiva.</p>
+      </div>
+    </div>
+  </div>
+  <div style="grid-row:3;border-top:1px solid #151515;padding:16px 80px;display:flex;justify-content:space-between;align-items:center;">
+    <span class="label" style="font-size:22px;text-transform:lowercase;letter-spacing:0.08em;">ravnconstrucciones.com.ar</span>
+    <span class="label" style="font-size:22px;">04 / 04</span>
+  </div>
+</section>
+</div>
+
+</body>
+</html>

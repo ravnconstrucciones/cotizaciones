@@ -2,6 +2,87 @@
 
 import { motion } from "framer-motion";
 import { AREAS_ORDEN, type AreaNota, type TuDiaData } from "@/lib/tu-dia";
+import type { CatNoticia, Noticia } from "@/lib/noticias";
+
+/* Catálogo de noticias inline (NO importar @/lib/noticias como valor: arrastra
+   el admin client / service role al bundle del cliente). Solo el type se importa. */
+const CATS_NOTICIA: { key: CatNoticia; emoji: string; label: string }[] = [
+  { key: "economia", emoji: "📈", label: "Economía" },
+  { key: "construccion", emoji: "🧱", label: "Construcción" },
+  { key: "inmobiliario", emoji: "🏠", label: "Inmobiliario" },
+];
+
+function NoticiasDelDia({ noticias }: { noticias: Noticia[] }) {
+  if (!noticias.length) return null;
+  return (
+    <section className="mt-10">
+      <p className="font-mono-hud text-[10px] uppercase tracking-[0.24em] text-cdm-accent">
+        Noticias del día
+      </p>
+      <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-3">
+        {CATS_NOTICIA.map((cat, ci) => {
+          const items = noticias
+            .filter((n) => n.categoria === cat.key)
+            .sort((a, b) => a.orden - b.orden);
+          if (!items.length) return null;
+          return (
+            <motion.div
+              key={cat.key}
+              initial={{ opacity: 0, y: 14 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.4, delay: 0.05 * ci, ease: "easeOut" }}
+              className="flex flex-col rounded-[24px] bg-white/60 p-5 ring-1 ring-cdm-line dark:bg-zinc-900/40"
+            >
+              <header className="flex items-center gap-2.5">
+                <span aria-hidden className="text-base leading-none">
+                  {cat.emoji}
+                </span>
+                <h3 className="font-mono-hud text-[9px] uppercase tracking-[0.2em] text-cdm-muted">
+                  {cat.label}
+                </h3>
+              </header>
+              <ul className="mt-4 space-y-4">
+                {items.map((n) => {
+                  const inner = (
+                    <>
+                      <p className="font-geist text-[13px] font-medium leading-snug text-cdm-fg transition-colors group-hover:text-cdm-accent">
+                        {n.titulo}
+                      </p>
+                      <p className="mt-1 font-geist text-[11px] leading-relaxed text-cdm-muted">
+                        {n.porque}
+                      </p>
+                      {n.fuente && (
+                        <p className="font-mono-hud mt-1.5 text-[9px] uppercase tracking-[0.16em] text-cdm-muted/60">
+                          {n.fuente}
+                        </p>
+                      )}
+                    </>
+                  );
+                  return (
+                    <li key={n.id} className="border-l-2 border-cdm-accent/40 pl-3">
+                      {n.url ? (
+                        <a
+                          href={n.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="group block"
+                        >
+                          {inner}
+                        </a>
+                      ) : (
+                        <div className="group block">{inner}</div>
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
+            </motion.div>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
 
 /* dd/mm/aaaa a partir de un ISO YYYY-MM-DD. */
 function fmtFecha(iso: string): string {
@@ -92,7 +173,15 @@ function CardArea({
   );
 }
 
-export function DiaScreen({ data, hoy }: { data: TuDiaData; hoy: string }) {
+export function DiaScreen({
+  data,
+  hoy,
+  noticias = [],
+}: {
+  data: TuDiaData;
+  hoy: string;
+  noticias?: Noticia[];
+}) {
   const { dia, areas, error } = data;
   const maestro = dia.maestro;
   const fresco = dia.fecha === hoy;
@@ -152,6 +241,9 @@ export function DiaScreen({ data, hoy }: { data: TuDiaData; hoy: string }) {
             actualizado {fmtFecha(dia.fecha)} · el 1% del día se regenera en pausa
           </p>
         )}
+
+        {/* Noticias del día — 3 economía / 3 construcción / 3 inmobiliario */}
+        <NoticiasDelDia noticias={noticias} />
 
         {/* Grid de las áreas */}
         <div className="mt-10 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">

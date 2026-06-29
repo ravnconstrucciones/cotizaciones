@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Desglose · Baño Terrazzo Palermo · RAVN</title>
+<style>
+  :root{
+    --bg:#13120f; --bg2:#1b1a16; --card:#201e19; --line:#332f28;
+    --ink:#f3efe6; --mut:#a59c8c; --mut2:#7c7466;
+    --rosa:#e0a39a; --verde:#8fb5a8; --terrazo:#e8dfce; --oro:#c9a86a;
+    --ok:#9fc7a8;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Helvetica,Arial,sans-serif;
+    line-height:1.5;-webkit-font-smoothing:antialiased;padding:48px 0}
+  .wrap{max-width:880px;margin:0 auto;padding:0 40px}
+  .eyebrow{font-size:11px;letter-spacing:.32em;text-transform:uppercase;color:var(--mut2);font-weight:600}
+  h1{font-size:34px;font-weight:600;letter-spacing:-.02em;margin:6px 0 2px}
+  h1 .thin{color:var(--mut);font-weight:300}
+  .sub{color:var(--mut);font-size:14px}
+  /* top */
+  .top{display:flex;justify-content:space-between;align-items:flex-end;border-bottom:1px solid var(--line);padding-bottom:22px;margin-bottom:30px}
+  .brand{font-size:13px;letter-spacing:.34em;font-weight:700}
+  .brand small{display:block;letter-spacing:.18em;color:var(--mut2);font-weight:500;font-size:10px;margin-top:4px}
+  /* hero numbers */
+  .hero{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--line);border:1px solid var(--line);border-radius:14px;overflow:hidden;margin-bottom:14px}
+  .hcell{background:var(--bg2);padding:22px 24px}
+  .hcell .k{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--mut2);margin-bottom:8px}
+  .hcell .v{font-size:27px;font-weight:600;letter-spacing:-.02em}
+  .hcell.cost .v{color:var(--ink)}
+  .hcell.price .v{color:var(--terrazo)}
+  .hcell.marg .v{color:var(--ok)}
+  .hcell .n{font-size:12px;color:var(--mut);margin-top:5px}
+  .ficha{display:flex;gap:24px;flex-wrap:wrap;font-size:12.5px;color:var(--mut);margin-bottom:34px}
+  .ficha b{color:var(--ink);font-weight:600}
+  .pal{display:inline-flex;gap:5px;vertical-align:middle;margin-left:4px}
+  .dot{width:11px;height:11px;border-radius:50%;display:inline-block}
+  /* sections */
+  h2{font-size:13px;letter-spacing:.18em;text-transform:uppercase;color:var(--mut);font-weight:600;
+    margin:34px 0 14px;padding-bottom:9px;border-bottom:1px solid var(--line)}
+  table{width:100%;border-collapse:collapse;font-size:13.5px}
+  td{padding:9px 0;border-bottom:1px solid #262219;vertical-align:top}
+  td.r{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap;font-weight:500}
+  td.q{color:var(--mut);font-size:12px;white-space:nowrap;padding-left:14px}
+  .grp td{padding-top:18px;color:var(--mut2);font-size:11px;letter-spacing:.12em;text-transform:uppercase;border-bottom:none}
+  .it b{font-weight:500}
+  .it span{display:block;color:var(--mut2);font-size:11.5px;margin-top:1px}
+  tr.sum td{border-top:1px solid var(--line);border-bottom:none;padding-top:12px;font-weight:600;color:var(--terrazo)}
+  /* build up */
+  .build{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:6px 22px;margin-top:8px}
+  .build .row{display:flex;justify-content:space-between;padding:11px 0;border-bottom:1px solid #2a2620;font-size:14px}
+  .build .row:last-child{border-bottom:none}
+  .build .row.tot{font-size:19px;font-weight:700;color:var(--ink);padding:15px 0}
+  .build .row .lab{color:var(--mut)}
+  .build .row.tot .lab{color:var(--ink)}
+  .build .r{font-variant-numeric:tabular-nums}
+  /* option cards */
+  .opts{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  .opt{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px 20px}
+  .opt .tag{font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;font-weight:700;margin-bottom:7px}
+  .opt.rosa .tag{color:var(--rosa)} .opt.oro .tag{color:var(--oro)}
+  .opt h3{font-size:15px;font-weight:600;margin-bottom:9px}
+  .opt p{font-size:12.5px;color:var(--mut);margin-bottom:5px}
+  .opt .delta{font-size:13px;font-weight:600;margin-top:9px}
+  .opt .down{color:var(--ok)} .opt .up{color:var(--oro)}
+  .rec{font-size:11.5px;color:var(--mut2);margin-top:7px;font-style:italic}
+  /* sources */
+  .src{font-size:11.5px;color:var(--mut2);line-height:1.9;margin-top:6px}
+  .src a{color:var(--verde);text-decoration:none}
+  /* footer */
+  .foot{margin-top:38px;padding-top:20px;border-top:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:14px}
+  .pill{display:inline-block;font-size:11px;letter-spacing:.1em;text-transform:uppercase;font-weight:600;
+    color:var(--oro);border:1px solid #4a3f28;background:#241f15;padding:5px 12px;border-radius:20px}
+  .next{font-size:12.5px;color:var(--mut)}
+  .note{font-size:11.5px;color:var(--mut2);background:#1a1813;border:1px solid var(--line);border-left:2px solid var(--verde);
+    border-radius:8px;padding:11px 15px;margin-top:10px}
+  @media print{body{background:#fff;color:#1a1813;padding:0}
+    .wrap{max-width:100%}
+    .hcell,.build,.opt,.card{background:#faf7f0}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="top">
+    <div>
+      <div class="eyebrow">Desglose interno · costos</div>
+      <h1>Baño Terrazzo <span class="thin">Palermo</span></h1>
+      <div class="sub">Reforma integral · fiel al render aprobado</div>
+    </div>
+    <div style="text-align:right">
+      <div class="brand">RAVN<small>construcciones</small></div>
+      <div class="sub" style="margin-top:10px;font-size:12px">18 / 06 / 2026</div>
+    </div>
+  </div>
+
+  <!-- HERO -->
+  <div class="hero">
+    <div class="hcell cost"><div class="k">Costo total</div><div class="v">$7.903.000</div><div class="n">materiales + MO + extras + 10% imprev.</div></div>
+    <div class="hcell price"><div class="k">Precio sugerido</div><div class="v">$11.000.000</div><div class="n">número cerrado a la clienta</div></div>
+    <div class="hcell marg"><div class="k">Margen real</div><div class="v">~39%</div><div class="n">piso objetivo ≥30% holgado</div></div>
+  </div>
+  <div class="ficha">
+    <span>Planta <b>2,00 × 1,50 m</b></span>
+    <span>Altura <b>2,37 m</b></span>
+    <span>Piso <b>3,0 m²</b></span>
+    <span>MO cerrada <b>$2.750.000</b></span>
+    <span>Paleta
+      <span class="pal">
+        <span class="dot" style="background:#e0a39a"></span>
+        <span class="dot" style="background:#8fb5a8"></span>
+        <span class="dot" style="background:#e8dfce"></span>
+        <span class="dot" style="background:#1a1813;border:1px solid #555"></span>
+      </span>
+    </span>
+  </div>
+
+  <!-- MATERIALES -->
+  <h2>Materiales — $4.209.291</h2>
+  <table>
+    <tr class="grp"><td colspan="3">Obra húmeda &amp; base</td></tr>
+    <tr><td class="it"><b>Carpeta + albañilería + impermeabilización ducha</b><span>cemento, arena, Ceresita, membrana líquida ducha, malla, nicho · sin plomería</span></td><td class="q">global</td><td class="r">$126.000</td></tr>
+
+    <tr class="grp"><td colspan="3">Revestimientos</td></tr>
+    <tr><td class="it"><b>Terrazo Quadri Splash Rosa 40×40</b><span>piso 3 m² + pared fondo 2,30×0,90 · incl. pastina + sellador</span></td><td class="q">7,04 m²</td><td class="r">$465.728</td></tr>
+    <tr><td class="it"><b>Listón rosa</b> — Navarro Ache 7,5×30 (50% off)<span>pared izquierda · 5 cajas · <i>opción A (ver abajo)</i></span></td><td class="q">4,74 m²</td><td class="r">$155.872</td></tr>
+    <tr><td class="it"><b>Listón verde agua satín</b> — Modo M Iceland<span>2 paredes ducha · 3 cajas</span></td><td class="q">~4,0 m²</td><td class="r">$297.000</td></tr>
+    <tr><td class="it"><b>Pintura satinada</b> paredes neutras + puerta + cielorraso<span>látex satinado 4–5L + fijador + enduido + lija/rodillos/cinta</span></td><td class="q">global</td><td class="r">$150.000</td></tr>
+    <tr><td class="it"><b>Pegamento Klaukol + pastina</b> listones</td><td class="q">—</td><td class="r">$48.000</td></tr>
+
+    <tr class="grp"><td colspan="3">Artefactos &amp; griferías</td></tr>
+    <tr><td class="it"><b>Inodoro Ferrum Bari Corto</b><span>combo loza + mochila dual + tapa</span></td><td class="q">1</td><td class="r">$326.999</td></tr>
+    <tr><td class="it"><b>Bacha de apoyo Piazza A082</b><span>ovalada 41×33×14,5 · entra en mesada de 40</span></td><td class="q">1</td><td class="r">$77.800</td></tr>
+    <tr><td class="it"><b>Grifería bacha</b> — pared negra<span>Piazza Level 21203NE · <i>opción negro</i></span></td><td class="q">1</td><td class="r">$140.741</td></tr>
+    <tr><td class="it"><b>Grifería ducha</b> — lluvia negra<span>Piazza Level Hydros 21206NE · <i>opción negro</i></span></td><td class="q">1</td><td class="r">$281.726</td></tr>
+    <tr><td class="it"><b>Plato de ducha</b><span>según render</span></td><td class="q">1</td><td class="r">$130.000</td></tr>
+    <tr><td class="it"><b>Mampara Gorena Toronto 70cm</b><span>cabina recta s/base · 7% off · <i>confirmar perfil negro</i></span></td><td class="q">1</td><td class="r">$432.678</td></tr>
+
+    <tr class="grp"><td colspan="3">Deco &amp; iluminación</td></tr>
+    <tr><td class="it"><b>Espejo Ø70 marco negro</b><span>Top Deco hierro</span></td><td class="q">1</td><td class="r">$77.589</td></tr>
+    <tr><td class="it"><b>Apliques bola</b> globo opal negro<span>Luz Desing · el par</span></td><td class="q">2</td><td class="r">$96.672</td></tr>
+    <tr><td class="it"><b>Toallero barra 50 cm</b> negro<span>Currao Palermo</span></td><td class="q">1</td><td class="r">$57.486</td></tr>
+    <tr><td class="it"><b>Spots LED ×3 + tira nicho + eléctrico</b><span>cable, llaves, tomas, cajas + accesorios</span></td><td class="q">—</td><td class="r">$135.000</td></tr>
+
+    <tr class="grp"><td colspan="3">Mueble &amp; cielorraso</td></tr>
+    <tr><td class="it"><b>Mueble laqueado teal</b> a medida<span>0,70 m + cajón embutido</span></td><td class="q">1</td><td class="r">$600.000</td></tr>
+    <tr><td class="it"><b>Mesada Silestone Blanco Norte</b><span>1,30 × 0,40 = 0,52 m² c/ colocación</span></td><td class="q">1</td><td class="r">$500.000</td></tr>
+    <tr><td class="it"><b>Cielorraso Durlock RH</b><span>2 placas verdes + perfilería + masilla/cinta/tornillos</span></td><td class="q">3 m²</td><td class="r">$110.000</td></tr>
+
+    <tr class="sum"><td>Total materiales</td><td></td><td class="r">$4.209.291</td></tr>
+  </table>
+
+  <!-- BUILD UP -->
+  <h2>Armado del costo</h2>
+  <div class="build">
+    <div class="row"><span class="lab">Materiales (gama media · Eze compra)</span><span class="r">$4.209.291</span></div>
+    <div class="row"><span class="lab">Mano de obra cerrada (cuadrilla)</span><span class="r">$2.750.000</span></div>
+    <div class="row"><span class="lab">Extras — volquete + fletes</span><span class="r">$225.000</span></div>
+    <div class="row"><span class="lab">Imprevistos 10%</span><span class="r">$718.429</span></div>
+    <div class="row tot"><span class="lab">Costo total</span><span class="r">$7.902.720</span></div>
+  </div>
+  <div class="note">A <b>$11.000.000</b> de precio a la clienta, el margen real es <b>~39%</b> — sano, sobre el piso de 30%. La auditoría de carpeta y pintura (estaban cortas) subió el costo ~$90k: mejor saberlo ahora que comérselo en obra.</div>
+
+  <!-- OPCIONES -->
+  <h2>Opciones / palancas de precio</h2>
+  <div class="opts">
+    <div class="opt rosa">
+      <div class="tag">◆ Pared rosa</div>
+      <h3>Listón vs. pintura</h3>
+      <p><b>A — Listón</b> (render): textura fluteada, brilla, es LA pared. $155.872.</p>
+      <p><b>B — Pintada</b>: plana, mate. ~$25.000.</p>
+      <div class="delta down">Pintar ahorra ~$130.000</div>
+      <div class="rec">Recomendación: dejar el listón. Ahora que bajó a $156k, pintar sacrifica el alma del baño por poca plata. Usar como 1er recorte solo si la clienta aprieta.</div>
+    </div>
+    <div class="opt oro">
+      <div class="tag">◆ Griferías</div>
+      <h3>Negro vs. bronce</h3>
+      <p><b>Negro</b> (render): bacha + ducha = $422.467.</p>
+      <p><b>Bronce</b> (Peirano Pulse Dark Gold): $647.544.</p>
+      <div class="delta up">Bronce suma +$225.077</div>
+      <div class="rec">Recomendación: cotizar en negro y ofrecer el bronce como upgrade a la clienta (+margen). No absorberlo. El espejo en bronce NO conviene (+$262k).</div>
+    </div>
+  </div>
+
+  <!-- FUENTES -->
+  <h2>Proveedores &amp; fuentes</h2>
+  <div class="src">
+    Terrazo — <a href="https://quadri.com.ar/es/colecciones/splash/rosa">Quadri Splash Rosa</a> (presup. Psp63906, válido 25/06) ·
+    Listón rosa — <a href="https://tienda.navarroache.com/revestimientos/azulejos/">Navarro Ache</a> ·
+    Listón verde / mesada — Modo M · Silestone ·
+    Inodoro / bacha / griferías — Ferrum, Piazza, Peirano (Santagal / Banchero / Cretadisegno) ·
+    Espejo — Top Deco · Apliques — Luz Desing · Toallero — Currao ·
+    Durlock RH — Samaco / corralón.
+    <br>Precios relevados en vivo, junio 2026. Verde agua satín: confirmado como mejor precio de mercado (color sin alternativa barata). Rosa Navarro: confirmar stock antes de comprar (50% off, línea propia).
+  </div>
+
+  <!-- FOOTER -->
+  <div class="foot">
+    <span class="pill">Estado · en revisión</span>
+    <span class="next"><b>Próximos pasos:</b> confirmar stock rosa (Navarro) → decidir bronce/listón con la clienta → emitir desde la mesa.</span>
+  </div>
+
+</div>
+</body>
+</html>

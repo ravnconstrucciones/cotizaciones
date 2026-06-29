@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RAVN — Sistema de Inteligencia Inmobiliaria</title>
+<link href="https://fonts.googleapis.com/css2?family=Raleway:wght@300;400;500;600;700;900&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --black: #0a0a0a;
+    --white: #fafafa;
+    --beige: #c8b89a;
+    --beige-light: #f0ebe3;
+    --gray: #6b6b6b;
+    --gray-light: #e8e8e8;
+    --selected: #0a0a0a;
+  }
+
+  body {
+    font-family: 'Raleway', sans-serif;
+    background: var(--white);
+    color: var(--black);
+    min-height: 100vh;
+    padding: 48px 40px;
+  }
+
+  .header {
+    display: flex;
+    align-items: baseline;
+    gap: 16px;
+    margin-bottom: 64px;
+    border-bottom: 1px solid var(--black);
+    padding-bottom: 20px;
+  }
+
+  .logo {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.25em;
+    text-transform: uppercase;
+    color: var(--black);
+  }
+
+  .logo span {
+    color: var(--beige);
+  }
+
+  .header-tag {
+    font-size: 10px;
+    font-weight: 400;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--gray);
+  }
+
+  h1 {
+    font-size: clamp(2rem, 5vw, 3.5rem);
+    font-weight: 700;
+    letter-spacing: -0.03em;
+    line-height: 1.05;
+    margin-bottom: 16px;
+    max-width: 800px;
+  }
+
+  h1 em {
+    font-style: normal;
+    color: var(--beige);
+  }
+
+  .subtitle {
+    font-size: 13px;
+    font-weight: 400;
+    color: var(--gray);
+    letter-spacing: 0.05em;
+    margin-bottom: 56px;
+    max-width: 520px;
+    line-height: 1.7;
+  }
+
+  .label {
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+    color: var(--gray);
+    margin-bottom: 24px;
+    display: block;
+  }
+
+  /* Modulos */
+  .modules {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1px;
+    background: var(--black);
+    border: 1px solid var(--black);
+    margin-bottom: 40px;
+  }
+
+  .module {
+    background: var(--white);
+    padding: 32px 28px;
+    cursor: pointer;
+    transition: background 150ms ease, color 150ms ease;
+    position: relative;
+    user-select: none;
+  }
+
+  .module:hover {
+    background: var(--beige-light);
+  }
+
+  .module.selected {
+    background: var(--black);
+    color: var(--white);
+  }
+
+  .module.selected .module-number { color: var(--beige); }
+  .module.selected .module-tag { color: rgba(255,255,255,0.5); }
+  .module.selected .module-desc { color: rgba(255,255,255,0.7); }
+  .module.selected .module-note { color: var(--beige); border-color: rgba(200,184,154,0.3); }
+
+  .module-number {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--beige);
+    margin-bottom: 12px;
+  }
+
+  .module-title {
+    font-size: 15px;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    margin-bottom: 10px;
+    line-height: 1.3;
+  }
+
+  .module-desc {
+    font-size: 12px;
+    font-weight: 400;
+    color: var(--gray);
+    line-height: 1.65;
+    margin-bottom: 16px;
+  }
+
+  .module-note {
+    font-size: 10px;
+    font-weight: 500;
+    letter-spacing: 0.05em;
+    color: var(--gray);
+    border-top: 1px solid var(--gray-light);
+    padding-top: 12px;
+    line-height: 1.5;
+  }
+
+  .module-tag {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--gray);
+  }
+
+  .module.selected .module-tag::after {
+    content: ' ✓';
+    color: var(--beige);
+  }
+
+  /* Recomendacion */
+  .rec {
+    border: 1px solid var(--black);
+    padding: 28px 32px;
+    display: flex;
+    gap: 32px;
+    align-items: flex-start;
+    margin-bottom: 40px;
+  }
+
+  .rec-label {
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+    color: var(--beige);
+    white-space: nowrap;
+    padding-top: 3px;
+    min-width: 100px;
+  }
+
+  .rec-text {
+    font-size: 13px;
+    font-weight: 400;
+    color: var(--black);
+    line-height: 1.7;
+  }
+
+  .rec-text strong { font-weight: 700; }
+
+  /* Orden visual */
+  .order-row {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    margin-top: 12px;
+  }
+
+  .order-step {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    background: var(--black);
+    color: var(--white);
+    padding: 6px 14px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .order-step .num {
+    font-size: 9px;
+    color: var(--beige);
+    font-weight: 900;
+  }
+
+  .order-arrow {
+    font-size: 12px;
+    color: var(--gray);
+    padding: 0 4px;
+  }
+
+  /* CTA */
+  .footer-note {
+    font-size: 11px;
+    color: var(--gray);
+    letter-spacing: 0.05em;
+    margin-top: 8px;
+  }
+
+  /* Wide card for module 5 */
+  .modules .module:last-child:nth-child(odd) {
+    grid-column: span 2;
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="logo">RAVN <span>·</span> Construcciones</div>
+  <div class="header-tag">Inteligencia Inmobiliaria — Diseño del sistema</div>
+</div>
+
+<h1>¿Qué construimos<br><em>primero?</em></h1>
+<p class="subtitle">Lo que pediste son 5 módulos independientes. Seleccioná los que querés priorizar — después definimos el orden de construcción.</p>
+
+<span class="label">Módulos del sistema — click para seleccionar</span>
+
+<div class="modules" id="modules">
+
+  <div class="module" data-choice="1" onclick="toggleModule(this)">
+    <div class="module-tag">Núcleo</div>
+    <div class="module-number">01</div>
+    <div class="module-title">Dashboard de Precios por Zona</div>
+    <div class="module-desc">Precio/m² de venta y de construcción por barrio. CABA completa, GBA por zona, provincias principales. Filtros por tipo de propiedad, antigüedad, m².</div>
+    <div class="module-note">Base de todo el sistema. Sin esto, los otros módulos no tienen datos para mostrar.</div>
+  </div>
+
+  <div class="module" data-choice="2" onclick="toggleModule(this)">
+    <div class="module-tag">Automatización</div>
+    <div class="module-number">02</div>
+    <div class="module-title">Integración con Portales</div>
+    <div class="module-desc">ZonasProp, Argenprop, MercadoLibre Inmuebles. Scraping automático o APIs para obtener precios reales y actualizados del mercado sin carga manual.</div>
+    <div class="module-note">Requiere infraestructura extra: cron jobs, parseo HTML, limpieza de datos. Complejidad alta.</div>
+  </div>
+
+  <div class="module" data-choice="3" onclick="toggleModule(this)">
+    <div class="module-tag">Analytics</div>
+    <div class="module-number">03</div>
+    <div class="module-title">Análisis de Mercado</div>
+    <div class="module-desc">Barrios más activos, tendencias de precios, evolución histórica mes a mes, comparativas entre zonas y rankings de movimiento del mercado.</div>
+    <div class="module-note">Depende del módulo 02 para datos frescos. Agrega el mayor valor estratégico.</div>
+  </div>
+
+  <div class="module" data-choice="4" onclick="toggleModule(this)">
+    <div class="module-tag">ROI inmediato</div>
+    <div class="module-number">04</div>
+    <div class="module-title">Calculadora de Rentabilidad</div>
+    <div class="module-desc">Dado terreno + costo de construcción RAVN, calcula el ROI de venta, ganancia proyectada y punto de equilibrio. Se integra con el maestro de precios existente.</div>
+    <div class="module-note">Valor comercial inmediato para vos, sin depender de los otros módulos.</div>
+  </div>
+
+  <div class="module" data-choice="5" onclick="toggleModule(this)">
+    <div class="module-tag">Visual</div>
+    <div class="module-number">05</div>
+    <div class="module-title">Mapa Interactivo de Zonas</div>
+    <div class="module-desc">Visualización geográfica con capas de precio/m², calor de mercado y zonas premium vs. emergentes. Clickeable, con filtros por rango de precio y tipo.</div>
+    <div class="module-note">El más impactante visualmente. Requiere datos reales para ser útil — mejor como última etapa.</div>
+  </div>
+
+</div>
+
+<div class="rec">
+  <div class="rec-label">Mi recomendación</div>
+  <div class="rec-text">
+    Arrancar con <strong>01 → 04 → 02 → 03 → 05.</strong> Primero el dashboard con datos base (aunque sea cargado a mano), después la calculadora de rentabilidad porque te da valor operativo inmediato, luego la automatización con portales, y el mapa al final cuando tengamos datos reales para mostrarlo con sentido.
+    <div class="order-row">
+      <div class="order-step"><span class="num">01</span> Precios</div>
+      <div class="order-arrow">→</div>
+      <div class="order-step"><span class="num">04</span> Rentabilidad</div>
+      <div class="order-arrow">→</div>
+      <div class="order-step"><span class="num">02</span> Portales</div>
+      <div class="order-arrow">→</div>
+      <div class="order-step"><span class="num">03</span> Análisis</div>
+      <div class="order-arrow">→</div>
+      <div class="order-step"><span class="num">05</span> Mapa</div>
+    </div>
+  </div>
+</div>
+
+<p class="footer-note">Seleccioná los módulos que querés incluir y respondé en el terminal.</p>
+
+<script>
+  function toggleModule(el) {
+    el.classList.toggle('selected');
+    const selected = [...document.querySelectorAll('.module.selected')].map(m => m.dataset.choice);
+    // Notify parent if available
+    if (window.parent && window.parent !== window) {
+      window.parent.postMessage({ type: 'selection', choices: selected }, '*');
+    }
+  }
+</script>
+
+</body>
+</html>

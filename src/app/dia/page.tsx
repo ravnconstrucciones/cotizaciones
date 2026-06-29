@@ -1,4 +1,5 @@
 import { getTuDia } from "@/lib/tu-dia";
+import { getNoticiasDelDia } from "@/lib/noticias";
 import { todayBuenosAires } from "@/lib/cashflow-compute";
 import { DiaScreen } from "./dia-screen";
 
@@ -14,6 +15,6 @@ import { DiaScreen } from "./dia-screen";
 export const revalidate = 300;
 
 export default async function DiaPage() {
-  const data = await getTuDia();
-  return <DiaScreen data={data} hoy={todayBuenosAires()} />;
+  const [data, noticias] = await Promise.all([getTuDia(), getNoticiasDelDia()]);
+  return <DiaScreen data={data} hoy={todayBuenosAires()} noticias={noticias} />;
 }
