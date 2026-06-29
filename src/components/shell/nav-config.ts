@@ -16,7 +16,6 @@ export type NavItem = { href: string; label: string };
 
 export const NAV_COCKPIT: NavItem[] = [
   { href: "/", label: "Inicio" },
-  { href: "/terminal", label: "Terminal" },
   { href: "/obras", label: "Proyectos" },
   { href: "/cotizaciones", label: "Cotizaciones" },
   { href: "/archivados", label: "Archivados" },
@@ -26,11 +25,16 @@ export const NAV_COCKPIT: NavItem[] = [
 export const NAV_DATOS: NavItem[] = [
   { href: "/cashflow", label: "Cashflow" },
   { href: "/control-gastos", label: "Control de gastos" },
-  { href: "/rentabilidad", label: "Rentabilidad" },
   { href: "/finanzas", label: "Finanzas personales" },
   { href: "/actividad", label: "Actividad" },
   { href: "/maestro-precios", label: "Maestro de precios" },
 ];
+
+// Rentabilidad salió del menú (pedido de Eze, 28/06): NO es pantalla de consulta
+// sino un paso del flujo de presupuesto (Nuevo presupuesto → Rentabilidad →
+// Propuesta). Necesita un presupuesto en contexto (?id=...); abierta desde el
+// menú sin contexto aparecía vacía. Se llega desde el pie de Nuevo presupuesto
+// y desde el historial. La ruta /rentabilidad sigue viva, solo no está linkeada acá.
 
 /**
  * Herramientas secundarias. "SISMAT" es la pantalla /catalogo (recetas + rubros

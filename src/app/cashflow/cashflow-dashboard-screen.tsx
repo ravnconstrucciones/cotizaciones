@@ -61,6 +61,10 @@ type TotalesCaja = {
 type ResumenJson = {
   fecha_referencia: string;
   saldo_caja_total: number;
+  // Caja en dólares de las obras (cobros en USD), separada de los pesos.
+  // Flota al blue venta del día; NO se cuenta dentro de saldo_caja_total.
+  caja_obras_usd?: number;
+  blue_venta?: number | null;
   total_por_cobrar_clientes_ars?: number;
   totales_caja: TotalesCaja;
   obras_activas: ObraActiva[];
@@ -74,6 +78,13 @@ function fmtFecha(iso: string) {
   if (d.length !== 10) return iso;
   const [y, m, day] = d.split("-");
   return `${day}/${m}/${y}`;
+}
+
+/** USD sin centavos (mismo criterio que la home, ver modulo-salud-negocio). */
+function formatUsdInt(n: number): string {
+  return new Intl.NumberFormat("es-AR", { maximumFractionDigits: 0 }).format(
+    Math.round(Number.isFinite(n) ? n : 0)
+  );
 }
 
 export function CashflowDashboardScreen() {
@@ -344,6 +355,33 @@ export function CashflowDashboardScreen() {
                 {fmtFecha(data.fecha_referencia)}.
               </p>
             </div>
+
+            {/* Caja en dólares — cobros USD de obras, separada de los pesos */}
+            {(data.caja_obras_usd ?? 0) > 0 ? (
+              <div className="cdm-glass border-emerald-400/20 px-5 py-5">
+                <p className="text-[10px] font-medium uppercase tracking-[0.14em] text-emerald-400">
+                  Caja en dólares
+                </p>
+                <p className="mt-1 text-xs text-cdm-muted">
+                  Cobros de obra en USD. Se cuentan aparte: no entran en el saldo
+                  en pesos de arriba y flotan al blue venta del día.
+                </p>
+                <p className="mt-3 text-2xl font-semibold tabular-nums text-emerald-400">
+                  US$ {formatUsdInt(data.caja_obras_usd ?? 0)}
+                  {data.blue_venta != null && data.blue_venta > 0 ? (
+                    <span className="ml-2 align-baseline text-sm font-medium text-cdm-muted">
+                      ≈ {formatMoneyInt((data.caja_obras_usd ?? 0) * data.blue_venta)}
+                    </span>
+                  ) : null}
+                </p>
+                {data.blue_venta != null && data.blue_venta > 0 ? (
+                  <p className="mt-2 text-[10px] uppercase tracking-wider text-cdm-muted">
+                    Blue venta ${formatUsdInt(data.blue_venta)} ·{" "}
+                    {fmtFecha(data.fecha_referencia)}
+                  </p>
+                ) : null}
+              </div>
+            ) : null}
 
             {/* Cuenta empresa */}
             {data.libreta_empresa ? (
