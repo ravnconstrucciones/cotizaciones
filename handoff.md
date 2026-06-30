@@ -2,9 +2,25 @@
 
 > Próxima sesión: "leé el handoff y continuá".
 >
-> **✅ ACTUALIZACIÓN 2026-06-29 (sesión 2):** Correa RESUELTO. Total real = **$3.300.000** ($2,9M base ya cobrado + $400k cielorraso). El `monto_total_a_cobrar_ars` ya era $3,3M; se subió la `propuesta_comercial_pref` de $2,9M→$3,3M para que aparezcan los **$400.000 por cobrar**. `rentabilidad_inputs` de Correa cargados (costo $1.628.534 = mat $850k + MO $778.534) → Rédito calcula. **PENDIENTE solo:** que Eze CONFIRME que la base era $2,9M (no $3,3M) — si la base ya era $3,3M, el cielorraso sería un +$400k extra → total $3,7M (avisar).
+> **✅ ACTUALIZACIÓN 2026-06-29 (sesión 2) — CONFIRMADO POR EZE:** Correa total = **$3.300.000** ($2.900.000 base + $400.000 cielorraso/rasos, NO se suma aparte). Cobrado $2,9M → **por cobrar $400.000**. `propuesta_comercial_pref.precioSinIvaArsRedondeado` = 3300000 y `obras.monto_total_a_cobrar_ars` = 3300000. `rentabilidad_inputs` cargados (costo $1.628.534). CERRADO.
+> Siding: por cobrar $2.170.000, MO real $1.250.000, ganancia estimada $920.000. CERRADO.
 >
 > **▶ Lo que queda (necesita a Eze):** confirmar costos-estimación de rentabilidad (abajo) + push del commit `d891b2f`.
+
+---
+
+## ⭐ SESIÓN 2026-06-30 — leer PRIMERO (lo más reciente)
+
+Cerrado hoy:
+- **Siding — rentabilidad AJUSTADA (corrige los números viejos de Frente 2 abajo).** Eze confirmó: **M.O. $1.300.000** + **material $0** (lo puso el cliente/barrio) + **internos $50.000** = **costo $1.350.000** vs contrato $2.170.000 → **margen 37,8%**. Escrito vía SQL en `presupuestos.rentabilidad_inputs` (presup `36dfddb0-...`). El "$700k / 68%" de abajo era estimación vieja, IGNORAR.
+- **Rubro "Indumentaria"** agregado a la app (tabla `rubros`, id 50). De paso se arregló la **secuencia rota de `rubros.id`** (apuntaba a un id ya usado → cualquier alta de rubro reventaba con duplicate pkey; resincronizada con `setval`). ESTA era la causa real de que el bot "no pudiera" agregarlo.
+- **Bot ravn-bots — fix anti-mentira (DEPLOYADO).** El asesor de WhatsApp confirmaba acciones que no ejecuta ("agregá categoría X" → "listo, lo agregué"). Fix en `~/Documents/ravn-bots/src/advisorService.js`: (1) regla dura en el prompt SYSTEM (no toca estructura/config de la app; si se lo piden lo anota como tarea y dice la verdad); (2) la confirmación de tarea la arma el código, no el texto libre de Haiku. Commit **`6bd3f77`**, **pusheado a main** → Railway deployando. 121/121 tests verde.
+- **Correa** — diagnóstico `Informe_Situacion_Bano_Correa.pdf` ya estaba subido a la obra; verificado md5 idéntico contra el storage. Sin pendiente (ver banner: Correa CERRADO).
+- **Work tree App RAVN** limpiado (basura suelta borrada). Otra sesión ya commiteó el WIP (`bac363d`, `5f99176`) y el fix del rédito (`d891b2f`).
+
+PENDIENTE REAL que queda:
+1. **Pueyrredón 1100** — única obra activa que muestra "—". Cargar rentabilidad cuando Eze tenga los costos (material + M.O. + internos, en pesos). **Cotización de dolarización = 1.520** (contrato US$8.050 = $12.236.000), NO el blue del día (riesgo #1, es disciplina de carga). Detalle e IDs en Frente 2 abajo.
+2. **Push del branch `home-cards`** de App RAVN (tiene el fix del rédito `d891b2f` + WIP) — Eze decide.
 
 ---
 
