@@ -163,14 +163,23 @@ function ProyectoFotoCard({
               );
             })()
           ) : (
-            <>
-              <p className="font-mono-hud text-[10px] uppercase tracking-[0.16em] text-cdm-muted">
-                {p.ultimoAvanceTexto ? "Último avance" : "Próxima acción"}
-              </p>
-              <p className="font-geist truncate text-[13px] text-zinc-600 dark:text-zinc-300">
-                {p.ultimoAvanceTexto ?? p.proximaAccion ?? "Sin movimientos"}
-              </p>
-            </>
+            (() => {
+              // Hay avance registrado → verde (se mueve). Sin movimientos → colorado.
+              const hayAvance = !!p.ultimoAvanceTexto;
+              const col = hayAvance
+                ? "text-emerald-600 dark:text-emerald-400"
+                : "text-red-500 dark:text-red-400";
+              return (
+                <>
+                  <p className={`font-mono-hud text-[10px] uppercase tracking-[0.16em] ${col}`}>
+                    {hayAvance ? "Último avance" : "Próxima acción"}
+                  </p>
+                  <p className={`font-geist truncate text-[13px] font-medium ${col}`}>
+                    {p.ultimoAvanceTexto ?? p.proximaAccion ?? "Sin movimientos"}
+                  </p>
+                </>
+              );
+            })()
           )}
         </div>
 
