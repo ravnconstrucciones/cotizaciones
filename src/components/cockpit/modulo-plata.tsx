@@ -153,7 +153,7 @@ export function ModuloPlata({ className }: { className?: string }) {
 
   return (
     <Panel
-      titulo="Plata"
+      titulo="Dinero"
       className={className}
       accion={
         <Link
@@ -168,7 +168,7 @@ export function ModuloPlata({ className }: { className?: string }) {
       <div className="space-y-4">
         <div>
           <p className="text-[10px] uppercase tracking-[0.24em] text-cdm-muted">
-            Guita total (pesos + USD al blue)
+            Dinero total (pesos + USD al blue)
           </p>
           {!caja && !error ? (
             <SkeletonCifra className="mt-2" />
