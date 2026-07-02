@@ -3,6 +3,9 @@ import {
   calcularObra,
   calcularSalud,
   calcularCajaLibre,
+  cajaEmpresaPesos,
+  comprometidoDerivado,
+  guitaTotal,
   costoEstimadoArs,
   valuarObraUsd,
   type ObraResumen,
@@ -269,5 +272,90 @@ describe("calcularCajaLibre", () => {
     expect(r.cajaReal).toBe(2_442_650);
     // libre = 2.442.650 − 350k − 103k = 1.989.650
     expect(r.cajaLibre).toBe(1_989_650);
+  });
+});
+
+describe("cajaEmpresaPesos", () => {
+  it("descuenta los retiros netos del saldo de obras (la libreta no los ve)", () => {
+    // cobró 10M, gastó 4M (saldo obras 6M), se retiró 3M → quedan 3M reales
+    expect(cajaEmpresaPesos(6_000_000, 3_000_000)).toBe(3_000_000);
+  });
+
+  it("un aporte vuelve a entrar: neto negativo suma a la caja", () => {
+    // retiró 1M pero aportó 1.5M → neto −500k → la caja crece 500k
+    expect(cajaEmpresaPesos(2_000_000, -500_000)).toBe(2_500_000);
+  });
+
+  it("sin retiros registrados la caja es el saldo de obras crudo", () => {
+    expect(cajaEmpresaPesos(1_727_600, 0)).toBe(1_727_600);
+  });
+});
+
+describe("comprometidoDerivado", () => {
+  it("suma costo estimado − gastado por obra activa, con piso en 0", () => {
+    // Correa: 2.03M − 1.395.054,20 = 634.945,80 falta gastar.
+    // Daromy finalizada: no compromete. Siding sin costo: no suma, se avisa.
+    const r = comprometidoDerivado([banoCorrea, siding, daromy]);
+    expect(r.total).toBe(634_945.8);
+    expect(r.obrasSinCosto).toBe(1);
+  });
+
+  it("una obra sobregirada no 'libera' plata de las demás (piso 0 por obra)", () => {
+    const sobregirada: ObraResumen = {
+      ...banoCorrea,
+      obra_id: "x",
+      egresos_caja: 2_500_000, // gastó 470k más que su costo estimado de 2.03M
+    };
+    const sana: ObraResumen = { ...daromy, obra_id: "y", finalizada: false };
+    // sana compromete 350k − 40.5k = 309.5k; la sobregirada aporta 0, no −470k
+    const r = comprometidoDerivado([sobregirada, sana]);
+    expect(r.total).toBe(309_500);
+    expect(r.obrasSinCosto).toBe(0);
+  });
+
+  it("sin obras activas → 0 comprometido y 0 sin costo", () => {
+    const r = comprometidoDerivado([daromy]);
+    expect(r.total).toBe(0);
+    expect(r.obrasSinCosto).toBe(0);
+  });
+});
+
+describe("guitaTotal", () => {
+  it("suma patrimonio pesos + caja empresa (obras − retiros) + USD al blue", () => {
+    // personal 2.942.650 + (obras 1.727.600 − retiro 500k) + US$ 3.220 @ 1520
+    const r = guitaTotal({
+      patrimonioArs: 2_942_650,
+      saldoCajaObras: 1_727_600,
+      retirosNetoTotal: 500_000,
+      usd: 3_220,
+      blue: 1_520,
+    });
+    expect(r.cajaEmpresaArs).toBe(1_227_600);
+    expect(r.usdEnArs).toBe(4_894_400);
+    expect(r.totalArs).toBe(9_064_650);
+  });
+
+  it("hay dólares pero no hay blue → total null, los USD nunca se congelan", () => {
+    const r = guitaTotal({
+      patrimonioArs: 1_000_000,
+      saldoCajaObras: 0,
+      retirosNetoTotal: 0,
+      usd: 100,
+      blue: null,
+    });
+    expect(r.usdEnArs).toBeNull();
+    expect(r.totalArs).toBeNull();
+  });
+
+  it("sin dólares no hace falta blue: el total es solo pesos", () => {
+    const r = guitaTotal({
+      patrimonioArs: 1_000_000,
+      saldoCajaObras: 250_000,
+      retirosNetoTotal: 0,
+      usd: 0,
+      blue: null,
+    });
+    expect(r.usdEnArs).toBe(0);
+    expect(r.totalArs).toBe(1_250_000);
   });
 });

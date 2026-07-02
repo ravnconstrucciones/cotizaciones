@@ -14,6 +14,7 @@ import {
 import {
   calcularSalud,
   calcularCajaLibre,
+  cajaEmpresaPesos,
   type ObraResumen,
   type ConfigNegocio,
   type RetirosResumen,
@@ -267,10 +268,15 @@ export function ModuloSaludNegocio({ className }: { className?: string }) {
 
   const cajaLibre = useMemo(() => {
     if (!cfg) return null;
-    const cajaObras = resumen?.saldo_caja_total ?? 0;
+    // cajaObras neta de retiros: el saldo de obras solo mira la libreta, así
+    // que lo que Eze ya se llevó (retiros_socio) hay que descontarlo acá.
+    const cajaObras = cajaEmpresaPesos(
+      resumen?.saldo_caja_total ?? 0,
+      retiros?.neto_total ?? 0
+    );
     const proyectado = salud?.porCobrarTotal ?? 0;
     return calcularCajaLibre(cfg, cajaObras, proyectado);
-  }, [cfg, resumen, salud]);
+  }, [cfg, resumen, salud, retiros]);
 
   // Caja en dólares = patrimonio USD + cobros de obra en USD (adelantos en billete).
   // Se valúa al blue venta del día; flota con la cotización, NO se cuenta en pesos.

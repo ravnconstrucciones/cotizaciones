@@ -245,6 +245,96 @@ export function calcularSalud(obras: ObraResumen[]): SaludNegocio {
   };
 }
 
+/**
+ * Caja de la EMPRESA en pesos: lo cobrado de obras menos lo gastado (saldo de
+ * caja de obras) menos lo que Eze ya se llevó (retiros netos de retiros_socio).
+ *
+ * El saldo de obras solo mira la libreta: si Eze retira plata, la libreta no
+ * cambia y el saldo crudo miente por arriba exactamente en los retiros netos.
+ * Un aporte vuelve a entrar (neto = retirado − aportado).
+ */
+export function cajaEmpresaPesos(
+  saldoCajaObras: number,
+  retirosNetoTotal: number
+): number {
+  return roundArs2(saldoCajaObras - retirosNetoTotal);
+}
+
+export type GuitaTotal = {
+  cajaEmpresaArs: number; // saldo de obras − retiros netos
+  patrimonioArs: number; // liquidez personal en pesos (efectivo + Balanz)
+  usd: number; // patrimonio USD + cobros de obra en billete
+  usdEnArs: number | null; // valuado al blue venta del día; null sin cotización
+  totalArs: number | null; // TODO junto; null si hay USD sin blue (no se congela)
+};
+
+/**
+ * TODA la guita, en un número (pedido de Eze 02/07: "contá todo lo que
+ * tenemos"): patrimonio personal en pesos + caja de la empresa (obras −
+ * retiros) + los dólares valuados al blue venta del día.
+ *
+ * Los USD SIEMPRE flotan al blue — si hay dólares y no hay cotización, el
+ * total es null ("sin blue no hay total"), nunca se congelan como pesos fijos.
+ */
+export function guitaTotal(args: {
+  patrimonioArs: number;
+  saldoCajaObras: number;
+  retirosNetoTotal: number;
+  usd: number;
+  blue: number | null;
+}): GuitaTotal {
+  const cajaEmpresaArs = cajaEmpresaPesos(
+    args.saldoCajaObras,
+    args.retirosNetoTotal
+  );
+  const patrimonioArs = roundArs2(Math.max(0, args.patrimonioArs));
+  const usd = roundArs2(Math.max(0, args.usd));
+  const usdEnArs =
+    usd > 0 && args.blue && args.blue > 0
+      ? roundArs2(usd * args.blue)
+      : usd === 0
+        ? 0
+        : null;
+  const totalArs =
+    usdEnArs == null
+      ? null
+      : roundArs2(patrimonioArs + cajaEmpresaArs + usdEnArs);
+  return { cajaEmpresaArs, patrimonioArs, usd, usdEnArs, totalArs };
+}
+
+export type ComprometidoDerivado = {
+  total: number; // Σ max(0, costo estimado − gastado) de obras activas
+  obrasSinCosto: number; // activas sin rentabilidad cargada: no suman, se avisa
+};
+
+/**
+ * Comprometido DERIVADO de las obras: lo que falta gastar para terminar las
+ * obras en curso, calculado obra por obra como costo estimado − gastado (piso
+ * en 0: una obra sobregirada no "libera" plata de las demás).
+ *
+ * Se actualiza solo con cada gasto — a diferencia del `comprometido_obras_ars`
+ * manual de la config, que se desactualiza. Las obras sin rentabilidad cargada
+ * no tienen costo estimado y no suman: se devuelve cuántas son para avisar,
+ * nunca se inventa un costo.
+ */
+export function comprometidoDerivado(
+  obras: ObraResumen[]
+): ComprometidoDerivado {
+  let total = 0;
+  let obrasSinCosto = 0;
+  for (const o of obras) {
+    if (o.finalizada) continue;
+    if (o.costo_total_estimado_ars == null) {
+      obrasSinCosto += 1;
+      continue;
+    }
+    total = roundArs2(
+      total + Math.max(0, o.costo_total_estimado_ars - roundArs2(o.egresos_caja))
+    );
+  }
+  return { total, obrasSinCosto };
+}
+
 export type CajaLibre = {
   patrimonioPesos: number; // liquidez personal en pesos (efectivo + Balanz)
   cajaObras: number; // plata de obra ya cobrada que todavía no retiraste
