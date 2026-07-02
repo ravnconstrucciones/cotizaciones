@@ -14,6 +14,7 @@ import {
   type ObraResumen,
   type RetirosResumen,
 } from "@/lib/salud-negocio";
+import type { SaldosCuentas } from "@/lib/cuentas";
 
 type Semaforo = "verde" | "amarillo" | "rojo";
 
@@ -92,20 +93,23 @@ export function ModuloPlata({ className }: { className?: string }) {
   const [caja, setCaja] = useState<ResumenCaja | null>(null);
   const [cfgPayload, setCfgPayload] = useState<ConfigPayload | null>(null);
   const [fin, setFin] = useState<FinanzasResumen | null>(null);
+  const [cuentas, setCuentas] = useState<SaldosCuentas | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const cargar = useCallback(async () => {
     try {
       // fetchCompartido: /cashflow/resumen y /api/negocio/config se comparten
       // con ModuloSaludNegocio (un solo request por endpoint).
-      const [resCaja, resCfg, resFin] = await Promise.all([
+      const [resCaja, resCfg, resFin, resCuentas] = await Promise.all([
         fetchCompartido("/cashflow/resumen"),
         fetchCompartido("/api/negocio/config"),
         fetchCompartido("/api/finanzas"),
+        fetchCompartido("/api/cuentas"),
       ]);
       if (resCaja.ok) setCaja(resCaja.body as ResumenCaja);
       if (resCfg.ok) setCfgPayload(resCfg.body as ConfigPayload);
       if (resFin.ok) setFin(resFin.body as FinanzasResumen);
+      if (resCuentas.ok) setCuentas(resCuentas.body as SaldosCuentas);
       if (!resCaja.ok && !resFin.ok) setError("No se pudo cargar la plata.");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Error de red");
@@ -202,6 +206,40 @@ export function ModuloPlata({ className }: { className?: string }) {
             </p>
           )}
         </div>
+        {cuentas && cuentas.cuentas.some((c) => c.activa) && (
+          <div className="border-t border-cdm-line pt-3">
+            <p className="text-[10px] uppercase tracking-[0.24em] text-cdm-muted">
+              Dónde está
+            </p>
+            <ul className="mt-1.5 grid grid-cols-2 gap-x-4 gap-y-1">
+              {cuentas.cuentas
+                .filter((c) => c.activa)
+                .map((c) => (
+                  <li
+                    key={c.id}
+                    className="flex items-baseline justify-between gap-2 text-[11px]"
+                  >
+                    <span className="min-w-0 truncate text-cdm-muted">
+                      {c.nombre}
+                      {c.procedencia === "obra" && (
+                        <span
+                          className="ml-1 text-[9px] uppercase tracking-[0.08em] text-cdm-muted/60"
+                          title="Caja de obra: es plata del cliente, no tuya"
+                        >
+                          obra
+                        </span>
+                      )}
+                    </span>
+                    <span className="shrink-0 tabular-nums text-cdm-fg">
+                      {c.moneda === "USD"
+                        ? `US$ ${formatUsdInt(c.saldo)}`
+                        : formatMoneyInt(c.saldo)}
+                    </span>
+                  </li>
+                ))}
+            </ul>
+          </div>
+        )}
         <div className="grid grid-cols-3 gap-3 border-t border-cdm-line pt-3">
           <div>
             <p className="text-[10px] uppercase tracking-[0.24em] text-cdm-muted">

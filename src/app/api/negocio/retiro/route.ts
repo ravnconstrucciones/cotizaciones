@@ -13,7 +13,11 @@ type Body = {
   tipo?: string;
   concepto?: string;
   fecha?: string;
+  cuenta_id?: string | null;
 };
+
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 function num(v: unknown): number {
   const n = typeof v === "number" ? v : parseFloat(String(v ?? ""));
@@ -41,10 +45,16 @@ export async function POST(req: Request) {
           day: "2-digit",
         }).format(new Date());
 
+    // Cuenta de la que salió (retiro) o a la que entró (aporte) la plata.
+    // Opcional: sin cuenta el retiro vale igual, queda "sin asignar".
+    const cuentaId = UUID_RE.test(String(body.cuenta_id ?? ""))
+      ? String(body.cuenta_id)
+      : null;
+
     const supabase = createSupabaseAdminClient();
     const { data, error } = await supabase
       .from("retiros_socio")
-      .insert({ monto_ars: monto, tipo, concepto, fecha })
+      .insert({ monto_ars: monto, tipo, concepto, fecha, cuenta_id: cuentaId })
       .select("id")
       .single();
 

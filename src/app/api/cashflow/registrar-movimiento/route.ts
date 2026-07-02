@@ -15,6 +15,7 @@ export async function POST(req: Request) {
       descripcion?: string;
       monto_real?: number;
       fecha?: string;
+      cuenta_id?: string | null;
     };
     const obraId = body.obra_id?.trim();
     const quick = body.quick_tipo as QuickTipoRegistro;
@@ -83,6 +84,13 @@ export async function POST(req: Request) {
         fecha_real: fecha,
         estado,
         notas: "REGISTRO_RAPIDO",
+        // Cuenta de origen/destino (opcional): null = sin asignar.
+        cuenta_id:
+          /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+            String(body.cuenta_id ?? "")
+          )
+            ? String(body.cuenta_id)
+            : null,
       })
       .select("id")
       .single();

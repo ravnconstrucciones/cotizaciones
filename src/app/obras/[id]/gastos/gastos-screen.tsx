@@ -5,6 +5,7 @@ import { Trash2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { BarraConsumoPresupuesto } from "@/components/barra-consumo-presupuesto";
 import { RavnLogo } from "@/components/ravn-logo";
+import { SelectorCuenta } from "@/components/selector-cuenta";
 import { createClient } from "@/lib/supabase/client";
 import {
   formatMoney,
@@ -72,6 +73,9 @@ type DraftGasto = {
   rubro_id: string;
   descripcion: string;
   importeStr: string;
+  /** Cuenta de la que salió la plata (null = sin asignar). Vive en el gasto,
+   * NO en su espejo de Caja, para no restar dos veces el mismo pago. */
+  cuenta_id: string | null;
 };
 
 /** Movimiento de Caja con monto/fecha real, misma obra. */
@@ -584,6 +588,7 @@ export function GastosScreen({
       rubro_id: "",
       descripcion: "",
       importeStr: "",
+      cuenta_id: null,
     });
   }
 
@@ -653,6 +658,7 @@ export function GastosScreen({
         rubro_id: draft.rubro_id.trim() || null,
         descripcion,
         importe,
+        cuenta_id: draft.cuenta_id,
       };
       if (esPresupuestoUsd) {
         insertPayload.cotizacion_venta_ars_por_usd = ventaEfectivaParaGastos;
@@ -1218,6 +1224,21 @@ export function GastosScreen({
                             placeholder="Ej. Ticket Corralón San Martín"
                             className={inputCls}
                           />
+                          <div className="mt-2">
+                            <label className={labelCls}>Salió de</label>
+                            <SelectorCuenta
+                              value={draft.cuenta_id}
+                              onChange={(cuentaId) =>
+                                setDraft((d) =>
+                                  d ? { ...d, cuenta_id: cuentaId } : d
+                                )
+                              }
+                              monedas={
+                                esPresupuestoUsd ? ["ARS", "USD"] : ["ARS"]
+                              }
+                              className={inputCls}
+                            />
+                          </div>
                         </td>
                         <td className={tdCls}>
                           <label className={labelCls}>Importe (ARS)</label>

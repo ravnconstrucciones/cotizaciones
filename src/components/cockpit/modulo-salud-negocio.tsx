@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import { Panel } from "./panel";
 import { SkeletonGlass } from "./skeleton-glass";
+import { SelectorCuenta } from "@/components/selector-cuenta";
 import { fetchCompartido } from "@/lib/fetch-compartido";
 import {
   formatMoneyInt,
@@ -233,6 +234,7 @@ export function ModuloSaludNegocio({ className }: { className?: string }) {
   const [rMonto, setRMonto] = useState("");
   const [rConcepto, setRConcepto] = useState("");
   const [rTipo, setRTipo] = useState<"retiro" | "aporte">("retiro");
+  const [rCuenta, setRCuenta] = useState<string | null>(null);
 
   const cargar = useCallback(async () => {
     try {
@@ -324,10 +326,16 @@ export function ModuloSaludNegocio({ className }: { className?: string }) {
       await fetch("/api/negocio/retiro", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ monto_ars: monto, tipo: rTipo, concepto: rConcepto }),
+        body: JSON.stringify({
+          monto_ars: monto,
+          tipo: rTipo,
+          concepto: rConcepto,
+          cuenta_id: rCuenta,
+        }),
       });
       setRMonto("");
       setRConcepto("");
+      setRCuenta(null);
       setRetiroOpen(false);
       await cargar();
     } finally {
@@ -531,6 +539,11 @@ export function ModuloSaludNegocio({ className }: { className?: string }) {
                     </button>
                   </div>
                   <MoneyInput value={rMonto} onChange={setRMonto} placeholder="Monto" />
+                  <SelectorCuenta
+                    value={rCuenta}
+                    onChange={setRCuenta}
+                    monedas={["ARS"]}
+                  />
                   <input
                     value={rConcepto}
                     onChange={(e) => setRConcepto(e.target.value)}

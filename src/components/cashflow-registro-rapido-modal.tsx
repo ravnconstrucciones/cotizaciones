@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { SelectorCuenta } from "@/components/selector-cuenta";
 import { parseFormattedNumber, roundArs2 } from "@/lib/format-currency";
 import type { QuickTipoRegistro } from "@/lib/cashflow-matching";
 
@@ -48,6 +49,7 @@ export function CashflowRegistroRapidoModal({
   const [desc, setDesc] = useState("");
   const [montoStr, setMontoStr] = useState("");
   const [fecha, setFecha] = useState("");
+  const [cuentaId, setCuentaId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
@@ -57,6 +59,7 @@ export function CashflowRegistroRapidoModal({
     setDesc("");
     setMontoStr("");
     setFecha(hoyInput());
+    setCuentaId(null);
     setErr(null);
   }, [open]);
 
@@ -81,6 +84,7 @@ export function CashflowRegistroRapidoModal({
           descripcion: desc.trim() || undefined,
           monto_real,
           fecha,
+          cuenta_id: cuentaId,
         }),
       });
       const j = (await res.json()) as { error?: string; modo?: string };
@@ -166,6 +170,17 @@ export function CashflowRegistroRapidoModal({
               className={selectCls}
               value={fecha}
               onChange={(e) => setFecha(e.target.value)}
+            />
+          </div>
+          <div>
+            <span className="mb-2 block text-xs font-medium uppercase tracking-wider text-cdm-muted">
+              {quick === "cobre_cliente" ? "Entró a" : "Salió de"}
+            </span>
+            <SelectorCuenta
+              value={cuentaId}
+              onChange={setCuentaId}
+              monedas={["ARS"]}
+              className={selectCls}
             />
           </div>
           {err ? (
