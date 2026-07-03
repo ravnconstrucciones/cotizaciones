@@ -537,9 +537,8 @@ export function RemitoScreen({ presupuestoId }: { presupuestoId: string }) {
                     placeholder="Se precarga con el texto de «Servicios presupuestados» de la propuesta"
                   />
                   <p className="mt-2 text-xs text-ravn-muted">
-                    Es el mismo bloque que cargás en el constructor de propuesta
-                    como servicios presupuestados; podés ajustarlo para el
-                    certificado.
+                    Se precarga con los servicios presupuestados guardados en el
+                    presupuesto; podés ajustarlo para el certificado.
                   </p>
                 </div>
                 <div>

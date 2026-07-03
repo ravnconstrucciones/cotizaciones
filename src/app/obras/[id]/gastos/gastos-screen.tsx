@@ -76,6 +76,8 @@ type DraftGasto = {
   /** Cuenta de la que salió la plata (null = sin asignar). Vive en el gasto,
    * NO en su espejo de Caja, para no restar dos veces el mismo pago. */
   cuenta_id: string | null;
+  /** Ítem del plan de compra al que corresponde ("" = sin asignar). */
+  plan_item_id: string;
 };
 
 /** Movimiento de Caja con monto/fecha real, misma obra. */
@@ -187,6 +189,10 @@ export function GastosScreen({
   const [casaDolar, setCasaDolar] = useState<string>("oficial");
   const [cotizacionManualStr, setCotizacionManualStr] = useState("");
   const [obraCashflowId, setObraCashflowId] = useState<string | null>(null);
+  /** Ítems del plan de compra de la obra (vacío = obra sin plan, el selector no aparece). */
+  const [planItems, setPlanItems] = useState<
+    Array<{ id: string; nombre: string; incluido: boolean }>
+  >([]);
   const [movimientosCaja, setMovimientosCaja] = useState<MovimientoCajaObra[]>(
     []
   );
@@ -433,7 +439,7 @@ export function GastosScreen({
       const prefRaw = (pres as { propuesta_comercial_pref?: unknown })
         .propuesta_comercial_pref;
 
-      const [costos, rubRes, gastRes, obraRes] = await Promise.all([
+      const [costos, rubRes, gastRes, obraRes, planRes] = await Promise.all([
         fetchCostoDirectoPresupuesto(supabase, pid),
         supabase.from("rubros").select("id, nombre").order("id", { ascending: true }),
         supabase
@@ -443,7 +449,15 @@ export function GastosScreen({
           .order("fecha", { ascending: false })
           .order("created_at", { ascending: false }),
         supabase.from("obras").select("id").eq("presupuesto_id", pid).maybeSingle(),
+        supabase
+          .from("obra_plan_items")
+          .select("id, nombre, incluido")
+          .eq("presupuesto_id", pid)
+          .order("creado_at", { ascending: true }),
       ]);
+      setPlanItems(
+        (planRes.data ?? []) as Array<{ id: string; nombre: string; incluido: boolean }>
+      );
 
       const { total } = costos;
       setCostoDirecto(total);
@@ -589,6 +603,7 @@ export function GastosScreen({
       descripcion: "",
       importeStr: "",
       cuenta_id: null,
+      plan_item_id: "",
     });
   }
 
@@ -1011,7 +1026,7 @@ export function GastosScreen({
                 <p className="mt-2 max-w-3xl text-xs leading-relaxed text-cdm-muted">
                   Al guardar un gasto, el importe en pesos se divide por la
                   cotización <span className="text-cdm-fg">venta</span> (ARS por
-                  US$ 1). Elegí la misma referencia que en Rentabilidad; contrastá
+                  US$ 1). Elegí la misma referencia con la que se dolarizó el presupuesto; contrastá
                   con{" "}
                   <a
                     href={CRONISTA_DOLAR_URL}
