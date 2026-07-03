@@ -188,6 +188,61 @@ describe("saldosPorCuenta", () => {
     expect(r.sinAsignar).toBe(4);
   });
 
+  it("pago de tarjeta repartido: cada pata resta de su origen y la deuda de la tarjeta sube hacia 0", () => {
+    const visa: Cuenta = {
+      id: "visa",
+      nombre: "Tarjeta Visa",
+      moneda: "ARS",
+      saldo_inicial: 0,
+      fecha_saldo_inicial: FECHA,
+      procedencia: "propia",
+      activa: true,
+      orden: 9,
+    };
+    const r = saldosPorCuenta({
+      cuentas: [...CUENTAS, visa],
+      ...VACIO,
+      // El resumen se armó con gastos personales pagados con la Visa...
+      gastosPersonales: [{ cuenta_id: "visa", monto: 500_000 }],
+      // ...y Eze lo paga repartido: 300 de efectivo + 200 de Balanz.
+      transferencias: [
+        {
+          cuenta_origen_id: "efectivo",
+          cuenta_destino_id: "visa",
+          monto_origen: 300_000,
+          monto_destino: 300_000,
+        },
+        {
+          cuenta_origen_id: "balanz",
+          cuenta_destino_id: "visa",
+          monto_origen: 200_000,
+          monto_destino: 200_000,
+        },
+      ],
+    });
+    expect(r.cuentas.find((c) => c.id === "visa")?.saldo).toBe(0);
+    expect(r.cuentas.find((c) => c.id === "efectivo")?.saldo).toBe(1_200_000);
+    expect(r.cuentas.find((c) => c.id === "balanz")?.saldo).toBe(905_150);
+  });
+
+  it("transferencia cross-currency: cada pata en la moneda de su cuenta", () => {
+    const r = saldosPorCuenta({
+      cuentas: CUENTAS,
+      ...VACIO,
+      // Cambió US$100 a $150.000 (billete → efectivo).
+      transferencias: [
+        {
+          cuenta_origen_id: "usd-billete",
+          cuenta_destino_id: "efectivo",
+          monto_origen: 100,
+          monto_destino: 150_000,
+        },
+      ],
+    });
+    expect(r.cuentas.find((c) => c.id === "usd-billete")?.saldo).toBe(2_120);
+    expect(r.cuentas.find((c) => c.id === "efectivo")?.saldo).toBe(1_650_000);
+  });
+
   it("cuenta inactiva conserva saldo pero no entra en los agregados", () => {
     const r = saldosPorCuenta({
       cuentas: [

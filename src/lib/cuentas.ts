@@ -55,6 +55,16 @@ export type GastoPersonalCuentaRow = {
   monto: unknown;
 };
 
+/** transferencias: plata que se mueve ENTRE cuentas (pago de resumen de
+ * tarjeta repartido, pases, cambio de moneda). Cada monto va en la moneda de
+ * su cuenta; el par permite cross-currency sin inventar cotizaciones. */
+export type TransferenciaCuentaRow = {
+  cuenta_origen_id: string | null;
+  cuenta_destino_id: string | null;
+  monto_origen: unknown;
+  monto_destino: unknown;
+};
+
 export type CuentaConSaldo = Cuenta & {
   saldo: number; // en la moneda de la cuenta
   movimientos: number; // cuántos movimientos asignados la ajustaron
@@ -92,6 +102,7 @@ export function saldosPorCuenta(args: {
   cashflow: CashflowCuentaRow[];
   retiros: RetiroCuentaRow[];
   gastosPersonales: GastoPersonalCuentaRow[];
+  transferencias?: TransferenciaCuentaRow[];
 }): SaldosCuentas {
   const porId = new Map<string, { saldo: number; movs: number }>();
   for (const c of args.cuentas) {
@@ -151,6 +162,14 @@ export function saldosPorCuenta(args: {
 
   for (const g of args.gastosPersonales) {
     ajustar(g.cuenta_id, -roundArs2(parseNum(g.monto)));
+  }
+
+  // Transferencias: restan del origen y suman al destino, cada pata en la
+  // moneda de su cuenta. Pagar el resumen de una tarjeta (saldo negativo)
+  // es exactamente esto: destino = la tarjeta, y su deuda sube hacia 0.
+  for (const t of args.transferencias ?? []) {
+    ajustar(t.cuenta_origen_id, -roundArs2(parseNum(t.monto_origen)));
+    ajustar(t.cuenta_destino_id, roundArs2(parseNum(t.monto_destino)));
   }
 
   const cuentas: CuentaConSaldo[] = [...args.cuentas]

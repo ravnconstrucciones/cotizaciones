@@ -6,6 +6,7 @@ import {
   type GastoObraCuentaRow,
   type GastoPersonalCuentaRow,
   type RetiroCuentaRow,
+  type TransferenciaCuentaRow,
 } from "@/lib/cuentas";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
 
@@ -42,8 +43,14 @@ export async function GET() {
   try {
     const supabase = createSupabaseAdminClient();
 
-    const [cuentasRes, gastosRes, cashflowRes, retirosRes, personalesRes] =
-      await Promise.all([
+    const [
+      cuentasRes,
+      gastosRes,
+      cashflowRes,
+      retirosRes,
+      personalesRes,
+      transferenciasRes,
+    ] = await Promise.all([
         supabase
           .from("cuentas")
           .select(
@@ -71,6 +78,11 @@ export async function GET() {
           .from("gastos_personales")
           .select("cuenta_id, monto")
           .not("cuenta_id", "is", null),
+        supabase
+          .from("transferencias")
+          .select(
+            "cuenta_origen_id, cuenta_destino_id, monto_origen, monto_destino"
+          ),
       ]);
 
     const firstError =
@@ -78,7 +90,8 @@ export async function GET() {
       gastosRes.error ??
       cashflowRes.error ??
       retirosRes.error ??
-      personalesRes.error;
+      personalesRes.error ??
+      transferenciasRes.error;
     if (firstError) {
       return NextResponse.json({ error: firstError.message }, { status: 500 });
     }
@@ -103,6 +116,7 @@ export async function GET() {
       cashflow: (cashflowRes.data ?? []) as CashflowCuentaRow[],
       retiros: (retirosRes.data ?? []) as RetiroCuentaRow[],
       gastosPersonales: (personalesRes.data ?? []) as GastoPersonalCuentaRow[],
+      transferencias: (transferenciasRes.data ?? []) as TransferenciaCuentaRow[],
     });
 
     const payload = NextResponse.json(saldos);
