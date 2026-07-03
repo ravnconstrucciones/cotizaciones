@@ -115,6 +115,18 @@ export function CotizacionesScreen() {
     setCotizaciones((prev) => prev.map((c) => (c.id === id ? { ...c, fotoUrl: url } : c)));
   }, []);
 
+  // Cambio de estado desde el desplegable de una card → actualizar el badge y,
+  // si hay una pestaña activa (no "Todas") que ya no matchea, sacarla de la vista.
+  const onEstado = useCallback(
+    (id: string, estado: EstadoCotizacion) => {
+      setCotizaciones((prev) => {
+        const next = prev.map((c) => (c.id === id ? { ...c, estado } : c));
+        return filtro === "todas" ? next : next.filter((c) => c.estado === filtro);
+      });
+    },
+    [filtro]
+  );
+
   return (
     <div className="font-geist relative min-h-screen bg-cdm-bg text-cdm-fg">
       {/* Header — mismo lenguaje que obras-screen */}
@@ -169,6 +181,7 @@ export function CotizacionesScreen() {
           <GaleriaCotizaciones
             cotizaciones={cotizaciones}
             onFoto={onFoto}
+            onEstado={onEstado}
             onBorrar={(c) => void eliminar(c)}
             borrandoId={eliminando}
           />

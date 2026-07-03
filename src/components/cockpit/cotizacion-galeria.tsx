@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import type { CotizacionArchivo, EstadoCotizacion } from "@/lib/cotizador/tipos";
 import { formatMoneyInt } from "@/lib/format-currency";
@@ -49,6 +49,18 @@ const ESTADO_BADGE: Record<EstadoCotizacion, string> = {
   documento_emitido: "bg-cdm-accent/90 text-cdm-bg",
 };
 
+// Puntito de color por estado dentro del menú del desplegable.
+const ESTADO_PUNTO: Record<EstadoDestino, string> = {
+  en_revision: "bg-amber-400",
+  aprobada: "bg-emerald-400",
+  rechazada: "bg-red-400",
+};
+
+// Estados a los que Eze puede mover una tarjeta desde el desplegable (los tres
+// humanos de la mesa). Emitida/borrador quedan afuera: son del flujo formal.
+type EstadoDestino = "en_revision" | "aprobada" | "rechazada";
+const ESTADOS_DESTINO: EstadoDestino[] = ["en_revision", "aprobada", "rechazada"];
+
 function rangoTotal(c: CotizacionFoto): string {
   if (c.totalMin == null && c.totalMax == null) return "—";
   if (c.totalMin != null && c.totalMax != null && c.totalMin !== c.totalMax) {
@@ -73,16 +85,21 @@ function CamaraIcon({ className }: { className?: string }) {
 function CotizacionFotoCard({
   c,
   onFoto,
+  onEstado,
   onBorrar,
   borrando,
 }: {
   c: CotizacionFoto;
   onFoto: (id: string, url: string) => void;
+  onEstado: (id: string, estado: EstadoCotizacion) => void;
   onBorrar: (c: CotizacionFoto) => void;
   borrando: boolean;
 }) {
   const [subiendo, setSubiendo] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Desplegable de estado abierto / cambio en curso.
+  const [menuEstado, setMenuEstado] = useState(false);
+  const [cambiandoEstado, setCambiandoEstado] = useState(false);
   // Menú A/B abierto: de qué tipo, o null si no hay menú.
   const [menuTipo, setMenuTipo] = useState<TipoDoc | null>(null);
   // Lista completa de archivos (todos los tipos), null hasta el primer fetch.
@@ -92,6 +109,59 @@ function CotizacionFotoCard({
   // A qué tipo adjunta el input cuando lo dispara un botón sin archivos.
   const tipoDestinoRef = useRef<TipoDoc>("propuesta");
   const inputRef = useRef<HTMLInputElement>(null);
+  const estadoBoxRef = useRef<HTMLDivElement>(null);
+
+  // Cerrar el desplegable de estado al tocar/escapar afuera.
+  useEffect(() => {
+    if (!menuEstado) return;
+    function onDown(e: PointerEvent) {
+      if (!estadoBoxRef.current?.contains(e.target as Node)) setMenuEstado(false);
+    }
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") setMenuEstado(false);
+    }
+    document.addEventListener("pointerdown", onDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("pointerdown", onDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [menuEstado]);
+
+  // Reclasificar desde el desplegable. Aprobar dispara la aprobación real
+  // (crea la obra la 1ª vez); rechazar pide un motivo corto opcional.
+  async function cambiarEstado(destino: EstadoDestino) {
+    setMenuEstado(false);
+    if (destino === c.estado) return;
+    let motivo = "";
+    if (destino === "rechazada") {
+      const r = window.prompt(
+        "Motivo del rechazo (opcional — alimenta el aprendizaje del cotizador):",
+        ""
+      );
+      if (r === null) return; // canceló → no cambia nada
+      motivo = r.trim();
+    }
+    setCambiandoEstado(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/cotizaciones/${c.id}/estado`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ estado: destino, ...(motivo ? { motivo } : {}) }),
+      });
+      const j = (await res.json().catch(() => ({}))) as { error?: string };
+      if (!res.ok) {
+        setError(j.error ?? "No se pudo cambiar el estado.");
+        return;
+      }
+      onEstado(c.id, destino);
+    } catch {
+      setError("Error de red.");
+    } finally {
+      setCambiandoEstado(false);
+    }
+  }
 
   async function subir(file: File) {
     setSubiendo(true);
@@ -253,12 +323,69 @@ function CotizacionFotoCard({
           className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/20 to-transparent"
         />
 
-        {/* Badge de estado arriba a la derecha */}
-        <span
-          className={`absolute right-4 top-4 rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] backdrop-blur ${ESTADO_BADGE[c.estado]}`}
-        >
-          {ESTADO_LABEL[c.estado]}
-        </span>
+        {/* Badge de estado = desplegable. Eze toca y elige la pestaña destino;
+            la tarjeta se re-clasifica y vuela a su pestaña. */}
+        <div ref={estadoBoxRef} className="absolute right-4 top-4 z-20">
+          <button
+            type="button"
+            onClick={() => setMenuEstado((v) => !v)}
+            disabled={cambiandoEstado}
+            aria-label="Cambiar estado"
+            aria-expanded={menuEstado}
+            className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] backdrop-blur transition-opacity disabled:opacity-60 ${ESTADO_BADGE[c.estado]}`}
+          >
+            {cambiandoEstado ? (
+              <span className="h-3 w-3 animate-spin rounded-full border-2 border-white/40 border-t-white" />
+            ) : (
+              <>
+                {ESTADO_LABEL[c.estado]}
+                <svg viewBox="0 0 24 24" fill="none" className="h-3 w-3" aria-hidden>
+                  <path
+                    d="m6 9 6 6 6-6"
+                    stroke="currentColor"
+                    strokeWidth="2.4"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+              </>
+            )}
+          </button>
+
+          {menuEstado && (
+            <>
+              <div className="absolute right-0 top-full z-20 mt-1.5 w-44 overflow-hidden rounded-2xl bg-white p-1 shadow-xl ring-1 ring-cdm-line dark:bg-zinc-900">
+                {ESTADOS_DESTINO.map((e) => {
+                  const activo = e === c.estado;
+                  return (
+                    <button
+                      key={e}
+                      type="button"
+                      onClick={() => void cambiarEstado(e)}
+                      className={`flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-left font-geist text-[12px] transition-colors hover:bg-cdm-accent/10 ${
+                        activo ? "text-cdm-fg" : "text-cdm-muted hover:text-cdm-fg"
+                      }`}
+                    >
+                      <span className={`h-2 w-2 shrink-0 rounded-full ${ESTADO_PUNTO[e]}`} />
+                      <span className="flex-1">{ESTADO_LABEL[e]}</span>
+                      {activo && (
+                        <svg viewBox="0 0 24 24" fill="none" className="h-3.5 w-3.5 text-cdm-accent" aria-hidden>
+                          <path
+                            d="m5 13 4 4L19 7"
+                            stroke="currentColor"
+                            strokeWidth="2.4"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          />
+                        </svg>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            </>
+          )}
+        </div>
 
         {/* Cambiar/subir portada arriba a la izquierda */}
         <button
@@ -390,11 +517,13 @@ function CotizacionFotoCard({
 export function GaleriaCotizaciones({
   cotizaciones,
   onFoto,
+  onEstado,
   onBorrar,
   borrandoId,
 }: {
   cotizaciones: CotizacionFoto[];
   onFoto: (id: string, url: string) => void;
+  onEstado: (id: string, estado: EstadoCotizacion) => void;
   onBorrar: (c: CotizacionFoto) => void;
   borrandoId: string | null;
 }) {
@@ -410,6 +539,7 @@ export function GaleriaCotizaciones({
           key={c.id}
           c={c}
           onFoto={onFoto}
+          onEstado={onEstado}
           onBorrar={onBorrar}
           borrando={borrandoId === c.id}
         />
