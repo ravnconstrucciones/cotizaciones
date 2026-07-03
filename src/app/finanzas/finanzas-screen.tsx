@@ -7,6 +7,7 @@ import { CargandoCockpit } from "@/components/cockpit/cargando-cockpit";
 import { CifraHeroica } from "@/components/cockpit/cifra-heroica";
 import { CashflowEmpresaBlock } from "./cashflow-empresa-block";
 import { FotoTarjetaBlock } from "./foto-tarjeta-block";
+import { CalendarioCiclo, type DiaCiclo } from "./calendario-ciclo";
 
 type Semaforo = "verde" | "amarillo" | "rojo";
 
@@ -30,10 +31,14 @@ type ResumenFinanzas = {
   gastado_variable: number;
   dias_restantes: number;
   disponible_ciclo: number;
+  presupuesto_hoy: number;
+  gastado_hoy: number;
   disponible_hoy: number;
+  por_dia_al_cierre: number;
   ritmo_semanal: number;
   proyeccion_fin_ciclo: number;
   semaforo: Semaforo;
+  dias: DiaCiclo[];
   fijos_personal: FijoPersonal[];
   software_empresa: { total: number; items: SoftwareItem[] };
   por_categoria: Record<string, number>;
@@ -230,9 +235,10 @@ export function FinanzasScreen() {
   }
 
   const sem = data.semaforo;
-  // Las dos barras miden lo mismo: cuánto del discrecional del mes ya gastaste.
   const pctCiclo = data.discrecional_mes > 0 ? data.gastado_variable / data.discrecional_mes : 0;
-  const pctHero = pctCiclo;
+  // El hero mide el DÍA: cuánto del presupuesto de hoy ya te comiste.
+  const pctHero = data.presupuesto_hoy > 0 ? data.gastado_hoy / data.presupuesto_hoy : 1;
+  const diaEnRojo = data.disponible_hoy < 0;
 
   return (
     <main className="font-geist relative min-h-screen bg-cdm-bg px-4 pb-24 pt-14 text-cdm-fg sm:px-8">
@@ -262,13 +268,20 @@ export function FinanzasScreen() {
           <div className="mt-2 flex flex-wrap items-baseline gap-x-3 gap-y-1">
             <CifraHeroica
               className="text-[clamp(36px,6vw,52px)] leading-none font-geist tabular-nums"
-              tono={sem === "rojo" ? "negativo" : sem === "verde" ? "positivo" : "neutro"}
+              tono={diaEnRojo ? "negativo" : "positivo"}
             >
               {formatMoneyInt(data.disponible_hoy)}
             </CifraHeroica>
-            <span className="font-mono-hud text-xs text-cdm-muted">/ día</span>
+            <span className="font-mono-hud text-xs text-cdm-muted">
+              de {formatMoneyInt(data.presupuesto_hoy)} hoy
+            </span>
           </div>
           <p className="font-mono-hud mt-2 text-[11px] text-cdm-muted">
+            {diaEnRojo ? (
+              <>Hoy te pasaste — mañana se renueva el contador. </>
+            ) : (
+              <>Hoy gastaste {formatMoneyInt(data.gastado_hoy)}. </>
+            )}
             Te quedan{" "}
             <span className={data.disponible_ciclo >= 0 ? "text-emerald-400" : "text-red-400"}>
               {formatMoneyInt(data.disponible_ciclo)}
@@ -276,11 +289,26 @@ export function FinanzasScreen() {
             hasta el cierre · {data.dias_restantes} día{data.dias_restantes === 1 ? "" : "s"}
           </p>
           <div className="mt-3">
-            <BarraProgreso pct={pctHero} semaforo={sem} />
+            <BarraProgreso pct={pctHero} semaforo={diaEnRojo ? "rojo" : "verde"} />
           </div>
           <p className="font-mono-hud mt-3 text-[10px] uppercase tracking-[0.14em] text-cdm-muted">
             Ciclo {data.ciclo.label} · día {data.ciclo.dia_actual}/{data.ciclo.dias_total}
           </p>
+        </div>
+
+        {/* 1b ── Día por día: calendario del ciclo ── */}
+        <div className={`${CARD} mt-3`}>
+          <div className="flex items-baseline justify-between">
+            <h2 className="font-mono-hud text-[10px] uppercase tracking-widest text-cdm-muted">
+              Día por día — ciclo
+            </h2>
+            <span className="font-mono-hud text-[10px] uppercase tracking-widest text-cdm-muted/70">
+              Tocá un día
+            </span>
+          </div>
+          <div className="mt-3">
+            <CalendarioCiclo dias={data.dias} />
+          </div>
         </div>
 
         {/* 2 ── Presupuesto del ciclo ── */}
@@ -308,8 +336,8 @@ export function FinanzasScreen() {
             </div>
             <div>
               <dt className="font-mono-hud uppercase tracking-[0.12em] text-cdm-muted">Por día al cierre</dt>
-              <dd className={`font-geist tabular-nums font-medium ${data.disponible_hoy >= 0 ? "text-emerald-400" : "text-red-400"}`}>
-                {formatMoneyInt(data.disponible_hoy)}
+              <dd className={`font-geist tabular-nums font-medium ${data.por_dia_al_cierre >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+                {formatMoneyInt(data.por_dia_al_cierre)}
               </dd>
             </div>
           </dl>

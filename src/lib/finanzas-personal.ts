@@ -3,10 +3,17 @@ import { formatMoneyInt, roundArs2 } from "@/lib/format-currency";
 /**
  * Finanzas Personales — cálculo PURO del presupuesto personal de Eze.
  *
- * El acumulado NO guarda día por día nada: es una fórmula determinística (el
- * código suma, la IA no — igual que `salud-negocio.ts`). A partir del tope
- * mensual, los fijos y los gastos variables del ciclo de la tarjeta deriva
- * "cuánto podés gastar hoy", el ritmo semanal, la proyección y el semáforo.
+ * No se guarda nada día por día: el historial completo del ciclo se RECONSTRUYE
+ * determinísticamente desde los gastos fechados (el código suma, la IA no —
+ * igual que `salud-negocio.ts`). El modelo es "presupuesto del día":
+ *
+ *  - Al arrancar cada día, su presupuesto queda FIJADO: lo que quedaba del
+ *    discrecional al inicio de ese día ÷ los días que faltaban (contándolo).
+ *  - Cada gasto del día descuenta 1 a 1 de ese presupuesto → `disponible_hoy`
+ *    es lo que te queda HOY, en vivo, y puede quedar negativo (día en rojo).
+ *  - Al día siguiente el contador se renueva: se reparte lo que quedó entre
+ *    los días que faltan (prorrateo vivo — un día rojo baja el diario de
+ *    mañana, no te mata).
  *
  * Dos mundos en una sola tarjeta: lo personal (suma al gasto) y el software de
  * la empresa (`dueno='empresa'`, etiquetado e informativo, NO entra a ningún
@@ -44,6 +51,18 @@ export type Ciclo = {
   label: string; // "26 may → 25 jun"
 };
 
+/** Un día del ciclo, reconstruido desde los gastos fechados. */
+export type DiaCiclo = {
+  fecha: string; // YYYY-MM-DD
+  dia_ciclo: number; // 1..dias_total
+  /** Fijado al arrancar el día: lo que quedaba ÷ días que faltaban (contándolo). */
+  presupuesto: number;
+  gastado: number;
+  saldo: number; // presupuesto − gastado (negativo = te pasaste ese día)
+  estado: "verde" | "rojo" | "hoy" | "futuro";
+  gastos: GastoVariable[];
+};
+
 export type FinanzasResumen = {
   ciclo: Ciclo;
   tope_personal_mensual: number;
@@ -53,10 +72,18 @@ export type FinanzasResumen = {
   gastado_variable: number;
   dias_restantes: number;
   disponible_ciclo: number;
+  /** Presupuesto de HOY, fijado al arrancar el día (no baja por gastar hoy). */
+  presupuesto_hoy: number;
+  /** Lo gastado HOY. */
+  gastado_hoy: number;
+  /** Lo que te queda HOY, en vivo: presupuesto_hoy − gastado_hoy (puede ser negativo). */
   disponible_hoy: number;
+  /** Lo que queda del ciclo ÷ días restantes — el diario proyectado hacia adelante. */
+  por_dia_al_cierre: number;
   ritmo_semanal: number;
   proyeccion_fin_ciclo: number;
   semaforo: SemaforoFin;
+  dias: DiaCiclo[];
   fijos_personal: { id: string; nombre: string; monto_ars: number; orden: number }[];
   software_empresa: { total: number; items: { id: string; nombre: string; monto_ars: number }[] };
   por_categoria: Record<string, number>;
@@ -176,7 +203,10 @@ export function fraseDelDia(
   if (semaforo === "rojo") {
     return `Te pasaste del presupuesto del mes por ${formatMoneyInt(Math.abs(disponibleCiclo))}, frená hasta el cierre`;
   }
-  return `Hoy podés gastar ${formatMoneyInt(disponibleHoy)} · te quedan ${formatMoneyInt(disponibleCiclo)} hasta el cierre`;
+  if (disponibleHoy < 0) {
+    return `Hoy ya te pasaste por ${formatMoneyInt(Math.abs(disponibleHoy))} — mañana se renueva el contador · te quedan ${formatMoneyInt(disponibleCiclo)} hasta el cierre`;
+  }
+  return `Hoy te quedan ${formatMoneyInt(disponibleHoy)} · ${formatMoneyInt(disponibleCiclo)} hasta el cierre`;
 }
 
 /** ¿La fecha (YYYY-MM-DD) cae dentro del ciclo, bordes inclusive? */
@@ -241,12 +271,82 @@ export function calcularFinanzas(input: FinanzasInput): FinanzasResumen {
   // Lo que QUEDA del ciclo (lo que no gastaste del discrecional). Es el número
   // tranquilizador: mientras sea positivo, tenés plata hasta el cierre.
   const disponibleCiclo = roundArs2(discrecionalMes - gastadoVariable);
-  // Días que faltan, contando hoy. El "podés gastar hoy" se recalcula repartiendo
-  // lo que queda entre los días que faltan: si gastás de más, baja el diario de
-  // mañana, pero NUNCA dice "rojo" mientras te quede plata del mes.
   const diasRestantes = Math.max(1, ciclo.dias_total - ciclo.dia_actual + 1);
-  const disponibleHoy = roundArs2(disponibleCiclo / diasRestantes);
-  const ritmoSemanal = roundArs2(disponibleHoy * 7);
+  // El diario proyectado hacia adelante: lo que queda repartido en lo que falta.
+  const porDiaAlCierre = roundArs2(disponibleCiclo / diasRestantes);
+
+  // ── Reconstrucción día por día ──
+  // Se camina el ciclo desde el día 1: el presupuesto de cada día queda fijado
+  // con lo que quedaba al ARRANCAR ese día ÷ los días que faltaban (contándolo),
+  // y lo gastado ese día descuenta 1 a 1. Un día que ya cerró es verde si le
+  // sobró y rojo si se pasó; el sobrante/faltante fluye solo al prorrateo de
+  // los días siguientes.
+  const gastosPorFecha = new Map<string, GastoVariable[]>();
+  for (const g of gastosCiclo) {
+    const f = g.fecha.slice(0, 10);
+    const lista = gastosPorFecha.get(f);
+    if (lista) lista.push(g);
+    else gastosPorFecha.set(f, [g]);
+  }
+
+  const [iy, im, id] = ciclo.inicio.split("-").map(Number);
+  const inicioMs = ymdToUTC({ year: iy, month: im, day: id });
+
+  const dias: DiaCiclo[] = [];
+  let restante = discrecionalMes;
+  let presupuestoHoy = 0;
+  let gastadoHoy = 0;
+
+  for (let d = 1; d <= ciclo.dia_actual; d++) {
+    const fecha = isoDe(utcToYmd(inicioMs + (d - 1) * MS_DIA));
+    const gastosDia = gastosPorFecha.get(fecha) ?? [];
+    const gastadoDia = roundArs2(
+      gastosDia.reduce((acc, g) => acc + Number(g.monto || 0), 0)
+    );
+    // Si el ciclo ya está reventado, el presupuesto del día es 0 (no negativo).
+    const presupuestoDia = roundArs2(
+      Math.max(0, restante) / (ciclo.dias_total - d + 1)
+    );
+    const saldoDia = roundArs2(presupuestoDia - gastadoDia);
+    const esHoy = d === ciclo.dia_actual;
+    dias.push({
+      fecha,
+      dia_ciclo: d,
+      presupuesto: presupuestoDia,
+      gastado: gastadoDia,
+      saldo: saldoDia,
+      estado: esHoy ? "hoy" : saldoDia >= 0 ? "verde" : "rojo",
+      gastos: gastosDia,
+    });
+    if (esHoy) {
+      presupuestoHoy = presupuestoDia;
+      gastadoHoy = gastadoDia;
+    }
+    restante = roundArs2(restante - gastadoDia);
+  }
+
+  // Días futuros: proyección pareja de lo que queda (si no gastás más hoy).
+  const diasFuturos = ciclo.dias_total - ciclo.dia_actual;
+  const proyectadoFuturo =
+    diasFuturos > 0 ? roundArs2(Math.max(0, disponibleCiclo) / diasFuturos) : 0;
+  for (let d = ciclo.dia_actual + 1; d <= ciclo.dias_total; d++) {
+    const fecha = isoDe(utcToYmd(inicioMs + (d - 1) * MS_DIA));
+    dias.push({
+      fecha,
+      dia_ciclo: d,
+      presupuesto: proyectadoFuturo,
+      gastado: 0,
+      saldo: proyectadoFuturo,
+      estado: "futuro",
+      gastos: [],
+    });
+  }
+
+  // Lo que te queda HOY, en vivo: el presupuesto fijado al arrancar el día
+  // menos lo que ya gastaste hoy. Negativo = hoy quedaste en rojo (mañana se
+  // renueva el contador con el prorrateo).
+  const disponibleHoy = roundArs2(presupuestoHoy - gastadoHoy);
+  const ritmoSemanal = roundArs2(porDiaAlCierre * 7);
   const proyeccionFinCiclo = disponibleCiclo;
   const semaforo = semaforoDe(disponibleCiclo, asignacionDiaria);
 
@@ -259,10 +359,14 @@ export function calcularFinanzas(input: FinanzasInput): FinanzasResumen {
     gastado_variable: gastadoVariable,
     dias_restantes: diasRestantes,
     disponible_ciclo: disponibleCiclo,
+    presupuesto_hoy: presupuestoHoy,
+    gastado_hoy: gastadoHoy,
     disponible_hoy: disponibleHoy,
+    por_dia_al_cierre: porDiaAlCierre,
     ritmo_semanal: ritmoSemanal,
     proyeccion_fin_ciclo: proyeccionFinCiclo,
     semaforo,
+    dias,
     fijos_personal: fijosPersonal.map((f) => ({
       id: f.id,
       nombre: f.nombre,

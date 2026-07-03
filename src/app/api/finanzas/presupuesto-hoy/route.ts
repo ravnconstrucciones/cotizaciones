@@ -102,6 +102,8 @@ export async function GET() {
 
     return NextResponse.json({
       disponible_hoy: r.disponible_hoy,
+      presupuesto_hoy: r.presupuesto_hoy,
+      gastado_hoy: r.gastado_hoy,
       disponible_ciclo: r.disponible_ciclo,
       asignacion_diaria: r.asignacion_diaria,
       semaforo: r.semaforo,

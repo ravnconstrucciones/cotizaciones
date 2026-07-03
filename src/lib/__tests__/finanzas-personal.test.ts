@@ -107,10 +107,15 @@ describe("semaforoDe (sobre lo que queda del ciclo)", () => {
 });
 
 describe("fraseDelDia", () => {
-  it("frase verde/amarillo lleva el diario y lo que queda", () => {
+  it("frase verde/amarillo lleva lo que queda hoy y lo que queda del ciclo", () => {
     const f = fraseDelDia(46181, 1246883, "verde");
-    expect(f).toContain("Hoy podés gastar");
+    expect(f).toContain("Hoy te quedan");
     expect(f).toContain("hasta el cierre");
+  });
+  it("día en rojo (pero ciclo vivo): avisa que hoy se pasó y que mañana renueva", () => {
+    const f = fraseDelDia(-12000, 500000, "verde");
+    expect(f).toContain("Hoy ya te pasaste");
+    expect(f).toContain("mañana se renueva");
   });
   it("frase roja avisa que se pasó del presupuesto del mes", () => {
     const f = fraseDelDia(-5000, -5000, "rojo");
@@ -120,12 +125,12 @@ describe("fraseDelDia", () => {
 });
 
 /**
- * Modelo "lo que queda ÷ días que faltan": el diario se recalcula solo.
- * Ciclo de 30 días (26 abr → 25 may, discrecional $600k, sin fijos). Gastar
- * temprano baja el diario de los días siguientes, pero nunca da rojo mientras
- * quede plata del mes.
+ * Modelo "presupuesto del día": al arrancar el día queda fijado (lo que quedaba
+ * ÷ días que faltaban) y lo gastado HOY descuenta 1 a 1 — puede dar negativo
+ * (día en rojo) aunque el ciclo siga verde. Ciclo de 30 días (26 abr → 25 may,
+ * discrecional $600k, sin fijos).
  */
-describe("calcularFinanzas — diario recalculado", () => {
+describe("calcularFinanzas — presupuesto del día", () => {
   const baseFijos: FijoRow[] = [];
   const conGastos = (gastos: GastoVariable[], hoy: string) =>
     calcularFinanzas({
@@ -136,35 +141,55 @@ describe("calcularFinanzas — diario recalculado", () => {
       gastosVariables: gastos,
     });
 
-  it("día 1, sin gastos → $20k/día (600k / 30)", () => {
+  it("día 1, sin gastos → presupuesto de hoy $20k (600k / 30) y todo disponible", () => {
     const r = conGastos([], "2026-04-26");
     expect(r.asignacion_diaria).toBe(20000);
     expect(r.ciclo.dias_total).toBe(30);
     expect(r.dias_restantes).toBe(30);
     expect(r.disponible_ciclo).toBe(600000);
+    expect(r.presupuesto_hoy).toBe(20000);
+    expect(r.gastado_hoy).toBe(0);
     expect(r.disponible_hoy).toBe(20000);
     expect(r.semaforo).toBe("verde"); // queda todo el mes
   });
 
-  it("día 2, sin gastos → 600k / 29 días", () => {
+  it("día 2, sin gastos → el contador se renueva: 600k / 29 días", () => {
     const r = conGastos([], "2026-04-27");
     expect(r.dias_restantes).toBe(29);
+    expect(r.presupuesto_hoy).toBeCloseTo(600000 / 29, 2);
     expect(r.disponible_hoy).toBeCloseTo(600000 / 29, 2);
     expect(r.semaforo).toBe("verde");
   });
 
-  it("día 3, gastó $50k → (600k−50k) / 28 días, sigue verde (no rojo)", () => {
+  it("gastar HOY descuenta 1 a 1 del presupuesto del día (puede dar negativo)", () => {
     const r = conGastos(
       [{ id: "g1", fecha: "2026-04-28", concepto: "súper", monto: 50000, categoria: "Supermercado" }],
       "2026-04-28"
     );
     expect(r.gastado_variable).toBe(50000);
     expect(r.disponible_ciclo).toBe(550000);
-    expect(r.disponible_hoy).toBeCloseTo(550000 / 28, 2);
+    // El presupuesto de hoy quedó fijado ANTES de gastar: 600k / 28 días.
+    expect(r.presupuesto_hoy).toBeCloseTo(600000 / 28, 2);
+    expect(r.gastado_hoy).toBe(50000);
+    // Y lo gastado descuenta 1 a 1: hoy quedaste en rojo, el ciclo sigue verde.
+    expect(r.disponible_hoy).toBeCloseTo(600000 / 28 - 50000, 2);
+    expect(r.disponible_hoy).toBeLessThan(0);
+    expect(r.por_dia_al_cierre).toBeCloseTo(550000 / 28, 2);
     expect(r.semaforo).toBe("verde");
   });
 
-  it("se comió TODO el discrecional → rojo de verdad", () => {
+  it("un gasto de AYER no toca el presupuesto de hoy fijado (solo lo prorratea)", () => {
+    const r = conGastos(
+      [{ id: "g1", fecha: "2026-04-27", concepto: "salida", monto: 50000, categoria: "Salidas" }],
+      "2026-04-28"
+    );
+    // Hoy arranca con lo que quedó: (600k − 50k) / 28 días.
+    expect(r.presupuesto_hoy).toBeCloseTo(550000 / 28, 2);
+    expect(r.gastado_hoy).toBe(0);
+    expect(r.disponible_hoy).toBeCloseTo(550000 / 28, 2);
+  });
+
+  it("se comió TODO el discrecional → rojo de verdad y presupuesto de hoy en 0", () => {
     const r = conGastos(
       [{ id: "g1", fecha: "2026-04-28", concepto: "se pasó", monto: 650000, categoria: "Varios" }],
       "2026-04-29"
@@ -172,6 +197,70 @@ describe("calcularFinanzas — diario recalculado", () => {
     expect(r.disponible_ciclo).toBe(-50000); // 600000 - 650000
     expect(r.semaforo).toBe("rojo");
     expect(r.proyeccion_fin_ciclo).toBe(-50000);
+    expect(r.presupuesto_hoy).toBe(0); // no hay más plata que repartir
+    expect(r.disponible_hoy).toBe(0);
+  });
+});
+
+/**
+ * Historial día por día: el ciclo entero reconstruido desde los gastos
+ * fechados, con presupuesto fijado por día, verde/rojo y proyección futura.
+ */
+describe("calcularFinanzas — historial día por día", () => {
+  const gastos: GastoVariable[] = [
+    // día 1 (26 abr): se pasó → rojo
+    { id: "g1", fecha: "2026-04-26", concepto: "asado", monto: 30000, categoria: "Salidas" },
+    // día 2 (27 abr): gastó poco → verde
+    { id: "g2", fecha: "2026-04-27", concepto: "café", monto: 5000, categoria: "Salidas" },
+    // día 3 (28 abr, hoy): gastó parte del día
+    { id: "g3", fecha: "2026-04-28", concepto: "nafta", monto: 10000, categoria: "Combustible" },
+  ];
+  const r = calcularFinanzas({
+    topePersonalMensual: 600000,
+    diaCierre: 25,
+    hoy: { year: 2026, month: 4, day: 28 },
+    fijos: [],
+    gastosVariables: gastos,
+  });
+
+  it("devuelve TODOS los días del ciclo (pasados, hoy y futuros)", () => {
+    expect(r.dias).toHaveLength(30);
+    expect(r.dias[0]?.fecha).toBe("2026-04-26");
+    expect(r.dias[29]?.fecha).toBe("2026-05-25");
+  });
+
+  it("día 1: presupuesto $20k, gastó $30k → rojo con saldo −$10k", () => {
+    const d1 = r.dias[0]!;
+    expect(d1.presupuesto).toBe(20000);
+    expect(d1.gastado).toBe(30000);
+    expect(d1.saldo).toBe(-10000);
+    expect(d1.estado).toBe("rojo");
+    expect(d1.gastos).toHaveLength(1);
+  });
+
+  it("día 2: el contador se renovó con lo que quedó → (600k−30k)/29, verde", () => {
+    const d2 = r.dias[1]!;
+    expect(d2.presupuesto).toBeCloseTo(570000 / 29, 2);
+    expect(d2.gastado).toBe(5000);
+    expect(d2.estado).toBe("verde");
+  });
+
+  it("hoy (día 3): presupuesto fijado al arrancar, estado 'hoy'", () => {
+    const d3 = r.dias[2]!;
+    expect(d3.estado).toBe("hoy");
+    expect(d3.presupuesto).toBeCloseTo(565000 / 28, 2);
+    expect(d3.gastado).toBe(10000);
+    expect(d3.presupuesto).toBe(r.presupuesto_hoy);
+    expect(d3.saldo).toBeCloseTo(r.disponible_hoy, 2);
+  });
+
+  it("días futuros: proyección pareja de lo que queda, estado 'futuro'", () => {
+    const d4 = r.dias[3]!;
+    expect(d4.estado).toBe("futuro");
+    expect(d4.gastado).toBe(0);
+    // (600k − 45k gastados) / 27 días que faltan después de hoy
+    expect(d4.presupuesto).toBeCloseTo(555000 / 27, 2);
+    expect(r.dias.slice(3).every((d) => d.estado === "futuro")).toBe(true);
   });
 });
 
@@ -218,7 +307,7 @@ describe("calcularFinanzas — fijos, software y categorías", () => {
     expect(r.ultimos_gastos).toHaveLength(2);
   });
 
-  it("ritmo semanal = diario recalculado × 7", () => {
-    expect(r.ritmo_semanal).toBeCloseTo(r.disponible_hoy * 7, 2);
+  it("ritmo semanal = diario proyectado al cierre × 7", () => {
+    expect(r.ritmo_semanal).toBeCloseTo(r.por_dia_al_cierre * 7, 2);
   });
 });
