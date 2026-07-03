@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { importarPlanDesdeCotizacion } from "@/lib/plan-compra/importar";
 
 /**
  * "Loop de oro": al aprobar una cotización sin obra vinculada, la convierte en
@@ -106,6 +107,10 @@ export async function crearObraDesdeCotizacion(
     const { error: eIns } = await sb.from("obra_archivos").insert(filas);
     if (eIns) console.error("[crearObraDesdeCotizacion] copiar archivos:", eIns.message);
   }
+
+  // 3.5) plan de compra (spec 2026-07-03): el desglose cotizado se siembra como
+  // plan editable de la obra. Best-effort, igual que archivos.
+  await importarPlanDesdeCotizacion(sb, pres.id, cot.id);
 
   // 4) cerrar el loop: la cotización ahora apunta a su presupuesto/obra.
   const { error: eLink } = await sb
