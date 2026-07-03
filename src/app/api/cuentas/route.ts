@@ -3,6 +3,7 @@ import {
   saldosPorCuenta,
   type Cuenta,
   type CashflowCuentaRow,
+  type GastoEmpresaCuentaRow,
   type GastoObraCuentaRow,
   type GastoPersonalCuentaRow,
   type RetiroCuentaRow,
@@ -49,6 +50,7 @@ export async function GET() {
       cashflowRes,
       retirosRes,
       personalesRes,
+      empresaRes,
       transferenciasRes,
     ] = await Promise.all([
         supabase
@@ -79,6 +81,10 @@ export async function GET() {
           .select("cuenta_id, monto")
           .not("cuenta_id", "is", null),
         supabase
+          .from("gastos_empresa")
+          .select("cuenta_id, monto, moneda")
+          .not("cuenta_id", "is", null),
+        supabase
           .from("transferencias")
           .select(
             "cuenta_origen_id, cuenta_destino_id, monto_origen, monto_destino"
@@ -91,6 +97,7 @@ export async function GET() {
       cashflowRes.error ??
       retirosRes.error ??
       personalesRes.error ??
+      empresaRes.error ??
       transferenciasRes.error;
     if (firstError) {
       return NextResponse.json({ error: firstError.message }, { status: 500 });
@@ -116,6 +123,7 @@ export async function GET() {
       cashflow: (cashflowRes.data ?? []) as CashflowCuentaRow[],
       retiros: (retirosRes.data ?? []) as RetiroCuentaRow[],
       gastosPersonales: (personalesRes.data ?? []) as GastoPersonalCuentaRow[],
+      gastosEmpresa: (empresaRes.data ?? []) as GastoEmpresaCuentaRow[],
       transferencias: (transferenciasRes.data ?? []) as TransferenciaCuentaRow[],
     });
 

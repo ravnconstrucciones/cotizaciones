@@ -55,6 +55,15 @@ export type GastoPersonalCuentaRow = {
   monto: unknown;
 };
 
+/** gastos_empresa: gastos del negocio SIN obra (software, suscripciones,
+ * herramientas, publicidad). Traen moneda propia (ARS o USD — las
+ * suscripciones de la tarjeta van en dólares a la cuenta Tarjeta Visa US$). */
+export type GastoEmpresaCuentaRow = {
+  cuenta_id: string | null;
+  monto: unknown;
+  moneda?: string | null;
+};
+
 /** transferencias: plata que se mueve ENTRE cuentas (pago de resumen de
  * tarjeta repartido, pases, cambio de moneda). Cada monto va en la moneda de
  * su cuenta; el par permite cross-currency sin inventar cotizaciones. */
@@ -102,6 +111,7 @@ export function saldosPorCuenta(args: {
   cashflow: CashflowCuentaRow[];
   retiros: RetiroCuentaRow[];
   gastosPersonales: GastoPersonalCuentaRow[];
+  gastosEmpresa?: GastoEmpresaCuentaRow[];
   transferencias?: TransferenciaCuentaRow[];
 }): SaldosCuentas {
   const porId = new Map<string, { saldo: number; movs: number }>();
@@ -162,6 +172,19 @@ export function saldosPorCuenta(args: {
 
   for (const g of args.gastosPersonales) {
     ajustar(g.cuenta_id, -roundArs2(parseNum(g.monto)));
+  }
+
+  // Gastos de empresa: restan en la moneda del gasto SOLO si coincide con la
+  // de la cuenta (un gasto USD no toca una cuenta ARS ni al revés — nunca se
+  // convierte a una cotización inventada).
+  for (const g of args.gastosEmpresa ?? []) {
+    if (!g.cuenta_id) {
+      sinAsignar += 1;
+      continue;
+    }
+    const monedaGasto = g.moneda === "USD" ? "USD" : "ARS";
+    const coincide = monedaDe.get(g.cuenta_id) === monedaGasto;
+    ajustar(g.cuenta_id, coincide ? -roundArs2(parseNum(g.monto)) : 0);
   }
 
   // Transferencias: restan del origen y suman al destino, cada pata en la

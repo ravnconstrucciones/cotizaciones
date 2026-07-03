@@ -243,6 +243,36 @@ describe("saldosPorCuenta", () => {
     expect(r.cuentas.find((c) => c.id === "efectivo")?.saldo).toBe(1_650_000);
   });
 
+  it("gasto de empresa resta en la moneda del gasto; si no coincide con la cuenta, no ajusta", () => {
+    const visaUsd: Cuenta = {
+      id: "visa-usd",
+      nombre: "Tarjeta Visa US$",
+      moneda: "USD",
+      saldo_inicial: -98.47,
+      fecha_saldo_inicial: FECHA,
+      procedencia: "propia",
+      activa: true,
+      orden: 10,
+    };
+    const r = saldosPorCuenta({
+      cuentas: [...CUENTAS, visaUsd],
+      ...VACIO,
+      gastosEmpresa: [
+        // Rendair en dólares → acumula deuda en la Visa US$
+        { cuenta_id: "visa-usd", monto: 19, moneda: "USD" },
+        // sin moneda = ARS → resta de MP
+        { cuenta_id: "mp", monto: 10_000 },
+        // moneda cruzada: no inventa cotización, no ajusta
+        { cuenta_id: "mp", monto: 20, moneda: "USD" },
+        // sin cuenta → sin asignar
+        { cuenta_id: null, monto: 5_000 },
+      ],
+    });
+    expect(r.cuentas.find((c) => c.id === "visa-usd")?.saldo).toBe(-117.47);
+    expect(r.cuentas.find((c) => c.id === "mp")?.saldo).toBe(125_532);
+    expect(r.sinAsignar).toBe(1);
+  });
+
   it("cuenta inactiva conserva saldo pero no entra en los agregados", () => {
     const r = saldosPorCuenta({
       cuentas: [
