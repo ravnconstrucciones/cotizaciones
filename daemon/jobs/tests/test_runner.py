@@ -49,15 +49,17 @@ class TestCorrerVencidos(unittest.TestCase):
         estado = jobslib.cargar_estado(self.state)
         self.assertIsNotNone(jobslib.ultima_ok(estado, "a"))
 
-    def test_error_marca_error_y_registra_evento_archivado(self):
+    def test_error_marca_error_y_registra_evento_procesado(self):
+        # marcar_error estampa datetime.now() real, así que errores_hoy se
+        # consulta con now(); el evento va a Actividad (procesado), no a Archivados.
         def explota(cfg, token):
             raise RuntimeError("se rompió")
         jobs = [("a", explota, SIEMPRE)]
         runner.correr_vencidos({}, "tok", datetime(2026, 6, 12, 9, 0), jobs, self.state)
         estado = jobslib.cargar_estado(self.state)
         self.assertIsNone(jobslib.ultima_ok(estado, "a"))
-        self.assertEqual(jobslib.errores_hoy(estado, "a", datetime(2026, 6, 12, 9, 0)), 1)
-        self.assertEqual(self.eventos, [("job_a", "archivado")])
+        self.assertEqual(jobslib.errores_hoy(estado, "a", datetime.now()), 1)
+        self.assertEqual(self.eventos, [("job_a", "procesado")])
 
     def test_un_error_no_frena_a_los_demas(self):
         corridos = []

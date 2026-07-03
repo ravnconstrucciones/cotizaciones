@@ -49,6 +49,38 @@ class TestVencimientos(unittest.TestCase):
         ahora = datetime(2026, 6, 8, 9, 0)    # lunes siguiente
         self.assertTrue(jobslib.vencio_semanal(ultima, ahora, hora_minima=8))
 
+    def test_dominical_nunca_corrio_solo_vence_en_domingo(self):
+        domingo = datetime(2026, 7, 5, 8, 30)
+        sabado = datetime(2026, 7, 4, 8, 30)
+        self.assertTrue(jobslib.vencio_dominical(None, domingo, hora_minima=8))
+        self.assertFalse(jobslib.vencio_dominical(None, sabado, hora_minima=8))
+
+    def test_dominical_antes_de_hora_minima_no_vence(self):
+        domingo = datetime(2026, 7, 5, 7, 59)
+        self.assertFalse(jobslib.vencio_dominical(None, domingo, hora_minima=8))
+
+    def test_dominical_ya_corrio_este_domingo_no_vence(self):
+        ultima = datetime(2026, 7, 5, 8, 10)
+        ahora = datetime(2026, 7, 5, 13, 0)
+        self.assertFalse(jobslib.vencio_dominical(ultima, ahora, hora_minima=8))
+
+    def test_dominical_domingo_siguiente_vence(self):
+        ultima = datetime(2026, 7, 5, 8, 10)
+        ahora = datetime(2026, 7, 12, 8, 30)
+        self.assertTrue(jobslib.vencio_dominical(ultima, ahora, hora_minima=8))
+
+    def test_dominical_entre_semana_no_vence(self):
+        # corrió el domingo 05/07; el miércoles 08/07 no toca aunque cambie la semana ISO
+        ultima = datetime(2026, 7, 5, 8, 10)
+        ahora = datetime(2026, 7, 8, 13, 0)
+        self.assertFalse(jobslib.vencio_dominical(ultima, ahora, hora_minima=8))
+
+    def test_dominical_catchup_si_se_salteo_el_domingo(self):
+        # corrió el 05/07; Mac apagada el domingo 12/07 → el lunes 13/07 recupera
+        ultima = datetime(2026, 7, 5, 8, 10)
+        lunes = datetime(2026, 7, 13, 8, 30)
+        self.assertTrue(jobslib.vencio_dominical(ultima, lunes, hora_minima=8))
+
     def test_semanal_cruce_de_anio_misma_semana(self):
         # 2025-12-29 (lunes) pertenece a la semana ISO 1 de 2026
         ultima = datetime(2025, 12, 29, 9, 0)

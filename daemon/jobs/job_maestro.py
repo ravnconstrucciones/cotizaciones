@@ -2,16 +2,22 @@
 """Job mensual: vincula cada ítem del maestro de precios con su tarea SISMAT más cercana.
 
 Flujo:
-  1. Carga tasks.json (SISMAT local) y los ítems de maestro_precios_items.
-  2. Por cada ítem, busca la tarea SISMAT cuyo nombre normalizado tenga mayor
+  1. Carga tasks.json (SISMAT local), maestro_aliases.json y los ítems de
+     maestro_precios_items.
+  2. Por cada ítem, primero busca un alias manual (maestro_aliases.json):
+     alias → tarea SISMAT exacta; alias null → "sin equivalente SISMAT"
+     declarado a mano (no se busca ni se cuenta como falla).
+  3. Sin alias, busca la tarea SISMAT cuyo nombre normalizado tenga mayor
      similitud con el nombre del ítem (difflib.SequenceMatcher).
-  3. Solo actualiza los campos sismat_* si el score >= UMBRAL (matcheo conservador).
-     NUNCA toca costo_mo_m2 ni costo_materiales_m2 (campos manuales del maestro).
-  4. Escribe sismat_ultima_sync en maestro_precios_gestion.
-  5. Registra el evento en la tabla eventos.
+  4. Solo actualiza los campos sismat_* si hay alias o score >= UMBRAL
+     (matcheo conservador). NUNCA toca costo_mo_m2 ni costo_materiales_m2
+     (campos manuales del maestro).
+  5. Escribe sismat_ultima_sync en maestro_precios_gestion.
+  6. Registra el evento en la tabla eventos.
 
 Vencimiento: mensual (mismo ritmo que job_sismat, corre después).
-Se dispara también si meta.json es más nuevo que sismat_ultima_sync.
+Se dispara también si meta.json o maestro_aliases.json son más nuevos que
+sismat_ultima_sync.
 """
 import json
 import sys
@@ -24,6 +30,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from jobslib import VAULT, log, registrar_evento, rest
 
 SISMAT_DIR = Path(VAULT) / "Conocimiento" / "Precios" / "sismat"
+ALIASES_PATH = Path(__file__).resolve().parent / "maestro_aliases.json"
 UMBRAL = 0.70  # score mínimo para considerar matcheo inequívoco
 
 
@@ -53,6 +60,36 @@ def cargar_tareas_sismat() -> list[dict]:
                     "manpower_cost": costo,
                 })
     return tareas
+
+
+# ---------- aliases manuales ----------
+
+# Sentinela: distingue "sin alias" de "alias null = sin equivalente declarado".
+SIN_ALIAS = object()
+
+
+def cargar_aliases() -> dict:
+    """Mapa nombre_normalizado → nombre de tarea SISMAT (o None = sin equivalente)."""
+    if not ALIASES_PATH.exists():
+        return {}
+    data = json.loads(ALIASES_PATH.read_text())
+    return {normalizar(k): v for k, v in data.get("aliases", {}).items()}
+
+
+def resolver_alias(nombre_item: str, aliases: dict, tareas: list[dict]):
+    """Devuelve la tarea SISMAT del alias, None (sin equivalente declarado),
+    o SIN_ALIAS si el ítem no tiene alias."""
+    valor = aliases.get(normalizar(nombre_item), SIN_ALIAS)
+    if valor is SIN_ALIAS or valor is None:
+        return valor
+    valor_norm = normalizar(valor)
+    candidatas = [t for t in tareas if t["name_norm"] == valor_norm]
+    if not candidatas:
+        log(f"  ALIAS ROTO: '{nombre_item}' apunta a '{valor}' que no existe en SISMAT")
+        return SIN_ALIAS  # cae al fuzzy como antes
+    if len(candidatas) > 1:
+        log(f"  alias ambiguo: '{valor}' aparece {len(candidatas)} veces en SISMAT, uso la primera")
+    return candidatas[0]
 
 
 # ---------- matcheo ----------
@@ -95,12 +132,19 @@ def correr(cfg: dict, token: str) -> None:
     ultima_sync = None
     if gest:
         ultima_sync = (gest[0] or {}).get("sismat_ultima_sync")
-    if not sismat_es_mas_nuevo_que_sync(fecha_sismat, ultima_sync):
-        log("job_maestro: SISMAT sin cambios desde la última sync, no es necesario re-correr")
+    # edición de aliases el mismo día de la sync también dispara (>=, no >):
+    # re-correr es barato e idempotente, quedarse viejo no.
+    aliases_tocados = False
+    if ALIASES_PATH.exists():
+        mtime = date.fromtimestamp(ALIASES_PATH.stat().st_mtime).isoformat()
+        aliases_tocados = ultima_sync is None or mtime >= ultima_sync
+    if not sismat_es_mas_nuevo_que_sync(fecha_sismat, ultima_sync) and not aliases_tocados:
+        log("job_maestro: SISMAT y aliases sin cambios desde la última sync, no es necesario re-correr")
         return
 
     tareas = cargar_tareas_sismat()
-    log(f"job_maestro: {len(tareas)} tareas SISMAT con costo > 0")
+    aliases = cargar_aliases()
+    log(f"job_maestro: {len(tareas)} tareas SISMAT con costo > 0, {len(aliases)} aliases manuales")
 
     items = rest(cfg, token, "maestro_precios_items?select=id,nombre_trabajo&order=sort_order.asc")
     if not items:
@@ -110,6 +154,7 @@ def correr(cfg: dict, token: str) -> None:
     hoy = date.today().isoformat()
     matcheados = 0
     sin_match = 0
+    sin_equivalente = 0
 
     for item in items:
         item_id = item["id"]
@@ -117,11 +162,21 @@ def correr(cfg: dict, token: str) -> None:
         if not nombre.strip():
             continue
 
-        tarea, score = mejor_match(nombre, tareas)
-        if tarea is None:
-            sin_match += 1
-            log(f"  sin match: '{nombre}' (mejor score: {score:.2f})")
+        resuelto = resolver_alias(nombre, aliases, tareas)
+        via = "alias"
+        if resuelto is None:
+            # declarado a mano: este laburo no existe en SISMAT
+            sin_equivalente += 1
+            log(f"  sin equivalente SISMAT (alias manual): '{nombre}'")
             continue
+        if resuelto is SIN_ALIAS:
+            resuelto, score = mejor_match(nombre, tareas)
+            via = f"score: {score:.2f}"
+            if resuelto is None:
+                sin_match += 1
+                log(f"  sin match: '{nombre}' (mejor score: {score:.2f}) — agregable a maestro_aliases.json")
+                continue
+        tarea = resuelto
 
         patch = {
             "sismat_costo_mo": round(tarea["manpower_cost"], 2),
@@ -135,7 +190,7 @@ def correr(cfg: dict, token: str) -> None:
             method="PATCH",
         )
         matcheados += 1
-        log(f"  match: '{nombre}' -> '{tarea['name']}' (score: {score:.2f}, MO: ${tarea['manpower_cost']:,.0f})")
+        log(f"  match: '{nombre}' -> '{tarea['name']}' ({via}, MO: ${tarea['manpower_cost']:,.0f})")
 
     # actualizar singleton gestión
     rest(
@@ -146,8 +201,8 @@ def correr(cfg: dict, token: str) -> None:
     )
 
     resumen = (
-        f"Maestro ← SISMAT: {matcheados} ítems matcheados, {sin_match} sin match. "
-        f"Base SISMAT del {fecha_sismat}."
+        f"Maestro ← SISMAT: {matcheados} ítems matcheados, {sin_match} sin match, "
+        f"{sin_equivalente} sin equivalente SISMAT (manual). Base SISMAT del {fecha_sismat}."
     )
     log(f"job_maestro: {resumen}")
 
@@ -157,6 +212,7 @@ def correr(cfg: dict, token: str) -> None:
         {
             "matcheados": matcheados,
             "sin_match": sin_match,
+            "sin_equivalente": sin_equivalente,
             "sismat_descargado": fecha_sismat,
             "sync_fecha": hoy,
         },

@@ -40,6 +40,21 @@ def vencio_semanal(ultima_ok, ahora, hora_minima):
     return ultima_ok.isocalendar()[:2] < ahora.isocalendar()[:2]
 
 
+def vencio_dominical(ultima_ok, ahora, hora_minima):
+    """True si toca la corrida del domingo (una por semana ISO, anclada al domingo).
+    Catch-up: si la Mac estuvo apagada todo el domingo, corre en el primer tick
+    de la semana siguiente (>= 8 días desde la última OK) en vez de saltearse."""
+    if ahora.hour < hora_minima:
+        return False
+    if ultima_ok is None:
+        return ahora.weekday() == 6
+    if ultima_ok.isocalendar()[:2] == ahora.isocalendar()[:2]:
+        return False
+    if ahora.weekday() == 6:
+        return True
+    return (ahora.date() - ultima_ok.date()).days >= 8
+
+
 def vencio_mensual(ultima_ok, ahora, dia_minimo, hora_minima):
     """True si la última corrida OK fue en un mes anterior y ya es día >= dia_minimo."""
     if ahora.day < dia_minimo or ahora.hour < hora_minima:
@@ -117,7 +132,7 @@ DIR_JOBS = Path.home() / ".ravn-jobs"
 STATE = DIR_JOBS / "state.json"
 LOCK = DIR_JOBS / "runner.lock"
 LOG_RUNNER = DIR_JOBS / "logs" / "runner.log"
-ENV_DAEMON = Path.home() / ".ravn-cotizador" / ".env"
+ENV_DAEMON = Path.home() / ".ravn-jobs" / ".env"
 TOKEN_CACHE_JOBS = Path.home() / ".ravn-jobs" / ".token-cache.json"
 VAULT = "/Users/ezeotero/Obsidian/RAVN"
 GIT_VAULT = ["git", "--git-dir", str(Path.home() / ".ravn-vault-git"), "--work-tree", VAULT]

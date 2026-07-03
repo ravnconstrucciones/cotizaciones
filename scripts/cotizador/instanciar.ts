@@ -16,7 +16,7 @@ import {
   FaltanParametrosError,
   type EntradaCotizacion,
 } from "../../src/lib/cotizador/cotizar";
-import { fetchPrecioML } from "../../src/lib/cotizador/mercadolibre";
+import { fetchPrecioRetail } from "../../src/lib/cotizador/retail";
 
 async function leerStdin(): Promise<string> {
   const chunks: Buffer[] = [];
@@ -25,10 +25,11 @@ async function leerStdin(): Promise<string> {
 }
 
 /**
- * Enriquece la entrada con un precio de referencia de MercadoLibre, SOLO para
- * materiales que ya tienen doble precio (SISMAT + internet) y todavía no tienen
- * ML: ahí ML hace de desempate en la mesa. Falla en silencio (no frena la
- * cotización). Se puede apagar con COTIZADOR_SIN_ML=1.
+ * Enriquece la entrada con un precio de referencia RETAIL (Easy; ML si hay
+ * token — ver retail.ts), SOLO para materiales que ya tienen doble precio
+ * (SISMAT + internet) y todavía no tienen referencia: ahí hace de desempate
+ * en la mesa. Falla en silencio (no frena la cotización). Se puede apagar
+ * con COTIZADOR_SIN_ML=1.
  */
 async function enriquecerConML(entrada: EntradaCotizacion): Promise<void> {
   if (process.env.COTIZADOR_SIN_ML) return;
@@ -44,7 +45,7 @@ async function enriquecerConML(entrada: EntradaCotizacion): Promise<void> {
   if (nombres.size === 0) return;
   await Promise.all(
     [...nombres].map(async (nombre) => {
-      const ml = await fetchPrecioML(nombre, hoy);
+      const ml = await fetchPrecioRetail(nombre, hoy);
       if (ml) entrada.precios[nombre].mercadolibre = ml;
     })
   );

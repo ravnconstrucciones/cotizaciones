@@ -41,8 +41,8 @@ MESES_ES = [
 # ── helpers ────────────────────────────────────────────────────────────────────
 
 def cargar_cfg_jobs():
-    """Lee ~/.ravn-cotizador/.env y ~/.ravn-jobs/.env, fusionados.
-    Si ~/.ravn-jobs/.env no existe, solo usa la fuente daemon."""
+    """Lee ~/.ravn-jobs/.env (única fuente desde 2026-07-01; antes se
+    fusionaba con ~/.ravn-cotizador/.env, borrado en la limpieza del 29/6)."""
     cfg = parse_env(ENV_DAEMON.read_text())
     env_jobs = ENV_JOBS
     if env_jobs.exists():

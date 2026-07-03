@@ -18,10 +18,19 @@ TIMEOUT = 1500  # 25 min — busca ~20-30 precios
 
 
 def filas_materiales(md):
-    """Filas de datos de las tablas (excluye encabezados y separadores)."""
+    """Filas de datos de las tablas (excluye encabezados, separadores y el bloque DOLAR)."""
     filas = []
+    en_dolar = False
     for linea in md.splitlines():
         l = linea.strip()
+        if "<!-- DOLAR:START -->" in l:
+            en_dolar = True
+            continue
+        if "<!-- DOLAR:END -->" in l:
+            en_dolar = False
+            continue
+        if en_dolar:
+            continue
         if l.startswith("|") and not l.startswith("|--") and not l.startswith("| Material"):
             filas.append(l)
     return filas
@@ -51,7 +60,7 @@ ARCHIVO A ACTUALIZAR: {ruta_md}
 (tiene {n_filas} filas de materiales; máximo a procesar: {MAX_FILAS})
 
 1. Leé el archivo. Cada tabla tiene columnas: Material | Unidad | Último precio | Fecha | Fuente | Query de actualización.
-2. Para CADA fila, buscá el precio actual en internet (WebSearch) usando la "Query de actualización" de esa fila. Anotá el precio más representativo (no el más barato ni el más caro); si hay mucha dispersión, registrá el rango.
+2. Si hay más de {MAX_FILAS} filas, priorizá las de Fecha MÁS VIEJA (o vacía) hasta cubrir {MAX_FILAS} — ninguna fila puede quedar varada semanas sin turno. Para cada fila elegida, buscá el precio actual en internet (WebSearch) usando la "Query de actualización" de esa fila. Anotá el precio más representativo (no el más barato ni el más caro); si hay mucha dispersión, registrá el rango.
 3. Editá la fila actualizando SOLO: "Último precio", "Fecha" (poné {fecha}) y "Fuente" (link o sitio real de donde salió). NO toques Material, Unidad ni Query de actualización. NO agregues ni borres filas ni secciones. NO toques el bloque <!-- DOLAR:START --> ... <!-- DOLAR:END -->.
 4. Si para una fila no encontrás precio confiable, dejala EXACTAMENTE como está (precio y fecha viejos) — nunca inventes un valor.
 5. Al final respondé SOLO con una línea de resumen: "actualizadas X de {n_filas} filas" y, si quedaron sin actualizar, cuáles.

@@ -34,7 +34,7 @@ export async function POST(req: Request, ctx: Params) {
       ? `Lo que observó Eze / a diagnosticar: ${detalle}`
       : `Eze no dejó detalle: armalo en base a lo que sepas de la obra (avances, gastos, contexto del vault) y marcá claramente lo que falte relevar en obra.`,
     `FORMATO: seguí el formato oficial dark premium de diagnósticos (memoria ravn-diagnostico-formato; base /Users/ezeotero/Documents/ravn/diagnosticos/Diagnostico_Perazzo.html). Respetá la teoría de obra (cerebro Seia) y verificá datos técnicos antes de afirmarlos.`,
-    `ADJUNTAR A LA OBRA (clave, si no, no sirve): además de guardar el HTML, insertá una fila en la tabla \`obra_archivos\` de Supabase para que el diagnóstico aparezca en el orbital de la obra: { presupuesto_id: "${id}", tipo: "diagnostico", titulo: "Diagnóstico — ${nombre}" }. Subí el HTML al bucket privado "obra-archivos" y guardá su storage_path en esa fila (mirá el patrón en src/app/api/obras/[id]/portada/route.ts y el esquema en la migración obra_archivos). Credenciales en /Users/ezeotero/.ravn-cotizador/.env.`,
+    `ADJUNTAR A LA OBRA (clave, si no, no sirve): además de guardar el HTML, insertá una fila en la tabla \`obra_archivos\` de Supabase para que el diagnóstico aparezca en el orbital de la obra: { presupuesto_id: "${id}", tipo: "diagnostico", titulo: "Diagnóstico — ${nombre}" }. Subí el HTML al bucket privado "obra-archivos" y guardá su storage_path en esa fila (mirá el patrón en src/app/api/obras/[id]/portada/route.ts y el esquema en la migración obra_archivos). Credenciales en /Users/ezeotero/.ravn-jobs/.env.`,
     `Cerrá confirmando en 2 líneas: qué diagnosticaste y que quedó adjunto a la obra.`,
   ].join("\n\n");
 

@@ -86,7 +86,8 @@ export type PrecioFechado = {
 
 /**
  * Doble precio por ítem: SISMAT referencia + internet vivo (el que exista).
- * `mercadolibre` es un TERCER precio de REFERENCIA (retail, API pública de ML):
+ * `mercadolibre` es un TERCER precio de REFERENCIA retail (nombre histórico
+ * del campo; hoy sale de Easy, o de ML si hay ML_ACCESS_TOKEN — ver retail.ts):
  * NO entra en el total ni dispara alertas — sirve de desempate cuando SISMAT e
  * internet divergen (te dice a cuál le da la razón el mercado).
  */

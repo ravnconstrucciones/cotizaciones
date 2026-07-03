@@ -1,0 +1,11 @@
+{
+  "_doc": "Aliases manuales maestro→SISMAT. Clave = nombre_trabajo del maestro (se normaliza igual que el job: minúsculas sin tildes). Valor = nombre EXACTO de la tarea SISMAT, o null = 'sin equivalente SISMAT, no buscar' (el job lo marca explícito y no lo cuenta como falla). Editar este archivo dispara re-sync en el próximo tick aunque SISMAT no haya cambiado.",
+  "aliases": {
+    "pintura masillado": "Alisado de muros (interior) con masilla",
+    "pintura lavado de cara": "Paredes interiores",
+    "siding de fibrocemento": null,
+    "tejidos de 1 metro de altura": null,
+    "tejido 3 metros de altura (francisco)": null,
+    "tejido 3 metros de altura (random)": null
+  }
+}
