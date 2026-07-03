@@ -682,6 +682,9 @@ export function GastosScreen({
       if (cashflowItemId) {
         insertPayload.cashflow_item_id = cashflowItemId;
       }
+      if (draft.plan_item_id) {
+        insertPayload.plan_item_id = draft.plan_item_id;
+      }
 
       const { error: err } = await supabase
         .from("presupuestos_gastos")
@@ -1207,6 +1210,30 @@ export function GastosScreen({
                             placeholder="Ej. Ticket Corralón San Martín"
                             className={inputCls}
                           />
+                          {planItems.length > 0 && (
+                            <div className="mt-2">
+                              <label className={labelCls}>
+                                Ítem del plan (opcional)
+                              </label>
+                              <select
+                                className={inputCls}
+                                value={draft.plan_item_id}
+                                onChange={(e) =>
+                                  setDraft((d) =>
+                                    d ? { ...d, plan_item_id: e.target.value } : d
+                                  )
+                                }
+                              >
+                                <option value="">Sin asignar</option>
+                                {planItems.map((p) => (
+                                  <option key={p.id} value={p.id}>
+                                    {p.nombre}
+                                    {p.incluido ? "" : " (excluido)"}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                          )}
                           <div className="mt-2">
                             <label className={labelCls}>Salió de</label>
                             <SelectorCuenta
