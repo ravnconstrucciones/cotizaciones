@@ -10,6 +10,7 @@ import { useRealtimeTable } from "@/hooks/use-realtime-table";
 import {
   clasificarEstadoObra,
   derivarSeguimiento,
+  esObraActiva,
   proximaAccion,
 } from "@/lib/obra-gestion";
 import { cuandoDisplay } from "./seccion-proyecto";
@@ -75,7 +76,9 @@ export function ModuloObras({ className }: { className?: string }) {
         setError(j.error ?? "No se pudo cargar el resumen.");
         return;
       }
-      const activas = (j.obras_activas ?? []) as ObraActiva[];
+      const activas = ((j.obras_activas ?? []) as ObraActiva[]).filter(
+        esObraActiva
+      );
       const avances = (avancesRes.data ?? []) as ObraAvance[];
       const tareas = (tareasRes.data ?? []) as Tarea[];
 
