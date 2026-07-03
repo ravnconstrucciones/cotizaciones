@@ -821,6 +821,14 @@ export function GastosScreen({
             orbital del proyecto. */}
         <nav className="flex flex-wrap gap-3 font-geist text-xs font-medium uppercase tracking-wider">
           <span className="text-cdm-fg">Gastos de obra</span>
+          {effectivePresupuestoId && (
+            <Link
+              href={`/obras/${effectivePresupuestoId}/plan`}
+              className="text-cdm-muted transition-colors hover:text-cdm-fg"
+            >
+              Plan y cruce →
+            </Link>
+          )}
         </nav>
       </div>
     </header>
