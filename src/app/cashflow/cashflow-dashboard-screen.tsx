@@ -10,12 +10,17 @@ import { WavesBackdrop } from "@/components/cockpit/waves-backdrop";
 import { CifraHeroica } from "@/components/cockpit/cifra-heroica";
 import { SkeletonGlass } from "@/components/cockpit/skeleton-glass";
 import { fetchCompartido } from "@/lib/fetch-compartido";
+import { guitaTotal, type RetirosResumen } from "@/lib/salud-negocio";
+import type { SaldosCuentas } from "@/lib/cuentas";
 
 type ObraActiva = {
   obra_id: string;
   presupuesto_id: string | null;
   nombre_obra: string;
+  nombre_cliente?: string | null;
   ingresos_caja: number;
+  ingresos_caja_usd?: number;
+  moneda?: "ARS" | "USD";
   egresos_libreta_ars?: number;
   egresos_gastos_obra_ars?: number;
   egresos_caja: number;
@@ -23,7 +28,18 @@ type ObraActiva = {
   referencia_propuesta_ars: number | null;
   pendiente_ingreso_referencia_ars: number | null;
   saldo_por_cobrar_ars?: number | null;
+  monto_total_a_cobrar_usd?: number | null;
   cobranza_cerrada?: boolean;
+};
+
+/** De /api/negocio/config: patrimonio (pesos y USD) + retiros netos, para que
+ * el hero diga LO MISMO que la tarjeta Dinero de la home (pedido 02/07). */
+type ConfigPayload = {
+  config?: {
+    patrimonio_neto_inicial_ars?: number;
+    patrimonio_neto_inicial_usd?: number;
+  };
+  retiros?: RetirosResumen;
 };
 
 type LibretaEmpresaResumen = {
@@ -89,6 +105,8 @@ function formatUsdInt(n: number): string {
 
 export function CashflowDashboardScreen() {
   const [data, setData] = useState<ResumenJson | null>(null);
+  const [cfgPayload, setCfgPayload] = useState<ConfigPayload | null>(null);
+  const [cuentas, setCuentas] = useState<SaldosCuentas | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
@@ -104,7 +122,11 @@ export function CashflowDashboardScreen() {
       // fetchCompartido consume el prefetch del documento en el primer load
       // (ronda 6 — perf); los reloads post-mutación siempre van frescos
       // porque el prefetch se consume una sola vez.
-      const res = await fetchCompartido("/cashflow/resumen");
+      const [res, resCfg, resCuentas] = await Promise.all([
+        fetchCompartido("/cashflow/resumen"),
+        fetchCompartido("/api/negocio/config"),
+        fetchCompartido("/api/cuentas"),
+      ]);
       const j = res.body as ResumenJson & { error?: string };
       if (!res.ok) {
         setError(j.error ?? "No se pudo cargar el resumen.");
@@ -112,6 +134,8 @@ export function CashflowDashboardScreen() {
         return;
       }
       setData(j);
+      if (resCfg.ok) setCfgPayload(resCfg.body as ConfigPayload);
+      if (resCuentas.ok) setCuentas(resCuentas.body as SaldosCuentas);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Error de red.");
       setData(null);
@@ -143,6 +167,51 @@ export function CashflowDashboardScreen() {
   );
 
   const puedeRegistrar = obraOpts.length > 0;
+
+  // El MISMO número que la tarjeta Dinero de la home: patrimonio personal en
+  // pesos + caja empresa (obras − retiros) + USD valuados al blue del día.
+  const total = useMemo(() => {
+    if (!data) return null;
+    return guitaTotal({
+      patrimonioArs: cfgPayload?.config?.patrimonio_neto_inicial_ars ?? 0,
+      saldoCajaObras: data.saldo_caja_total ?? 0,
+      retirosNetoTotal: cfgPayload?.retiros?.neto_total ?? 0,
+      usd:
+        (cfgPayload?.config?.patrimonio_neto_inicial_usd ?? 0) +
+        (data.caja_obras_usd ?? 0),
+      blue: data.blue_venta ?? null,
+    });
+  }, [data, cfgPayload]);
+
+  // Por cobrar detallado: de qué obra viene cada cobro y EN QUÉ MONEDA entra.
+  // Obras en dólares: pendiente = contrato USD − cobrado USD (entra en billete,
+  // se valúa al blue solo como referencia). Obras en pesos: saldo en ARS.
+  const cobrosPendientes = useMemo(() => {
+    if (!data) return [];
+    return data.obras_activas
+      .map((o) => {
+        const esUsd = o.moneda === "USD";
+        const usdPend = esUsd
+          ? Math.max(
+              0,
+              (o.monto_total_a_cobrar_usd ?? 0) - (o.ingresos_caja_usd ?? 0)
+            )
+          : null;
+        return {
+          obra_id: o.obra_id,
+          nombre: o.nombre_obra,
+          cliente: o.nombre_cliente ?? null,
+          esUsd,
+          usd: usdPend,
+          ars: o.saldo_por_cobrar_ars ?? 0,
+          origen: o.cobranza_cerrada
+            ? "total cerrado"
+            : "según propuesta",
+        };
+      })
+      .filter((c) => (c.esUsd ? (c.usd ?? 0) > 0 : c.ars > 0))
+      .sort((a, b) => b.ars - a.ars);
+  }, [data]);
 
   async function cerrarCobranzaObra(obraId: string) {
     if (
@@ -230,9 +299,9 @@ export function CashflowDashboardScreen() {
         </div>
 
         <p className="mt-4 text-sm text-cdm-muted">
-          El saldo de caja incluye ingresos y egresos de la libreta más los
-          gastos de obra (panel Gastos). "Por cobrar" resume lo que falta
-          cobrar a clientes (según propuesta o total cerrado).
+          Toda la caja en un lugar: cuánto hay (pesos + dólares al blue), en
+          qué cuenta está cada peso, qué falta cobrar y de qué obra viene cada
+          cobro, y todos los ingresos y egresos.
         </p>
 
         <div className="mt-6 grid grid-cols-2 gap-3 sm:max-w-md">
@@ -280,10 +349,82 @@ export function CashflowDashboardScreen() {
           <p className="mt-12 text-sm text-red-400">{error}</p>
         ) : data ? (
           <div className="mt-10 flex flex-col gap-10">
-            {/* Total por cobrar */}
+            {/* Dinero total — el mismo número que la tarjeta Dinero de la home */}
             <div className="cdm-glass px-5 py-5">
               <p className="text-[10px] font-medium uppercase tracking-[0.14em] text-cdm-muted">
-                Total por cobrar (clientes)
+                Dinero total (pesos + USD al blue)
+              </p>
+              <CifraHeroica
+                className="mt-2 text-[clamp(28px,2.2vw,40px)] leading-none"
+                tono={
+                  total?.totalArs != null && total.totalArs < 0
+                    ? "negativo"
+                    : "neutro"
+                }
+              >
+                {total?.totalArs != null
+                  ? formatMoneyInt(total.totalArs)
+                  : total && total.usd > 0
+                    ? "sin blue del día"
+                    : "—"}
+              </CifraHeroica>
+              {total ? (
+                <p className="mt-2 text-[11px] tabular-nums text-cdm-muted">
+                  personal {formatMoneyInt(total.patrimonioArs)} · empresa{" "}
+                  {formatMoneyInt(total.cajaEmpresaArs)}
+                  {total.usd > 0 ? (
+                    <>
+                      {" "}· US$ {formatUsdInt(total.usd)}
+                      {total.usdEnArs != null && data.blue_venta ? (
+                        <>
+                          {" "}≈ {formatMoneyInt(total.usdEnArs)} (blue{" "}
+                          {formatUsdInt(data.blue_venta)})
+                        </>
+                      ) : null}
+                    </>
+                  ) : null}
+                </p>
+              ) : null}
+              {cuentas && cuentas.cuentas.some((c) => c.activa) ? (
+                <div className="mt-4 border-t border-cdm-line pt-4">
+                  <p className="text-[10px] uppercase tracking-[0.14em] text-cdm-muted">
+                    Dónde está cada peso
+                  </p>
+                  <ul className="mt-2 grid grid-cols-1 gap-x-6 gap-y-1.5 sm:grid-cols-2">
+                    {cuentas.cuentas
+                      .filter((c) => c.activa)
+                      .map((c) => (
+                        <li
+                          key={c.id}
+                          className="flex items-baseline justify-between gap-2 text-xs"
+                        >
+                          <span className="min-w-0 truncate text-cdm-muted">
+                            {c.nombre}
+                            {c.procedencia === "obra" ? (
+                              <span
+                                className="ml-1 text-[9px] uppercase tracking-[0.08em] text-cdm-muted/60"
+                                title="Caja de obra: es plata del cliente, no tuya"
+                              >
+                                obra
+                              </span>
+                            ) : null}
+                          </span>
+                          <span className="shrink-0 tabular-nums font-medium text-cdm-fg">
+                            {c.moneda === "USD"
+                              ? `US$ ${formatUsdInt(c.saldo)}`
+                              : formatMoneyInt(c.saldo)}
+                          </span>
+                        </li>
+                      ))}
+                  </ul>
+                </div>
+              ) : null}
+            </div>
+
+            {/* Por cobrar — total + de dónde viene cada cobro y en qué moneda */}
+            <div className="cdm-glass px-5 py-5">
+              <p className="text-[10px] font-medium uppercase tracking-[0.14em] text-cdm-muted">
+                Por cobrar (clientes)
               </p>
               <CifraHeroica
                 className="mt-2 text-[clamp(28px,2.2vw,40px)] leading-none"
@@ -291,17 +432,66 @@ export function CashflowDashboardScreen() {
               >
                 {formatMoneyInt(data.total_por_cobrar_clientes_ars ?? 0)}
               </CifraHeroica>
-              <p className="mt-3 text-[11px] leading-snug text-cdm-muted">
-                Suma por obra: referencia − ingresos en caja, o (si cerraste
-                cobranza) total fijado − ingresos. Pagos parciales en caja
-                restan automáticamente.
+              <p className="mt-1 text-[11px] text-cdm-muted">
+                viene, no está — los cobros en dólares se valúan al blue del
+                día
               </p>
+              {cobrosPendientes.length > 0 ? (
+                <ul className="mt-4 divide-y divide-cdm-line border-t border-cdm-line">
+                  {cobrosPendientes.map((c) => (
+                    <li
+                      key={c.obra_id}
+                      className="flex items-center justify-between gap-3 py-3"
+                    >
+                      <div className="min-w-0">
+                        <Link
+                          href={`/cashflow/obra/${encodeURIComponent(c.obra_id)}`}
+                          className="block truncate text-xs font-semibold text-cdm-fg underline-offset-2 hover:underline"
+                        >
+                          {c.nombre}
+                        </Link>
+                        <p className="mt-0.5 truncate text-[10px] text-cdm-muted">
+                          {c.cliente ? `${c.cliente} · ` : ""}
+                          {c.origen}
+                        </p>
+                      </div>
+                      <div className="shrink-0 text-right">
+                        {c.esUsd ? (
+                          <>
+                            <p className="text-sm font-semibold tabular-nums text-emerald-400">
+                              US$ {formatUsdInt(c.usd ?? 0)}
+                            </p>
+                            <p className="text-[10px] tabular-nums text-cdm-muted">
+                              {c.ars > 0
+                                ? `≈ ${formatMoneyInt(c.ars)} al blue`
+                                : "sin blue del día"}
+                            </p>
+                          </>
+                        ) : (
+                          <>
+                            <p className="text-sm font-semibold tabular-nums text-cdm-fg">
+                              {formatMoneyInt(c.ars)}
+                            </p>
+                            <p className="text-[10px] text-cdm-muted">
+                              en pesos
+                            </p>
+                          </>
+                        )}
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="mt-4 border-t border-cdm-line pt-4 text-xs text-cdm-muted">
+                  No hay cobros pendientes de clientes.
+                </p>
+              )}
             </div>
 
             {/* Saldo total */}
             <div className="cdm-glass px-5 py-5">
               <p className="text-[10px] font-medium uppercase tracking-[0.14em] text-cdm-muted">
-                Saldo total (caja)
+                Caja de obras — ingresos y egresos
               </p>
               <CifraHeroica
                 className="mt-2 text-[clamp(28px,2.2vw,40px)] leading-none"

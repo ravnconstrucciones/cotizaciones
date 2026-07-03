@@ -11,8 +11,6 @@ import { ModuloObras } from "./modulo-obras";
 import { ModuloPlata } from "./modulo-plata";
 import { ModuloPendientes } from "./modulo-pendientes";
 import { ModuloSemana } from "./modulo-semana";
-import { ModuloCotizaciones } from "./modulo-cotizaciones";
-import { ModuloActividad } from "./modulo-actividad";
 import { ModuloCerebro } from "./modulo-cerebro";
 import { ModuloAdn } from "./modulo-adn";
 
@@ -99,11 +97,10 @@ export function CockpitHome({ cerebro }: { cerebro: CerebroData }) {
             {/* Fila 3 — Semana (ancha, calendario lun→dom) */}
             <ModuloSemana className="lg:col-span-12" />
 
-            {/* Fila 4 — Actividad (feed) + Cotizaciones */}
-            <ModuloActividad className="lg:col-span-7" />
-            <ModuloCotizaciones className="lg:col-span-5" />
+            {/* Actividad y Cotizaciones salieron de la home (pedido 02/07):
+                viven en /actividad y /cotizaciones. */}
 
-            {/* Fila 5 — ADN (teaser) a todo el ancho */}
+            {/* Fila 4 — ADN (teaser) a todo el ancho */}
             <ModuloAdn className="lg:col-span-12" />
           </motion.div>
         </div>

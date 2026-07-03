@@ -37,7 +37,6 @@ import {
 
 type ResumenCashflow = {
   obras_activas: ObraResumen[];
-  caja_mes?: { mes: string; ingresos: number; egresos: number; saldo: number };
   saldo_caja_total?: number;
   caja_obras_usd?: number;
   blue_venta?: number | null;
@@ -343,7 +342,11 @@ export function ModuloSaludNegocio({ className }: { className?: string }) {
     }
   }
 
-  const cajaMes = resumen?.caja_mes;
+  // Caja empresa = saldo de obras − retiros netos: el MISMO número que la
+  // tarjeta Dinero. (La "caja del mes" calendario confundía — pedido 02/07.)
+  const cajaEmpresa = resumen
+    ? cajaEmpresaPesos(resumen.saldo_caja_total ?? 0, retiros?.neto_total ?? 0)
+    : null;
   const sueldoObjetivo = cfg?.sueldo_mensual_objetivo_ars ?? 0;
   const retiradoMes = retiros?.retirado_mes ?? 0;
   const sueldoExcedido = sueldoObjetivo > 0 && retiradoMes > sueldoObjetivo;
@@ -420,14 +423,10 @@ export function ModuloSaludNegocio({ className }: { className?: string }) {
                 }
               />
               <Kpi
-                label="Caja del mes"
-                valor={cajaMes ? formatMoneyInt(cajaMes.saldo) : "—"}
-                tono={cajaMes && cajaMes.saldo < 0 ? "negativo" : "neutro"}
-                sub={
-                  cajaMes
-                    ? `↑ ${formatMoneyInt(cajaMes.ingresos)} · ↓ ${formatMoneyInt(cajaMes.egresos)}`
-                    : undefined
-                }
+                label="Caja empresa"
+                valor={cajaEmpresa == null ? "—" : formatMoneyInt(cajaEmpresa)}
+                tono={cajaEmpresa != null && cajaEmpresa < 0 ? "negativo" : "neutro"}
+                sub="obras − retiros · de acá salen los retiros"
               />
             </div>
           </div>
