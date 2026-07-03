@@ -1,43 +1,36 @@
-# Handoff — sesión 2026-07-02 (tarde)
+# Handoff — sesión 2026-07-03 (feature Plan de compra y cruce)
 
-Contexto al límite. Hacer `/clear` y retomar de acá.
+Contexto al límite. Si se corta, `/clear` y retomar de acá.
 
-## Qué se hizo en esta sesión
+## Feature HECHA, commits LOCALES en `home-cards` — falta: fixes de revisión + push (= deploy)
 
-1. **Sistema de CUENTAS completo, COMMITEADO y EN PROD** (commits `15f8359` + rename en branch `home-cards`, deploy Ready en Vercel `ravn-app-one` = "RAVN APP FIVE"):
-   - Tabla `cuentas` en Supabase (migración `crear_sistema_cuentas`): nombre, moneda ARS/USD, saldo_inicial (foto 02/07), fecha_saldo_inicial, procedencia propia/obra, activa, orden. RLS con patrón de la app (select auth, escritura no_bot).
-   - `cuenta_id` nullable + índice en `presupuestos_gastos`, `cashflow_items`, `retiros_socio`, `gastos_personales`. NULL = "sin asignar" (histórico), no toca saldos.
-   - **Saldo derivado** en `src/lib/cuentas.ts` (función pura `saldosPorCuenta`, 9 tests; suite total 319 verde): inicial + movimientos asignados en la moneda de la cuenta. Dedup espejo gasto↔libreta: la cuenta vive en el GASTO (`cashflow_item_id` del espejo se ignora). Gasto desde cuenta USD se pasa con `cotizacion_venta_ars_por_usd` de la fila; sin cotización no ajusta.
-   - `GET /api/cuentas` (`src/app/api/cuentas/route.ts`): cuentas + saldos + agregados por moneda/procedencia.
-   - `SelectorCuenta` (`src/components/selector-cuenta.tsx`) enchufado en: gasto de obra (`src/app/obras/[id]/gastos/gastos-screen.tsx`), retiro rápido (`modulo-salud-negocio.tsx` + `/api/negocio/retiro` acepta cuenta_id), registro rápido de caja (`cashflow-registro-rapido-modal.tsx` + `/api/cashflow/registrar-movimiento`).
-   - Tarjeta de la home: bloque "Dónde está" con cada cuenta, chip `obra` para caja de obra (`modulo-plata.tsx`).
-2. **Cuentas cargadas (02/07):** Efectivo $1.5M (obra Pueyrredón), **Efectivo propio $1.086M** (lo sumó Eze por mensaje), MP $135.532, Balanz $1.105.150 + US$148, BBVA $94.294 + US$30, USD billete US$2.220 (obra). `negocio_config.patrimonio_ars` actualizado a **2.420.976** (ahora incluye efectivo propio).
-3. **Tarjeta renombrada PLATA → DINERO** (pedido de Eze: "no me gusta PLATA") — título del panel y label del héroe ("Dinero total"). Deployado.
+**Qué es:** plan de compra y cruce cotizado/plan/real. Spec: `docs/superpowers/specs/2026-07-03-plan-compra-cruce-design.md`. Plan: `docs/superpowers/plans/2026-07-03-plan-compra-cruce.md`. Commits `d1e73a4..18aa93e` (9 tasks completas, 11 tests nuevos, suite 338 pass, E2E contra prod verificado con datos TEST ya borrados).
 
-## LOOP PEDIDO POR EZE (retomar con /loop en la sesión nueva)
-Eze lanzó `/loop hasta que quede perfecto! y revisa al bot porque hay muchas cosas que siento que flaquea lo siento muy duro...` — quedó SIN ARRANCAR por contexto al límite. En la sesión nueva: **relanzar el loop de mejora del bot** (repo `~/Documents/ravn-bots`, deploy Railway, servicio principal `src/advisorService.js` + `index.js`).
+- Migraciones YA APLICADAS a prod Supabase: `obra_plan_items` + `presupuestos_gastos.plan_item_id` + FK fix.
+- Código: `src/lib/plan-compra/` (tipos/sembrar/importar/cruce/leccion), paso 3.5 en `crear-obra.ts`, `POST /api/obras/[id]/plan/importar`, pantalla `/obras/[id]/plan`, selector en gastos-screen, camino plan en `contraste-obra.ts`, links de navegación.
 
-**Caso concreto que lo disparó (captura 02/07 18:46):** Eze mandó al bot la foto de un flyer de volquetes ("El Benya", 3 números de WhatsApp) con el texto "Guaerae telefono en volquetes" (= guardame el teléfono). El bot respondió con el menú rígido de siempre (1. moodboard / 2. filosofía / 3. procesar en Mac / 4. archivar) — NO entendió la intención. Eze lo siente "muy duro": menús enlatados en vez de entender qué quiere.
+## PENDIENTE INMEDIATO — aplicar fixes del code-review y deployar
 
-**Qué quiere (sus palabras):** "tiene que agendar el número o armarme dentro de la app una lista de proveedores o agendarlos al cel, bah no sé qué puede hacer" — está abierto a propuesta. Dirección sugerida (validar con él):
-1. Tabla `proveedores` en Supabase (nombre, rubro, teléfonos[], notas, origen_foto) + vista en App RAVN — pega con el agente ravn-compras que ya registra proveedores.
-2. Nuevo destino del bot: foto/texto con intención "guardar contacto/proveedor" → extraer con visión (nombre, rubro, teléfonos del flyer) → insertar en `proveedores` y confirmar con lo guardado.
-3. De paso, revisar la rigidez general: que clasifique intención ANTES de tirar menú (el menú solo si de verdad es ambiguo).
+Revisión multi-agente corrida (7/8 respondieron). **Fixes a aplicar** (decididos):
+1. `plan-screen.tsx` CampoNumero: usar `parseFormattedNumber` de `@/lib/format-currency` (hoy "15.000,50" → NaN silencioso).
+2. `plan-screen.tsx` importarDesdeCotizacion: manejar `motivo === "error"` (hoy falla muda).
+3. `plan-screen.tsx`: eliminar `gastosPorItem` y el `.some` de borrarItem — usar `f.cant_gastos` que ya viene en `cruce.filas`.
+4. `importar.ts` idempotencia: bloquear si el presupuesto ya tiene ítems origen='cotizacion' de CUALQUIER cotización (hoy una 2ª cotización duplica el plan y dobla totales).
+5. `contraste-obra.ts` contrastePorPlan: (a) guard `gastos.length === 0 → return 0` (hoy cierra obra sin gastos → lección con margen ~100% falso que contamina al cotizador maestro); (b) si no hay cotización vinculada → NO insertar lección "sin-receta" (ensucia las lecciones generales); (c) Promise.all para las 3 queries.
+6. `leccion.ts`: ítem con cotizado === 0 y real > 0 debe entrar como "sin cotizar" (hoy invisible).
+7. Migración nueva: `alter publication supabase_realtime add table obra_plan_items` (sin eso useRealtimeTable no recibe nada) — aplicar a prod vía MCP.
+Descartados a conciencia: policy DELETE más estricta (app single-user), merge CampoNumero/CampoNota, dedup clases CSS, useCallback noise, doble reload realtime+load (escala chica), lección por cada cotización múltiple (caso raro, documentar).
 
-## SIGUIENTE PASO GRANDE: sección /dinero propia
-Eze pidió que el dinero sea **una sección más dentro de la página, tipo /proyectos o /cotizaciones** (no solo una tarjeta en la home). Frente para sesión dedicada:
-- Ruta `/dinero` con la vista completa: dinero total, desglose por cuenta con saldos derivados, movimientos por cuenta, retiros/aportes, conciliación.
-- Mirar cómo están armadas `/cotizaciones` (`src/app/cotizaciones/`) y `/obras` para copiar el patrón de navegación/entrada desde la home.
-- **PREGUNTAR a Eze**: ¿la tarjeta Dinero de la home queda como resumen que linkea a /dinero (como obras) o desaparece de la home?
-- Ya existe `/finanzas` (personal, ciclo tarjeta) — definir si /dinero la absorbe o conviven (dinero=empresa+total, finanzas=personal).
+Después de los fixes: `npx tsc --noEmit && npx vitest run` (agregar/ajustar tests de leccion/importar si aplica) → commit → **`git push origin home-cards` = deploy automático a prod (`ravn-app-one`)** → verificar deploy READY.
 
-## Decisiones/datos de Eze en esta sesión
-- Sumó $1.086.000 de plata SUYA en efectivo (cuenta "Efectivo propio", separada del efectivo de obra).
-- No le gusta "PLATA" como nombre → "DINERO".
+**OK ya dado por Eze**: "hace todo y deploya todo". Al terminar avisarle: la próxima cotización que apruebe siembra el plan solo; obras en curso → botón "Importar desde la cotización" en `/obras/[id]/plan`.
 
-## Pendientes abiertos
-1. Bot WhatsApp (ravn-bots Railway) no asigna cuenta al cargar gastos → quedan "sin asignar".
-2. Conciliar $20.000 efectivo obra (libreta 1.520.000 vs foto 1.500.000) y US$20 billete (2.220 vs 2.200).
-3. Registrar HOY el primer retiro de socio (pago al banco) con el selector de cuenta nuevo — lo hace Eze en la app.
-4. Branch `home-cards` con 3 commits sin pushear; sigue el lote viejo sin commitear (daemon/jobs + cotizador retail — decidir con Eze).
-5. Los de siempre (en memoria): limpieza vault, archivar 5 cotizaciones, cuota container, toggles Supabase, job auditoría domingo 05/07.
+Falta 1 finder (altitude) — output en `/private/tmp/claude-501/-Users-ezeotero/487e5a5e-49cf-40b0-9091-dc38788ebdad/tasks/a9bb81090acdd3103.output` (JSONL, el resultado es el último texto). Si trae algo grave, evaluarlo antes del push.
+
+## Contexto heredado de otras sesiones de hoy (YA EN PROD, solo referencia)
+Purga flujo viejo (/nuevo-presupuesto, /rentabilidad, /propuesta), /control-gastos borrado, home/cashflow espejo Dinero. Remito intacto. NO borrar libs `ravn-propuesta-pref`/`ravn-rentabilidad-inputs`.
+
+## PENDIENTE GRANDE (arrastrado): LOOP DEL BOT
+Loop de mejora del bot (repo `~/Documents/ravn-bots`, Railway) SIN ARRANCAR. Caso: flyer volquetes "El Benya" + "guardame teléfono" → menú rígido. Eze lo siente "muy duro".
+
+## Al terminar todo, borrar este handoff.md.

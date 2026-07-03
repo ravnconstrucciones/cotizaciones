@@ -90,6 +90,17 @@ describe("leccionDesdeCruce", () => {
     expect(a.excluidos).toHaveLength(1);
   });
 
+  it("ítem cotizado en $0 con gasto real entra como sin_cotizar (desvío incalculable)", () => {
+    const cero: Cruce = {
+      ...cruce,
+      filas: [fila({ id: "z", nombre: "Extra a definir", cotizado: 0, plan: 0, real: 80000 })],
+    };
+    const { ajuste } = leccionDesdeCruce("x", cero);
+    const a = ajuste as { sin_cotizar: Array<{ nombre: string }> };
+    expect(a.sin_cotizar).toHaveLength(1);
+    expect(a.sin_cotizar[0].nombre).toBe("Extra a definir");
+  });
+
   it("ignora desvíos chicos (|desvío| < 10%)", () => {
     const chico: Cruce = {
       ...cruce,

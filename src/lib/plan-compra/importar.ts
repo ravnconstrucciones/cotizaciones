@@ -4,8 +4,10 @@ import { sembrarPlanDesdeDesglose } from "./sembrar";
 
 /**
  * Importa el desglose de una cotización como plan de compra de la obra.
- * Idempotente: si la obra ya tiene ítems origen 'cotizacion' de ESA cotización,
- * no vuelve a sembrar (motivo 'ya_importado'). Best-effort: nunca tira — ante
+ * Idempotente: si la obra ya tiene ítems origen 'cotizacion' (de CUALQUIER
+ * cotización — una 2ª cotización sobre la misma obra duplicaría el plan y
+ * doblaría los totales del cruce), no vuelve a sembrar (motivo 'ya_importado').
+ * Best-effort: nunca tira — ante
  * error devuelve { insertados: 0, motivo } y loguea (mismo contrato que el
  * loop de oro de crear-obra: un fallo acá jamás bloquea la aprobación).
  */
@@ -19,7 +21,6 @@ export async function importarPlanDesdeCotizacion(
       .from("obra_plan_items")
       .select("id")
       .eq("presupuesto_id", presupuestoId)
-      .eq("cotizacion_id", cotizacionId)
       .eq("origen", "cotizacion")
       .limit(1);
     if (eEx) throw new Error(eEx.message);

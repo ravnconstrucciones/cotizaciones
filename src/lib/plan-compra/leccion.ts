@@ -14,7 +14,11 @@ export function leccionDesdeCruce(
   const desviados = cruce.filas.filter(
     (f) => f.desvio_pct != null && Math.abs(f.desvio_pct) >= UMBRAL_DESVIO_PCT
   );
-  const sinCotizar = cruce.filas.filter((f) => f.cotizado == null && (f.plan > 0 || f.real > 0));
+  // cotizado 0 (placeholder "a definir") con plata real encima cuenta como
+  // no-cotizado: su desvío es incalculable (÷0) y sin esto quedaría invisible.
+  const sinCotizar = cruce.filas.filter(
+    (f) => (f.cotizado == null || f.cotizado === 0) && (f.plan > 0 || f.real > 0)
+  );
   const excluidos = cruce.filas.filter((f) => !f.item.incluido);
 
   const partes: string[] = [];

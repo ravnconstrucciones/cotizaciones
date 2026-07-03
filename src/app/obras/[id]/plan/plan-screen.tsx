@@ -5,7 +5,7 @@ import { Trash2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { RavnLogo } from "@/components/ravn-logo";
 import { createClient } from "@/lib/supabase/client";
-import { formatMoney } from "@/lib/format-currency";
+import { formatMoney, parseFormattedNumber } from "@/lib/format-currency";
 import { importeGastoObraArs } from "@/lib/cashflow-gastos-obra";
 import { useRealtimeTable } from "@/hooks/use-realtime-table";
 import { calcularCruce, type Cruce, type FilaCruce, type GastoParaCruce } from "@/lib/plan-compra/cruce";
@@ -126,16 +126,18 @@ export function PlanScreen({ presupuestoId }: { presupuestoId: string }) {
   );
 
   const borrarItem = useCallback(
-    async (item: PlanItemRow) => {
-      const conGastos = gastos.some((g) => g.plan_item_id === item.id);
-      if (item.origen === "cotizacion" || conGastos) return; // guard: solo manuales sin gastos
-      if (!window.confirm(`¿Borrar "${item.nombre}"?`)) return;
+    async (fila: FilaCruce) => {
+      if (!esBorrable(fila)) return; // guard: solo manuales sin gastos
+      if (!window.confirm(`¿Borrar "${fila.item.nombre}"?`)) return;
       const supabase = createClient();
-      const { error: e } = await supabase.from("obra_plan_items").delete().eq("id", item.id);
+      const { error: e } = await supabase
+        .from("obra_plan_items")
+        .delete()
+        .eq("id", fila.item.id);
       if (e) setError(e.message);
       else await load();
     },
-    [gastos, load]
+    [load]
   );
 
   async function importarDesdeCotizacion() {
@@ -148,19 +150,13 @@ export function PlanScreen({ presupuestoId }: { presupuestoId: string }) {
       else if (json.motivo === "sin_cotizacion") setError("Esta obra no tiene cotización vinculada.");
       else if (json.motivo === "ya_importado") setError("El plan ya fue importado de esa cotización.");
       else if (json.motivo === "sin_desglose") setError("La cotización vinculada no tiene desglose.");
+      else if (json.motivo === "error")
+        setError("No se pudo importar el plan — reintentá o revisá los logs del server.");
       await load();
     } finally {
       setImportando(false);
     }
   }
-
-  const gastosPorItem = useMemo(() => {
-    const m = new Map<string, number>();
-    for (const g of gastos) {
-      if (g.plan_item_id) m.set(g.plan_item_id, (m.get(g.plan_item_id) ?? 0) + 1);
-    }
-    return m;
-  }, [gastos]);
 
   return (
     <main className="mx-auto max-w-6xl px-4 py-8 md:px-8">
@@ -213,7 +209,6 @@ export function PlanScreen({ presupuestoId }: { presupuestoId: string }) {
       ) : tab === "plan" ? (
         <PlanTab
           filas={cruce.filas}
-          gastosPorItem={gastosPorItem}
           onPatch={patchItem}
           onAgregar={agregarItem}
           onBorrar={borrarItem}
@@ -245,9 +240,9 @@ function CampoNumero({
       value={texto}
       onChange={(e) => setTexto(e.target.value)}
       onBlur={() => {
-        const limpio = texto.trim().replace(",", ".");
-        if (limpio === "") return onCommit(null);
-        const n = Number(limpio);
+        if (texto.trim() === "") return onCommit(null);
+        // parseFormattedNumber entiende es-AR ("15.000,50"); Number() no.
+        const n = parseFormattedNumber(texto);
         if (Number.isFinite(n) && n >= 0) onCommit(n);
         else setTexto(valor == null ? "" : String(valor));
       }}
@@ -277,18 +272,21 @@ function CampoNota({
   );
 }
 
+/** Regla única de borrado (misma para el botón y el guard): manual y sin gastos. */
+function esBorrable(f: FilaCruce): boolean {
+  return f.item.origen === "manual" && f.cant_gastos === 0;
+}
+
 function PlanTab({
   filas,
-  gastosPorItem,
   onPatch,
   onAgregar,
   onBorrar,
 }: {
   filas: FilaCruce[];
-  gastosPorItem: Map<string, number>;
   onPatch: (id: string, patch: Partial<PlanItemRow>) => Promise<void>;
   onAgregar: (tipo: PlanTipo) => Promise<void>;
-  onBorrar: (item: PlanItemRow) => Promise<void>;
+  onBorrar: (fila: FilaCruce) => Promise<void>;
 }) {
   const bloques: Array<{ titulo: string; tipoAlta: PlanTipo; filas: FilaCruce[] }> = [
     {
@@ -329,8 +327,7 @@ function PlanTab({
               <tbody>
                 {b.filas.map((f) => {
                   const it = f.item;
-                  const borrable =
-                    it.origen === "manual" && (gastosPorItem.get(it.id) ?? 0) === 0;
+                  const borrable = esBorrable(f);
                   return (
                     <tr key={it.id} className={!it.incluido ? "opacity-40" : ""}>
                       <td className={tdCls}>
@@ -380,7 +377,7 @@ function PlanTab({
                       <td className={tdCls}>
                         {borrable && (
                           <button
-                            onClick={() => void onBorrar(it)}
+                            onClick={() => void onBorrar(f)}
                             className="text-cdm-muted hover:text-red-500"
                             title="Borrar ítem manual"
                           >

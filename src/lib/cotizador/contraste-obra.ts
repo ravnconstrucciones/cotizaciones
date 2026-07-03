@@ -84,26 +84,27 @@ async function contrastePorPlan(
   presupuestoId: string,
   planItems: PlanItemRow[]
 ): Promise<number> {
-  const { data: gastosPlan, error: eGas } = await sb
-    .from("presupuestos_gastos")
-    .select("id, descripcion, importe, fecha, plan_item_id")
-    .eq("presupuesto_id", presupuestoId);
-  if (eGas) return 0;
+  const [gastosRes, obraRes, cotRes] = await Promise.all([
+    sb
+      .from("presupuestos_gastos")
+      .select("id, descripcion, importe, fecha, plan_item_id")
+      .eq("presupuesto_id", presupuestoId),
+    sb
+      .from("obras")
+      .select("monto_total_a_cobrar_ars")
+      .eq("presupuesto_id", presupuestoId)
+      .maybeSingle(),
+    buscarCotizacionDelPlan(sb, presupuestoId, planItems),
+  ]);
+  const { data: gastosPlan, error: eGas } = gastosRes;
+  const { data: obraRow } = obraRes;
+  const cotPlan = cotRes;
 
-  const { data: obraRow } = await sb
-    .from("obras")
-    .select("monto_total_a_cobrar_ars")
-    .eq("presupuesto_id", presupuestoId)
-    .maybeSingle();
-
-  const { data: cotPlan } = await sb
-    .from("cotizaciones")
-    .select("id, desglose")
-    .eq("presupuesto_id", presupuestoId)
-    .in("estado", ["aprobada", "documento_emitido"])
-    .order("creado_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
+  // Mismos guards que el camino difuso: sin gastos reales no hay contraste
+  // (una lección con margen ~100% falso contaminaría al cotizador maestro),
+  // y sin cotización vinculada no hay receta a la que atribuir la lección.
+  if (eGas || !gastosPlan || gastosPlan.length === 0) return 0;
+  if (!cotPlan) return 0;
 
   const cruce = calcularCruce(
     planItems,
@@ -135,4 +136,37 @@ async function contrastePorPlan(
     return 0;
   }
   return 1;
+}
+
+/**
+ * La lección se atribuye a la cotización que SEMBRÓ el plan (los ítems guardan
+ * su cotizacion_id), no a la aprobada más reciente — con dos cotizaciones sobre
+ * la misma obra la receta quedaría mal calibrada. Fallback: la más reciente
+ * aprobada/emitida (plan importado antes de este fix o cotizacion_id en null).
+ */
+async function buscarCotizacionDelPlan(
+  sb: SupabaseClient,
+  presupuestoId: string,
+  planItems: PlanItemRow[]
+): Promise<{ id: string; desglose: unknown } | null> {
+  const sembradora = planItems.find(
+    (i) => i.origen === "cotizacion" && i.cotizacion_id
+  )?.cotizacion_id;
+  if (sembradora) {
+    const { data } = await sb
+      .from("cotizaciones")
+      .select("id, desglose")
+      .eq("id", sembradora)
+      .maybeSingle();
+    if (data) return data as { id: string; desglose: unknown };
+  }
+  const { data } = await sb
+    .from("cotizaciones")
+    .select("id, desglose")
+    .eq("presupuesto_id", presupuestoId)
+    .in("estado", ["aprobada", "documento_emitido"])
+    .order("creado_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  return (data as { id: string; desglose: unknown } | null) ?? null;
 }
