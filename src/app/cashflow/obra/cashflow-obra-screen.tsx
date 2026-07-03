@@ -242,12 +242,6 @@ export function CashflowObraScreen({ obraId }: { obraId: string }) {
               {data?.presupuesto_id ? (
                 <p className="mt-3 flex flex-wrap gap-x-4 gap-y-2 text-xs">
                   <Link
-                    href={`/propuesta/${encodeURIComponent(data.presupuesto_id)}`}
-                    className="font-medium uppercase tracking-wider text-cdm-muted underline-offset-2 hover:text-cdm-fg hover:underline"
-                  >
-                    Propuesta
-                  </Link>
-                  <Link
                     href={`/obras/${encodeURIComponent(data.presupuesto_id)}/gastos`}
                     className="font-medium uppercase tracking-wider text-cdm-muted underline-offset-2 hover:text-cdm-fg hover:underline"
                   >

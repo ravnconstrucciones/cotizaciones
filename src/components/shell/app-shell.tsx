@@ -10,7 +10,7 @@ import { useRealtimeTable } from "@/hooks/use-realtime-table";
 import { MenuOverlay } from "./menu-overlay";
 
 /** Rutas SIN carcasa (login, vistas de impresión/PDF y landing pública). */
-const SIN_CARCASA = ["/login", "/propuesta", "/remito", "/landing"];
+const SIN_CARCASA = ["/login", "/remito", "/landing"];
 /** Sufijos de ruta que también omiten carcasa (documentos A4 de cotizaciones). */
 const SIN_CARCASA_SUFIJO = ["/documento"];
 

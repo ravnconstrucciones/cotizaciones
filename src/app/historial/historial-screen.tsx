@@ -669,7 +669,7 @@ export function HistorialScreen() {
                       <div className="min-w-0">
                         <div className="flex flex-wrap items-center gap-3">
                           <Link
-                            href={`/propuesta/${encodeURIComponent(p.id)}`}
+                            href={`/obras/${encodeURIComponent(p.id)}`}
                             className="font-raleway inline-block text-base font-bold uppercase tracking-wide text-cdm-fg transition-colors hover:text-cdm-accent md:text-lg"
                           >
                             {numeroLabel}
@@ -707,12 +707,6 @@ export function HistorialScreen() {
                           </span>
                         </p>
                         <p className="mt-2 flex flex-wrap gap-x-4 gap-y-1">
-                          <Link
-                            href={`/rentabilidad?id=${encodeURIComponent(p.id)}`}
-                            className="text-xs font-medium uppercase tracking-wider text-cdm-muted underline-offset-2 transition-colors hover:text-cdm-accent hover:underline"
-                          >
-                            Rentabilidad y costos
-                          </Link>
                           {p.presupuesto_aprobado ? (
                             <>
                               <Link

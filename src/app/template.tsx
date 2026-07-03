@@ -21,7 +21,7 @@ import { useEntradaAnimada } from "@/hooks/use-entrada-animada";
  * Con prefers-reduced-motion el contenido aparece sin animación.
  */
 
-const SIN_TRANSICION = ["/propuesta", "/remito", "/landing"];
+const SIN_TRANSICION = ["/remito", "/landing"];
 const SIN_TRANSICION_SUFIJO = ["/documento"];
 
 export default function Template({ children }: { children: React.ReactNode }) {

@@ -798,42 +798,10 @@ export function GastosScreen({
         <Link href="/" className="inline-block w-fit" aria-label="Inicio">
           <RavnLogo sizeClassName="text-xl sm:text-2xl" showTagline={false} />
         </Link>
+        {/* Nav del flujo viejo (Propuesta / Rentabilidad / Cashflow) eliminado
+            (pedido de Eze 03/07): esas pantallas murieron o se llega desde el
+            orbital del proyecto. */}
         <nav className="flex flex-wrap gap-3 font-geist text-xs font-medium uppercase tracking-wider">
-          {effectivePresupuestoId ? (
-            <>
-              <Link
-                href={`/propuesta/${encodeURIComponent(effectivePresupuestoId)}`}
-                className="text-cdm-muted underline-offset-4 transition-colors hover:text-cdm-fg hover:underline"
-              >
-                Propuesta
-              </Link>
-              <span className="text-cdm-line" aria-hidden>
-                /
-              </span>
-              <Link
-                href={`/rentabilidad?id=${encodeURIComponent(effectivePresupuestoId)}`}
-                className="text-cdm-muted underline-offset-4 transition-colors hover:text-cdm-fg hover:underline"
-              >
-                Rentabilidad
-              </Link>
-              {obraCashflowId ? (
-                <>
-                  <span className="text-cdm-line" aria-hidden>
-                    /
-                  </span>
-                  <Link
-                    href={`/cashflow/obra/${encodeURIComponent(obraCashflowId)}`}
-                    className="text-cdm-muted underline-offset-4 transition-colors hover:text-cdm-fg hover:underline"
-                  >
-                    Cashflow
-                  </Link>
-                </>
-              ) : null}
-              <span className="text-cdm-line" aria-hidden>
-                /
-              </span>
-            </>
-          ) : null}
           <span className="text-cdm-fg">Gastos de obra</span>
         </nav>
       </div>

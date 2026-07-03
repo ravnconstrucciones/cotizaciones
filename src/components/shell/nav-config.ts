@@ -30,11 +30,9 @@ export const NAV_DATOS: NavItem[] = [
   { href: "/maestro-precios", label: "Maestro de precios" },
 ];
 
-// Rentabilidad salió del menú (pedido de Eze, 28/06): NO es pantalla de consulta
-// sino un paso del flujo de presupuesto (Nuevo presupuesto → Rentabilidad →
-// Propuesta). Necesita un presupuesto en contexto (?id=...); abierta desde el
-// menú sin contexto aparecía vacía. Se llega desde el pie de Nuevo presupuesto
-// y desde el historial. La ruta /rentabilidad sigue viva, solo no está linkeada acá.
+// El flujo viejo de presupuesto (Nuevo presupuesto → Rentabilidad → Propuesta)
+// se ELIMINÓ entero (pedido de Eze, 03/07): margen y emisión se manejan por
+// consola (cotizador-maestro); el remito sigue vivo en /remito/[id].
 
 /**
  * Herramientas secundarias. "SISMAT" es la pantalla /catalogo (recetas + rubros

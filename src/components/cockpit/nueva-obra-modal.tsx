@@ -8,8 +8,8 @@ import { AnimatePresence, motion } from "framer-motion";
  * cdm-glass, radius 0, ambos temas). Liviano: nombre de obra + cliente +
  * instancia/estado inicial opcional. Al guardar pega a POST /api/obras, que
  * crea el presupuesto aprobado + su fila en obras → la obra aparece de una como
- * ACTIVA en home y galería. NO reemplaza /nuevo-presupuesto (ese arma el
- * presupuesto formal con ítems).
+ * ACTIVA en home y galería. Los presupuestos formales
+ * salen del cotizador por consola (el flujo /nuevo-presupuesto murió 03/07).
  */
 
 const fieldCls =

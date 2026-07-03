@@ -5,7 +5,8 @@ import { createSupabaseAdminClient } from "@/lib/supabase/server";
  * POST /api/obras — ALTA DE OBRA desde el cockpit (botón "+ NUEVA OBRA").
  *
  * Eze es constructor: a veces arranca una obra sin pasar por el presupuesto
- * formal con ítems (eso sigue en /nuevo-presupuesto). Este endpoint da de alta
+ * formal con ítems (el flujo /nuevo-presupuesto murió 03/07; los presupuestos
+ * formales salen del cotizador por consola). Este endpoint da de alta
  * la obra liviana: crea un presupuesto YA APROBADO (presupuesto_aprobado=true,
  * estado en_curso) — el trigger presupuestos_after_insert_obra le crea su fila
  * en `obras` —, opcionalmente carga el primer avance (instancia/estado inicial),
@@ -13,7 +14,6 @@ import { createSupabaseAdminClient } from "@/lib/supabase/server";
  * cargarle avances y gastos.
  *
  * Service_role (bypass RLS) — la ruta vive detrás del middleware (sesión).
- * NO toca el flujo de /nuevo-presupuesto (ese arma el presupuesto con ítems).
  */
 
 type Body = {
