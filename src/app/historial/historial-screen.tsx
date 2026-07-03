@@ -552,10 +552,10 @@ export function HistorialScreen() {
           <span className="text-cdm-fg">Aprobar y planificar cashflow</span>{" "}
           (revisión + ítems). Los aprobados aparecen en{" "}
           <Link
-            href="/control-gastos"
+            href="/obras"
             className="text-cdm-fg underline underline-offset-2 transition-colors hover:text-cdm-accent"
           >
-            Control de gastos
+            Proyectos
           </Link>
           .
         </p>

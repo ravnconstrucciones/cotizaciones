@@ -126,7 +126,7 @@ function esLibretaEmpresa(p: PresRow | null): boolean {
 /**
  * Costo total estimado del presupuesto en pesos nominales: costo directo
  * (material + M.O.) + costos internos + cargos adicionales, leídos de
- * `rentabilidad_inputs`. Misma fórmula que control-gastos (sin contingencia: el
+ * `rentabilidad_inputs`. Misma fórmula que el panel Gastos de obra (sin contingencia: el
  * cupo de imprevistos es colchón = parte del margen salvo que se use). null si
  * no hay rentabilidad cargada o el costo no es usable (≤ 0).
  */

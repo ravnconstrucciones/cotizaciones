@@ -937,10 +937,10 @@ export function GastosScreen({
                 (casilla &quot;Presupuesto aprobado&quot;). Después lo vas a ver
                 en{" "}
                 <Link
-                  href="/control-gastos"
+                  href="/obras"
                   className="underline underline-offset-2"
                 >
-                  Control de gastos
+                  Proyectos
                 </Link>
                 .
               </p>
