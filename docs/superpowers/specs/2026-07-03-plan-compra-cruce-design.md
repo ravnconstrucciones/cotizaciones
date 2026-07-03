@@ -101,6 +101,12 @@ alter table public.presupuestos_gastos
 - Vista agregada multi-obra de compras/proveedores.
 - Alertas de desvío en vivo durante la obra.
 
+## Enmiendas (plan de implementación 2026-07-03)
+
+1. `obra_plan_items` se clava a `presupuesto_id` (no `obra_id`): todo el módulo obras del repo (`/obras/[id]`, gastos, archivos) usa `presupuestos.id`.
+2. `tipo` admite `'extra'`: los extras del desglose (flete, volquete) también se siembran y cruzan.
+3. Sin botón "cerrar cruce": la lección se genera en el flujo CERRAR OBRA existente (`finalizarObra` → `correrContrasteObra`), enriquecido con contraste exacto por plan cuando la obra tiene plan.
+
 ## Testing
 
 - Unit: sembrado desglose→plan (snapshot correcto, no duplica), cálculo del cruce (excluidos, agregados, sin asignar, margen), guard de borrado según origen/gastos.
