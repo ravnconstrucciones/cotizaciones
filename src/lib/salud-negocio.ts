@@ -98,6 +98,27 @@ export function valuarObraUsd(args: {
 }
 
 /**
+ * Saldo por cobrar (en USD) de una obra cerrada en dólares. La deuda del
+ * cliente está denominada en USD: un cobro hecho en pesos con equivalente
+ * pactado (monto_usd del cashflow_item) descuenta ese equivalente EXACTO —
+ * no flota con el blue, porque el cliente ya pagó esos dólares. Los pesos
+ * cobrados sin equivalente pactado se pasan a USD al blue del día.
+ */
+export function saldoPorCobrarUsd(args: {
+  contratoUsd: number;
+  cobradoUsdBillete: number;
+  equivUsdDeArs: number;
+  arsSinEquiv: number;
+  blue: number;
+}): number {
+  const cobradoUsd =
+    args.cobradoUsdBillete +
+    args.equivUsdDeArs +
+    (args.blue > 0 ? args.arsSinEquiv / args.blue : 0);
+  return roundArs2(Math.max(0, args.contratoUsd - cobradoUsd));
+}
+
+/**
  * Costo total estimado de una obra, en ARS, coherente con cómo se valúa el
  * contrato ("cerrado").
  *

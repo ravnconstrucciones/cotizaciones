@@ -28,6 +28,7 @@ type ObraActiva = {
   referencia_propuesta_ars: number | null;
   pendiente_ingreso_referencia_ars: number | null;
   saldo_por_cobrar_ars?: number | null;
+  saldo_por_cobrar_usd?: number | null;
   monto_total_a_cobrar_usd?: number | null;
   cobranza_cerrada?: boolean;
 };
@@ -191,8 +192,11 @@ export function CashflowDashboardScreen() {
     return data.obras_activas
       .map((o) => {
         const esUsd = o.moneda === "USD";
+        // Deuda real en USD la calcula el resumen (descuenta también los
+        // cobros en pesos con equivalente pactado, no solo el billete).
         const usdPend = esUsd
-          ? Math.max(
+          ? o.saldo_por_cobrar_usd ??
+            Math.max(
               0,
               (o.monto_total_a_cobrar_usd ?? 0) - (o.ingresos_caja_usd ?? 0)
             )

@@ -7,7 +7,11 @@ import {
   parsePropuestaPrefJsonDesdeMismaFila,
 } from "@/lib/ravn-propuesta-pref";
 import { parseRentabilidadInputsJson } from "@/lib/ravn-rentabilidad-inputs";
-import { costoEstimadoArs, valuarObraUsd } from "@/lib/salud-negocio";
+import {
+  costoEstimadoArs,
+  valuarObraUsd,
+  saldoPorCobrarUsd,
+} from "@/lib/salud-negocio";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
 
 type PresRow = {
@@ -86,14 +90,31 @@ function totalesObra(
     moneda: "ARS" | "USD";
     monto_usd: number | null;
   }[]
-): { ingresosArs: number; ingresosUsd: number; egresosArs: number } {
+): {
+  ingresosArs: number;
+  ingresosUsd: number;
+  ingresosEquivUsdDeArs: number;
+  ingresosArsConEquiv: number;
+  egresosArs: number;
+} {
   let ingArs = 0;
   let ingUsd = 0;
+  // Cobros en pesos con equivalente USD pactado (monto_usd en el item): el
+  // nominal va a la caja en pesos, pero el equivalente descuenta deuda en USD.
+  let equivUsd = 0;
+  let arsConEquiv = 0;
   let egr = 0;
   for (const it of items) {
     if (it.tipo === "ingreso") {
       if (it.moneda === "USD") ingUsd += parseNum(it.monto_usd);
-      else if (it.monto_real != null) ingArs += it.monto_real;
+      else if (it.monto_real != null) {
+        ingArs += it.monto_real;
+        const equiv = parseNum(it.monto_usd);
+        if (equiv > 0) {
+          equivUsd += equiv;
+          arsConEquiv += it.monto_real;
+        }
+      }
     } else if (it.monto_real != null) {
       egr += it.monto_real;
     }
@@ -101,6 +122,8 @@ function totalesObra(
   return {
     ingresosArs: roundArs2(ingArs),
     ingresosUsd: roundArs2(ingUsd),
+    ingresosEquivUsdDeArs: roundArs2(equivUsd),
+    ingresosArsConEquiv: roundArs2(arsConEquiv),
     egresosArs: roundArs2(egr),
   };
 }
@@ -378,6 +401,7 @@ export async function GET() {
       let pendiente_ingreso_referencia_ars: number | null;
       let monto_total_a_cobrar_ars_resp: number | null;
       let saldo_por_cobrar_ars: number | null = null;
+      let saldo_por_cobrar_usd: number | null = null;
 
       if (esUsd && blue) {
         // Obra en dólares: contrato y cobrado valuados al blue del día (flotan).
@@ -392,7 +416,18 @@ export async function GET() {
         referencia_propuesta_ars = null;
         pendiente_ingreso_referencia_ars = null;
         monto_total_a_cobrar_ars_resp = v.cerradoArs > 0 ? v.cerradoArs : null;
-        saldo_por_cobrar_ars = v.cerradoArs > 0 ? v.porCobrarArs : null;
+        // La deuda del cliente es en USD: los cobros en pesos con equivalente
+        // pactado descuentan ese equivalente exacto (no flotan al blue).
+        if (montoUsdTotal > 0) {
+          saldo_por_cobrar_usd = saldoPorCobrarUsd({
+            contratoUsd: montoUsdTotal,
+            cobradoUsdBillete: t.ingresosUsd,
+            equivUsdDeArs: t.ingresosEquivUsdDeArs,
+            arsSinEquiv: Math.max(0, t.ingresosArs - t.ingresosArsConEquiv),
+            blue,
+          });
+          saldo_por_cobrar_ars = roundArs2(saldo_por_cobrar_usd * blue);
+        }
       } else {
         // Obra en pesos: lógica original.
         ingresosArs = t.ingresosArs;
@@ -453,6 +488,9 @@ export async function GET() {
         referencia_propuesta_ars,
         pendiente_ingreso_referencia_ars,
         saldo_por_cobrar_ars,
+        // Saldo por cobrar en USD (solo obras en dólares): deuda real del
+        // cliente, con equivalentes pactados descontados.
+        saldo_por_cobrar_usd,
         // Contrato (cerrado): snapshot ARS para obras en pesos; valuado al blue
         // para obras en dólares. El módulo Salud lo usa como "cerrado".
         monto_total_a_cobrar_ars: monto_total_a_cobrar_ars_resp,

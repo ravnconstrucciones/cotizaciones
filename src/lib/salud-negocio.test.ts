@@ -8,6 +8,7 @@ import {
   guitaTotal,
   costoEstimadoArs,
   valuarObraUsd,
+  saldoPorCobrarUsd,
   type ObraResumen,
   type ConfigNegocio,
 } from "./salud-negocio";
@@ -233,6 +234,47 @@ describe("valuarObraUsd", () => {
     expect(v.cerradoArs).toBe(12_880_000); // 8050 × 1600
     expect(v.cobradoArs).toBe(5_152_000); // 3220 × 1600
     expect(v.porCobrarArs).toBe(7_728_000); // 4830 × 1600
+  });
+});
+
+describe("saldoPorCobrarUsd", () => {
+  // Caso real Pueyrredón (26/06/2026): anticipo 40% = USD 3.220, pero 1.000 se
+  // cambiaron a pesos @ 1520 y entraron a caja como $1.520.000 (moneda ARS,
+  // monto_usd = 1000). La deuda del cliente es en USD: quedan 4.830, no 5.830.
+  it("descuenta el equivalente USD pactado de los cobros hechos en pesos", () => {
+    expect(
+      saldoPorCobrarUsd({
+        contratoUsd: 8050,
+        cobradoUsdBillete: 2220,
+        equivUsdDeArs: 1000,
+        arsSinEquiv: 0,
+        blue: 1510,
+      })
+    ).toBe(4830);
+  });
+
+  it("pesos cobrados SIN equivalente pactado se pasan a USD al blue del día", () => {
+    expect(
+      saldoPorCobrarUsd({
+        contratoUsd: 8050,
+        cobradoUsdBillete: 2220,
+        equivUsdDeArs: 0,
+        arsSinEquiv: 1_510_000, // 1.000 USD al blue 1510
+        blue: 1510,
+      })
+    ).toBe(4830);
+  });
+
+  it("no queda negativo si se cobró de más", () => {
+    expect(
+      saldoPorCobrarUsd({
+        contratoUsd: 8050,
+        cobradoUsdBillete: 9000,
+        equivUsdDeArs: 0,
+        arsSinEquiv: 0,
+        blue: 1510,
+      })
+    ).toBe(0);
   });
 });
 
