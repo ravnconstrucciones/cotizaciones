@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { fetchCompartido } from "@/lib/fetch-compartido";
 import { formatMoneyInt } from "@/lib/format-currency";
 import type { SaldosCuentas } from "@/lib/cuentas";
@@ -16,15 +16,37 @@ export function SelectorCuenta({
   value,
   onChange,
   monedas = ["ARS", "USD"],
+  preferirObraId,
   className,
 }: {
   value: string | null;
   onChange: (cuentaId: string | null) => void;
   /** Filtra por moneda de la cuenta (p.ej. un retiro en pesos: ["ARS"]). */
   monedas?: ("ARS" | "USD")[];
+  /** Reserva MP por obra (04/07): si la obra tiene cuenta de reserva activa
+   * con saldo, se ofrece como origen POR DEFECTO en un alta (una sola vez;
+   * el usuario puede cambiarla o volver a "sin cuenta"). */
+  preferirObraId?: string | null;
   className?: string;
 }) {
   const [cuentas, setCuentas] = useState<SaldosCuentas["cuentas"] | null>(null);
+  const yaPrefirio = useRef(false);
+
+  useEffect(() => {
+    if (yaPrefirio.current || value || !preferirObraId || !cuentas) return;
+    const reserva = cuentas.find(
+      (c) =>
+        c.activa &&
+        c.obra_id === preferirObraId &&
+        monedas.includes(c.moneda) &&
+        c.saldo > 0
+    );
+    if (reserva) {
+      yaPrefirio.current = true;
+      onChange(reserva.id);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cuentas, preferirObraId, value]);
 
   useEffect(() => {
     let cancelled = false;

@@ -1254,6 +1254,9 @@ export function GastosScreen({
                               monedas={
                                 esPresupuestoUsd ? ["ARS", "USD"] : ["ARS"]
                               }
+                              // Si la obra tiene reserva MP con saldo, es el
+                              // origen por defecto del gasto (04/07).
+                              preferirObraId={obraCashflowId}
                               className={inputCls}
                             />
                           </div>

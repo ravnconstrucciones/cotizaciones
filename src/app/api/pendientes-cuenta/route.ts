@@ -35,6 +35,9 @@ export type PendienteCuenta = {
   fecha: string;
   monto: number;
   moneda: "ARS" | "USD";
+  /** Solo origen=cashflow: la obra del movimiento, para ofrecer la reserva MP
+   * cuando un ingreso de obra se asigna a Mercado Pago. */
+  obra_id?: string | null;
 };
 
 function num(v: unknown): number {
@@ -64,7 +67,7 @@ export async function GET() {
         supabase
           .from("cashflow_items")
           .select(
-            "id, tipo, descripcion, categoria, monto_real, monto_usd, moneda, fecha_real, obras(presupuestos(nombre_obra, nombre_cliente))"
+            "id, tipo, descripcion, categoria, monto_real, monto_usd, moneda, fecha_real, obra_id, obras(presupuestos(nombre_obra, nombre_cliente))"
           )
           .is("cuenta_id", null)
           .is("deleted_at", null)
@@ -146,6 +149,7 @@ export async function GET() {
       monto_usd: unknown;
       moneda: string | null;
       fecha_real: string;
+      obra_id: string | null;
       obras: unknown;
     }>) {
       if (espejos.has(String(m.id))) continue;
@@ -162,6 +166,7 @@ export async function GET() {
         fecha: m.fecha_real,
         monto: enUsd ? num(m.monto_usd) : num(m.monto_real),
         moneda: enUsd ? "USD" : "ARS",
+        obra_id: m.obra_id,
       });
     }
 

@@ -15,7 +15,7 @@ import type {
   PendienteCuenta,
 } from "@/app/api/pendientes-cuenta/route";
 import type { SaldosCuentas } from "@/lib/cuentas";
-import { formatMoneyInt } from "@/lib/format-currency";
+import { formatMoneyInt, parseFormattedNumber, roundArs2 } from "@/lib/format-currency";
 
 type ObraOpcion = {
   id: string;
@@ -217,6 +217,15 @@ function PendientesCuenta() {
   const [abierto, setAbierto] = useState<string | null>(null);
   const [asignando, setAsignando] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Oferta de reserva MP (04/07): cuando un INGRESO de obra se asigna a
+  // Mercado Pago, se ofrece espejar la reserva que Eze hace adentro de MP.
+  const [ofertaReserva, setOfertaReserva] = useState<{
+    obraId: string;
+    obraNombre: string;
+    montoStr: string;
+  } | null>(null);
+  const [reservando, setReservando] = useState(false);
+  const [reservaMsg, setReservaMsg] = useState<string | null>(null);
 
   const cargar = useCallback(async () => {
     const [p, c] = await Promise.all([
@@ -247,10 +256,55 @@ function PendientesCuenta() {
       }
       setPendientes((ps) => (ps ?? []).filter((x) => x.id !== p.id));
       setAbierto(null);
+      // Ingreso de obra que entró a Mercado Pago → ofrecer espejar la
+      // reserva de esa obra (Eze la hace real adentro de MP).
+      const cuenta = cuentas.find((c) => c.id === cuentaId);
+      const esMp =
+        cuenta && !cuenta.obra_id && /mercado\s*pago/i.test(cuenta.nombre);
+      if (esMp && p.origen === "cashflow" && p.tipo === "ingreso" && p.obra_id) {
+        setReservaMsg(null);
+        setOfertaReserva({
+          obraId: p.obra_id,
+          obraNombre: p.detalle ?? "la obra",
+          montoStr: String(Math.round(p.monto)),
+        });
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error de red");
     } finally {
       setAsignando(false);
+    }
+  }
+
+  async function reservar() {
+    if (!ofertaReserva) return;
+    const monto = roundArs2(parseFormattedNumber(ofertaReserva.montoStr));
+    if (!Number.isFinite(monto) || monto <= 0) {
+      setReservaMsg("Indicá un monto válido.");
+      return;
+    }
+    setReservando(true);
+    setReservaMsg(null);
+    try {
+      const res = await fetch("/api/cuentas/reserva-obra", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ obra_id: ofertaReserva.obraId, monto }),
+      });
+      const j = (await res.json()) as { error?: string; cuenta?: { nombre: string } };
+      if (!res.ok) {
+        setReservaMsg(j.error ?? `Error ${res.status}`);
+        return;
+      }
+      setOfertaReserva(null);
+      setReservaMsg(
+        `Reserva espejada en ${j.cuenta?.nombre ?? "la cuenta de la obra"} — acordate de hacer la reserva real adentro de Mercado Pago.`
+      );
+      void cargar();
+    } catch (err) {
+      setReservaMsg(err instanceof Error ? err.message : "Error de red");
+    } finally {
+      setReservando(false);
     }
   }
 
@@ -268,6 +322,52 @@ function PendientesCuenta() {
         Movimientos sin decir de dónde salió (o a dónde entró) la plata. Tocá
         uno y asignale la cuenta.
       </p>
+
+      {ofertaReserva && (
+        <div className="mt-4 space-y-3 rounded-[24px] px-4 py-4 ring-1 ring-cdm-accent/40 bg-white/60 dark:bg-zinc-900/40">
+          <p className="font-geist text-[13px] text-cdm-fg">
+            Entró plata de <span className="font-medium">{ofertaReserva.obraNombre}</span> a
+            Mercado Pago. ¿Reservás una parte adentro de MP para esa obra? El
+            sistema la espeja como cuenta de la obra.
+          </p>
+          <div className="flex flex-wrap items-center gap-2">
+            <input
+              inputMode="decimal"
+              value={ofertaReserva.montoStr}
+              onChange={(e) =>
+                setOfertaReserva((o) =>
+                  o ? { ...o, montoStr: e.target.value } : o
+                )
+              }
+              className="font-mono-hud w-32 rounded-full bg-transparent px-3 py-1.5 text-[12px] tabular-nums text-cdm-fg ring-1 ring-cdm-line focus:ring-cdm-accent/60 focus:outline-none"
+            />
+            <button
+              type="button"
+              disabled={reservando}
+              onClick={() => void reservar()}
+              className="font-mono-hud rounded-full px-3 py-1.5 text-[10px] uppercase tracking-[0.15em] text-cdm-accent ring-1 ring-cdm-accent/50 transition-colors hover:bg-cdm-accent/10 disabled:opacity-40"
+            >
+              {reservando ? "Reservando…" : "Reservar"}
+            </button>
+            <button
+              type="button"
+              disabled={reservando}
+              onClick={() => setOfertaReserva(null)}
+              className="font-mono-hud rounded-full px-3 py-1.5 text-[10px] uppercase tracking-[0.15em] text-cdm-muted ring-1 ring-cdm-line transition-colors hover:text-cdm-fg disabled:opacity-40"
+            >
+              Ahora no
+            </button>
+          </div>
+          {reservaMsg && (
+            <p className="text-[10px] uppercase tracking-widest text-red-400">
+              {reservaMsg}
+            </p>
+          )}
+        </div>
+      )}
+      {!ofertaReserva && reservaMsg && (
+        <p className="font-geist mt-3 text-xs text-emerald-400">{reservaMsg}</p>
+      )}
 
       {pendientes.length === 0 && (
         <div className="mt-4 flex h-16 items-center justify-center rounded-[24px] ring-1 ring-cdm-line bg-white/60 dark:bg-zinc-900/40">

@@ -33,6 +33,7 @@ type CuentaRow = {
   activa: boolean;
   orden: number;
   notas: string | null;
+  obra_id: string | null;
 };
 
 function num(v: unknown): number {
@@ -56,7 +57,7 @@ export async function GET() {
         supabase
           .from("cuentas")
           .select(
-            "id, nombre, moneda, saldo_inicial, fecha_saldo_inicial, procedencia, activa, orden, notas"
+            "id, nombre, moneda, saldo_inicial, fecha_saldo_inicial, procedencia, activa, orden, notas, obra_id"
           )
           .order("orden"),
         // Solo filas con cuenta asignada (las sin asignar no tocan saldos);
@@ -114,6 +115,7 @@ export async function GET() {
         activa: Boolean(c.activa),
         orden: num(c.orden),
         notas: c.notas ?? "",
+        obra_id: c.obra_id ?? null,
       })
     );
 

@@ -23,7 +23,25 @@ export type Cuenta = {
   activa: boolean;
   orden: number;
   notas?: string;
+  /** Cuenta espejo de reserva MP por obra ("MP · Reserva Obra X"): la obra a
+   * la que pertenece la reserva. NULL/ausente = cuenta normal. */
+  obra_id?: string | null;
 };
+
+/** Nombre canónico de la cuenta espejo de reserva MP de una obra (04/07). */
+export function nombreReservaObra(nombreObra: string): string {
+  return `MP · Reserva Obra ${nombreObra}`;
+}
+
+/** Cuenta de reserva MP de la obra, si existe y está activa. Los gastos de la
+ * obra la ofrecen como cuenta de origen por defecto cuando tiene saldo. */
+export function reservaDeObra<T extends Cuenta>(
+  cuentas: T[],
+  obraId: string | null | undefined
+): T | null {
+  if (!obraId) return null;
+  return cuentas.find((c) => c.activa && c.obra_id === obraId) ?? null;
+}
 
 /** presupuestos_gastos: importe SIEMPRE en ARS; si el gasto se pagó desde una
  * cuenta USD, se pasa a dólares con la cotización guardada en la fila. */

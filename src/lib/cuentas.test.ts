@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { saldosPorCuenta, type Cuenta } from "./cuentas";
+import { nombreReservaObra, reservaDeObra, saldosPorCuenta, type Cuenta } from "./cuentas";
 
 /**
  * Cuentas REALES de la foto del 02/07/2026 (pasadas por Eze) para validar que
@@ -284,5 +284,70 @@ describe("saldosPorCuenta", () => {
     expect(r.arsObra).toBe(0);
     const ef = r.cuentas.find((c) => c.id === "efectivo");
     expect(ef?.saldo).toBe(1_500_000);
+  });
+});
+
+describe("reserva MP por obra (04/07)", () => {
+  const base = {
+    moneda: "ARS" as const,
+    saldo_inicial: 0,
+    fecha_saldo_inicial: "2026-07-04",
+    activa: true,
+  };
+  const cuentas = [
+    { ...base, id: "mp", nombre: "Mercado Pago", procedencia: "propia" as const, orden: 1 },
+    {
+      ...base,
+      id: "res-puey",
+      nombre: nombreReservaObra("Pueyrredón"),
+      procedencia: "obra" as const,
+      orden: 9,
+      obra_id: "obra-puey",
+    },
+    {
+      ...base,
+      id: "res-vieja",
+      nombre: nombreReservaObra("Correa"),
+      procedencia: "obra" as const,
+      orden: 10,
+      obra_id: "obra-correa",
+      activa: false,
+    },
+  ];
+
+  it("nombreReservaObra arma el nombre canónico", () => {
+    expect(nombreReservaObra("Pueyrredón")).toBe("MP · Reserva Obra Pueyrredón");
+  });
+
+  it("reservaDeObra encuentra la reserva ACTIVA de la obra; inactiva o sin obra → null", () => {
+    expect(reservaDeObra(cuentas, "obra-puey")?.id).toBe("res-puey");
+    expect(reservaDeObra(cuentas, "obra-correa")).toBeNull();
+    expect(reservaDeObra(cuentas, "obra-x")).toBeNull();
+    expect(reservaDeObra(cuentas, null)).toBeNull();
+  });
+
+  it("la reserva funciona como cualquier cuenta: transferencia MP → reserva mueve el saldo", () => {
+    const r = saldosPorCuenta({
+      cuentas: [
+        { ...cuentas[0], saldo_inicial: 500_000 },
+        cuentas[1],
+      ],
+      gastosObra: [],
+      cashflow: [],
+      retiros: [],
+      gastosPersonales: [],
+      transferencias: [
+        {
+          cuenta_origen_id: "mp",
+          cuenta_destino_id: "res-puey",
+          monto_origen: 300_000,
+          monto_destino: 300_000,
+        },
+      ],
+    });
+    expect(r.cuentas.find((c) => c.id === "mp")?.saldo).toBe(200_000);
+    expect(r.cuentas.find((c) => c.id === "res-puey")?.saldo).toBe(300_000);
+    // procedencia=obra: la reserva suma al agregado de plata de obra
+    expect(r.arsObra).toBe(300_000);
   });
 });
