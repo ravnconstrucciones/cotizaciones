@@ -30,6 +30,7 @@ const DESTINO_LABEL: Record<DestinoArchivado, string> = {
   gasto_personal: "Gasto personal",
   filosofia: "Filosofía",
   referencia_estetica: "Ref. estética",
+  dato: "Dato",
   descartar: "Descartar",
 };
 
@@ -163,12 +164,16 @@ function FormResolver({
           ))}
         </select>
       )}
-      {destino === "referencia_estetica" && (
+      {(destino === "referencia_estetica" || destino === "dato") && (
         <input
           type="text"
           value={etiquetas}
           onChange={(e) => setEtiquetas(e.target.value)}
-          placeholder="Etiquetas separadas por coma (tipografia, material…)"
+          placeholder={
+            destino === "dato"
+              ? "Etiquetas separadas por coma (container, medidas…)"
+              : "Etiquetas separadas por coma (tipografia, material…)"
+          }
           className={INPUT_CLS}
         />
       )}

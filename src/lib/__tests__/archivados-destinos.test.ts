@@ -205,6 +205,33 @@ describe("resolverDestino", () => {
     expect(bucketDeImagen(EVENTO_CON_IMAGEN)).toBe("referencias");
   });
 
+  it("dato: insert en referencias tipo dato con etiquetas y evento_id", () => {
+    const r = resolverDestino(EVENTO, "dato", { etiquetas: ["container", "medidas"] });
+    expect(r).toEqual({
+      ok: true,
+      resolucion: {
+        accion: "insert",
+        tabla: "referencias",
+        payload: {
+          tipo: "dato",
+          texto: "acordate de pasar por lo de Oribe",
+          etiquetas: ["container", "medidas"],
+          fuente: "archivados",
+          evento_id: EVENTO.id,
+        },
+      },
+    });
+  });
+
+  it("dato sin etiquetas usa []", () => {
+    const r = resolverDestino(EVENTO, "dato");
+    if (r.ok && r.resolucion.accion === "insert") {
+      expect(r.resolucion.payload.etiquetas).toEqual([]);
+    } else {
+      throw new Error("debería resolver");
+    }
+  });
+
   it("descartar: sin insert", () => {
     expect(resolverDestino(EVENTO, "descartar")).toEqual({
       ok: true,

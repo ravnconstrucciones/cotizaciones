@@ -10,6 +10,7 @@ export const DESTINOS_ARCHIVADO = [
   "gasto_personal",
   "filosofia",
   "referencia_estetica",
+  "dato",
   "descartar",
 ] as const;
 export type DestinoArchivado = (typeof DESTINOS_ARCHIVADO)[number];
@@ -200,6 +201,23 @@ export function resolverDestino(
             tipo: "filosofia",
             texto,
             etiquetas: [],
+            fuente: "archivados",
+            evento_id: evento.id,
+          },
+        },
+      };
+    case "dato":
+      // Conocimiento de obra reutilizable (ej: "altura container 2,79").
+      // El daemon (job_datos) lo baja al vault para el cerebro del cotizador.
+      return {
+        ok: true,
+        resolucion: {
+          accion: "insert",
+          tabla: "referencias",
+          payload: {
+            tipo: "dato",
+            texto,
+            etiquetas: opciones.etiquetas ?? [],
             fuente: "archivados",
             evento_id: evento.id,
           },
