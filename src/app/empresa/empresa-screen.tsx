@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import { VolverAlInicio } from "@/components/volver-al-inicio";
 import { formatMoneyInt } from "@/lib/format-currency";
@@ -49,18 +49,26 @@ export function EmpresaScreen() {
   const [data, setData] = useState<MesEmpresa | null>(null);
   const [estado, setEstado] = useState<"cargando" | "ok" | "error">("cargando");
 
+  // mesVivo evita la carrera al saltar de mes rápido: una respuesta vieja que
+  // llega tarde no pisa los datos (ni el estado) del mes que se está viendo.
+  const mesVivo = useRef(mes);
+
   const cargar = useCallback((m: string) => {
     setEstado("cargando");
     fetch(`/api/gastos-empresa?mes=${m}`)
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
       .then((body: MesEmpresa) => {
+        if (mesVivo.current !== m) return;
         setData(body);
         setEstado("ok");
       })
-      .catch(() => setEstado("error"));
+      .catch(() => {
+        if (mesVivo.current === m) setEstado("error");
+      });
   }, []);
 
   useEffect(() => {
+    mesVivo.current = mes;
     cargar(mes);
   }, [mes, cargar]);
 

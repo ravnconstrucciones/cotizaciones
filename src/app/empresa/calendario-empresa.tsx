@@ -105,7 +105,12 @@ export function CalendarioEmpresa({ dias, hoyIso }: { dias: DiaEmpresa[]; hoyIso
               className={estiloCelda(estado, esHoy, seleccion === d.fecha)}
               aria-label={`${fechaLarga(d.fecha)}: ${
                 d.gastos.length > 0
-                  ? `${d.gastos.length} gasto${d.gastos.length === 1 ? "" : "s"}, ${formatMoneyInt(d.total_ars)}`
+                  ? `${d.gastos.length} gasto${d.gastos.length === 1 ? "" : "s"}, ${[
+                      d.total_ars > 0 ? formatMoneyInt(d.total_ars) : null,
+                      d.total_usd > 0 ? `US$${Math.round(d.total_usd).toLocaleString("es-AR")}` : null,
+                    ]
+                      .filter(Boolean)
+                      .join(" + ")}`
                   : estado === "futuro"
                     ? "todavía no llegó"
                     : "sin gastos"
@@ -119,7 +124,12 @@ export function CalendarioEmpresa({ dias, hoyIso }: { dias: DiaEmpresa[]; hoyIso
                 {diaDelMes(d.fecha)}
               </span>
               <span className="font-mono-hud text-[9px] tabular-nums leading-none text-amber-300">
-                {estado === "con-gasto" ? fmtCompacto(d.total_ars + d.total_usd) : " "}
+                {/* Pesos en la celda; día solo-USD marca "U$" — nunca sumar monedas. */}
+                {estado === "con-gasto"
+                  ? d.total_ars > 0
+                    ? `${fmtCompacto(d.total_ars)}${d.total_usd > 0 ? "+U$" : ""}`
+                    : `U$${fmtCompacto(d.total_usd)}`
+                  : "\u00a0"}
               </span>
             </button>
           );
