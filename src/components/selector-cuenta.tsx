@@ -8,8 +8,9 @@ import type { SaldosCuentas } from "@/lib/cuentas";
 /**
  * Selector de CUENTA de origen para formularios de movimientos (¿de qué
  * cuenta salió/entró la plata?). Trae las cuentas activas con su saldo
- * derivado de /api/cuentas. "Sin asignar" siempre es opción válida: los
- * movimientos históricos no tienen cuenta y nada obliga a elegir una.
+ * derivado de /api/cuentas. Dejarlo vacío no bloquea el registro (nada se
+ * pierde en obra), pero el movimiento queda PENDIENTE en la bandeja de
+ * /archivados hasta que se le asigne cuenta — por eso se pinta en rojo.
  */
 export function SelectorCuenta({
   value,
@@ -50,8 +51,10 @@ export function SelectorCuenta({
         className ??
         "w-full rounded-lg border border-zinc-300 bg-white px-2.5 py-1.5 text-[13px] text-zinc-900 outline-none focus:border-cyan-500 dark:border-white/15 dark:bg-white/[0.04] dark:text-zinc-50"
       }
+      // Inline para ganarle a cualquier className de los forms: sin cuenta = rojo.
+      style={value ? undefined : { color: "#f87171" }}
     >
-      <option value="">Cuenta: sin asignar</option>
+      <option value="">Sin cuenta — queda pendiente</option>
       {opciones.map((c) => (
         <option key={c.id} value={c.id}>
           {c.nombre} —{" "}

@@ -10,6 +10,12 @@ import {
   type DestinoArchivado,
 } from "@/lib/archivados-destinos";
 import type { Evento } from "@/types/centro-mando";
+import type {
+  OrigenPendiente,
+  PendienteCuenta,
+} from "@/app/api/pendientes-cuenta/route";
+import type { SaldosCuentas } from "@/lib/cuentas";
+import { formatMoneyInt } from "@/lib/format-currency";
 
 type ObraOpcion = {
   id: string;
@@ -181,6 +187,170 @@ function FormResolver({
   );
 }
 
+const ORIGEN_LABEL: Record<OrigenPendiente, string> = {
+  gasto_obra: "Gasto de obra",
+  cashflow: "Caja",
+  gasto_personal: "Gasto personal",
+  gasto_empresa: "Gasto de empresa",
+  retiro: "Retiro/Aporte",
+};
+
+function fmtMonto(p: PendienteCuenta): string {
+  return p.moneda === "USD"
+    ? `US$ ${new Intl.NumberFormat("es-AR").format(p.monto)}`
+    : formatMoneyInt(p.monto);
+}
+
+/**
+ * Pendientes de cuenta (04/07): movimientos registrados sin decir de qué
+ * cuenta salió/entró la plata. Se registran igual (nada se pierde en obra)
+ * pero quedan acá en rojo hasta asignarles cuenta con un toque.
+ */
+function PendientesCuenta() {
+  const [pendientes, setPendientes] = useState<PendienteCuenta[] | null>(null);
+  const [cuentas, setCuentas] = useState<SaldosCuentas["cuentas"]>([]);
+  const [abierto, setAbierto] = useState<string | null>(null);
+  const [asignando, setAsignando] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const cargar = useCallback(async () => {
+    const [p, c] = await Promise.all([
+      fetch("/api/pendientes-cuenta").then((r) => r.json()),
+      fetch("/api/cuentas").then((r) => r.json()),
+    ]);
+    setPendientes((p.pendientes as PendienteCuenta[]) ?? []);
+    setCuentas((c.cuentas as SaldosCuentas["cuentas"]) ?? []);
+  }, []);
+
+  useEffect(() => {
+    void cargar();
+  }, [cargar]);
+
+  async function asignar(p: PendienteCuenta, cuentaId: string) {
+    setAsignando(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/pendientes-cuenta", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ origen: p.origen, id: p.id, cuenta_id: cuentaId }),
+      });
+      const j = await res.json();
+      if (!res.ok) {
+        setError(j.error ?? `Error ${res.status}`);
+        return;
+      }
+      setPendientes((ps) => (ps ?? []).filter((x) => x.id !== p.id));
+      setAbierto(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Error de red");
+    } finally {
+      setAsignando(false);
+    }
+  }
+
+  if (pendientes === null) return null;
+
+  return (
+    <section className="mb-10">
+      <h2 className="font-mono-hud text-[11px] uppercase tracking-[0.18em] text-cdm-muted">
+        Pendientes de cuenta{" "}
+        {pendientes.length > 0 && (
+          <span className="text-red-400">· {pendientes.length}</span>
+        )}
+      </h2>
+      <p className="font-geist mt-1 text-xs text-cdm-muted">
+        Movimientos sin decir de dónde salió (o a dónde entró) la plata. Tocá
+        uno y asignale la cuenta.
+      </p>
+
+      {pendientes.length === 0 && (
+        <div className="mt-4 flex h-16 items-center justify-center rounded-[24px] ring-1 ring-cdm-line bg-white/60 dark:bg-zinc-900/40">
+          <span className="font-mono-hud text-[10px] uppercase tracking-[0.2em] text-cdm-muted/60">
+            Toda la plata tiene cuenta.
+          </span>
+        </div>
+      )}
+
+      <AnimatePresence initial={false}>
+        {pendientes.map((p) => {
+          // Solo cuentas de la misma moneda: asignar un gasto en pesos a una
+          // cuenta USD no ajustaría el saldo (nunca se inventa cotización).
+          const opciones = cuentas.filter(
+            (c) => c.activa && c.moneda === p.moneda
+          );
+          return (
+            <motion.div
+              key={`${p.origen}-${p.id}`}
+              layout
+              exit={{ opacity: 0, x: 24 }}
+              className="mt-4 overflow-hidden rounded-[24px] ring-1 ring-red-400/30 bg-white/60 dark:bg-zinc-900/40"
+            >
+              <button
+                onClick={() => setAbierto((a) => (a === p.id ? null : p.id))}
+                className="flex w-full items-center gap-3 px-4 py-3.5 text-left"
+              >
+                <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-red-400" />
+                <span className="font-geist min-w-0 flex-1 truncate text-[13px] font-medium leading-snug text-cdm-fg">
+                  {p.descripcion}
+                  <span className="ml-2 font-normal text-cdm-muted">
+                    {ORIGEN_LABEL[p.origen]}
+                    {p.detalle ? ` · ${p.detalle}` : ""}
+                  </span>
+                </span>
+                <span
+                  className={`font-mono-hud shrink-0 text-[12px] tabular-nums ${
+                    p.tipo === "ingreso" ? "text-emerald-400" : "text-cdm-fg"
+                  }`}
+                >
+                  {p.tipo === "ingreso" ? "+" : "−"}
+                  {fmtMonto(p)}
+                </span>
+                <span className="font-mono-hud shrink-0 text-[10px] tabular-nums text-cdm-muted">
+                  {new Date(`${p.fecha}T12:00:00`).toLocaleDateString("es-AR", {
+                    day: "2-digit",
+                    month: "2-digit",
+                  })}
+                </span>
+              </button>
+              {abierto === p.id && (
+                <div className="space-y-2 border-t border-cdm-line px-4 py-3">
+                  <p className="font-mono-hud text-[9px] uppercase tracking-[0.2em] text-cdm-muted">
+                    {p.tipo === "ingreso" ? "¿A qué cuenta entró?" : "¿De qué cuenta salió?"}
+                  </p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {opciones.map((c) => (
+                      <button
+                        key={c.id}
+                        type="button"
+                        disabled={asignando}
+                        onClick={() => void asignar(p, c.id)}
+                        className="font-mono-hud rounded-full px-2.5 py-1 text-[9px] uppercase tracking-[0.15em] ring-1 text-cdm-muted ring-cdm-line transition-colors hover:text-cdm-accent hover:ring-cdm-accent/50 disabled:opacity-40"
+                      >
+                        {c.nombre}
+                      </button>
+                    ))}
+                    {opciones.length === 0 && (
+                      <span className="font-geist text-[11px] text-cdm-muted">
+                        No hay cuentas activas en {p.moneda}.
+                      </span>
+                    )}
+                  </div>
+                  {error && (
+                    <p className="text-[10px] uppercase tracking-widest text-red-400">
+                      {error}
+                    </p>
+                  )}
+                </div>
+              )}
+            </motion.div>
+          );
+        })}
+      </AnimatePresence>
+    </section>
+  );
+}
+
 /** UI Archivados (spec §4.7): nada se pierde — todo lo sin clasificar espera acá. */
 export function ArchivadosScreen() {
   const [eventos, setEventos] = useState<Evento[]>([]);
@@ -223,12 +393,18 @@ export function ArchivadosScreen() {
         {/* Header — mismo lenguaje que ObrasScreen */}
         <header className="mb-6">
           <h1 className="font-geist text-3xl font-semibold tracking-tight text-cdm-fg">
-            Archivados
+            Archivados y pendientes
           </h1>
           <p className="font-mono-hud mt-1 text-[11px] uppercase tracking-[0.18em] text-cdm-muted">
-            Bandeja sin clasificar · pérdida cero
+            Bandeja de pérdida cero · nada queda sin cuenta ni sin clasificar
           </p>
         </header>
+
+        <PendientesCuenta />
+
+        <h2 className="font-mono-hud text-[11px] uppercase tracking-[0.18em] text-cdm-muted">
+          Sin clasificar
+        </h2>
 
         {cargando && (
           <p className="font-mono-hud text-[11px] uppercase tracking-[0.14em] text-cdm-muted">

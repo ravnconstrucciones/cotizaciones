@@ -584,24 +584,26 @@ export function CashflowDashboardScreen() {
                   Cuenta empresa
                 </p>
                 <p className="mt-1 text-xs text-cdm-muted">
-                  Gastos o ingresos no imputados a una obra de cliente.
+                  Gastos o ingresos no imputados a una obra de cliente. Ya
+                  está pagado — no es deuda.
                 </p>
+                {/* Esto no es una caja con saldo: es cuánto se lleva gastado.
+                    Mostrarlo en negativo leía como deuda (pedido de Eze 04/07). */}
                 <p className="mt-3 text-lg font-medium tabular-nums text-cdm-fg">
-                  {formatMoneyInt(data.libreta_empresa.saldo_caja)}
+                  {formatMoneyInt(data.libreta_empresa.egresos_caja)}{" "}
+                  <span className="text-xs font-normal text-cdm-muted">
+                    gastado
+                  </span>
                 </p>
                 <div className="mt-3 flex flex-wrap gap-x-6 gap-y-1 text-xs tabular-nums text-cdm-muted">
-                  <span>
-                    Ing.:{" "}
-                    <span className="font-medium text-cdm-fg">
-                      {formatMoneyInt(data.libreta_empresa.ingresos_caja)}
+                  {data.libreta_empresa.ingresos_caja > 0 ? (
+                    <span>
+                      Ing.:{" "}
+                      <span className="font-medium text-cdm-fg">
+                        {formatMoneyInt(data.libreta_empresa.ingresos_caja)}
+                      </span>
                     </span>
-                  </span>
-                  <span>
-                    Egr.:{" "}
-                    <span className="font-medium text-cdm-fg">
-                      {formatMoneyInt(data.libreta_empresa.egresos_caja)}
-                    </span>
-                  </span>
+                  ) : null}
                   {(data.libreta_empresa.egresos_gastos_obra_ars ?? 0) > 0 ? (
                     <span className="text-[10px]">
                       (libreta{" "}
