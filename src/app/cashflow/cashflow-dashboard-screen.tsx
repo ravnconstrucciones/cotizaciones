@@ -607,12 +607,18 @@ export function CashflowDashboardScreen() {
                     </span>
                   ) : null}
                 </div>
-                <p className="mt-3">
+                <p className="mt-3 flex flex-wrap gap-x-5 gap-y-1">
                   <Link
-                    href={`/cashflow/obra/${encodeURIComponent(data.libreta_empresa.obra_id)}`}
+                    href="/empresa"
                     className="text-[10px] font-semibold uppercase tracking-wider text-cdm-accent underline-offset-2 hover:underline"
                   >
-                    Ver libreta empresa
+                    Gastos de empresa · día por día
+                  </Link>
+                  <Link
+                    href={`/cashflow/obra/${encodeURIComponent(data.libreta_empresa.obra_id)}`}
+                    className="text-[10px] uppercase tracking-wider text-cdm-muted underline-offset-2 hover:underline"
+                  >
+                    Movimientos de caja
                   </Link>
                 </p>
               </div>
