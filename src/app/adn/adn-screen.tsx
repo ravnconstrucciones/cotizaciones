@@ -67,6 +67,12 @@ export function AdnScreen() {
     () => referencias.filter((r) => r.tipo === "filosofia"),
     [referencias]
   );
+  // Videos de YouTube que Eze le mandó al bot — viven dentro de Filosofía,
+  // apartados: título + resumen breve + link. La reacción queda en el vault.
+  const videos = useMemo(
+    () => referencias.filter((r) => r.tipo === "video"),
+    [referencias]
+  );
   const etiquetas = useMemo(() => {
     const s = new Set<string>();
     for (const r of esteticas) for (const e of r.etiquetas ?? []) s.add(e);
@@ -334,6 +340,70 @@ export function AdnScreen() {
                 </motion.blockquote>
               ))}
             </div>
+
+            {/* Videos: lo que Eze le pasó al bot — apartado, mismo lenguaje
+                terminal. Card mínima: título → link, resumen y nada más. */}
+            {videos.length > 0 && (
+              <section className="mt-32">
+                <motion.p
+                  initial={{ opacity: 0 }}
+                  whileInView={{ opacity: 1 }}
+                  viewport={{ once: true, margin: "-60px" }}
+                  transition={{ duration: 1.2, ease: "easeOut" }}
+                  className="font-mono-hud text-[10px] uppercase tracking-[0.3em] text-cdm-accent/70"
+                >
+                  <span aria-hidden className="mr-2 text-cdm-accent/40">
+                    {"//////"}
+                  </span>
+                  Videos
+                </motion.p>
+
+                <div className="mt-10 space-y-6">
+                  {videos.map((r, i) => (
+                    <motion.article
+                      key={r.id}
+                      initial={{ opacity: 0, y: 20 }}
+                      whileInView={{ opacity: 1, y: 0 }}
+                      viewport={{ once: true, margin: "-60px" }}
+                      transition={{ duration: 0.9, ease: [0.22, 1, 0.36, 1] }}
+                      className="rounded-[24px] px-5 py-4 ring-1 ring-cdm-line bg-white/60 transition-all duration-300 hover:ring-cdm-accent/30 dark:bg-zinc-900/40"
+                    >
+                      <div className="flex items-baseline gap-3">
+                        <span
+                          aria-hidden
+                          className="font-mono-hud text-[10px] tabular-nums tracking-[0.2em] text-cdm-accent/50"
+                        >
+                          {String(i + 1).padStart(2, "0")}
+                        </span>
+                        {r.url ? (
+                          <a
+                            href={r.url}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="font-geist text-sm font-semibold text-cdm-fg transition-colors hover:text-cdm-accent"
+                          >
+                            {r.fuente ?? "Video"} <span aria-hidden>↗</span>
+                          </a>
+                        ) : (
+                          <span className="font-geist text-sm font-semibold text-cdm-fg">
+                            {r.fuente ?? "Video"}
+                          </span>
+                        )}
+                      </div>
+                      {r.texto && (
+                        <p className="font-geist mt-2 pl-8 text-[13px] leading-relaxed text-cdm-fg/75">
+                          {r.texto}
+                        </p>
+                      )}
+                      <footer className="font-mono-hud mt-3 flex items-center gap-2 pl-8 text-[9px] uppercase tracking-[0.16em] text-cdm-muted/70">
+                        {r.evento_id ? <AvatarBot className="h-5 w-5" /> : null}
+                        <span>YouTube · {fmtFecha(r.creado_at)}</span>
+                      </footer>
+                    </motion.article>
+                  ))}
+                </div>
+              </section>
+            )}
           </div>
         )}
       </div>

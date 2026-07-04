@@ -66,11 +66,13 @@ export type CotizacionResumen = {
 export type Referencia = {
   id: string;
   creado_at: string;
-  tipo: "filosofia" | "estetica";
+  tipo: "filosofia" | "estetica" | "dato" | "video";
   texto: string | null;
   etiquetas: string[];
   fuente: string | null;
   imagen_path: string | null;
+  /** Link externo (videos de YouTube capturados por el bot). */
+  url?: string | null;
   /** Evento de origen (captura por WhatsApp/bot) — null si nació en la app. */
   evento_id?: string | null;
   /** Generada server-side por /api/referencias (no existe en la tabla). */
