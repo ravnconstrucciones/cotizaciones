@@ -30,7 +30,7 @@ Conocimiento reutilizable capturado desde la bandeja de Archivados (App RAVN).
 Para el cotizador esta es la fuente N°1: dato medido en obra real, arriba de
 Seia y de internet. Borrar una línea acá = borrar el dato (el sync solo agrega).
 
-<!-- Sincroniza job_datos (daemon com.ravn.jobs). No renombrar los <!-- ref:… -->. -->
+<!-- Sincroniza job_datos (daemon com.ravn.jobs). No tocar las marcas ref:… -->
 """
 
 
