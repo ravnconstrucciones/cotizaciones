@@ -8,10 +8,11 @@ import { formatMoneyInt } from "@/lib/format-currency";
  * CALENDARIO DEL CICLO — el historial día por día de la tarjeta.
  *
  * Cada celda es un día del ciclo (26 → 25): verde si ese día sobró plata, rojo
- * si se pasó, HOY resaltado con el saldo vivo, y los días futuros apagados con
- * el diario proyectado. Tocás un día y se abre el detalle: presupuesto de ese
- * día, gastado, saldo y la lista de gastos. Todo se reconstruye del motor
- * (`lib/finanzas-personal.ts`) — acá solo se dibuja.
+ * si se pasó, HOY resaltado, y los días futuros apagados. El número de la
+ * celda es la ALCANCÍA acumulada al cierre de ese día (en los futuros, la
+ * proyección si no gastás más). Tocás un día y se abre el detalle: asignación,
+ * gastado, saldo del día, alcancía y la lista de gastos. Todo se reconstruye
+ * del motor (`lib/finanzas-personal.ts`) — acá solo se dibuja.
  */
 
 export type DiaCiclo = {
@@ -20,6 +21,7 @@ export type DiaCiclo = {
   presupuesto: number;
   gastado: number;
   saldo: number;
+  ahorrado_acum: number;
   estado: "verde" | "rojo" | "hoy" | "futuro";
   gastos: Array<{
     id: string;
@@ -87,6 +89,14 @@ function colorSaldo(d: DiaCiclo): string {
     : "text-emerald-600 dark:text-emerald-400";
 }
 
+/** Color del número de la celda: la alcancía acumulada a ese día. */
+function colorAlcancia(d: DiaCiclo): string {
+  if (d.estado === "futuro") return "text-cdm-muted/60";
+  return d.ahorrado_acum < 0
+    ? "text-red-600 dark:text-red-400"
+    : "text-emerald-600 dark:text-emerald-400";
+}
+
 const ESTADO_LABEL: Record<DiaCiclo["estado"], string> = {
   verde: "Cerró en verde",
   rojo: "Cerró en rojo",
@@ -119,7 +129,7 @@ export function CalendarioCiclo({ dias }: { dias: DiaCiclo[] }) {
             type="button"
             onClick={() => setSeleccion(seleccion === d.fecha ? null : d.fecha)}
             className={estiloCelda(d, seleccion === d.fecha)}
-            aria-label={`${fechaLarga(d.fecha)}: ${ESTADO_LABEL[d.estado]}, saldo ${formatMoneyInt(d.saldo)}`}
+            aria-label={`${fechaLarga(d.fecha)}: ${ESTADO_LABEL[d.estado]}, alcancía ${formatMoneyInt(d.ahorrado_acum)}`}
           >
             <span
               className={`font-geist text-[12px] font-medium tabular-nums leading-none ${
@@ -129,11 +139,11 @@ export function CalendarioCiclo({ dias }: { dias: DiaCiclo[] }) {
               {diaDelMes(d.fecha)}
             </span>
             <span
-              className={`font-mono-hud text-[9px] tabular-nums leading-none ${colorSaldo(d)}`}
+              className={`font-mono-hud text-[9px] tabular-nums leading-none ${colorAlcancia(d)}`}
             >
               {d.estado === "futuro"
-                ? `≈${fmtCompacto(d.saldo)}`
-                : `${d.saldo < 0 ? "−" : "+"}${fmtCompacto(d.saldo)}`}
+                ? `≈${fmtCompacto(d.ahorrado_acum)}`
+                : `${d.ahorrado_acum < 0 ? "−" : "+"}${fmtCompacto(d.ahorrado_acum)}`}
             </span>
           </button>
         ))}
@@ -160,10 +170,10 @@ export function CalendarioCiclo({ dias }: { dias: DiaCiclo[] }) {
               </span>
             </div>
 
-            <dl className="mt-3 grid grid-cols-3 gap-x-3 text-[11px]">
+            <dl className="mt-3 grid grid-cols-4 gap-x-3 text-[11px]">
               <div>
                 <dt className="font-mono-hud uppercase tracking-[0.12em] text-cdm-muted">
-                  {dia.estado === "futuro" ? "Proyectado" : "Presupuesto"}
+                  Tu día
                 </dt>
                 <dd className="font-geist tabular-nums font-medium text-cdm-fg">
                   {formatMoneyInt(dia.presupuesto)}
@@ -183,6 +193,14 @@ export function CalendarioCiclo({ dias }: { dias: DiaCiclo[] }) {
                 </dt>
                 <dd className={`font-geist tabular-nums font-medium ${colorSaldo(dia)}`}>
                   {formatMoneyInt(dia.saldo)}
+                </dd>
+              </div>
+              <div>
+                <dt className="font-mono-hud uppercase tracking-[0.12em] text-cdm-muted">
+                  Alcancía
+                </dt>
+                <dd className={`font-geist tabular-nums font-medium ${colorAlcancia(dia)}`}>
+                  {dia.estado === "futuro" ? "≈" : ""}{formatMoneyInt(dia.ahorrado_acum)}
                 </dd>
               </div>
             </dl>

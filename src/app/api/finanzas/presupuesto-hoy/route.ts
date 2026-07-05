@@ -15,7 +15,7 @@ import {
  * "¿cuánto puedo gastar hoy?" → el bot hace GET acá y redacta. El motor queda
  * en un solo lugar (el app), sin replicar la fórmula en el bot (evita drift).
  *
- * Devuelve { disponible_hoy, asignacion_diaria, semaforo, frase }.
+ * Devuelve el día alcancía: { disponible_hoy, ahorrado, semaforo, frase, … }.
  */
 
 const TOPE_DEFAULT = 2_800_000;
@@ -104,10 +104,11 @@ export async function GET() {
       disponible_hoy: r.disponible_hoy,
       presupuesto_hoy: r.presupuesto_hoy,
       gastado_hoy: r.gastado_hoy,
+      ahorrado: r.ahorrado,
       disponible_ciclo: r.disponible_ciclo,
       asignacion_diaria: r.asignacion_diaria,
       semaforo: r.semaforo,
-      frase: fraseDelDia(r.disponible_hoy, r.disponible_ciclo, r.semaforo),
+      frase: fraseDelDia(r.disponible_hoy, r.ahorrado, r.disponible_ciclo, r.semaforo),
     });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Error";

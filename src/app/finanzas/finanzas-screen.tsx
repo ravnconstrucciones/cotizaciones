@@ -34,9 +34,7 @@ type ResumenFinanzas = {
   presupuesto_hoy: number;
   gastado_hoy: number;
   disponible_hoy: number;
-  por_dia_al_cierre: number;
-  ritmo_semanal: number;
-  proyeccion_fin_ciclo: number;
+  ahorrado: number;
   semaforo: Semaforo;
   dias: DiaCiclo[];
   fijos_personal: FijoPersonal[];
@@ -270,23 +268,24 @@ export function FinanzasScreen() {
               className="text-[clamp(36px,6vw,52px)] leading-none font-geist tabular-nums"
               tono={diaEnRojo ? "negativo" : "positivo"}
             >
-              {formatMoneyInt(data.disponible_hoy)}
+              {formatMoneyInt(Math.max(0, data.disponible_hoy))}
             </CifraHeroica>
             <span className="font-mono-hud text-xs text-cdm-muted">
-              de {formatMoneyInt(data.presupuesto_hoy)} hoy
+              de {formatMoneyInt(data.presupuesto_hoy)} fijos por día
             </span>
           </div>
           <p className="font-mono-hud mt-2 text-[11px] text-cdm-muted">
             {diaEnRojo ? (
-              <>Hoy te pasaste — mañana se renueva el contador. </>
+              <>Te pasaste de lo del día por {formatMoneyInt(-data.disponible_hoy)} — salió de la alcancía. </>
             ) : (
               <>Hoy gastaste {formatMoneyInt(data.gastado_hoy)}. </>
             )}
-            Te quedan{" "}
-            <span className={data.disponible_ciclo >= 0 ? "text-emerald-400" : "text-red-400"}>
-              {formatMoneyInt(data.disponible_ciclo)}
+            Alcancía:{" "}
+            <span className={data.ahorrado >= 0 ? "text-emerald-400" : "text-red-400"}>
+              {formatMoneyInt(data.ahorrado)}
             </span>{" "}
-            hasta el cierre · {data.dias_restantes} día{data.dias_restantes === 1 ? "" : "s"}
+            · te quedan {formatMoneyInt(data.disponible_ciclo)} hasta el cierre ·{" "}
+            {data.dias_restantes} día{data.dias_restantes === 1 ? "" : "s"}
           </p>
           <div className="mt-3">
             <BarraProgreso pct={pctHero} semaforo={diaEnRojo ? "rojo" : "verde"} />
@@ -335,9 +334,9 @@ export function FinanzasScreen() {
               </dd>
             </div>
             <div>
-              <dt className="font-mono-hud uppercase tracking-[0.12em] text-cdm-muted">Por día al cierre</dt>
-              <dd className={`font-geist tabular-nums font-medium ${data.por_dia_al_cierre >= 0 ? "text-emerald-400" : "text-red-400"}`}>
-                {formatMoneyInt(data.por_dia_al_cierre)}
+              <dt className="font-mono-hud uppercase tracking-[0.12em] text-cdm-muted">Alcancía (ahorrado)</dt>
+              <dd className={`font-geist tabular-nums font-medium ${data.ahorrado >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+                {formatMoneyInt(data.ahorrado)}
               </dd>
             </div>
           </dl>

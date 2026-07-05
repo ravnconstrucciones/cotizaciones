@@ -23,7 +23,7 @@ type ResumenFinanzas = {
   presupuesto_hoy: number;
   gastado_hoy: number;
   disponible_hoy: number;
-  ritmo_semanal: number;
+  ahorrado: number;
   semaforo: Semaforo;
   error?: string;
 };
@@ -92,13 +92,18 @@ export function ModuloFinanzas({ className }: { className?: string }) {
             </span>
           </div>
           <p className={`mt-1 text-[clamp(26px,3vw,38px)] font-semibold tabular-nums tracking-tight ${data.disponible_hoy < 0 ? SEM_TEXT.rojo : SEM_TEXT[data.semaforo]}`}>
-            {formatMoneyInt(data.disponible_hoy)}{" "}
+            {formatMoneyInt(Math.max(0, data.disponible_hoy))}{" "}
             <span className="text-[14px] font-normal text-zinc-500 dark:text-zinc-400">
-              de {formatMoneyInt(data.presupuesto_hoy)} hoy
+              de {formatMoneyInt(data.presupuesto_hoy)} fijos por día
             </span>
           </p>
           <p className="mt-1 text-[12px] tabular-nums text-zinc-500 dark:text-zinc-400">
-            Hoy gastaste {formatMoneyInt(data.gastado_hoy)} · te quedan {formatMoneyInt(data.disponible_ciclo)} hasta el cierre
+            {data.disponible_hoy < 0 ? (
+              <>Te pasaste por {formatMoneyInt(-data.disponible_hoy)} — salió de la alcancía · </>
+            ) : (
+              <>Hoy gastaste {formatMoneyInt(data.gastado_hoy)} · </>
+            )}
+            alcancía {formatMoneyInt(data.ahorrado)}
           </p>
           <p className="mt-2 text-[11px] text-zinc-400 dark:text-zinc-500">
             Ciclo {data.ciclo.label} · día {data.ciclo.dia_actual}/{data.ciclo.dias_total}
