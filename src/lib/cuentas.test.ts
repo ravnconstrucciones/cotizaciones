@@ -273,6 +273,32 @@ describe("saldosPorCuenta", () => {
     expect(r.sinAsignar).toBe(1);
   });
 
+  it("arqueo: el delta ajusta el saldo derivado (el caso real MP 05/07)", () => {
+    const r = saldosPorCuenta({
+      cuentas: CUENTAS,
+      ...VACIO,
+      // MP derivado daba $94.306 y en la app de MP había $67.725 → delta -26.581.
+      gastosObra: [{ cuenta_id: "mp", importe: 8_786 }],
+      gastosPersonales: [{ cuenta_id: "mp", monto: 32_440 }],
+      ajustes: [{ cuenta_id: "mp", delta: -26_581 }],
+    });
+    const mp = r.cuentas.find((c) => c.id === "mp");
+    expect(mp?.saldo).toBe(67_725);
+    expect(mp?.movimientos).toBe(3);
+  });
+
+  it("arqueo positivo suma; ajuste de cuenta desconocida no rompe", () => {
+    const r = saldosPorCuenta({
+      cuentas: CUENTAS,
+      ...VACIO,
+      ajustes: [
+        { cuenta_id: "balanz", delta: 10_000 },
+        { cuenta_id: "no-existe", delta: 99_999 },
+      ],
+    });
+    expect(r.cuentas.find((c) => c.id === "balanz")?.saldo).toBe(1_115_150);
+  });
+
   it("cuenta inactiva conserva saldo pero no entra en los agregados", () => {
     const r = saldosPorCuenta({
       cuentas: [

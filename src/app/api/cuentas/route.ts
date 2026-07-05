@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import {
   saldosPorCuenta,
+  type AjusteCuentaRow,
   type Cuenta,
   type CashflowCuentaRow,
   type GastoEmpresaCuentaRow,
@@ -53,6 +54,7 @@ export async function GET() {
       personalesRes,
       empresaRes,
       transferenciasRes,
+      ajustesRes,
     ] = await Promise.all([
         supabase
           .from("cuentas")
@@ -90,6 +92,7 @@ export async function GET() {
           .select(
             "cuenta_origen_id, cuenta_destino_id, monto_origen, monto_destino"
           ),
+        supabase.from("cuenta_ajustes").select("cuenta_id, delta"),
       ]);
 
     const firstError =
@@ -99,7 +102,8 @@ export async function GET() {
       retirosRes.error ??
       personalesRes.error ??
       empresaRes.error ??
-      transferenciasRes.error;
+      transferenciasRes.error ??
+      ajustesRes.error;
     if (firstError) {
       return NextResponse.json({ error: firstError.message }, { status: 500 });
     }
@@ -127,6 +131,7 @@ export async function GET() {
       gastosPersonales: (personalesRes.data ?? []) as GastoPersonalCuentaRow[],
       gastosEmpresa: (empresaRes.data ?? []) as GastoEmpresaCuentaRow[],
       transferencias: (transferenciasRes.data ?? []) as TransferenciaCuentaRow[],
+      ajustes: (ajustesRes.data ?? []) as AjusteCuentaRow[],
     });
 
     const payload = NextResponse.json(saldos);

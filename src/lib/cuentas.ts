@@ -92,6 +92,14 @@ export type TransferenciaCuentaRow = {
   monto_destino: unknown;
 };
 
+/** cuenta_ajustes: ARQUEOS — Eze declara cuánto hay de verdad en una cuenta y
+ * el delta (declarado − derivado al momento) entra como un movimiento más, en
+ * la MONEDA de la cuenta. Queda historial de cuándo/cuánto se desvió cada una. */
+export type AjusteCuentaRow = {
+  cuenta_id: string | null;
+  delta: unknown;
+};
+
 export type CuentaConSaldo = Cuenta & {
   saldo: number; // en la moneda de la cuenta
   movimientos: number; // cuántos movimientos asignados la ajustaron
@@ -131,6 +139,7 @@ export function saldosPorCuenta(args: {
   gastosPersonales: GastoPersonalCuentaRow[];
   gastosEmpresa?: GastoEmpresaCuentaRow[];
   transferencias?: TransferenciaCuentaRow[];
+  ajustes?: AjusteCuentaRow[];
 }): SaldosCuentas {
   const porId = new Map<string, { saldo: number; movs: number }>();
   for (const c of args.cuentas) {
@@ -211,6 +220,12 @@ export function saldosPorCuenta(args: {
   for (const t of args.transferencias ?? []) {
     ajustar(t.cuenta_origen_id, -roundArs2(parseNum(t.monto_origen)));
     ajustar(t.cuenta_destino_id, roundArs2(parseNum(t.monto_destino)));
+  }
+
+  // Arqueos: el delta va directo (positivo o negativo), ya está en la moneda
+  // de la cuenta porque se calculó contra su saldo derivado.
+  for (const a of args.ajustes ?? []) {
+    ajustar(a.cuenta_id, roundArs2(parseNum(a.delta)));
   }
 
   const cuentas: CuentaConSaldo[] = [...args.cuentas]
