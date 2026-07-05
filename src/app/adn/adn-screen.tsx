@@ -118,7 +118,7 @@ export function AdnScreen() {
             >
               {v === "estetica"
                 ? `Estética · ${esteticas.length}`
-                : `Filosofía · ${filosofia.length}`}
+                : `Filosofía · ${filosofia.length + videos.length}`}
             </button>
           ))}
         </div>
@@ -301,7 +301,7 @@ export function AdnScreen() {
               Filosofía
             </motion.p>
 
-            {filosofia.length === 0 && (
+            {filosofia.length === 0 && videos.length === 0 && (
               <div className="mt-16 flex h-32 items-center justify-center border border-dashed border-cdm-line">
                 <span className="font-mono-hud px-4 text-center text-[10px] uppercase tracking-[0.2em] text-cdm-muted/60">
                   Mandale una frase al bot — acá nace la filosofía

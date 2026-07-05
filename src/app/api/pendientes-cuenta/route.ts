@@ -11,8 +11,10 @@ import { createSupabaseAdminClient } from "@/lib/supabase/server";
  * (02/07/2026): los movimientos históricos quedaron "sin asignar" a propósito
  * y no son deuda de datos.
  *
- * GET  → lista de pendientes de todas las tablas con cuenta_id.
- * POST → { origen, id, cuenta_id } asigna la cuenta y lo saca de la bandeja.
+ * GET    → lista de pendientes de todas las tablas con cuenta_id.
+ * POST   → { origen, id, cuenta_id } asigna la cuenta y lo saca de la bandeja.
+ * DELETE → { origen, id } elimina el movimiento (solo mientras sigue
+ *          pendiente: sin cuenta asignada, así nunca toca saldos ya contados).
  *
  * Service_role (bypass RLS), detrás del middleware de sesión.
  */
@@ -281,6 +283,86 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: upd.error.message }, { status: 500 });
     }
     if (!upd.data?.length) {
+      return NextResponse.json(
+        { error: "El movimiento no existe o ya tiene cuenta" },
+        { status: 409 }
+      );
+    }
+    return NextResponse.json({ ok: true });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "Error";
+    return NextResponse.json({ error: msg }, { status: 500 });
+  }
+}
+
+export async function DELETE(req: Request) {
+  try {
+    const body = (await req.json()) as { origen?: OrigenPendiente; id?: string };
+    const tabla = body.origen ? TABLA_POR_ORIGEN[body.origen] : undefined;
+    if (!tabla || !body.id) {
+      return NextResponse.json({ error: "Faltan origen o id" }, { status: 400 });
+    }
+
+    const supabase = createSupabaseAdminClient();
+
+    // Cashflow se borra en soft (deleted_at), como en el resto de la app.
+    if (body.origen === "cashflow") {
+      const upd = await supabase
+        .from("cashflow_items")
+        .update({ deleted_at: new Date().toISOString() })
+        .eq("id", body.id)
+        .is("cuenta_id", null)
+        .is("deleted_at", null)
+        .select("id");
+      if (upd.error) {
+        return NextResponse.json({ error: upd.error.message }, { status: 500 });
+      }
+      if (!upd.data?.length) {
+        return NextResponse.json(
+          { error: "El movimiento no existe o ya tiene cuenta" },
+          { status: 409 }
+        );
+      }
+      return NextResponse.json({ ok: true });
+    }
+
+    // Un gasto de obra puede tener espejo en la libreta: se va con él para
+    // que no reaparezca como pendiente propio.
+    if (body.origen === "gasto_obra") {
+      const g = await supabase
+        .from("presupuestos_gastos")
+        .select("id, cashflow_item_id")
+        .eq("id", body.id)
+        .is("cuenta_id", null)
+        .maybeSingle();
+      if (g.error) {
+        return NextResponse.json({ error: g.error.message }, { status: 500 });
+      }
+      if (!g.data) {
+        return NextResponse.json(
+          { error: "El gasto no existe o ya tiene cuenta" },
+          { status: 409 }
+        );
+      }
+      if (g.data.cashflow_item_id) {
+        await supabase
+          .from("cashflow_items")
+          .update({ deleted_at: new Date().toISOString() })
+          .eq("id", g.data.cashflow_item_id)
+          .is("deleted_at", null);
+      }
+    }
+
+    const del = await supabase
+      .from(tabla)
+      .delete()
+      .eq("id", body.id)
+      .is("cuenta_id", null)
+      .select("id");
+    if (del.error) {
+      return NextResponse.json({ error: del.error.message }, { status: 500 });
+    }
+    if (!del.data?.length) {
       return NextResponse.json(
         { error: "El movimiento no existe o ya tiene cuenta" },
         { status: 409 }

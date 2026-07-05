@@ -217,6 +217,9 @@ function PendientesCuenta() {
   const [abierto, setAbierto] = useState<string | null>(null);
   const [asignando, setAsignando] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Eliminar pide un segundo toque de confirmación (05/07): guarda el id
+  // del pendiente que ya tocó "Eliminar" una vez.
+  const [confirmarEliminar, setConfirmarEliminar] = useState<string | null>(null);
   // Oferta de reserva MP (04/07): cuando un INGRESO de obra se asigna a
   // Mercado Pago, se ofrece espejar la reserva que Eze hace adentro de MP.
   const [ofertaReserva, setOfertaReserva] = useState<{
@@ -269,6 +272,30 @@ function PendientesCuenta() {
           montoStr: String(Math.round(p.monto)),
         });
       }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Error de red");
+    } finally {
+      setAsignando(false);
+    }
+  }
+
+  async function eliminar(p: PendienteCuenta) {
+    setAsignando(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/pendientes-cuenta", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ origen: p.origen, id: p.id }),
+      });
+      const j = await res.json();
+      if (!res.ok) {
+        setError(j.error ?? `Error ${res.status}`);
+        return;
+      }
+      setPendientes((ps) => (ps ?? []).filter((x) => x.id !== p.id));
+      setAbierto(null);
+      setConfirmarEliminar(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error de red");
     } finally {
@@ -392,7 +419,10 @@ function PendientesCuenta() {
               className="mt-4 overflow-hidden rounded-[24px] ring-1 ring-red-400/30 bg-white/60 dark:bg-zinc-900/40"
             >
               <button
-                onClick={() => setAbierto((a) => (a === p.id ? null : p.id))}
+                onClick={() => {
+                  setAbierto((a) => (a === p.id ? null : p.id));
+                  setConfirmarEliminar(null);
+                }}
                 className="flex w-full items-center gap-3 px-4 py-3.5 text-left"
               >
                 <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-red-400" />
@@ -440,6 +470,28 @@ function PendientesCuenta() {
                         No hay cuentas activas en {p.moneda}.
                       </span>
                     )}
+                  </div>
+                  {/* Eliminar: para lo cargado por error o duplicado. Doble
+                      toque — el primero pregunta, el segundo borra. */}
+                  <div className="flex justify-end pt-1">
+                    <button
+                      type="button"
+                      disabled={asignando}
+                      onClick={() =>
+                        confirmarEliminar === p.id
+                          ? void eliminar(p)
+                          : setConfirmarEliminar(p.id)
+                      }
+                      className={`font-mono-hud rounded-full px-2.5 py-1 text-[9px] uppercase tracking-[0.15em] ring-1 transition-colors disabled:opacity-40 ${
+                        confirmarEliminar === p.id
+                          ? "bg-red-400/10 text-red-400 ring-red-400/60"
+                          : "text-cdm-muted ring-cdm-line hover:text-red-400 hover:ring-red-400/40"
+                      }`}
+                    >
+                      {confirmarEliminar === p.id
+                        ? "¿Seguro? Tocá de nuevo y lo borro"
+                        : "Eliminar movimiento"}
+                    </button>
                   </div>
                   {error && (
                     <p className="text-[10px] uppercase tracking-widest text-red-400">
