@@ -103,7 +103,7 @@ describe("validarGrupo (invariantes de la spec)", () => {
       ],
       CUENTAS
     );
-    expect(errores.length).toBeGreaterThanOrEqual(5);
+    expect(errores.length).toBe(5);
   });
 
   it("grupo vacío es inválido", () => {
