@@ -1,6 +1,6 @@
 import { parseNum } from "@/lib/cashflow-compute";
 import { roundArs2 } from "@/lib/format-currency";
-import type { Moneda } from "@/lib/cuentas";
+import type { Cuenta, Moneda } from "@/lib/cuentas";
 
 /**
  * Módulo DINERO (spec 2026-07-06) — motor de BOLSILLOS sobre el ledger
@@ -72,4 +72,54 @@ export function saldosCuentasDesdeLedger(
     porCuenta.set(b.cuenta_id, roundArs2((porCuenta.get(b.cuenta_id) ?? 0) + b.saldo));
   }
   return porCuenta;
+}
+
+/** Invariantes de un grupo ANTES de asentarlo (spec §Verificación): mismo
+ * grupo_id, estado homogéneo, moneda = moneda de la cuenta, monto ≠ 0, dueño
+ * obra ⟺ dueno_obra_id. Devuelve la lista de errores; [] = válido. */
+export function validarGrupo(
+  filas: MovimientoPlataRow[],
+  cuentas: Pick<Cuenta, "id" | "moneda">[]
+): string[] {
+  const errores: string[] = [];
+  if (!filas.length) return ["grupo vacío"];
+  const monedaDe = new Map(cuentas.map((c) => [c.id, c.moneda]));
+  const grupo = filas[0].grupo_id;
+  const estado = filas[0].estado;
+  for (const f of filas) {
+    if (f.grupo_id !== grupo) errores.push(`fila ${f.id}: grupo_id distinto (${f.grupo_id} ≠ ${grupo})`);
+    if (f.estado !== estado) errores.push(`fila ${f.id}: estado mixto en el grupo`);
+    const monedaCuenta = monedaDe.get(f.cuenta_id);
+    if (monedaCuenta && f.moneda !== monedaCuenta)
+      errores.push(`fila ${f.id}: moneda ${f.moneda} pero la cuenta es ${monedaCuenta}`);
+    if (roundArs2(parseNum(f.monto)) === 0) errores.push(`fila ${f.id}: monto cero`);
+    if ((f.dueno_tipo === "obra") !== (f.dueno_obra_id !== null))
+      errores.push(`fila ${f.id}: dueño obra sin obra_id (o al revés)`);
+  }
+  return errores;
+}
+
+export type Divergencia = {
+  cuenta_id: string;
+  saldoLedger: number;
+  saldoMotor: number;
+  delta: number;
+};
+
+/** Convivencia (spec): el saldo por ledger debe igualar el del motor actual
+ * en toda cuenta que el ledger conozca. Devuelve las que divergen. */
+export function chequeoConsistencia(
+  movimientos: MovimientoPlataRow[],
+  saldosMotor: Map<string, number>
+): Divergencia[] {
+  const divergencias: Divergencia[] = [];
+  for (const [cuentaId, saldoLedger] of saldosCuentasDesdeLedger(movimientos)) {
+    const saldoMotor = saldosMotor.get(cuentaId);
+    if (saldoMotor === undefined) continue;
+    const delta = roundArs2(saldoLedger - saldoMotor);
+    if (delta !== 0) {
+      divergencias.push({ cuenta_id: cuentaId, saldoLedger, saldoMotor, delta });
+    }
+  }
+  return divergencias;
 }
