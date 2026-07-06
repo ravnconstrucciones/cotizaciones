@@ -248,12 +248,12 @@ export function ObraOrbitalScreen({ presupuestoId }: { presupuestoId: string }) 
             {nombre}
           </h1>
         </div>
-        <div className="flex items-baseline gap-4">
+        <div className="flex items-center gap-4">
           <Link
             href={`/obras/${presupuestoId}/plan`}
-            className="font-mono-hud text-[10px] uppercase tracking-[0.08em] text-cdm-muted transition-colors hover:text-cdm-accent"
+            className="font-mono-hud border border-cdm-accent/50 bg-cdm-accent/10 px-3 py-1.5 text-[12px] font-semibold uppercase tracking-[0.14em] text-cdm-accent shadow-[0_0_12px_-2px_rgba(34,211,238,0.45)] transition-colors hover:bg-cdm-accent hover:text-cdm-bg"
           >
-            [PLAN Y CRUCE] ↑
+            PLAN Y CRUCE ↑
           </Link>
           <Link
             href={`/obras/${presupuestoId}/gastos`}

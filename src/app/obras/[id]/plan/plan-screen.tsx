@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { Trash2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { RavnLogo } from "@/components/ravn-logo";
 import { createClient } from "@/lib/supabase/client";
 import { formatMoney, parseFormattedNumber } from "@/lib/format-currency";
 import { importeGastoObraArs } from "@/lib/cashflow-gastos-obra";
@@ -172,7 +171,6 @@ export function PlanScreen({ presupuestoId }: { presupuestoId: string }) {
             Plan y cruce{nombreObra ? ` — ${nombreObra}` : ""}
           </h1>
         </div>
-        <RavnLogo />
       </header>
 
       <nav className="mb-6 flex gap-2">
