@@ -19,7 +19,14 @@ type Ciclo = {
   label: string;
 };
 
-type FijoPersonal = { id: string; nombre: string; monto_ars: number; orden: number };
+type FijoPersonal = {
+  id: string;
+  nombre: string;
+  monto_ars: number;
+  orden: number;
+  /** Fecha del pago registrado este ciclo (gasto con fijo_id), o null. */
+  pagado_fecha?: string | null;
+};
 type SoftwareItem = { id: string; nombre: string; monto_ars: number };
 
 type ResumenFinanzas = {
@@ -359,7 +366,14 @@ export function FinanzasScreen() {
           <ul className="mt-4 space-y-2.5">
             {data.fijos_personal.map((f) => (
               <li key={f.id} className="flex items-center justify-between gap-3 text-[12px]">
-                <span className="font-geist text-cdm-fg">{f.nombre}</span>
+                <span className="font-geist text-cdm-fg">
+                  {f.nombre}
+                  {f.pagado_fecha && (
+                    <span className="font-mono-hud ml-2 text-[9px] uppercase tracking-widest text-emerald-400">
+                      pagado {fmtFecha(f.pagado_fecha)}
+                    </span>
+                  )}
+                </span>
                 {editandoFijos ? (
                   <div className="flex items-center gap-2">
                     <input

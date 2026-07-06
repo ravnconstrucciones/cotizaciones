@@ -319,3 +319,52 @@ describe("calcularFinanzas — fijos, software y categorías", () => {
   });
 
 });
+
+/**
+ * RE-ARRANQUE de ciclo (transición 05/07/2026, tope 2,8M → 2,5M): lo gastado
+ * antes del re-arranque se hunde en el pozo y la asignación se rehace sobre
+ * los días que quedan. Ciclo 26 abr → 25 may (30 días), discrecional $600k,
+ * re-arranque el 6 may = día 11 → quedan 20 días.
+ */
+describe("calcularFinanzas — re-arranque de ciclo", () => {
+  const conReArranque = (gastos: GastoVariable[], hoy: string, reArranque: string | null) =>
+    calcularFinanzas({
+      topePersonalMensual: 600000,
+      diaCierre: 25,
+      hoy: ymd(hoy),
+      fijos: [],
+      gastosVariables: gastos,
+      reArranque,
+    });
+  const previo: GastoVariable = { id: "g1", fecha: "2026-05-01", concepto: "viejo", monto: 200000, categoria: "Varios" };
+
+  it("lo gastado antes del re-arranque sale del pozo, no del día", () => {
+    const r = conReArranque([previo], "2026-05-06", "2026-05-06");
+    // (600k − 200k hundido) ÷ 20 días restantes = 20k
+    expect(r.asignacion_diaria).toBe(20000);
+    expect(r.presupuesto_hoy).toBe(20000);
+    expect(r.disponible_hoy).toBe(20000);
+    expect(r.ahorrado).toBe(0); // arranca de cero: los días viejos no deben nada
+    expect(r.disponible_ciclo).toBe(400000);
+  });
+
+  it("los días previos quedan neutros y el ahorro acumula solo desde el re-arranque", () => {
+    // Re-arranque 6/5; el 6 no gastó (+asig) y hoy es 7/5.
+    const r = conReArranque([previo], "2026-05-07", "2026-05-06");
+    expect(r.ahorrado).toBe(20000); // solo el día 6, nada de los previos
+    const previoDia = r.dias.find((d) => d.fecha === "2026-05-01");
+    expect(previoDia?.saldo).toBe(0);
+    expect(previoDia?.estado).toBe("verde");
+  });
+
+  it("re-arranque fuera del ciclo no hace nada (el ciclo siguiente vuelve solo)", () => {
+    const r = conReArranque([], "2026-05-27", "2026-05-06"); // ya arrancó ciclo nuevo
+    expect(r.asignacion_diaria).toBe(19354.84); // 600k / 31 días puro, sin hundir nada
+    expect(r.ciclo.inicio).toBe("2026-05-26");
+  });
+
+  it("re-arranque en el futuro (todavía no llegó) no hace nada", () => {
+    const r = conReArranque([], "2026-05-01", "2026-05-06");
+    expect(r.asignacion_diaria).toBe(20000);
+  });
+});

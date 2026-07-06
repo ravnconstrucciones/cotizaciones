@@ -64,7 +64,11 @@ export async function GET() {
     }
 
     const cfg = cfgRes.data as
-      | { tope_personal_mensual_ars: string | number; dia_cierre: number }
+      | {
+          tope_personal_mensual_ars: string | number;
+          dia_cierre: number;
+          re_arranque?: string | null;
+        }
       | null;
     const topePersonalMensual = cfg
       ? num(cfg.tope_personal_mensual_ars)
@@ -82,16 +86,40 @@ export async function GET() {
 
     // 2) Gastos variables del ciclo (rango inclusive). Se filtra de nuevo en el
     //    motor por si la query trajera bordes; la query acota el volumen.
+    //    Un pago de fijo (fijo_id) NO es variable: ya está descontado del tope
+    //    antes del prorrateo — entrar acá sería contarlo dos veces. Se trae
+    //    aparte solo para marcar el fijo como pagado en el ciclo.
     const ciclo = calcularCiclo(hoy, diaCierre);
-    const { data: gastosData, error: gastosErr } = await sb
-      .from("gastos_personales")
-      .select("id, fecha, concepto, monto, categoria")
-      .gte("fecha", ciclo.inicio)
-      .lte("fecha", ciclo.fin)
-      .order("created_at", { ascending: false });
+    const [gastosRes, pagosFijosRes] = await Promise.all([
+      sb
+        .from("gastos_personales")
+        .select("id, fecha, concepto, monto, categoria")
+        .is("fijo_id", null)
+        .gte("fecha", ciclo.inicio)
+        .lte("fecha", ciclo.fin)
+        .order("created_at", { ascending: false }),
+      sb
+        .from("gastos_personales")
+        .select("fijo_id, fecha")
+        .not("fijo_id", "is", null)
+        .gte("fecha", ciclo.inicio)
+        .lte("fecha", ciclo.fin),
+    ]);
+    const { data: gastosData, error: gastosErr } = gastosRes;
 
     if (gastosErr) {
       return NextResponse.json({ error: gastosErr.message }, { status: 500 });
+    }
+    if (pagosFijosRes.error) {
+      return NextResponse.json(
+        { error: pagosFijosRes.error.message },
+        { status: 500 }
+      );
+    }
+
+    const pagadoEnCiclo = new Map<string, string>();
+    for (const p of pagosFijosRes.data ?? []) {
+      if (p.fijo_id) pagadoEnCiclo.set(String(p.fijo_id), String(p.fecha).slice(0, 10));
     }
 
     const gastosVariables: GastoVariable[] = (gastosData ?? []).map((g) => ({
@@ -108,9 +136,16 @@ export async function GET() {
       hoy,
       fijos,
       gastosVariables,
+      reArranque: cfg?.re_arranque ?? null,
     });
 
-    const payload = NextResponse.json(resumen);
+    const payload = NextResponse.json({
+      ...resumen,
+      fijos_personal: resumen.fijos_personal.map((f) => ({
+        ...f,
+        pagado_fecha: pagadoEnCiclo.get(f.id) ?? null,
+      })),
+    });
     payload.headers.set(
       "Cache-Control",
       "private, max-age=15, stale-while-revalidate=60"
@@ -125,7 +160,7 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   const sb = createSupabaseAdminClient();
   const body = await req.json();
-  const { concepto, monto, categoria, fecha } = body;
+  const { concepto, monto, categoria, fecha, fijo_id } = body;
 
   if (!concepto || !monto) {
     return NextResponse.json(
@@ -146,6 +181,9 @@ export async function POST(req: NextRequest) {
     categoria: categoria || "Varios",
     fecha: fecha || hoyIso,
     origen: "app",
+    // Pago de un fijo: se registra pero NO entra al prorrateo (ya está
+    // descontado del tope). null = gasto variable normal.
+    fijo_id: fijo_id || null,
   });
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });

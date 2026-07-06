@@ -225,6 +225,17 @@ export type FinanzasInput = {
   fijos: FijoRow[];
   /** Gastos variables (gastos_personales). Se filtran al ciclo acá adentro. */
   gastosVariables: GastoVariable[];
+  /**
+   * Re-arranque de ciclo (YYYY-MM-DD): si cae DENTRO del ciclo actual, lo
+   * gastado antes de esa fecha se hunde (se descuenta del pozo discrecional)
+   * y la asignación diaria se rehace sobre los días que quedan desde ahí al
+   * cierre. Los días previos quedan neutros: ni ahorran ni deben. Sirve para
+   * cambiar el tope a mitad de ciclo sin castigar retroactivamente los días
+   * que se gastaron bajo la regla vieja (transición 05/07/2026, tope
+   * 2,8M → 2,5M). En el ciclo siguiente la fecha queda afuera del rango y la
+   * fórmula vuelve sola a la pura: (tope − fijos) ÷ días totales.
+   */
+  reArranque?: string | null;
 };
 
 /**
@@ -253,13 +264,44 @@ export function calcularFinanzas(input: FinanzasInput): FinanzasResumen {
 
   const topePersonalMensual = roundArs2(Math.max(0, input.topePersonalMensual));
   const discrecionalMes = roundArs2(topePersonalMensual - fijosPersonalTotal);
-  const asignacionDiaria =
-    ciclo.dias_total > 0 ? roundArs2(discrecionalMes / ciclo.dias_total) : 0;
 
   // Gastos variables del CICLO (no del mes calendario).
   const gastosCiclo = input.gastosVariables.filter((g) =>
     dentroDelCiclo(g.fecha, ciclo)
   );
+
+  const [iy, im, id] = ciclo.inicio.split("-").map(Number);
+  const inicioMs = ymdToUTC({ year: iy, month: im, day: id });
+
+  // Re-arranque activo: solo si cae dentro del ciclo y ya pasó (o es hoy).
+  const hoyIso = isoDe(input.hoy);
+  const reArranque =
+    input.reArranque &&
+    input.reArranque > ciclo.inicio &&
+    input.reArranque <= hoyIso &&
+    input.reArranque <= ciclo.fin
+      ? input.reArranque
+      : null;
+
+  // Con re-arranque: lo gastado antes se hunde (sale del pozo, no del día) y
+  // la asignación se rehace sobre los días desde el re-arranque al cierre.
+  const gastadoPrevio = reArranque
+    ? roundArs2(
+        gastosCiclo
+          .filter((g) => g.fecha.slice(0, 10) < reArranque)
+          .reduce((acc, g) => acc + Number(g.monto || 0), 0)
+      )
+    : 0;
+  let diaReArranque = 1; // día de ciclo (1..dias_total) en que rige la asignación
+  if (reArranque) {
+    const [ray, ram, rad] = reArranque.split("-").map(Number);
+    diaReArranque =
+      Math.round((ymdToUTC({ year: ray, month: ram, day: rad }) - inicioMs) / MS_DIA) + 1;
+  }
+  const diasActivos = ciclo.dias_total - (diaReArranque - 1);
+
+  const asignacionDiaria =
+    diasActivos > 0 ? roundArs2((discrecionalMes - gastadoPrevio) / diasActivos) : 0;
 
   const gastadoVariable = roundArs2(
     gastosCiclo.reduce((acc, g) => acc + Number(g.monto || 0), 0)
@@ -289,9 +331,6 @@ export function calcularFinanzas(input: FinanzasInput): FinanzasResumen {
     else gastosPorFecha.set(f, [g]);
   }
 
-  const [iy, im, id] = ciclo.inicio.split("-").map(Number);
-  const inicioMs = ymdToUTC({ year: iy, month: im, day: id });
-
   const dias: DiaCiclo[] = [];
   let ahorradoPrevio = 0; // Σ saldo de los días ya cerrados
   let gastadoHoy = 0;
@@ -303,8 +342,23 @@ export function calcularFinanzas(input: FinanzasInput): FinanzasResumen {
     const gastadoDia = roundArs2(
       gastosDia.reduce((acc, g) => acc + Number(g.monto || 0), 0)
     );
-    const saldoDia = roundArs2(asignacionDiaria - gastadoDia);
     const esHoy = d === ciclo.dia_actual;
+    // Día previo al re-arranque: neutro. Su gasto ya está hundido en el pozo
+    // (no en la asignación), así que ni ahorra ni debe: presupuesto = gastado.
+    if (d < diaReArranque) {
+      dias.push({
+        fecha,
+        dia_ciclo: d,
+        presupuesto: gastadoDia,
+        gastado: gastadoDia,
+        saldo: 0,
+        ahorrado_acum: ahorradoPrevio,
+        estado: "verde",
+        gastos: gastosDia,
+      });
+      continue;
+    }
+    const saldoDia = roundArs2(asignacionDiaria - gastadoDia);
     const ahorradoAcum = esHoy
       ? roundArs2(ahorradoPrevio + Math.min(0, saldoDia))
       : roundArs2(ahorradoPrevio + saldoDia);

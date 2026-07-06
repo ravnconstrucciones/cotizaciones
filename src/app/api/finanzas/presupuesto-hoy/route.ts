@@ -57,7 +57,11 @@ export async function GET() {
     }
 
     const cfg = cfgRes.data as
-      | { tope_personal_mensual_ars: string | number; dia_cierre: number }
+      | {
+          tope_personal_mensual_ars: string | number;
+          dia_cierre: number;
+          re_arranque?: string | null;
+        }
       | null;
     const topePersonalMensual = cfg
       ? num(cfg.tope_personal_mensual_ars)
@@ -74,9 +78,12 @@ export async function GET() {
     }));
 
     const ciclo = calcularCiclo(hoy, diaCierre);
+    // Solo gastos VARIABLES: un pago de fijo (fijo_id) ya está descontado del
+    // tope antes del prorrateo — si entrara acá se contaría dos veces.
     const { data: gastosData, error: gastosErr } = await sb
       .from("gastos_personales")
       .select("id, fecha, concepto, monto, categoria")
+      .is("fijo_id", null)
       .gte("fecha", ciclo.inicio)
       .lte("fecha", ciclo.fin);
 
@@ -98,6 +105,7 @@ export async function GET() {
       hoy,
       fijos,
       gastosVariables,
+      reArranque: cfg?.re_arranque ?? null,
     });
 
     return NextResponse.json({
