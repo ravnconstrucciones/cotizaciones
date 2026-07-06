@@ -1,18 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import dynamic from "next/dynamic";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import { AvatarBot } from "@/components/cockpit/avatar-bot";
 import { SkeletonGlass } from "@/components/cockpit/skeleton-glass";
 import type { Referencia, SinClasificar } from "@/types/centro-mando";
-
-/** Monolito 3D: lazy, solo cliente — el objeto de la página de filosofía. */
-const Monolito3D = dynamic(
-  () => import("@/components/cockpit/monolito-3d"),
-  { ssr: false }
-);
 
 type Vista = "estetica" | "filosofia";
 
@@ -84,15 +77,6 @@ export function AdnScreen() {
 
   return (
     <div className="font-geist relative min-h-screen bg-cdm-bg text-cdm-fg">
-      {/* En filosofía el monolito acompaña las frases desde la derecha,
-          hundido en la niebla. En estética no compite con el moodboard. */}
-      {vista === "filosofia" && (
-        <Monolito3D
-          className="fixed inset-0 z-[5] hidden lg:block"
-          posicion="derecha"
-          opacidad={0.75}
-        />
-      )}
       <header className="relative z-10 flex items-baseline justify-between px-6 pt-8 md:px-10">
         <div>
           <h1 className="font-geist text-3xl font-semibold tracking-tight text-cdm-fg">
