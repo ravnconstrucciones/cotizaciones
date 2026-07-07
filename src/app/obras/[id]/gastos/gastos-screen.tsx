@@ -141,6 +141,16 @@ function etiquetaObraVisible(
   return nombreCliente?.trim() || "Sin nombre";
 }
 
+// Espejo Dinero (Fase 2): fire-and-forget — la carga del gasto nunca espera
+// ni falla por el espejo; una divergencia la agarra el chequeo de consistencia.
+const espejarDinero = (tabla: string, id: string) => {
+  fetch("/api/dinero/espejo", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ tabla, id }),
+  }).catch(() => {});
+};
+
 export function GastosScreen({
   presupuestoId: presupuestoIdProp,
 }: {
@@ -686,9 +696,11 @@ export function GastosScreen({
         insertPayload.plan_item_id = draft.plan_item_id;
       }
 
-      const { error: err } = await supabase
+      const { data: gastoIns, error: err } = await supabase
         .from("presupuestos_gastos")
-        .insert(insertPayload);
+        .insert(insertPayload)
+        .select("id")
+        .single();
 
       if (err) {
         if (cashflowItemId) {
@@ -702,6 +714,12 @@ export function GastosScreen({
         setSavingDraft(false);
         return;
       }
+
+      const gastoId =
+        gastoIns && typeof (gastoIns as { id?: unknown }).id !== "undefined"
+          ? String((gastoIns as { id: string }).id)
+          : null;
+      if (gastoId) espejarDinero("presupuestos_gastos", gastoId);
 
       setDraft(null);
       await load();
@@ -767,6 +785,8 @@ export function GastosScreen({
         setDeletingId(null);
         return;
       }
+      espejarDinero("presupuestos_gastos", id);
+      if (cfId) espejarDinero("cashflow_items", cfId);
       await deleteGastoAdjuntoStorage(pathAdj);
       setGastos((prev) => prev.filter((g) => g.id !== id));
     } catch (e) {
