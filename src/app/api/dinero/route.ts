@@ -38,9 +38,11 @@ export async function GET() {
           )
           .eq("estado", "borrador")
           .order("created_at", { ascending: false }),
+        // Vista agregada: el group by en la base evita el cap de 1000 filas
+        // de PostgREST (traer la tabla entera subcontaba costos en silencio).
         supabase
-          .from("presupuestos_gastos")
-          .select("presupuesto_id, importe"),
+          .from("dinero_costos_obra")
+          .select("presupuesto_id, costo"),
       ]);
 
     const firstError =
@@ -60,9 +62,9 @@ export async function GET() {
     const costos_obra: Record<string, number> = {};
     for (const g of gastosRes.data ?? []) {
       if (!g.presupuesto_id) continue;
-      const n = typeof g.importe === "number" ? g.importe : parseFloat(String(g.importe ?? ""));
+      const n = typeof g.costo === "number" ? g.costo : parseFloat(String(g.costo ?? ""));
       if (!Number.isFinite(n)) continue;
-      costos_obra[g.presupuesto_id] = (costos_obra[g.presupuesto_id] ?? 0) + n;
+      costos_obra[g.presupuesto_id] = n;
     }
 
     // Nombres de TODAS las obras referenciadas por bolsillos/deudas/borradores.

@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { formatMoneyInt, formatMoneyUsdInt } from "@/lib/format-currency";
+import { formatMoneyInt } from "@/lib/format-currency";
 import { VolverAlInicio } from "@/components/volver-al-inicio";
 import { CargandoCockpit } from "@/components/cockpit/cargando-cockpit";
 import { CifraHeroica } from "@/components/cockpit/cifra-heroica";
@@ -46,8 +46,13 @@ const COLOR_DUENO: Record<string, string> = {
   personal: "bg-amber-300/80",
 };
 
+/** USD como en el resto del cockpit: "US$ 1.234" es-AR (paridad modulo-plata). */
+function formatUsdInt(n: number): string {
+  return new Intl.NumberFormat("es-AR", { maximumFractionDigits: 0 }).format(n);
+}
+
 function fmtMonto(n: number, moneda: "ARS" | "USD"): string {
-  return moneda === "USD" ? `US$ ${formatMoneyUsdInt(n)}` : formatMoneyInt(n);
+  return moneda === "USD" ? `US$ ${formatUsdInt(n)}` : formatMoneyInt(n);
 }
 
 function fmtFecha(iso: string) {
@@ -234,7 +239,7 @@ export function DineroScreen() {
                       </p>
                       <p className="text-[10px] tabular-nums text-cdm-muted">
                         {totales[tipo].usd !== 0
-                          ? `+ US$ ${formatMoneyUsdInt(totales[tipo].usd)}`
+                          ? `+ US$ ${formatUsdInt(totales[tipo].usd)}`
                           : hint}
                       </p>
                     </div>
@@ -243,13 +248,16 @@ export function DineroScreen() {
               </section>
             )}
 
-            {/* Cuentas y bolsillos */}
-            {!sinFoto && (
+            {/* Cuentas y bolsillos. Una cuenta INACTIVA con bolsillos vivos
+                se muestra igual: esa plata suma arriba y tiene que cerrar
+                a la vista. Sin /api/cuentas la sección no se dibuja vacía
+                (el warn de Atención ya lo explica). */}
+            {!sinFoto && cuentas && (
             <section className={CARD}>
               <p className={LABEL}>Cuentas y bolsillos</p>
               <ul className="mt-3 space-y-4">
-                {(cuentas?.cuentas ?? [])
-                  .filter((c) => c.activa && (porCuenta.has(c.id) || c.saldo !== 0))
+                {cuentas.cuentas
+                  .filter((c) => porCuenta.has(c.id) || (c.activa && c.saldo !== 0))
                   .map((c) => {
                     const bolsillos = porCuenta.get(c.id) ?? [];
                     return (
@@ -371,7 +379,7 @@ export function DineroScreen() {
                       <span className="shrink-0 tabular-nums text-[13px] text-amber-300">
                         {g.totalArs > 0 && formatMoneyInt(g.totalArs)}
                         {g.totalArs > 0 && g.totalUsd > 0 && " + "}
-                        {g.totalUsd > 0 && `US$ ${formatMoneyUsdInt(g.totalUsd)}`}
+                        {g.totalUsd > 0 && `US$ ${formatUsdInt(g.totalUsd)}`}
                       </span>
                     </li>
                   ))}

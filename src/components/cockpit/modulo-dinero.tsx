@@ -5,7 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Panel } from "./panel";
 import { SkeletonCifra } from "./skeleton-glass";
 import { fetchCompartido } from "@/lib/fetch-compartido";
-import { formatMoneyInt, formatMoneyUsdInt } from "@/lib/format-currency";
+import { formatMoneyInt } from "@/lib/format-currency";
 import {
   borradoresAgrupados,
   deudasConAntiguedad,
@@ -36,6 +36,11 @@ const COLOR_DUENO: Record<string, string> = {
   empresa: "bg-emerald-400/80",
   personal: "bg-amber-300/80",
 };
+
+/** USD como en el resto del cockpit: "US$ 1.234" es-AR (paridad modulo-plata). */
+function formatUsdInt(n: number): string {
+  return new Intl.NumberFormat("es-AR", { maximumFractionDigits: 0 }).format(n);
+}
 
 export function ModuloDinero({ className }: { className?: string }) {
   const [data, setData] = useState<PayloadDinero | null>(null);
@@ -135,7 +140,7 @@ export function ModuloDinero({ className }: { className?: string }) {
                   >
                     {formatMoneyInt(totales[tipo].ars)}
                     {totales[tipo].usd !== 0 &&
-                      ` + US$ ${formatMoneyUsdInt(totales[tipo].usd)}`}
+                      ` + US$ ${formatUsdInt(totales[tipo].usd)}`}
                   </span>
                 </li>
               ))}
@@ -162,7 +167,7 @@ export function ModuloDinero({ className }: { className?: string }) {
                     </span>
                     <span className="shrink-0 tabular-nums text-red-400">
                       {d.moneda === "USD"
-                        ? `US$ ${formatMoneyUsdInt(d.saldoPendiente)}`
+                        ? `US$ ${formatUsdInt(d.saldoPendiente)}`
                         : formatMoneyInt(d.saldoPendiente)}
                     </span>
                   </li>
@@ -198,7 +203,7 @@ export function ModuloDinero({ className }: { className?: string }) {
                     <span className="shrink-0 tabular-nums text-amber-300">
                       {g.totalArs > 0 && formatMoneyInt(g.totalArs)}
                       {g.totalArs > 0 && g.totalUsd > 0 && " + "}
-                      {g.totalUsd > 0 && `US$ ${formatMoneyUsdInt(g.totalUsd)}`}
+                      {g.totalUsd > 0 && `US$ ${formatUsdInt(g.totalUsd)}`}
                     </span>
                   </li>
                 ))}
