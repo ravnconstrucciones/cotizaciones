@@ -15,6 +15,7 @@ export default async function Home() {
         rutas={[
           "/cashflow/resumen",
           "/api/finanzas",
+          "/api/dinero",
           "/api/referencias?limit=20",
         ]}
       />

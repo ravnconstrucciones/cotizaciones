@@ -9,6 +9,7 @@ import { ModuloSaludNegocio } from "./modulo-salud-negocio";
 import { ModuloFinanzas } from "./modulo-finanzas";
 import { ModuloObras } from "./modulo-obras";
 import { ModuloPlata } from "./modulo-plata";
+import { ModuloDinero } from "./modulo-dinero";
 import { ModuloPendientes } from "./modulo-pendientes";
 import { ModuloSemana } from "./modulo-semana";
 import { ModuloCerebro } from "./modulo-cerebro";
@@ -89,6 +90,9 @@ export function CockpitHome({ cerebro }: { cerebro: CerebroData }) {
             {/* Fila 1 — Obras (grande) + Plata */}
             <ModuloObras className="lg:col-span-7" />
             <ModuloPlata className="lg:col-span-5" />
+
+            {/* Fila 1b — DINERO (Fase 3): bolsillos por dueño + libro de deudas */}
+            <ModuloDinero className="lg:col-span-12" />
 
             {/* Fila 2 — Pendientes (sectorizado por área) + Cerebro */}
             <ModuloPendientes className="lg:col-span-7" />
