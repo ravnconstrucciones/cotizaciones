@@ -11,7 +11,7 @@ const base = { fecha: "2026-07-06", descripcion: "x" };
 describe("filasEspejoGastoObra", () => {
   it("cuenta ARS: una pata -importe, dueño la obra", () => {
     const patas = filasEspejoGastoObra(
-      { id: "g1", presupuesto_id: "p1", importe: "12800", cuenta_id: "c-ars",
+      { presupuesto_id: "p1", importe: "12800", cuenta_id: "c-ars",
         cotizacion_venta_ars_por_usd: null, ...base }, ars);
     expect(patas).toEqual([expect.objectContaining({
       cuenta_id: "c-ars", dueno_tipo: "obra", dueno_obra_id: "p1",
@@ -19,17 +19,17 @@ describe("filasEspejoGastoObra", () => {
   });
   it("cuenta USD con cotización: -importe/cot en USD", () => {
     const [p] = filasEspejoGastoObra(
-      { id: "g2", presupuesto_id: "p1", importe: "150000", cuenta_id: "c-usd",
+      { presupuesto_id: "p1", importe: "150000", cuenta_id: "c-usd",
         cotizacion_venta_ars_por_usd: "1500", ...base }, usd);
     expect(p.monto).toBe(-100);
     expect(p.moneda).toBe("USD");
   });
   it("cuenta USD SIN cotización: 0 patas (regla del motor)", () => {
-    expect(filasEspejoGastoObra({ id: "g3", presupuesto_id: "p1", importe: "1000",
+    expect(filasEspejoGastoObra({ presupuesto_id: "p1", importe: "1000",
       cuenta_id: "c-usd", cotizacion_venta_ars_por_usd: null, ...base }, usd)).toEqual([]);
   });
   it("sin cuenta: 0 patas", () => {
-    expect(filasEspejoGastoObra({ id: "g4", presupuesto_id: "p1", importe: "1000",
+    expect(filasEspejoGastoObra({ presupuesto_id: "p1", importe: "1000",
       cuenta_id: null, ...base }, undefined)).toEqual([]);
   });
 });
@@ -37,16 +37,16 @@ describe("filasEspejoGastoObra", () => {
 describe("filasEspejoCashflow", () => {
   it("cobro (ingreso) cuenta ARS: +monto_real, dueño la obra", () => {
     const [p] = filasEspejoCashflow(
-      { id: "m1", tipo: "ingreso", monto_real: "500000", monto_usd: null,
+      { tipo: "ingreso", monto_real: "500000", monto_usd: null,
         cuenta_id: "c-ars", deleted_at: null, ...base }, ars, "p1", false);
     expect(p).toEqual(expect.objectContaining({ monto: 500000, dueno_tipo: "obra", dueno_obra_id: "p1" }));
   });
   it("cuenta USD usa monto_usd; sin monto_usd → 0 patas", () => {
-    expect(filasEspejoCashflow({ id: "m2", tipo: "ingreso", monto_real: "500000",
+    expect(filasEspejoCashflow({ tipo: "ingreso", monto_real: "500000",
       monto_usd: null, cuenta_id: "c-usd", deleted_at: null, ...base }, usd, "p1", false)).toEqual([]);
   });
   it("espejo de gasto (dedup) o borrado o sin monto_real: 0 patas", () => {
-    const m = { id: "m3", tipo: "egreso", monto_real: "1000", monto_usd: null,
+    const m = { tipo: "egreso", monto_real: "1000", monto_usd: null,
       cuenta_id: "c-ars", deleted_at: null, ...base };
     expect(filasEspejoCashflow(m, ars, "p1", true)).toEqual([]);
     expect(filasEspejoCashflow({ ...m, deleted_at: "2026-07-06" }, ars, "p1", false)).toEqual([]);
@@ -56,28 +56,28 @@ describe("filasEspejoCashflow", () => {
 
 describe("empresa / personal / retiro", () => {
   it("gasto empresa cross-moneda: 0 patas (regla del motor)", () => {
-    expect(filasEspejoGastoEmpresa({ id: "e1", monto: "20", moneda: "USD",
+    expect(filasEspejoGastoEmpresa({ monto: "20", moneda: "USD",
       cuenta_id: "c-ars", ...base }, ars)).toEqual([]);
   });
   it("gasto empresa misma moneda: -monto dueño empresa", () => {
-    const [p] = filasEspejoGastoEmpresa({ id: "e2", monto: "20", moneda: "USD",
+    const [p] = filasEspejoGastoEmpresa({ monto: "20", moneda: "USD",
       cuenta_id: "c-usd", ...base }, usd);
     expect(p).toEqual(expect.objectContaining({ monto: -20, dueno_tipo: "empresa", dueno_obra_id: null }));
   });
   it("gasto personal: -monto dueño personal", () => {
-    const [p] = filasEspejoGastoPersonal({ id: "gp1", monto: "4500", cuenta_id: "c-ars", ...base }, ars);
+    const [p] = filasEspejoGastoPersonal({ monto: "4500", cuenta_id: "c-ars", ...base }, ars);
     expect(p).toEqual(expect.objectContaining({ monto: -4500, dueno_tipo: "personal" }));
   });
   it("retiro resta / aporte suma, dueño empresa", () => {
-    expect(filasEspejoRetiro({ id: "r1", tipo: "retiro", monto_ars: "100000", cuenta_id: "c-ars", ...base }, ars)[0].monto).toBe(-100000);
-    expect(filasEspejoRetiro({ id: "r2", tipo: "aporte", monto_ars: "100000", cuenta_id: "c-ars", ...base }, ars)[0].monto).toBe(100000);
+    expect(filasEspejoRetiro({ tipo: "retiro", monto_ars: "100000", cuenta_id: "c-ars", ...base }, ars)[0].monto).toBe(-100000);
+    expect(filasEspejoRetiro({ tipo: "aporte", monto_ars: "100000", cuenta_id: "c-ars", ...base }, ars)[0].monto).toBe(100000);
   });
 });
 
 describe("filasEspejoTransferencia", () => {
   it("dos patas, mismo dueño, cada una en la moneda de su cuenta", () => {
     const patas = filasEspejoTransferencia(
-      { id: "t1", cuenta_origen_id: "c-ars", cuenta_destino_id: "c-usd",
+      { cuenta_origen_id: "c-ars", cuenta_destino_id: "c-usd",
         monto_origen: "150000", monto_destino: "100", ...base },
       ars, usd, { dueno_tipo: "obra", dueno_obra_id: "p1" });
     expect(patas).toHaveLength(2);
