@@ -15,8 +15,9 @@ import {
  * origen. Idempotente: llamarlo dos veces no cambia nada. La app escribe
  * ASENTADO directo — la app ES la confirmación de Eze; el borrador es cosa
  * del bot. Sin foto inicial el sync es no-op (nada se espeja sobre bolsillos
- * vacíos). NUNCA lanza hacia el caller: los write-points lo llaman en
- * try/catch y la operación original sale igual.
+ * vacíos). Ante CUALQUIER error de Supabase LANZA sin escribir nada: los
+ * write-points lo llaman en try/catch (la operación original sale igual),
+ * pero el espejo jamás se reescribe a ciegas sobre una lectura fallida.
  */
 
 export type TablaEspejo =
@@ -37,6 +38,11 @@ const TIPOS_POR_TABLA: Record<TablaEspejo, string[]> = {
   transferencias: ["transferencia"],
 };
 
+/** Corta el sync si la consulta falló: sin lectura confiable no se escribe. */
+const sinError = (error: { message: string } | null, que: string) => {
+  if (error) throw new Error(`[dinero-sync] ${que}: ${error.message}`);
+};
+
 const hoyIso = () => {
   const d = new Date(new Date().toLocaleString("en-US", { timeZone: "America/Argentina/Buenos_Aires" }));
   const pad = (n: number) => String(n).padStart(2, "0");
@@ -45,7 +51,8 @@ const hoyIso = () => {
 
 async function cuentaDe(admin: SupabaseClient, id: string | null) {
   if (!id) return undefined;
-  const { data } = await admin.from("cuentas").select("id, moneda").eq("id", id).maybeSingle();
+  const { data, error } = await admin.from("cuentas").select("id, moneda").eq("id", id).maybeSingle();
+  sinError(error, "leer cuenta");
   return (data as { id: string; moneda: "ARS" | "USD" } | null) ?? undefined;
 }
 
@@ -55,9 +62,10 @@ async function patasEsperadas(
 ): Promise<{ patas: PataEspejo[]; origenTipo: string }> {
   switch (tabla) {
     case "presupuestos_gastos": {
-      const { data: g } = await admin.from("presupuestos_gastos")
+      const { data: g, error } = await admin.from("presupuestos_gastos")
         .select("id, presupuesto_id, importe, cuenta_id, cotizacion_venta_ars_por_usd, fecha, descripcion")
         .eq("id", id).maybeSingle();
+      sinError(error, "leer presupuestos_gastos");
       if (!g) return { patas: [], origenTipo: "gasto_obra" };
       const cuenta = await cuentaDe(admin, g.cuenta_id);
       return {
@@ -67,16 +75,19 @@ async function patasEsperadas(
       };
     }
     case "cashflow_items": {
-      const { data: m } = await admin.from("cashflow_items")
+      const { data: m, error } = await admin.from("cashflow_items")
         .select("id, obra_id, tipo, monto_real, monto_usd, cuenta_id, deleted_at, fecha_real, fecha_proyectada, descripcion")
         .eq("id", id).maybeSingle();
+      sinError(error, "leer cashflow_items");
       const origenTipo = m?.tipo === "egreso" ? "gasto_obra" : "cobro";
       if (!m) return { patas: [], origenTipo: "cobro" };
-      const [{ data: obra }, { count }] = await Promise.all([
+      const [{ data: obra, error: eObra }, { count, error: eEspejo }] = await Promise.all([
         admin.from("obras").select("presupuesto_id").eq("id", m.obra_id).maybeSingle(),
         admin.from("presupuestos_gastos").select("id", { count: "exact", head: true })
           .eq("cashflow_item_id", id),
       ]);
+      sinError(eObra, "leer obra del cashflow");
+      sinError(eEspejo, "contar gastos espejo del cashflow");
       const cuenta = await cuentaDe(admin, m.cuenta_id);
       return {
         origenTipo,
@@ -86,8 +97,9 @@ async function patasEsperadas(
       };
     }
     case "gastos_empresa": {
-      const { data: g } = await admin.from("gastos_empresa")
+      const { data: g, error } = await admin.from("gastos_empresa")
         .select("id, monto, moneda, cuenta_id, fecha, concepto").eq("id", id).maybeSingle();
+      sinError(error, "leer gastos_empresa");
       if (!g) return { patas: [], origenTipo: "gasto_empresa" };
       const cuenta = await cuentaDe(admin, g.cuenta_id);
       return {
@@ -97,8 +109,9 @@ async function patasEsperadas(
       };
     }
     case "gastos_personales": {
-      const { data: g } = await admin.from("gastos_personales")
+      const { data: g, error } = await admin.from("gastos_personales")
         .select("id, monto, cuenta_id, fecha, concepto").eq("id", id).maybeSingle();
+      sinError(error, "leer gastos_personales");
       if (!g) return { patas: [], origenTipo: "gasto_personal" };
       const cuenta = await cuentaDe(admin, g.cuenta_id);
       return {
@@ -108,8 +121,9 @@ async function patasEsperadas(
       };
     }
     case "retiros_socio": {
-      const { data: r } = await admin.from("retiros_socio")
+      const { data: r, error } = await admin.from("retiros_socio")
         .select("id, tipo, monto_ars, cuenta_id, fecha, concepto").eq("id", id).maybeSingle();
+      sinError(error, "leer retiros_socio");
       if (!r) return { patas: [], origenTipo: "retiro" };
       const cuenta = await cuentaDe(admin, r.cuenta_id);
       return {
@@ -119,13 +133,15 @@ async function patasEsperadas(
       };
     }
     case "transferencias": {
-      const { data: t } = await admin.from("transferencias")
+      const { data: t, error } = await admin.from("transferencias")
         .select("id, cuenta_origen_id, cuenta_destino_id, monto_origen, monto_destino, fecha, concepto")
         .eq("id", id).maybeSingle();
+      sinError(error, "leer transferencias");
       if (!t) return { patas: [], origenTipo: "transferencia" };
       const ids = [t.cuenta_origen_id, t.cuenta_destino_id].filter(Boolean) as string[];
-      const { data: cuentas } = await admin.from("cuentas")
+      const { data: cuentas, error: eCuentas } = await admin.from("cuentas")
         .select("id, moneda, obra_id").in("id", ids);
+      sinError(eCuentas, "leer cuentas de transferencia");
       const porId = new Map((cuentas ?? []).map((c) => [c.id, c]));
       const origen = porId.get(t.cuenta_origen_id ?? "");
       const destino = porId.get(t.cuenta_destino_id ?? "");
@@ -152,16 +168,18 @@ export async function sincronizarEspejo(
   admin: SupabaseClient, tabla: TablaEspejo, id: string
 ): Promise<ResultadoSync> {
   // Sin foto inicial no se espeja nada (bolsillos vacíos = ledger apagado).
-  const { count: foto } = await admin.from("movimientos_plata")
+  const { count: foto, error: eFoto } = await admin.from("movimientos_plata")
     .select("id", { count: "exact", head: true })
     .eq("origen_tipo", "foto_inicial").eq("estado", "asentado");
+  sinError(eFoto, "contar foto inicial");
   if (!foto) return { accion: "sin_foto", patas: 0 };
 
   const { patas: esperadas, origenTipo } = await patasEsperadas(admin, tabla, id);
 
-  const { data: existentes } = await admin.from("movimientos_plata")
+  const { data: existentes, error: eExistentes } = await admin.from("movimientos_plata")
     .select("id, grupo_id, cuenta_id, dueno_tipo, dueno_obra_id, monto, moneda")
     .eq("origen_id", id).in("origen_tipo", TIPOS_POR_TABLA[tabla]);
+  sinError(eExistentes, "leer patas existentes");
   const viejas = existentes ?? [];
 
   const iguales =
@@ -174,21 +192,24 @@ export async function sincronizarEspejo(
   // reescribirlos rompería el vínculo — se saltea y queda para conciliar.
   if (viejas.length) {
     const grupos = [...new Set(viejas.map((v) => v.grupo_id))];
-    const { count: fin } = await admin.from("financiamientos")
+    const { count: fin, error: eFin } = await admin.from("financiamientos")
       .select("id", { count: "exact", head: true }).in("origen_grupo_id", grupos);
+    sinError(eFin, "contar financiamientos");
     if (fin) {
       console.error(`[dinero-sync] ${tabla}/${id}: grupo con financiamiento, no se reescribe (a conciliar)`);
       return { accion: "salteado_financiamiento", patas: viejas.length };
     }
-    await admin.from("movimientos_plata").delete().eq("origen_id", id)
-      .in("origen_tipo", TIPOS_POR_TABLA[tabla]);
+    const { error: eDelete } = await admin.from("movimientos_plata").delete()
+      .eq("origen_id", id).in("origen_tipo", TIPOS_POR_TABLA[tabla]);
+    sinError(eDelete, "borrar patas viejas");
   }
 
   if (esperadas.length) {
     const grupo = crypto.randomUUID();
-    await admin.from("movimientos_plata").insert(esperadas.map((p) => ({
+    const { error: eInsert } = await admin.from("movimientos_plata").insert(esperadas.map((p) => ({
       ...p, grupo_id: grupo, origen_tipo: origenTipo, origen_id: id, estado: "asentado",
     })));
+    sinError(eInsert, "insertar patas nuevas");
   }
   return { accion: "reescrito", patas: esperadas.length };
 }
