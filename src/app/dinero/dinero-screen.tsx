@@ -58,6 +58,7 @@ function fmtFecha(iso: string) {
 export function DineroScreen() {
   const [data, setData] = useState<PayloadDinero | null>(null);
   const [cuentas, setCuentas] = useState<SaldosCuentas | null>(null);
+  const [warnCuentas, setWarnCuentas] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -76,7 +77,16 @@ export function DineroScreen() {
         return;
       }
       setData(resDinero.body as PayloadDinero);
-      if (resCuentas.ok) setCuentas(resCuentas.body as SaldosCuentas);
+      if (resCuentas.ok) {
+        setCuentas(resCuentas.body as SaldosCuentas);
+        setWarnCuentas(null);
+      } else {
+        // Sin /api/cuentas no hay saldos del motor: el "a conciliar" y la
+        // lista de cuentas quedan ciegos — se dice, no se muestra vacío mudo.
+        setWarnCuentas(
+          "No se pudieron cargar las cuentas (motor): sin saldos por cuenta ni chequeo a conciliar."
+        );
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Error de red");
     } finally {
@@ -151,20 +161,15 @@ export function DineroScreen() {
           </p>
         </div>
 
-        {sinFoto ? (
-          <section className={CARD}>
-            <p className="text-sm text-cdm-muted">
-              El ledger todavía no tiene movimientos asentados. Después de la
-              foto inicial, acá se ve de quién es la plata de cada cuenta.
-            </p>
-          </section>
-        ) : (
-          <div className="space-y-5">
-            {/* Alertas: a conciliar + borradores colgados */}
-            {(divergencias.length > 0 || grupos.length > 0) && (
+        <div className="space-y-5">
+            {/* Alertas: a conciliar + borradores colgados + fallas de carga.
+                SIEMPRE visibles, incluso sin foto inicial (spec decisión 4:
+                un borrador colgado queda visible en la app, jamás se esconde). */}
+            {(divergencias.length > 0 || grupos.length > 0 || warnCuentas) && (
               <section className={`${CARD} ring-amber-300/40`}>
                 <p className={LABEL}>Atención</p>
                 <ul className="mt-2 space-y-1.5 text-[13px]">
+                  {warnCuentas && <li className="text-red-400">{warnCuentas}</li>}
                   {divergencias.map((d) => {
                     const c = nombreCuenta.get(d.cuenta_id);
                     return (
@@ -192,8 +197,18 @@ export function DineroScreen() {
               </section>
             )}
 
+            {sinFoto && (
+              <section className={CARD}>
+                <p className="text-sm text-cdm-muted">
+                  El ledger todavía no tiene movimientos asentados. Después de
+                  la foto inicial, acá se ve de quién es la plata de cada
+                  cuenta.
+                </p>
+              </section>
+            )}
+
             {/* De quién es la plata */}
-            {totales && (
+            {!sinFoto && totales && (
               <section className={CARD}>
                 <p className={LABEL}>De quién es la plata</p>
                 <div className="mt-3 grid grid-cols-3 gap-3">
@@ -229,6 +244,7 @@ export function DineroScreen() {
             )}
 
             {/* Cuentas y bolsillos */}
+            {!sinFoto && (
             <section className={CARD}>
               <p className={LABEL}>Cuentas y bolsillos</p>
               <ul className="mt-3 space-y-4">
@@ -275,6 +291,7 @@ export function DineroScreen() {
                   })}
               </ul>
             </section>
+            )}
 
             {/* Libro de deudas */}
             <section className={CARD}>
@@ -407,8 +424,7 @@ export function DineroScreen() {
                 </ul>
               </section>
             )}
-          </div>
-        )}
+        </div>
       </div>
     </main>
   );

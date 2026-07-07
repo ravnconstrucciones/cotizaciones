@@ -89,9 +89,21 @@ export function ModuloDinero({ className }: { className?: string }) {
       {error && <p className="text-[11px] text-red-400">{error}</p>}
       {!data && !error && <SkeletonCifra className="mt-2" />}
       {data && data.bolsillos.length === 0 && (
-        <p className="text-[11px] text-cdm-muted">
-          Sin ledger todavía — se enciende con la foto inicial.
-        </p>
+        <div className="space-y-2">
+          <p className="text-[11px] text-cdm-muted">
+            Sin ledger todavía — se enciende con la foto inicial.
+          </p>
+          {/* Un borrador colgado se muestra SIEMPRE (spec decisión 4),
+              incluso antes de la foto: jamás queda escondido. */}
+          {borradores.length > 0 && (
+            <p className="text-[11px] text-amber-300">
+              {borradores.length === 1
+                ? "1 operación del bot sin confirmar"
+                : `${borradores.length} operaciones del bot sin confirmar`}{" "}
+              — detalle en /dinero.
+            </p>
+          )}
+        </div>
       )}
       {data && data.bolsillos.length > 0 && totales && (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
@@ -184,9 +196,9 @@ export function ModuloDinero({ className }: { className?: string }) {
                       {g.descripcion || g.origen_tipo.replace(/_/g, " ")}
                     </span>
                     <span className="shrink-0 tabular-nums text-amber-300">
-                      {g.totalArs > 0
-                        ? formatMoneyInt(g.totalArs)
-                        : `US$ ${formatMoneyUsdInt(g.totalUsd)}`}
+                      {g.totalArs > 0 && formatMoneyInt(g.totalArs)}
+                      {g.totalArs > 0 && g.totalUsd > 0 && " + "}
+                      {g.totalUsd > 0 && `US$ ${formatMoneyUsdInt(g.totalUsd)}`}
                     </span>
                   </li>
                 ))}
