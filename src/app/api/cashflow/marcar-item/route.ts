@@ -3,6 +3,7 @@ import { parseNum, todayBuenosAires } from "@/lib/cashflow-compute";
 import { estadoDesdeTipo } from "@/lib/cashflow-matching";
 import { roundArs2 } from "@/lib/format-currency";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
+import { sincronizarEspejo } from "@/lib/dinero-sync";
 
 export async function POST(req: Request) {
   try {
@@ -66,6 +67,11 @@ export async function POST(req: Request) {
     if (eUpd) {
       return NextResponse.json({ error: eUpd.message }, { status: 500 });
     }
+
+    // Espejo Dinero (Fase 2): best-effort, jamás rompe la operación original.
+    await sincronizarEspejo(supabase, "cashflow_items", id).catch((e) =>
+      console.error("[dinero espejo]", e)
+    );
 
     return NextResponse.json({ ok: true, item_id: id });
   } catch (e) {

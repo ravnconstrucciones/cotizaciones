@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
+import { sincronizarEspejo } from "@/lib/dinero-sync";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -24,6 +25,12 @@ export async function POST(_req: Request, ctx: Params) {
         { status: 404 }
       );
     }
+
+    // Espejo Dinero (Fase 2): best-effort, jamás rompe la operación original.
+    await sincronizarEspejo(supabase, "cashflow_items", id).catch((e) =>
+      console.error("[dinero espejo]", e)
+    );
+
     return NextResponse.json({ ok: true, item: data });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Error";

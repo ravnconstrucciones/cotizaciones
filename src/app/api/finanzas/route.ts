@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
+import { sincronizarEspejo } from "@/lib/dinero-sync";
 import {
   calcularCiclo,
   calcularFinanzas,
@@ -175,18 +176,29 @@ export async function POST(req: NextRequest) {
   const { year, month, day } = hoyBA();
   const hoyIso = `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
 
-  const { error } = await sb.from("gastos_personales").insert({
-    concepto,
-    monto: Number(monto),
-    categoria: categoria || "Varios",
-    fecha: fecha || hoyIso,
-    origen: "app",
-    // Pago de un fijo: se registra pero NO entra al prorrateo (ya está
-    // descontado del tope). null = gasto variable normal.
-    fijo_id: fijo_id || null,
-  });
+  const { data, error } = await sb
+    .from("gastos_personales")
+    .insert({
+      concepto,
+      monto: Number(monto),
+      categoria: categoria || "Varios",
+      fecha: fecha || hoyIso,
+      origen: "app",
+      // Pago de un fijo: se registra pero NO entra al prorrateo (ya está
+      // descontado del tope). null = gasto variable normal.
+      fijo_id: fijo_id || null,
+    })
+    .select("id")
+    .single();
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  // Espejo Dinero (Fase 2): best-effort, jamás rompe la operación original.
+  // Este alta no setea cuenta_id → el sync queda no-op hasta que se asigne.
+  await sincronizarEspejo(sb, "gastos_personales", data.id).catch((e) =>
+    console.error("[dinero espejo]", e)
+  );
+
   return NextResponse.json({ ok: true });
 }
 
@@ -197,5 +209,11 @@ export async function DELETE(req: NextRequest) {
 
   const { error } = await sb.from("gastos_personales").delete().eq("id", id);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  // Espejo Dinero (Fase 2): best-effort, jamás rompe la operación original.
+  await sincronizarEspejo(sb, "gastos_personales", id).catch((e) =>
+    console.error("[dinero espejo]", e)
+  );
+
   return NextResponse.json({ ok: true });
 }

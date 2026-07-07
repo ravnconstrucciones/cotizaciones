@@ -4,6 +4,7 @@ import type { CashflowTipo } from "@/lib/cashflow-compute";
 import { estadoDesdeTipo } from "@/lib/cashflow-matching";
 import { roundArs2 } from "@/lib/format-currency";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
+import { sincronizarEspejo } from "@/lib/dinero-sync";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -227,6 +228,12 @@ export async function PUT(req: Request, ctx: Params) {
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
+
+    // Espejo Dinero (Fase 2): best-effort, jamás rompe la operación original.
+    await sincronizarEspejo(supabase, "cashflow_items", id).catch((e) =>
+      console.error("[dinero espejo]", e)
+    );
+
     return NextResponse.json({ item: data });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Error";
@@ -254,6 +261,12 @@ export async function DELETE(_req: Request, ctx: Params) {
         { status: 404 }
       );
     }
+
+    // Espejo Dinero (Fase 2): best-effort, jamás rompe la operación original.
+    await sincronizarEspejo(supabase, "cashflow_items", id).catch((e) =>
+      console.error("[dinero espejo]", e)
+    );
+
     return NextResponse.json({ ok: true, anulado: true });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Error";

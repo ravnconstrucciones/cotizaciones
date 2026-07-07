@@ -146,6 +146,9 @@ export async function POST(req: Request) {
       };
     });
 
+    // Espejo Dinero (Fase 2): NO se sincroniza acá a propósito — estos items
+    // nacen sin cuenta_id (proyección de aprobación), el espejo les llega
+    // recién cuando se marcan/asignan (ver marcar-item, cashflow/item).
     const { error: eIns } = await supabase.from("cashflow_items").insert(inserts);
     if (eIns) {
       return NextResponse.json({ error: eIns.message }, { status: 500 });

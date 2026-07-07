@@ -6,6 +6,7 @@ import {
 } from "@/lib/cashflow-matching";
 import { roundArs2 } from "@/lib/format-currency";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
+import { sincronizarEspejo } from "@/lib/dinero-sync";
 
 export async function POST(req: Request) {
   try {
@@ -102,9 +103,16 @@ export async function POST(req: Request) {
       );
     }
 
+    const itemId = (ins as { id: string }).id;
+
+    // Espejo Dinero (Fase 2): best-effort, jamás rompe la operación original.
+    await sincronizarEspejo(supabase, "cashflow_items", itemId).catch((e) =>
+      console.error("[dinero espejo]", e)
+    );
+
     return NextResponse.json({
       ok: true,
-      item_id: (ins as { id: string }).id,
+      item_id: itemId,
     });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Error";

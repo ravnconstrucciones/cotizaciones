@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { roundArs2 } from "@/lib/format-currency";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
+import { sincronizarEspejo } from "@/lib/dinero-sync";
 
 /**
  * Registra un RETIRO (Eze saca plata de la empresa) o un APORTE (Eze pone).
@@ -61,7 +62,15 @@ export async function POST(req: Request) {
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
-    return NextResponse.json({ ok: true, id: (data as { id: string }).id });
+
+    const retiroId = (data as { id: string }).id;
+
+    // Espejo Dinero (Fase 2): best-effort, jamás rompe la operación original.
+    await sincronizarEspejo(supabase, "retiros_socio", retiroId).catch((e) =>
+      console.error("[dinero espejo]", e)
+    );
+
+    return NextResponse.json({ ok: true, id: retiroId });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Error";
     return NextResponse.json({ error: msg }, { status: 500 });

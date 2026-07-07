@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { nombreReservaObra } from "@/lib/cuentas";
 import { roundArs2 } from "@/lib/format-currency";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
+import { sincronizarEspejo } from "@/lib/dinero-sync";
 
 /**
  * RESERVA MP POR OBRA (04/07) — cuenta espejo "MP · Reserva Obra X".
@@ -152,6 +153,13 @@ export async function POST(req: Request) {
         );
       }
       transferenciaId = (tr as { id: string }).id;
+
+      // Espejo Dinero (Fase 2): best-effort, jamás rompe la operación original.
+      await sincronizarEspejo(
+        supabase,
+        "transferencias",
+        transferenciaId
+      ).catch((e) => console.error("[dinero espejo]", e));
     }
 
     return NextResponse.json({

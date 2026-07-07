@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
+import { sincronizarEspejo, type TablaEspejo } from "@/lib/dinero-sync";
 
 /**
  * PENDIENTES DE CUENTA — movimientos registrados sin decir de qué cuenta
@@ -239,7 +240,7 @@ export async function GET() {
   }
 }
 
-const TABLA_POR_ORIGEN: Record<OrigenPendiente, string> = {
+const TABLA_POR_ORIGEN: Record<OrigenPendiente, TablaEspejo> = {
   gasto_obra: "presupuestos_gastos",
   cashflow: "cashflow_items",
   gasto_personal: "gastos_personales",
@@ -288,6 +289,12 @@ export async function POST(req: Request) {
         { status: 409 }
       );
     }
+
+    // Espejo Dinero (Fase 2): best-effort, jamás rompe la operación original.
+    await sincronizarEspejo(supabase, tabla, body.id).catch((e) =>
+      console.error("[dinero espejo]", e)
+    );
+
     return NextResponse.json({ ok: true });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Error";
@@ -323,6 +330,12 @@ export async function DELETE(req: Request) {
           { status: 409 }
         );
       }
+
+      // Espejo Dinero (Fase 2): best-effort, jamás rompe la operación original.
+      await sincronizarEspejo(supabase, "cashflow_items", body.id).catch((e) =>
+        console.error("[dinero espejo]", e)
+      );
+
       return NextResponse.json({ ok: true });
     }
 
@@ -350,6 +363,13 @@ export async function DELETE(req: Request) {
           .update({ deleted_at: new Date().toISOString() })
           .eq("id", g.data.cashflow_item_id)
           .is("deleted_at", null);
+
+        // Espejo Dinero (Fase 2): best-effort, jamás rompe la operación original.
+        await sincronizarEspejo(
+          supabase,
+          "cashflow_items",
+          g.data.cashflow_item_id
+        ).catch((e) => console.error("[dinero espejo]", e));
       }
     }
 
@@ -368,6 +388,12 @@ export async function DELETE(req: Request) {
         { status: 409 }
       );
     }
+
+    // Espejo Dinero (Fase 2): best-effort, jamás rompe la operación original.
+    await sincronizarEspejo(supabase, tabla, body.id).catch((e) =>
+      console.error("[dinero espejo]", e)
+    );
+
     return NextResponse.json({ ok: true });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Error";
