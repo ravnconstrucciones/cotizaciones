@@ -1,37 +1,29 @@
-# Handoff — sesión 06/07/2026 (bugs del bot + diseño módulo Dinero)
+# Handoff — sesión 07/07/2026 (noche) — Fase 3 HECHA y EN PROD; queda SOLO runbook en vivo → switch motor
 
-## Objetivo de la sesión
-(1) Diagnosticar y limpiar las fallas del bot de hoy; (2) diseñar el módulo **Dinero** del Centro de Mando (financiamiento cruzado entre obras, bolsillos por dueño, libro de deudas). El handoff anterior (finanzas personales 05/07) estaba TERMINADO y se reemplazó por este.
+## Estado general
+Módulo Dinero: **Fases 1, 2 y 3 completas y en producción.** La sesión nocturna (autónoma, pedido de Eze) cazó y arregló los 2 bugs del bot que rompían el runbook, construyó la Fase 3 entera (pantalla `/dinero` + card "Bolsillos y deudas" en la home), la pasó por dos waves de review (ravn-code-reviewer + verificador adversarial) y deployó todo. Ledger detallado: `.superpowers/sdd/progress.md` (sección "Ledger Fase 3").
 
-## Estado
+## Qué se hizo esta noche (07/07 ~19:30-21:00)
 
-### Hecho ✅ (datos, todo en Supabase prod)
-- **Diagnóstico bugs bot**: (a) el clasificador (Haiku) recibe TODO el historial y re-emite acciones viejas — así nació la "referencia estética" fantasma con "22500 ferreteria" y el gasto duplicado de $22.500; (b) el menú de cuentas filtra por moneda del gasto → nunca ofrece la caja USD para gastos en pesos. AÚN SIN FIX EN CÓDIGO — entra en la implementación del módulo (o como parche previo chico en `~/Documents/ravn-bots/src/advisorService.js` + `cuentas.js`).
-- **Limpieza**: borrados ferretería $22.500 dupl. (gastos_empresa), comisión US$50 dupl., referencia fantasma, y el 450k siding que el bot cargó hoy en Pueyrredón (el real está en Glorietas desde 03/07: "Mano de obra tira cemento (Saivin)", cuenta Efectivo obra Pueyrredón = financiamiento cruzado ya asentado).
-- **Cargas**: Garage $12.800 (obra Pueyrredón, efectivo obra), Café $4.500 (personal, MP), **Volquete $150.000** (obra Pueyrredón, MP — el bot nunca lo había guardado; nota: $90k caja obra + $60k de Eze, formalizar en el libro de deudas cuando exista).
-- **Cuenta renombrada**: "USD billete" → **"Efectivo obra Pueyrredón US$"** (id 77ccfb1f).
-- **Spec módulo Dinero** escrita y commiteada: `docs/superpowers/specs/2026-07-06-dinero-design.md` (commit `0ed0de4`, branch `home-cards`). Memoria: `proyecto-modulo-dinero.md`.
+### Bot (ravn-bots main → Railway, ambos deployados SUCCESS)
+- `a7f3299`: **el bug del "Listo."** — parseJson (código del 13/06, NO de la fase) se quedaba con el array `opciones=[...]` de una duda y tiraba la pregunta. Por eso "22950 ferreteria" (19:23) recibió "Listo." sin hacer nada. Fix: el primer delimitador decide el top-level. Test con el caso real.
+- `b696b8d`: defensa en profundidad — multi sin ítems procesables → aviso pidiendo reenvío, jamás "Listo." fantasma. 401/401 verdes.
+- El error de las 17:46 (helado, `dineroBolsillos` undefined) era el bug ya arreglado a la tarde (armarCtx, 24652fb) — ese mensaje fue ANTES del redeploy.
 
-### Decisiones de diseño (cerradas en entrevista con Eze — ver spec)
-Bolsillos por dueño (obra/RAVN/personal) en cada cuenta + libro de deudas; cobros se liberan durante la obra con alerta anti-fundirse; deuda real con devolución manual y neteo al cierre; bot = borrador hasta "confirmo" (caso típico: 2 preguntas + confirmación); foto inicial + reconstrucción de cruces; nombre **Dinero** (`/dinero`), NO "Plata"; **todo revisado por agente ravn-code-reviewer** (pedido explícito).
+### App (branch home-cards → Vercel ravn-app-one, READY)
+- `f2f691f` **Fase 3**: `/dinero` (de quién es la plata por dueño, cuentas con desglose por bolsillo, libro de deudas con antigüedad, borradores del bot, quién financia cada obra, alertas "a conciliar") + card en la home + `/api/dinero` + `src/lib/dinero-tablero.ts` (matemática pura, 10 tests) + nav + prefetch.
+- `c8454aa` review wave 1: borradores/alertas visibles SIEMPRE aun sin foto (spec decisión 4); USD en grupos mixtos; warn si /api/cuentas falla.
+- `97fed03` review wave 2: vista `dinero_costos_obra` (el group by en la base — traer la tabla entera subcontaba en silencio al pasar el cap 1000 de PostgREST); USD "US$ 1.234" es-AR (salía "US$ $1,234"); cuenta inactiva con bolsillos visible; CHECK `financiamientos` deudor≠acreedor. **Migración 20260707230000 APLICADA en prod.**
+- Verificación: tsc limpio, 403/403, build ✓, matemática corrida contra datos de prod (totales = SQL directo; Siding 100% financiado / Pueyrredón 64% propio). Advisors sin findings nuevos.
+- Review wave 1 cerró la NOTA del handoff anterior (bot bolsillo vs espejo 'personal'): NO es bug vivo, el guard de financiamientos en dinero-sync lo cubre.
 
-### Pendientes
-1. ~~Aprobar spec~~ **HECHO 07/07**.
-2. ~~Parche bot~~ **HECHO Y DEPLOYADO 07/07** (commit `1653fd1` en ravn-bots/main → Railway): guardia anti-fantasmas + menú multi-moneda. Falta SOLO prueba en vivo de Eze por WhatsApp.
-3. ~~Fase 1 módulo Dinero~~ **HECHA 07/07** (commits `fae424b..7326fe6` en home-cards): migraciones `movimientos_plata` + `financiamientos` + índice origen_grupo_id APLICADAS EN PROD, vista `dinero_saldos_bolsillos`, motor `src/lib/dinero.ts` (10 tests, suite 381 verde), verificación en vivo OK, review ravn-code-reviewer aprobado. Plan ejecutado: `docs/superpowers/plans/2026-07-07-dinero-fase-1.md`; ledger en `.superpowers/sdd/progress.md` (minors diferidos a F2–F4 anotados ahí).
-4. **DECISIÓN TOMADA POR EZE 07/07**: foto inicial COMPLETA, UNA SOLA VEZ, al ARRANQUE de la Fase 2 (se adelanta desde F4). Eze declara en una sola sesión guiada: cuánto hay en cada cuenta y de quién es (bolsillos, filas `foto_inicial`) + los cruces pasados conocidos (siding $450k Glorietas←Pueyrredón, volquete $60k de Eze) como `financiamientos` iniciales. El bot recién asienta DESPUÉS de esa foto — nunca sobre bolsillos vacíos. `chequeoConsistencia` (ya hecho, F1) valida la foto contra el motor actual. Fase 4 queda reducida a: switch del motor de saldos al ledger + cierre de convivencia. Pedido explícito de Eze: mantener el review de `ravn-code-reviewer` como control de cada fase.
-   → Siguiente paso: `superpowers:writing-plans` para Fase 2 = foto inicial guiada + bot borrador→confirmo + RPC asentar + espejo ledger. El RPC debe: ser el único camino del bot a 'asentado', validar moneda=cuenta y deudor≠acreedor, setear updated_at, idempotencia por origen_grupo_id (todo anotado también en `.superpowers/sdd/progress.md`).
-5. Conciliar $20k/US$20 de las cajas (viejo, en notas de cuentas).
-6. Branch `home-cards` sigue con commits sin mergear (frentes cotizador + spec + Fase 1 Dinero).
+## PENDIENTE (retomar acá — necesita a Eze en WhatsApp)
+1. **Runbook Task 10 en vivo** (guión en ledger línea 63): reenviar el helado `gasto personal helado 10570 visa credito` y `22950 ferreteria` (con obra y medio de pago); arqueo; transferencia 1 parte y repartida 2 partes; cancelar con «2». Verificar cada impacto por SQL + `npx tsx scripts/dinero-foto.ts check` verde. DATO: "Ferreteria 800 obra siding" YA pasó entera en vivo (financiamiento $800 Siding→Pueyrredón automático ✓). OJO: ese gasto quedó cargado como $800 — confirmar con Eze si era real o prueba (si era prueba, borrarlo: gasto + patas + financiamiento).
+2. **Ver /dinero y la card con los ojos de Eze** (funciona con datos reales, pero el visto estético es de él).
+3. **SWITCH del motor de saldos al ledger (Fase 4 final)** — deliberadamente NO hecho de noche: el gate es el runbook verde (spec §Verificación). Recién ahí `/api/cuentas` pasa a leer del ledger y se cierra la convivencia.
+4. Al cerrar Task 10: borrar `handoff.md` y `foto-dinero.html`.
 
-## Archivos clave
-- Spec: `~/Documents/ravn/docs/superpowers/specs/2026-07-06-dinero-design.md`
-- Bot: `~/Documents/ravn-bots/src/advisorService.js` (clasificador, línea ~350 llama a Haiku con historial; case gasto ~línea 605), `src/cuentas.js` (menú/detección, `opcionesPreguntaCuenta` filtra por moneda)
-- App: `~/Documents/ravn` (branch home-cards)
-- Memoria: `proyecto-modulo-dinero.md` en el memory dir
-
-## Qué se intentó y falló
-Nada fallido — la sesión fue diagnóstico + datos + diseño. Sin cambios de código todavía.
-
-## Plan siguiente paso
-Leer spec → OK de Eze → `superpowers:writing-plans` → implementar fase 1 (migraciones `movimientos_plata` + `financiamientos` + vistas) con ravn-code-reviewer al cierre de cada fase.
+## Gotchas
+- Repo bot: handoff.md ajeno modificado en el working tree — NO tocarlo, commitear solo archivos propios.
+- Vercel: proyecto `ravn-app-one` (decoy `ravn-app` NO).
+- Blue del día: dolarapi.com/v1/dolares/blue.
