@@ -5,6 +5,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import { parseNum } from "../src/lib/cashflow-compute";
 import { saldosPorCuenta } from "../src/lib/cuentas";
 import { chequeoConsistencia, saldosCuentasDesdeLedger } from "../src/lib/dinero";
 
@@ -38,8 +39,14 @@ async function motor() {
     admin.from("transferencias").select("cuenta_origen_id, cuenta_destino_id, monto_origen, monto_destino"),
     admin.from("cuenta_ajustes").select("cuenta_id, delta"),
   ]);
+  // PostgREST devuelve numeric como STRING; roundArs2 no coerciona → sin esto
+  // saldo_inicial cae a 0. Misma coerción que /api/cuentas (route.ts, num()).
+  const cuentasNum = (cuentas.data ?? []).map((c) => ({
+    ...c,
+    saldo_inicial: parseNum(c.saldo_inicial),
+  }));
   return saldosPorCuenta({
-    cuentas: cuentas.data ?? [], gastosObra: gastosObra.data ?? [],
+    cuentas: cuentasNum, gastosObra: gastosObra.data ?? [],
     cashflow: cashflow.data ?? [], retiros: retiros.data ?? [],
     gastosPersonales: personales.data ?? [], gastosEmpresa: empresa.data ?? [],
     transferencias: transferencias.data ?? [], ajustes: ajustes.data ?? [],
