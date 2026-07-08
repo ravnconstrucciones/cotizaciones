@@ -11,6 +11,10 @@ import {
   type TransferenciaCuentaRow,
 } from "@/lib/cuentas";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
+import {
+  divergenciasContraMotor,
+  type BolsilloVista,
+} from "@/lib/dinero-tablero";
 
 /**
  * Sistema de CUENTAS — dónde está la plata físicamente.
@@ -95,6 +99,13 @@ export async function GET() {
         supabase.from("cuenta_ajustes").select("cuenta_id, delta"),
       ]);
 
+    // SWITCH del motor (Fase 4, spec §Foto inicial): "después de la foto, el
+    // motor de saldos de la app pasa a leer del ledger". Se lee la vista de
+    // bolsillos aparte para no tocar el Promise.all tipado de arriba.
+    const bolsillosRes = await supabase
+      .from("dinero_saldos_bolsillos")
+      .select("cuenta_id, dueno_tipo, dueno_obra_id, moneda, saldo, movimientos");
+
     const firstError =
       cuentasRes.error ??
       gastosRes.error ??
@@ -103,7 +114,8 @@ export async function GET() {
       personalesRes.error ??
       empresaRes.error ??
       transferenciasRes.error ??
-      ajustesRes.error;
+      ajustesRes.error ??
+      bolsillosRes.error;
     if (firstError) {
       return NextResponse.json({ error: firstError.message }, { status: 500 });
     }
@@ -123,7 +135,7 @@ export async function GET() {
       })
     );
 
-    const saldos = saldosPorCuenta({
+    const filas = {
       cuentas,
       gastosObra: (gastosRes.data ?? []) as GastoObraCuentaRow[],
       cashflow: (cashflowRes.data ?? []) as CashflowCuentaRow[],
@@ -132,7 +144,24 @@ export async function GET() {
       gastosEmpresa: (empresaRes.data ?? []) as GastoEmpresaCuentaRow[],
       transferencias: (transferenciasRes.data ?? []) as TransferenciaCuentaRow[],
       ajustes: (ajustesRes.data ?? []) as AjusteCuentaRow[],
-    });
+    };
+
+    // Dos pasadas: 1) saldo por el motor histórico; 2) para toda cuenta que
+    // el ledger CONOCE, un ajuste virtual delta = ledger − motor hace que el
+    // saldo final sea EXACTAMENTE el del ledger (y los agregados por
+    // moneda/procedencia se recomputan coherentes por el mismo camino).
+    // Con convivencia sana el delta es 0 y el payload no cambia; si algo
+    // diverge, manda el ledger y /dinero lo muestra como "a conciliar".
+    // Cuentas fuera del ledger (sin foto) siguen 100% por el motor.
+    const previa = saldosPorCuenta(filas);
+    const ajustesLedger: AjusteCuentaRow[] = divergenciasContraMotor(
+      (bolsillosRes.data ?? []) as BolsilloVista[],
+      previa.cuentas.map((c) => ({ id: c.id, saldo: c.saldo }))
+    ).map((d) => ({ cuenta_id: d.cuenta_id, delta: d.delta }));
+
+    const saldos = ajustesLedger.length
+      ? saldosPorCuenta({ ...filas, ajustes: [...filas.ajustes, ...ajustesLedger] })
+      : previa;
 
     const payload = NextResponse.json(saldos);
     payload.headers.set(
