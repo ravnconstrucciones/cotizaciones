@@ -157,6 +157,75 @@ export function deudasConAntiguedad(
     });
 }
 
+export type AcreedorDeGrupo = {
+  acreedor_tipo: DuenoTipo;
+  acreedor_obra_id: string | null;
+  totalArs: number;
+  totalUsd: number;
+  /** Los financiamientos individuales detrás del total (para el desplegable). */
+  deudas: DeudaVista[];
+};
+
+export type GrupoDeudor = {
+  deudor_tipo: DuenoTipo;
+  deudor_obra_id: string | null;
+  totalArs: number;
+  totalUsd: number;
+  acreedores: AcreedorDeGrupo[];
+};
+
+/**
+ * Libro de deudas agrupado como lo lee Eze: "Obra X le debe → a tal, tanto;
+ * a tal otro, tanto". Solo deudas ABIERTAS; los totales son saldo pendiente
+ * por moneda (ARS y USD nunca se suman entre sí). El detalle movimiento por
+ * movimiento queda adentro de cada acreedor para el desplegable.
+ */
+export function deudasPorDeudor(deudas: DeudaVista[]): GrupoDeudor[] {
+  const clave = (tipo: DuenoTipo, obraId: string | null) => `${tipo}|${obraId ?? ""}`;
+  const porDeudor = new Map<string, GrupoDeudor>();
+  for (const d of deudas) {
+    if (d.estado !== "abierto") continue;
+    const kD = clave(d.deudor_tipo, d.deudor_obra_id);
+    const grupo = porDeudor.get(kD) ?? {
+      deudor_tipo: d.deudor_tipo,
+      deudor_obra_id: d.deudor_obra_id,
+      totalArs: 0,
+      totalUsd: 0,
+      acreedores: [],
+    };
+    const kA = clave(d.acreedor_tipo, d.acreedor_obra_id);
+    let acreedor = grupo.acreedores.find(
+      (a) => clave(a.acreedor_tipo, a.acreedor_obra_id) === kA
+    );
+    if (!acreedor) {
+      acreedor = {
+        acreedor_tipo: d.acreedor_tipo,
+        acreedor_obra_id: d.acreedor_obra_id,
+        totalArs: 0,
+        totalUsd: 0,
+        deudas: [],
+      };
+      grupo.acreedores.push(acreedor);
+    }
+    acreedor.deudas.push(d);
+    if (d.moneda === "USD") {
+      acreedor.totalUsd = roundArs2(acreedor.totalUsd + d.saldoPendiente);
+      grupo.totalUsd = roundArs2(grupo.totalUsd + d.saldoPendiente);
+    } else {
+      acreedor.totalArs = roundArs2(acreedor.totalArs + d.saldoPendiente);
+      grupo.totalArs = roundArs2(grupo.totalArs + d.saldoPendiente);
+    }
+    porDeudor.set(kD, grupo);
+  }
+  for (const g of porDeudor.values()) {
+    g.acreedores.sort((a, z) => z.totalArs - a.totalArs || z.totalUsd - a.totalUsd);
+    for (const a of g.acreedores) a.deudas.sort((x, z) => z.dias - x.dias);
+  }
+  return [...porDeudor.values()].sort(
+    (a, z) => z.totalArs - a.totalArs || z.totalUsd - a.totalUsd
+  );
+}
+
 export type GrupoBorrador = {
   grupo_id: string;
   fecha: string;

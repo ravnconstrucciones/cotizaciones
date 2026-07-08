@@ -4,6 +4,7 @@ import {
   bolsillosPorCuenta,
   composicionPorObra,
   deudasConAntiguedad,
+  deudasPorDeudor,
   divergenciasContraMotor,
   nombreDueno,
   totalesPorDueno,
@@ -118,6 +119,54 @@ describe("deudasConAntiguedad", () => {
   it("created_at futuro no da días negativos", () => {
     const [d] = deudasConAntiguedad([fin({ created_at: "2026-07-08T00:00:00Z" })], ahora);
     expect(d.dias).toBe(0);
+  });
+});
+
+describe("deudasPorDeudor", () => {
+  const ahora = Date.parse("2026-07-07T12:00:00Z");
+  it("agrupa por deudor con totales por acreedor y por moneda, mayor deuda primero", () => {
+    const grupos = deudasPorDeudor(
+      deudasConAntiguedad(
+        [
+          fin({ id: "f-1", deudor_obra_id: "p-glori", acreedor_obra_id: "p-puey", saldo_pendiente: 800 }),
+          fin({ id: "f-2", deudor_obra_id: "p-glori", acreedor_obra_id: "p-puey", saldo_pendiente: 1200, created_at: "2026-06-20T12:00:00Z" }),
+          fin({ id: "f-3", deudor_obra_id: "p-glori", acreedor_tipo: "personal", acreedor_obra_id: null, saldo_pendiente: 5000 }),
+          fin({ id: "f-4", deudor_tipo: "empresa", deudor_obra_id: null, acreedor_tipo: "personal", acreedor_obra_id: null, saldo_pendiente: 100, moneda: "USD" }),
+          fin({ id: "f-cerrada", estado: "devuelto", saldo_pendiente: 0 }),
+        ],
+        ahora
+      )
+    );
+    expect(grupos).toHaveLength(2);
+    const [glori, ravn] = grupos;
+    expect(glori).toMatchObject({ deudor_obra_id: "p-glori", totalArs: 7000, totalUsd: 0 });
+    // Acreedores del más grande al más chico; el detalle adentro, la deuda más vieja primero.
+    expect(glori.acreedores.map((a) => [a.acreedor_tipo, a.totalArs])).toEqual([
+      ["personal", 5000],
+      ["obra", 2000],
+    ]);
+    expect(glori.acreedores[1].deudas.map((d) => d.id)).toEqual(["f-2", "f-1"]);
+    expect(ravn).toMatchObject({ deudor_tipo: "empresa", totalArs: 0, totalUsd: 100 });
+  });
+
+  it("ARS y USD del mismo par nunca se suman entre sí", () => {
+    const [g] = deudasPorDeudor(
+      deudasConAntiguedad(
+        [
+          fin({ id: "f-a", saldo_pendiente: 1000 }),
+          fin({ id: "f-b", saldo_pendiente: 200, moneda: "USD" }),
+        ],
+        ahora
+      )
+    );
+    expect(g.acreedores).toHaveLength(1);
+    expect(g.acreedores[0]).toMatchObject({ totalArs: 1000, totalUsd: 200 });
+  });
+
+  it("sin deudas abiertas → vacío", () => {
+    expect(
+      deudasPorDeudor(deudasConAntiguedad([fin({ estado: "devuelto" })], ahora))
+    ).toEqual([]);
   });
 });
 

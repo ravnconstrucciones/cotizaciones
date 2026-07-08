@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { motion, useReducedMotion } from "framer-motion";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { formatMoneyInt } from "@/lib/format-currency";
 import { VolverAlInicio } from "@/components/volver-al-inicio";
 import { CargandoCockpit } from "@/components/cockpit/cargando-cockpit";
@@ -13,9 +13,11 @@ import {
   bolsillosPorCuenta,
   composicionPorObra,
   deudasConAntiguedad,
+  deudasPorDeudor,
   divergenciasContraMotor,
   nombreDueno,
   totalesPorDueno,
+  type AcreedorDeGrupo,
   type BolsilloVista,
   type BorradorVista,
   type FinanciamientoVista,
@@ -77,6 +79,104 @@ function monograma(nombre: string): string {
     .filter((w) => /[a-záéíóúñ]/i.test(w));
   if (palabras.length >= 2) return (palabras[0][0] + palabras[1][0]).toUpperCase();
   return (palabras[0] ?? nombre).slice(0, 2).toUpperCase();
+}
+
+/** Total en una o dos monedas: "$1.000", "US$ 200" o "$1.000 · US$ 200". */
+function fmtTotales(ars: number, usd: number): string {
+  const partes = [
+    ars !== 0 ? formatMoneyInt(ars) : null,
+    usd !== 0 ? `US$ ${formatUsdInt(usd)}` : null,
+  ].filter(Boolean);
+  return partes.length > 0 ? partes.join(" · ") : formatMoneyInt(0);
+}
+
+/**
+ * Fila "→ a tal acreedor — tanto" del libro de deudas, con desplegable para
+ * ver los movimientos individuales que componen ese total.
+ */
+function AcreedorFila({
+  acreedor,
+  obras,
+  reducir,
+}: {
+  acreedor: AcreedorDeGrupo;
+  obras: Record<string, string>;
+  reducir: boolean | null;
+}) {
+  const [abierto, setAbierto] = useState(false);
+  return (
+    <li className="-mx-3">
+      <button
+        type="button"
+        onClick={() => setAbierto((v) => !v)}
+        aria-expanded={abierto}
+        className="group flex min-h-[44px] w-full items-center gap-2.5 rounded-2xl px-3 py-2 text-left transition-colors duration-200 hover:bg-cdm-fg/[0.04]"
+      >
+        <motion.svg
+          aria-hidden
+          viewBox="0 0 16 16"
+          className="h-3 w-3 shrink-0 text-cdm-muted"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.5"
+          animate={reducir ? undefined : { rotate: abierto ? 90 : 0 }}
+          transition={{ duration: 0.2, ease: "easeOut" }}
+        >
+          <path d="M6 4l4 4-4 4" strokeLinecap="round" strokeLinejoin="round" />
+        </motion.svg>
+        <span className="min-w-0 flex-1 truncate text-[13px] text-cdm-fg">
+          <span className="text-cdm-muted">a</span>{" "}
+          {nombreDueno(acreedor.acreedor_tipo, acreedor.acreedor_obra_id, obras)}
+          {acreedor.deudas.length > 1 && (
+            <span className="ml-2 font-mono-hud text-[9px] uppercase tracking-[0.14em] text-cdm-muted">
+              {acreedor.deudas.length} mov
+            </span>
+          )}
+        </span>
+        <span className="shrink-0 tabular-nums text-[14px] font-semibold tracking-tight text-red-400">
+          {fmtTotales(acreedor.totalArs, acreedor.totalUsd)}
+        </span>
+      </button>
+      <AnimatePresence initial={false}>
+        {abierto && (
+          <motion.div
+            key="detalle"
+            initial={reducir ? false : { height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={reducir ? undefined : { height: 0, opacity: 0 }}
+            transition={{ duration: 0.24, ease: [0.22, 1, 0.36, 1] }}
+            className="overflow-hidden"
+          >
+            <ul className="ml-[17px] space-y-1.5 border-l border-cdm-line py-1.5 pl-4 pr-3">
+              {acreedor.deudas.map((d) => (
+                <li key={d.id} className="flex items-baseline justify-between gap-3">
+                  <span className="flex min-w-0 flex-wrap items-center gap-1.5">
+                    <span className={CHIP}>
+                      hace {d.dias} {d.dias === 1 ? "día" : "días"}
+                    </span>
+                    {d.saldoPendiente !== d.montoOriginal && (
+                      <span className={CHIP}>
+                        devuelto {fmtMonto(d.montoOriginal - d.saldoPendiente, d.moneda)} de{" "}
+                        {fmtMonto(d.montoOriginal, d.moneda)}
+                      </span>
+                    )}
+                    {d.notas && (
+                      <span className="min-w-0 truncate text-[10px] text-cdm-muted">
+                        {d.notas}
+                      </span>
+                    )}
+                  </span>
+                  <span className="shrink-0 tabular-nums text-[11px] text-cdm-fg">
+                    {fmtMonto(d.saldoPendiente, d.moneda)}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </li>
+  );
 }
 
 /** Entrada escalonada de secciones (respeta prefers-reduced-motion). */
@@ -188,6 +288,7 @@ export function DineroScreen() {
   );
   const abiertas = deudas.filter((d) => d.estado === "abierto");
   const historicas = deudas.filter((d) => d.estado !== "abierto");
+  const grupos_deudores = deudasPorDeudor(deudas);
   const sinFoto = data.bolsillos.length === 0;
 
   // Total general (neto, ARS y USD aparte): el número que manda la pantalla.
@@ -493,49 +594,32 @@ export function DineroScreen() {
                 gasta plata de otra (o tuya, o de RAVN).
               </p>
             ) : (
-              <ul className="mt-3 space-y-1">
-                {abiertas.map((d) => (
-                  <li
-                    key={d.id}
-                    className="group -mx-3 flex items-center justify-between gap-3 rounded-2xl px-3 py-2.5 transition-colors duration-200 hover:bg-cdm-fg/[0.04]"
-                  >
-                    <div className="min-w-0">
-                      <p className="flex min-w-0 items-center gap-2 text-[13px] text-cdm-fg">
-                        <span className="truncate font-medium">
-                          {nombreDueno(d.deudor_tipo, d.deudor_obra_id, obras)}
-                        </span>
-                        <svg
-                          aria-hidden
-                          viewBox="0 0 16 16"
-                          className="h-3 w-3 shrink-0 text-cdm-muted"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="1.5"
-                        >
-                          <path d="M2 8h11M9 4l4 4-4 4" strokeLinecap="round" strokeLinejoin="round" />
-                        </svg>
-                        <span className="truncate">
-                          {nombreDueno(d.acreedor_tipo, d.acreedor_obra_id, obras)}
+              <ul className="mt-3 space-y-4">
+                {grupos_deudores.map((g) => (
+                  <li key={`${g.deudor_tipo}|${g.deudor_obra_id ?? ""}`}>
+                    <div className="flex items-baseline justify-between gap-3">
+                      <p className="min-w-0 truncate text-[13px] text-cdm-fg">
+                        <span className="font-medium">
+                          {nombreDueno(g.deudor_tipo, g.deudor_obra_id, obras)}
+                        </span>{" "}
+                        <span className="font-mono-hud text-[10px] uppercase tracking-[0.14em] text-cdm-muted">
+                          le debe
                         </span>
                       </p>
-                      <p className="mt-0.5 flex flex-wrap items-center gap-1.5">
-                        <span className={CHIP}>
-                          hace {d.dias} {d.dias === 1 ? "día" : "días"}
-                        </span>
-                        {d.saldoPendiente !== d.montoOriginal && (
-                          <span className={CHIP}>
-                            devuelto {fmtMonto(d.montoOriginal - d.saldoPendiente, d.moneda)} de{" "}
-                            {fmtMonto(d.montoOriginal, d.moneda)}
-                          </span>
-                        )}
-                        {d.notas && (
-                          <span className="text-[10px] text-cdm-muted">{d.notas}</span>
-                        )}
-                      </p>
+                      <span className="shrink-0 tabular-nums text-[15px] font-semibold tracking-tight text-red-400">
+                        {fmtTotales(g.totalArs, g.totalUsd)}
+                      </span>
                     </div>
-                    <span className="shrink-0 tabular-nums text-[15px] font-semibold tracking-tight text-red-400">
-                      {fmtMonto(d.saldoPendiente, d.moneda)}
-                    </span>
+                    <ul className="mt-1">
+                      {g.acreedores.map((a) => (
+                        <AcreedorFila
+                          key={`${a.acreedor_tipo}|${a.acreedor_obra_id ?? ""}`}
+                          acreedor={a}
+                          obras={obras}
+                          reducir={reducirMovimiento}
+                        />
+                      ))}
+                    </ul>
                   </li>
                 ))}
               </ul>
