@@ -445,11 +445,7 @@ export function DineroScreen() {
               SIEMPRE visibles, incluso sin foto inicial (spec decisión 4). */}
           {(divergencias.length > 0 || grupos.length > 0 || warnCuentas) && (
             <motion.section
-              className={`${CARD} ring-amber-300/40`}
-              style={{
-                boxShadow:
-                  "0 0 36px 0 color-mix(in srgb, var(--cdm-alerta, #fcd34d) 7%, transparent)",
-              }}
+              className={`${CARD} cdm-card-glow-alerta ring-amber-300/40`}
               variants={seccion}
               initial="hidden"
               animate="visible"
@@ -522,11 +518,7 @@ export function DineroScreen() {
               por dueño abajo — jerarquía, no tres números peleándose. */}
           {!sinFoto && totales && (
             <motion.section
-              className={`${CARD} ring-cdm-accent/25`}
-              style={{
-                boxShadow:
-                  "0 0 44px 0 color-mix(in srgb, var(--cdm-accent, #22d3ee) 9%, transparent)",
-              }}
+              className={`${CARD} cdm-card-glow-accent ring-cdm-accent/25`}
               variants={seccion}
               initial="hidden"
               animate="visible"
