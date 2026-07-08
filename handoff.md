@@ -1,4 +1,4 @@
-# Handoff — sesión 07/07/2026 (noche) — Fase 3 HECHA y EN PROD; queda SOLO runbook en vivo → switch motor
+# Handoff — sesión 07/07/2026 (noche) — Fases 1-4 COMPLETAS y EN PROD; queda runbook en vivo como verificación
 
 ## Estado general
 Módulo Dinero: **Fases 1, 2 y 3 completas y en producción.** La sesión nocturna (autónoma, pedido de Eze) cazó y arregló los 2 bugs del bot que rompían el runbook, construyó la Fase 3 entera (pantalla `/dinero` + card "Bolsillos y deudas" en la home), la pasó por dos waves de review (ravn-code-reviewer + verificador adversarial) y deployó todo. Ledger detallado: `.superpowers/sdd/progress.md` (sección "Ledger Fase 3").
@@ -20,7 +20,7 @@ Módulo Dinero: **Fases 1, 2 y 3 completas y en producción.** La sesión noctur
 ## PENDIENTE (retomar acá — necesita a Eze en WhatsApp)
 1. **Runbook Task 10 en vivo** (guión en ledger línea 63): reenviar el helado `gasto personal helado 10570 visa credito` y `22950 ferreteria` (con obra y medio de pago); arqueo; transferencia 1 parte y repartida 2 partes; cancelar con «2». Verificar cada impacto por SQL + `npx tsx scripts/dinero-foto.ts check` verde. DATO: "Ferreteria 800 obra siding" YA pasó entera en vivo (financiamiento $800 Siding→Pueyrredón automático ✓). OJO: ese gasto quedó cargado como $800 — confirmar con Eze si era real o prueba (si era prueba, borrarlo: gasto + patas + financiamiento).
 2. **Ver /dinero y la card con los ojos de Eze** (funciona con datos reales, pero el visto estético es de él).
-3. **SWITCH del motor de saldos al ledger (Fase 4 final)** — deliberadamente NO hecho de noche: el gate es el runbook verde (spec §Verificación). Recién ahí `/api/cuentas` pasa a leer del ledger y se cierra la convivencia.
+3. **SWITCH del motor HECHO y EN PROD** (commit posterior al handoff, /api/cuentas lee del ledger vía ajuste virtual delta ledger−motor; hoy delta=0 en todo, check independiente verde). El runbook en vivo sigue siendo la verificación operativa: si algo diverge, manda el ledger y /dinero lo muestra a conciliar.
 4. Al cerrar Task 10: borrar `handoff.md` y `foto-dinero.html`.
 
 ## Gotchas
