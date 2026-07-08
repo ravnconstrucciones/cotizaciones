@@ -86,10 +86,13 @@ export async function GET() {
           .select("id, concepto, monto, moneda, categoria, fecha")
           .is("cuenta_id", null)
           .gte("fecha", DESDE),
+        // ya_en_foto: retiros asentados por migración/arqueo cuya plata ya
+        // está reflejada en la foto — no esperan cuenta, no son pendientes.
         supabase
           .from("retiros_socio")
-          .select("id, concepto, monto_ars, tipo, fecha")
+          .select("id, concepto, monto_ars, moneda, tipo, fecha")
           .is("cuenta_id", null)
+          .eq("ya_en_foto", false)
           .gte("fecha", DESDE),
       ]);
 
@@ -216,6 +219,7 @@ export async function GET() {
       id: string;
       concepto: string | null;
       monto_ars: unknown;
+      moneda: string | null;
       tipo: string;
       fecha: string;
     }>) {
@@ -227,7 +231,7 @@ export async function GET() {
         detalle: r.tipo === "aporte" ? "Aporte de socio" : "Retiro de socio",
         fecha: r.fecha,
         monto: num(r.monto_ars),
-        moneda: "ARS",
+        moneda: r.moneda === "USD" ? "USD" : "ARS",
       });
     }
 

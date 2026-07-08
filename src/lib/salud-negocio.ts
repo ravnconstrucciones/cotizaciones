@@ -62,6 +62,12 @@ export type RetirosResumen = {
   retirado_total: number;
   aportado_total: number;
   neto_total: number;
+  /** Retiros en dólares, aparte — jamás sumados a pesos (dos cajas). */
+  retirado_total_usd?: number;
+  /** Un solo dueño (08/07): gastos personales desde la foto — la otra
+   * lectura del retiro. NO entran en neto_total (la libreta no los vio). */
+  gasto_personal_mes?: number;
+  gasto_personal_total?: number;
 };
 
 export type Semaforo = "verde" | "amarillo" | "rojo";

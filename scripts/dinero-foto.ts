@@ -33,7 +33,7 @@ async function motor() {
     admin.from("cuentas").select("*").eq("activa", true).order("orden"),
     admin.from("presupuestos_gastos").select("cuenta_id, importe, cotizacion_venta_ars_por_usd, cashflow_item_id").not("cuenta_id", "is", null),
     admin.from("cashflow_items").select("id, cuenta_id, tipo, monto_real, moneda, monto_usd, deleted_at").not("cuenta_id", "is", null).is("deleted_at", null),
-    admin.from("retiros_socio").select("cuenta_id, tipo, monto_ars").not("cuenta_id", "is", null),
+    admin.from("retiros_socio").select("cuenta_id, tipo, monto_ars, moneda").not("cuenta_id", "is", null),
     admin.from("gastos_personales").select("cuenta_id, monto").not("cuenta_id", "is", null),
     admin.from("gastos_empresa").select("cuenta_id, monto, moneda").not("cuenta_id", "is", null),
     admin.from("transferencias").select("cuenta_origen_id, cuenta_destino_id, monto_origen, monto_destino"),

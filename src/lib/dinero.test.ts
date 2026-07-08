@@ -11,7 +11,7 @@ import {
 const mov = (m: Partial<MovimientoPlataRow>): MovimientoPlataRow => ({
   id: "m-1",
   cuenta_id: "c-mp",
-  dueno_tipo: "personal",
+  dueno_tipo: "empresa",
   dueno_obra_id: null,
   monto: 0,
   moneda: "ARS",
@@ -24,16 +24,16 @@ const mov = (m: Partial<MovimientoPlataRow>): MovimientoPlataRow => ({
 describe("saldosBolsillos", () => {
   it("suma por (cuenta, dueño) y SOLO movimientos asentados", () => {
     const bolsillos = saldosBolsillos([
-      // Caso volquete real: -90k bolsillo obra Palermo + -60k bolsillo Eze, en MP.
+      // Caso volquete real: -90k bolsillo obra Palermo + -60k bolsillo RAVN, en MP.
       mov({ id: "m-1", dueno_tipo: "obra", dueno_obra_id: "p-palermo", monto: 200000, origen_tipo: "cobro" }),
       mov({ id: "m-2", dueno_tipo: "obra", dueno_obra_id: "p-palermo", monto: -90000 }),
-      mov({ id: "m-3", dueno_tipo: "personal", monto: -60000 }),
-      mov({ id: "m-4", dueno_tipo: "personal", monto: -99999, estado: "borrador" }),
+      mov({ id: "m-3", dueno_tipo: "empresa", monto: -60000 }),
+      mov({ id: "m-4", dueno_tipo: "empresa", monto: -99999, estado: "borrador" }),
     ]);
     const obra = bolsillos.find((b) => b.dueno_tipo === "obra");
-    const eze = bolsillos.find((b) => b.dueno_tipo === "personal");
+    const ravn = bolsillos.find((b) => b.dueno_tipo === "empresa");
     expect(obra).toMatchObject({ cuenta_id: "c-mp", dueno_obra_id: "p-palermo", saldo: 110000, movimientos: 2 });
-    expect(eze).toMatchObject({ cuenta_id: "c-mp", dueno_obra_id: null, saldo: -60000, movimientos: 1 });
+    expect(ravn).toMatchObject({ cuenta_id: "c-mp", dueno_obra_id: null, saldo: -60000, movimientos: 1 });
     expect(bolsillos).toHaveLength(2); // el borrador no crea bolsillo
   });
 
@@ -56,7 +56,7 @@ describe("saldosBolsillos", () => {
 
 describe("claveBolsillo", () => {
   it("es estable y distingue dueño con y sin obra", () => {
-    expect(claveBolsillo("c-1", "obra", "p-1")).not.toBe(claveBolsillo("c-1", "personal", null));
+    expect(claveBolsillo("c-1", "obra", "p-1")).not.toBe(claveBolsillo("c-1", "empresa", null));
     expect(claveBolsillo("c-1", "obra", "p-1")).toBe(claveBolsillo("c-1", "obra", "p-1"));
   });
 });
@@ -65,7 +65,7 @@ describe("saldosCuentasDesdeLedger", () => {
   it("saldo de cuenta = suma de sus bolsillos (invariante de la spec)", () => {
     const saldos = saldosCuentasDesdeLedger([
       mov({ id: "m-1", dueno_tipo: "obra", dueno_obra_id: "p-1", monto: 300000, origen_tipo: "cobro" }),
-      mov({ id: "m-2", dueno_tipo: "personal", monto: -60000 }),
+      mov({ id: "m-2", dueno_tipo: "empresa", monto: -60000 }),
       mov({ id: "m-3", cuenta_id: "c-bbva", dueno_tipo: "empresa", monto: 500, origen_tipo: "cobro" }),
     ]);
     expect(saldos.get("c-mp")).toBe(240000);
@@ -84,7 +84,7 @@ describe("validarGrupo (invariantes de la spec)", () => {
       validarGrupo(
         [
           mov({ id: "m-1", dueno_tipo: "obra", dueno_obra_id: "p-1", monto: -90000 }),
-          mov({ id: "m-2", dueno_tipo: "personal", monto: -60000 }),
+          mov({ id: "m-2", dueno_tipo: "empresa", monto: -60000 }),
         ],
         CUENTAS
       )

@@ -34,7 +34,6 @@ type PayloadDinero = {
 const COLOR_DUENO: Record<string, string> = {
   obra: "bg-cdm-accent/70",
   empresa: "bg-emerald-400/80",
-  personal: "bg-amber-300/80",
 };
 
 /** USD como en el resto del cockpit: "US$ 1.234" es-AR (paridad modulo-plata). */
@@ -122,7 +121,6 @@ export function ModuloDinero({ className }: { className?: string }) {
                 [
                   ["obra", "Obras"],
                   ["empresa", "RAVN"],
-                  ["personal", "Eze"],
                 ] as const
               ).map(([tipo, titulo]) => (
                 <li

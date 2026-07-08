@@ -55,7 +55,12 @@ export async function GET() {
     }
 
     const bolsillos = bolsillosRes.data ?? [];
-    const financiamientos = financiamientosRes.data ?? [];
+    // Un solo dueño (08/07): el dueño "personal" murió. Las deudas históricas
+    // con pata de Eze quedaron absorbidas/convertidas en la base; si alguna
+    // fila legacy sobrevive, no viaja al tablero.
+    const financiamientos = (financiamientosRes.data ?? []).filter(
+      (f) => f.deudor_tipo !== "personal" && f.acreedor_tipo !== "personal"
+    );
     const borradores = borradoresRes.data ?? [];
 
     // Costo total por obra (los importes ya están en ARS por convención).

@@ -81,7 +81,7 @@ export async function GET() {
           .is("deleted_at", null),
         supabase
           .from("retiros_socio")
-          .select("cuenta_id, tipo, monto_ars")
+          .select("cuenta_id, tipo, monto_ars, moneda")
           .not("cuenta_id", "is", null),
         supabase
           .from("gastos_personales")

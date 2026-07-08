@@ -54,14 +54,12 @@ const CHIP =
 const COLOR_DUENO: Record<string, string> = {
   obra: "bg-cdm-accent/70",
   empresa: "bg-emerald-400/80",
-  personal: "bg-amber-300/80",
 };
 
 /** Mismo semáforo de dueño, en tinte de fondo/ring bajito para sub-cards. */
 const TINTE_DUENO: Record<string, string> = {
   obra: "ring-cdm-accent/15 bg-cdm-accent/[0.03] hover:bg-cdm-accent/[0.06]",
   empresa: "ring-emerald-400/15 bg-emerald-400/[0.03] hover:bg-emerald-400/[0.06]",
-  personal: "ring-amber-300/15 bg-amber-300/[0.03] hover:bg-amber-300/[0.06]",
 };
 
 /** Entrada escalonada fina para filas de lista (stagger de hijos). */
@@ -321,12 +319,8 @@ export function DineroScreen() {
   const sinFoto = data.bolsillos.length === 0;
 
   // Total general (neto, ARS y USD aparte): el número que manda la pantalla.
-  const totalArs = totales
-    ? totales.obra.ars + totales.empresa.ars + totales.personal.ars
-    : 0;
-  const totalUsd = totales
-    ? totales.obra.usd + totales.empresa.usd + totales.personal.usd
-    : 0;
+  const totalArs = totales ? totales.obra.ars + totales.empresa.ars : 0;
+  const totalUsd = totales ? totales.obra.usd + totales.empresa.usd : 0;
 
   // Cuentas visibles, partidas en Disponible vs Tarjetas (deuda revolvente).
   const visibles = (cuentas?.cuentas ?? []).filter(
@@ -564,12 +558,11 @@ export function DineroScreen() {
                 </p>
               )}
 
-              <div className="mt-5 grid grid-cols-1 gap-4 border-t border-cdm-line pt-4 sm:grid-cols-3">
+              <div className="mt-5 grid grid-cols-1 gap-4 border-t border-cdm-line pt-4 sm:grid-cols-2">
                 {(
                   [
                     ["obra", "Obras", "es de los clientes"],
                     ["empresa", "RAVN", "margen de la empresa"],
-                    ["personal", "Eze", "tu bolsillo"],
                   ] as const
                 ).map(([tipo, titulo, hint], i) => (
                   <motion.div

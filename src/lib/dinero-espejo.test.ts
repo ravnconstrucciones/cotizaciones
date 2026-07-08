@@ -64,13 +64,19 @@ describe("empresa / personal / retiro", () => {
       cuenta_id: "c-usd", ...base }, usd);
     expect(p).toEqual(expect.objectContaining({ monto: -20, dueno_tipo: "empresa", dueno_obra_id: null }));
   });
-  it("gasto personal: -monto dueño personal", () => {
+  it("gasto personal: -monto dueño EMPRESA (un solo dueño: es plata de RAVN que se lleva Eze)", () => {
     const [p] = filasEspejoGastoPersonal({ monto: "4500", cuenta_id: "c-ars", ...base }, ars);
-    expect(p).toEqual(expect.objectContaining({ monto: -4500, dueno_tipo: "personal" }));
+    expect(p).toEqual(expect.objectContaining({ monto: -4500, dueno_tipo: "empresa", dueno_obra_id: null }));
   });
   it("retiro resta / aporte suma, dueño empresa", () => {
     expect(filasEspejoRetiro({ tipo: "retiro", monto_ars: "100000", cuenta_id: "c-ars", ...base }, ars)[0].monto).toBe(-100000);
     expect(filasEspejoRetiro({ tipo: "aporte", monto_ars: "100000", cuenta_id: "c-ars", ...base }, ars)[0].monto).toBe(100000);
+  });
+  it("retiro USD en cuenta USD sale en dólares; cross-moneda: 0 patas (regla del motor)", () => {
+    const [p] = filasEspejoRetiro({ tipo: "retiro", monto_ars: "2050", moneda: "USD", cuenta_id: "c-usd", ...base }, usd);
+    expect(p).toEqual(expect.objectContaining({ monto: -2050, moneda: "USD", dueno_tipo: "empresa" }));
+    expect(filasEspejoRetiro({ tipo: "retiro", monto_ars: "2050", moneda: "USD", cuenta_id: "c-ars", ...base }, ars)).toEqual([]);
+    expect(filasEspejoRetiro({ tipo: "retiro", monto_ars: "100000", cuenta_id: "c-usd", ...base }, usd)).toEqual([]);
   });
 });
 

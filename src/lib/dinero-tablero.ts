@@ -57,7 +57,6 @@ export function totalesPorDueno(bolsillos: BolsilloVista[]): TotalesPorDueno {
   const t: TotalesPorDueno = {
     obra: { ars: 0, usd: 0 },
     empresa: { ars: 0, usd: 0 },
-    personal: { ars: 0, usd: 0 },
   };
   for (const b of bolsillos) {
     const clave = b.moneda === "USD" ? "usd" : "ars";
@@ -322,13 +321,12 @@ export function composicionPorObra(
   return [...porObra.values()].sort((a, z) => z.financiadoTotal - a.financiadoTotal);
 }
 
-/** Etiqueta corta de un dueño para el tablero ("RAVN", "Eze" o la obra). */
+/** Etiqueta corta de un dueño para el tablero ("RAVN" o la obra). */
 export function nombreDueno(
   tipo: DuenoTipo,
   obraId: string | null,
   obras: Record<string, string>
 ): string {
   if (tipo === "empresa") return "RAVN";
-  if (tipo === "personal") return "Eze";
   return (obraId && obras[obraId]) || "Obra sin nombre";
 }

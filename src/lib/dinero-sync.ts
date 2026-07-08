@@ -122,7 +122,7 @@ async function patasEsperadas(
     }
     case "retiros_socio": {
       const { data: r, error } = await admin.from("retiros_socio")
-        .select("id, tipo, monto_ars, cuenta_id, fecha, concepto").eq("id", id).maybeSingle();
+        .select("id, tipo, monto_ars, moneda, cuenta_id, fecha, concepto").eq("id", id).maybeSingle();
       sinError(error, "leer retiros_socio");
       if (!r) return { patas: [], origenTipo: "retiro" };
       const cuenta = await cuentaDe(admin, r.cuenta_id);

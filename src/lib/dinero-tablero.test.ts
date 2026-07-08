@@ -59,11 +59,10 @@ describe("totalesPorDueno", () => {
       bolsillo({ saldo: "300000" }),
       bolsillo({ saldo: 120, moneda: "USD" }),
       bolsillo({ dueno_tipo: "empresa", dueno_obra_id: null, saldo: 777 }),
-      bolsillo({ dueno_tipo: "personal", dueno_obra_id: null, saldo: "-500.5" }),
+      bolsillo({ dueno_tipo: "empresa", dueno_obra_id: null, saldo: "-500.5" }),
     ]);
     expect(t.obra).toEqual({ ars: 300000, usd: 120 });
-    expect(t.empresa).toEqual({ ars: 777, usd: 0 });
-    expect(t.personal).toEqual({ ars: -500.5, usd: 0 });
+    expect(t.empresa).toEqual({ ars: 276.5, usd: 0 });
   });
 });
 
@@ -71,18 +70,18 @@ describe("bolsillosPorCuenta", () => {
   it("agrupa por cuenta y ordena por saldo descendente", () => {
     const m = bolsillosPorCuenta([
       bolsillo({ cuenta_id: "c-1", saldo: 100 }),
-      bolsillo({ cuenta_id: "c-1", dueno_tipo: "personal", dueno_obra_id: null, saldo: "900" }),
+      bolsillo({ cuenta_id: "c-1", dueno_tipo: "empresa", dueno_obra_id: null, saldo: "900" }),
       bolsillo({ cuenta_id: "c-2", saldo: 5 }),
     ]);
     expect([...m.keys()].sort()).toEqual(["c-1", "c-2"]);
-    expect(m.get("c-1")!.map((b) => b.dueno_tipo)).toEqual(["personal", "obra"]);
+    expect(m.get("c-1")!.map((b) => b.dueno_tipo)).toEqual(["empresa", "obra"]);
   });
 });
 
 describe("divergenciasContraMotor", () => {
   it("detecta cuentas donde ledger ≠ motor y saltea las que el ledger no conoce", () => {
     const divs = divergenciasContraMotor(
-      [bolsillo({ cuenta_id: "c-1", saldo: "300000" }), bolsillo({ cuenta_id: "c-1", dueno_tipo: "personal", dueno_obra_id: null, saldo: 100 })],
+      [bolsillo({ cuenta_id: "c-1", saldo: "300000" }), bolsillo({ cuenta_id: "c-1", dueno_tipo: "empresa", dueno_obra_id: null, saldo: 100 })],
       [
         { id: "c-1", saldo: 300000 },
         { id: "c-nueva", saldo: 50 },
@@ -130,8 +129,8 @@ describe("deudasPorDeudor", () => {
         [
           fin({ id: "f-1", deudor_obra_id: "p-glori", acreedor_obra_id: "p-puey", saldo_pendiente: 800 }),
           fin({ id: "f-2", deudor_obra_id: "p-glori", acreedor_obra_id: "p-puey", saldo_pendiente: 1200, created_at: "2026-06-20T12:00:00Z" }),
-          fin({ id: "f-3", deudor_obra_id: "p-glori", acreedor_tipo: "personal", acreedor_obra_id: null, saldo_pendiente: 5000 }),
-          fin({ id: "f-4", deudor_tipo: "empresa", deudor_obra_id: null, acreedor_tipo: "personal", acreedor_obra_id: null, saldo_pendiente: 100, moneda: "USD" }),
+          fin({ id: "f-3", deudor_obra_id: "p-glori", acreedor_tipo: "empresa", acreedor_obra_id: null, saldo_pendiente: 5000 }),
+          fin({ id: "f-4", deudor_tipo: "empresa", deudor_obra_id: null, acreedor_tipo: "obra", acreedor_obra_id: "p-puey", saldo_pendiente: 100, moneda: "USD" }),
           fin({ id: "f-cerrada", estado: "devuelto", saldo_pendiente: 0 }),
         ],
         ahora
@@ -142,7 +141,7 @@ describe("deudasPorDeudor", () => {
     expect(glori).toMatchObject({ deudor_obra_id: "p-glori", totalArs: 7000, totalUsd: 0 });
     // Acreedores del más grande al más chico; el detalle adentro, la deuda más vieja primero.
     expect(glori.acreedores.map((a) => [a.acreedor_tipo, a.totalArs])).toEqual([
-      ["personal", 5000],
+      ["empresa", 5000],
       ["obra", 2000],
     ]);
     expect(glori.acreedores[1].deudas.map((d) => d.id)).toEqual(["f-2", "f-1"]);
@@ -211,10 +210,9 @@ describe("composicionPorObra", () => {
 });
 
 describe("nombreDueno", () => {
-  it("empresa=RAVN, personal=Eze, obra por mapa con fallback", () => {
+  it("empresa=RAVN, obra por mapa con fallback", () => {
     const obras = { "p-puey": "Baño Pueyrredón" };
     expect(nombreDueno("empresa", null, obras)).toBe("RAVN");
-    expect(nombreDueno("personal", null, obras)).toBe("Eze");
     expect(nombreDueno("obra", "p-puey", obras)).toBe("Baño Pueyrredón");
     expect(nombreDueno("obra", "p-x", obras)).toBe("Obra sin nombre");
   });

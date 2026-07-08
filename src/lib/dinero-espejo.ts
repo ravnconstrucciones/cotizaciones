@@ -71,6 +71,8 @@ export function filasEspejoGastoEmpresa(
   return [pata(cuenta, "empresa", null, -monto, g.fecha, g.descripcion)];
 }
 
+/** Un solo dueño: el gasto personal sale del bolsillo de RAVN (una carga,
+ * dos lecturas — alcancía para el día de Eze, retiro del lado empresa). */
 export function filasEspejoGastoPersonal(
   g: { monto: unknown; cuenta_id: string | null; fecha: string; descripcion: string },
   cuenta: CuentaMin
@@ -78,14 +80,17 @@ export function filasEspejoGastoPersonal(
   if (!g.cuenta_id || !cuenta) return [];
   const monto = roundArs2(parseNum(g.monto));
   if (monto === 0) return [];
-  return [pata(cuenta, "personal", null, -monto, g.fecha, g.descripcion)];
+  return [pata(cuenta, "empresa", null, -monto, g.fecha, g.descripcion)];
 }
 
 export function filasEspejoRetiro(
-  r: { tipo: string; monto_ars: unknown; cuenta_id: string | null; fecha: string; descripcion: string },
+  r: { tipo: string; monto_ars: unknown; moneda?: string | null;
+       cuenta_id: string | null; fecha: string; descripcion: string },
   cuenta: CuentaMin
 ): PataEspejo[] {
   if (!r.cuenta_id || !cuenta) return [];
+  // El retiro va en su moneda; si no coincide con la cuenta el motor suma 0.
+  if (cuenta.moneda !== (r.moneda === "USD" ? "USD" : "ARS")) return [];
   const monto = roundArs2(parseNum(r.monto_ars));
   if (monto === 0) return [];
   return [pata(cuenta, "empresa", null, r.tipo === "aporte" ? monto : -monto, r.fecha, r.descripcion)];

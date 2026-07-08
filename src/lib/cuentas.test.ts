@@ -166,6 +166,9 @@ describe("saldosPorCuenta", () => {
       retiros: [
         { cuenta_id: "efectivo", tipo: "retiro", monto_ars: 1_500_000 },
         { cuenta_id: "mp", tipo: "aporte", monto_ars: 10_000 },
+        // retiro USD sobre cuenta ARS: cross-moneda, no ajusta (nunca se
+        // convierte a una cotización inventada)
+        { cuenta_id: "mp", tipo: "retiro", monto_ars: 2_050, moneda: "USD" },
       ],
       gastosPersonales: [{ cuenta_id: "mp", monto: 5_532 }],
     });

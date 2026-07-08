@@ -5,12 +5,14 @@ import type { Cuenta, Moneda } from "@/lib/cuentas";
 /**
  * Módulo DINERO (spec 2026-07-06) — motor de BOLSILLOS sobre el ledger
  * movimientos_plata. Un bolsillo es (cuenta × dueño): de quién es la plata
- * dentro de cada cuenta. Solo movimientos asentados suman. Durante la
+ * dentro de cada cuenta (RAVN o una obra). Solo movimientos asentados suman. Durante la
  * convivencia el motor actual (cuentas.ts) sigue mandando; este calcula en
  * paralelo y el chequeo de consistencia compara.
  */
 
-export type DuenoTipo = "obra" | "empresa" | "personal";
+// Un solo dueño (decisión Eze 08/07): toda la plata es de RAVN — el dueño
+// "personal" murió; el gasto personal impacta como retiro de socio.
+export type DuenoTipo = "obra" | "empresa";
 export type EstadoMovimiento = "borrador" | "asentado";
 
 export type MovimientoPlataRow = {

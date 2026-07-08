@@ -65,7 +65,8 @@ export type CashflowCuentaRow = {
 export type RetiroCuentaRow = {
   cuenta_id: string | null;
   tipo: string; // "retiro" | "aporte"
-  monto_ars: unknown;
+  monto_ars: unknown; // monto en la moneda del retiro (el nombre quedó del arranque ARS-only)
+  moneda?: string | null; // "ARS" (default) | "USD"
 };
 
 export type GastoPersonalCuentaRow = {
@@ -125,7 +126,8 @@ export type SaldosCuentas = {
  *    a una cotización inventada.
  *  - Gasto de obra: importe en ARS; para cuenta USD se pasa a dólares con la
  *    cotización de la fila (cotizacion_venta_ars_por_usd); sin cotización → 0.
- *  - Retiros/aportes y gastos personales: solo en pesos (monto_ars / monto).
+ *  - Retiros/aportes: en la moneda del retiro; si no coincide con la de la
+ *    cuenta no ajustan. Gastos personales: solo en pesos (monto).
  *
  * Dedup gasto↔libreta: un gasto de obra espeja un egreso en cashflow_items
  * (cashflow_item_id). La cuenta vive en el GASTO; si además el espejo trae
@@ -193,8 +195,15 @@ export function saldosPorCuenta(args: {
   }
 
   for (const r of args.retiros) {
+    if (!r.cuenta_id) {
+      sinAsignar += 1;
+      continue;
+    }
+    // El retiro va en su moneda: si no coincide con la de la cuenta no ajusta
+    // (nunca se convierte a una cotización inventada).
+    const monedaRetiro = r.moneda === "USD" ? "USD" : "ARS";
     const monto = roundArs2(parseNum(r.monto_ars));
-    ajustar(r.cuenta_id, r.tipo === "aporte" ? monto : -monto);
+    ajustar(r.cuenta_id, monedaDe.get(r.cuenta_id) === monedaRetiro ? (r.tipo === "aporte" ? monto : -monto) : 0);
   }
 
   for (const g of args.gastosPersonales) {
