@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { motion, useReducedMotion } from "framer-motion";
 import { formatMoneyInt } from "@/lib/format-currency";
 import { VolverAlInicio } from "@/components/volver-al-inicio";
 import { CargandoCockpit } from "@/components/cockpit/cargando-cockpit";
@@ -22,11 +23,16 @@ import {
 import { parseNum } from "@/lib/cashflow-compute";
 
 /**
- * Módulo DINERO — pantalla (Fase 3, spec 2026-07-06). Cashflow es la
- * proyección; esto es la REALIDAD de la plata: de quién es lo que hay en
- * cada cuenta (bolsillos), quién le debe a quién (libro de deudas) y qué
- * operación del bot quedó sin confirmar (borradores). Solo lectura: la
- * carga es por WhatsApp (bot) o por las pantallas de detalle; acá se mira.
+ * Módulo DINERO — pantalla (Fase 3, spec 2026-07-06; rediseño 07/07).
+ * Cashflow es la proyección; esto es la REALIDAD de la plata: de quién es lo
+ * que hay en cada cuenta (bolsillos), quién le debe a quién (libro de deudas)
+ * y qué operación del bot quedó sin confirmar (borradores). Solo lectura.
+ *
+ * Rediseño 07/07 (feedback Eze): jerarquía primero — un total heroico, los
+ * tres dueños como desglose, cuentas agrupadas en Disponible vs Tarjetas.
+ * El desglose por bolsillo solo se dibuja cuando AGREGA información: una
+ * cuenta con un único bolsillo igual al saldo lleva chip de dueño inline,
+ * jamás el mismo número repetido en dos renglones.
  */
 
 type PayloadDinero = {
@@ -37,8 +43,11 @@ type PayloadDinero = {
   costos_obra: Record<string, number>;
 };
 
-const CARD = "rounded-[24px] ring-1 ring-cdm-line bg-white/60 dark:bg-zinc-900/40 p-5";
-const LABEL = "text-[10px] uppercase tracking-[0.24em] text-cdm-muted";
+const CARD =
+  "relative overflow-hidden rounded-[24px] ring-1 ring-cdm-line bg-white/60 dark:bg-zinc-900/40 p-5 sm:p-6";
+const LABEL = "font-mono-hud text-[10px] uppercase tracking-[0.24em] text-cdm-muted";
+const CHIP =
+  "inline-flex items-center gap-1.5 rounded-full ring-1 ring-cdm-line px-2 py-0.5 font-mono-hud text-[9px] uppercase tracking-[0.14em] text-cdm-muted";
 
 const COLOR_DUENO: Record<string, string> = {
   obra: "bg-cdm-accent/70",
@@ -60,12 +69,42 @@ function fmtFecha(iso: string) {
   return `${d}/${m}`;
 }
 
+/** Monograma de la cuenta: "Mercado Pago" → MP, "Tarjeta Visa US$" → VI. */
+function monograma(nombre: string): string {
+  const palabras = nombre
+    .replace(/^tarjeta\s+/i, "")
+    .split(/\s+/)
+    .filter((w) => /[a-záéíóúñ]/i.test(w));
+  if (palabras.length >= 2) return (palabras[0][0] + palabras[1][0]).toUpperCase();
+  return (palabras[0] ?? nombre).slice(0, 2).toUpperCase();
+}
+
+/** Entrada escalonada de secciones (respeta prefers-reduced-motion). */
+function useSeccion(reducir: boolean | null) {
+  return useMemo(
+    () => ({
+      hidden: reducir ? {} : { opacity: 0, y: 18 },
+      visible: (i: number) =>
+        reducir
+          ? {}
+          : {
+              opacity: 1,
+              y: 0,
+              transition: { duration: 0.5, ease: [0.22, 1, 0.36, 1] as const, delay: i * 0.09 },
+            },
+    }),
+    [reducir]
+  );
+}
+
 export function DineroScreen() {
   const [data, setData] = useState<PayloadDinero | null>(null);
   const [cuentas, setCuentas] = useState<SaldosCuentas | null>(null);
   const [warnCuentas, setWarnCuentas] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const reducirMovimiento = useReducedMotion();
+  const seccion = useSeccion(reducirMovimiento);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -151,6 +190,107 @@ export function DineroScreen() {
   const historicas = deudas.filter((d) => d.estado !== "abierto");
   const sinFoto = data.bolsillos.length === 0;
 
+  // Total general (neto, ARS y USD aparte): el número que manda la pantalla.
+  const totalArs = totales
+    ? totales.obra.ars + totales.empresa.ars + totales.personal.ars
+    : 0;
+  const totalUsd = totales
+    ? totales.obra.usd + totales.empresa.usd + totales.personal.usd
+    : 0;
+
+  // Cuentas visibles, partidas en Disponible vs Tarjetas (deuda revolvente).
+  const visibles = (cuentas?.cuentas ?? []).filter(
+    (c) => porCuenta.has(c.id) || (c.activa && c.saldo !== 0)
+  );
+  const tarjetas = visibles.filter((c) => /^tarjeta/i.test(c.nombre));
+  const disponibles = visibles.filter((c) => !/^tarjeta/i.test(c.nombre));
+  const subtotal = (lista: typeof visibles) =>
+    lista.reduce(
+      (acc, c) => {
+        if (c.moneda === "USD") acc.usd += c.saldo;
+        else acc.ars += c.saldo;
+        return acc;
+      },
+      { ars: 0, usd: 0 }
+    );
+  const subDisp = subtotal(disponibles);
+  const subTarj = subtotal(tarjetas);
+
+  const fmtSubtotal = (s: { ars: number; usd: number }) =>
+    [
+      s.ars !== 0 || s.usd === 0 ? formatMoneyInt(s.ars) : null,
+      s.usd !== 0 ? `US$ ${formatUsdInt(s.usd)}` : null,
+    ]
+      .filter(Boolean)
+      .join(" · ");
+
+  /** Fila de cuenta: chip de dueño inline cuando el desglose no agrega nada. */
+  const filaCuenta = (c: (typeof visibles)[number]) => {
+    const bolsillos = porCuenta.get(c.id) ?? [];
+    const unico = bolsillos.length === 1 ? bolsillos[0] : null;
+    const unicoCubreTodo =
+      unico !== null && Math.abs(parseNum(unico.saldo) - c.saldo) < 0.005;
+    const desglosar = bolsillos.length > 1 || (unico !== null && !unicoCubreTodo);
+    return (
+      <li key={c.id} className="group relative -mx-3 rounded-2xl px-3 py-2.5 transition-colors duration-200 hover:bg-cdm-fg/[0.04]">
+        <div className="flex items-center gap-3">
+          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl ring-1 ring-cdm-line bg-cdm-fg/[0.05] font-mono-hud text-[10px] tracking-[0.08em] text-cdm-muted transition-colors duration-200 group-hover:text-cdm-fg">
+            {monograma(c.nombre)}
+          </span>
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-[13px] font-medium text-cdm-fg">
+              {c.nombre}
+              {!c.activa && (
+                <span className="ml-2 align-middle font-mono-hud text-[9px] uppercase tracking-[0.14em] text-cdm-muted">
+                  inactiva
+                </span>
+              )}
+            </p>
+            {unicoCubreTodo && unico && (
+              <p className="mt-0.5 flex items-center gap-1.5 text-[10px] text-cdm-muted">
+                <span
+                  className={`inline-block h-1.5 w-1.5 shrink-0 ${COLOR_DUENO[unico.dueno_tipo]}`}
+                />
+                {nombreDueno(unico.dueno_tipo, unico.dueno_obra_id, obras)}
+              </p>
+            )}
+          </div>
+          <span
+            className={`shrink-0 tabular-nums text-[15px] font-semibold tracking-tight ${
+              c.saldo < 0 ? "text-red-400" : "text-cdm-fg"
+            }`}
+          >
+            {fmtMonto(c.saldo, c.moneda)}
+          </span>
+        </div>
+        {desglosar && bolsillos.length > 0 && (
+          <ul className="mt-2 space-y-1 border-l border-cdm-line pl-[46px]">
+            {bolsillos.map((b) => (
+              <li
+                key={`${b.dueno_tipo}|${b.dueno_obra_id ?? ""}`}
+                className="flex items-baseline justify-between gap-3 text-[11px]"
+              >
+                <span className="flex min-w-0 items-center gap-1.5 truncate text-cdm-muted">
+                  <span
+                    className={`inline-block h-1.5 w-1.5 shrink-0 ${COLOR_DUENO[b.dueno_tipo]}`}
+                  />
+                  {nombreDueno(b.dueno_tipo, b.dueno_obra_id, obras)}
+                </span>
+                <span
+                  className={`shrink-0 tabular-nums ${
+                    parseNum(b.saldo) < 0 ? "text-red-400" : "text-cdm-fg"
+                  }`}
+                >
+                  {fmtMonto(parseNum(b.saldo), b.moneda)}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </li>
+    );
+  };
+
   return (
     <main className="font-geist relative min-h-screen bg-cdm-bg px-4 pb-24 pt-14 text-cdm-fg sm:px-8">
       <div className="mx-auto w-full max-w-3xl">
@@ -167,271 +307,343 @@ export function DineroScreen() {
         </div>
 
         <div className="space-y-5">
-            {/* Alertas: a conciliar + borradores colgados + fallas de carga.
-                SIEMPRE visibles, incluso sin foto inicial (spec decisión 4:
-                un borrador colgado queda visible en la app, jamás se esconde). */}
-            {(divergencias.length > 0 || grupos.length > 0 || warnCuentas) && (
-              <section className={`${CARD} ring-amber-300/40`}>
-                <p className={LABEL}>Atención</p>
-                <ul className="mt-2 space-y-1.5 text-[13px]">
-                  {warnCuentas && <li className="text-red-400">{warnCuentas}</li>}
-                  {divergencias.map((d) => {
-                    const c = nombreCuenta.get(d.cuenta_id);
-                    return (
-                      <li key={d.cuenta_id} className="flex items-baseline justify-between gap-3">
-                        <span className="text-amber-300">
-                          A conciliar: {c?.nombre ?? d.cuenta_id} — el ledger dice{" "}
-                          {fmtMonto(d.saldoLedger, c?.moneda ?? "ARS")} y el motor{" "}
-                          {fmtMonto(d.saldoMotor, c?.moneda ?? "ARS")}
-                        </span>
-                        <span className="shrink-0 tabular-nums text-amber-300">
-                          Δ {fmtMonto(d.delta, c?.moneda ?? "ARS")}
-                        </span>
-                      </li>
-                    );
-                  })}
-                  {grupos.length > 0 && (
-                    <li className="text-cdm-muted">
-                      {grupos.length === 1
-                        ? "1 operación del bot sin confirmar"
-                        : `${grupos.length} operaciones del bot sin confirmar`}{" "}
-                      — se confirman por WhatsApp, jamás asientan solas.
+          {/* Alertas: a conciliar + borradores colgados + fallas de carga.
+              SIEMPRE visibles, incluso sin foto inicial (spec decisión 4). */}
+          {(divergencias.length > 0 || grupos.length > 0 || warnCuentas) && (
+            <motion.section
+              className={`${CARD} ring-amber-300/40`}
+              variants={seccion}
+              initial="hidden"
+              animate="visible"
+              custom={0}
+            >
+              <p className={LABEL}>Atención</p>
+              <ul className="mt-2 space-y-1.5 text-[13px]">
+                {warnCuentas && <li className="text-red-400">{warnCuentas}</li>}
+                {divergencias.map((d) => {
+                  const c = nombreCuenta.get(d.cuenta_id);
+                  return (
+                    <li key={d.cuenta_id} className="flex items-baseline justify-between gap-3">
+                      <span className="text-amber-300">
+                        A conciliar: {c?.nombre ?? d.cuenta_id} — el ledger dice{" "}
+                        {fmtMonto(d.saldoLedger, c?.moneda ?? "ARS")} y el motor{" "}
+                        {fmtMonto(d.saldoMotor, c?.moneda ?? "ARS")}
+                      </span>
+                      <span className="shrink-0 tabular-nums text-amber-300">
+                        Δ {fmtMonto(d.delta, c?.moneda ?? "ARS")}
+                      </span>
                     </li>
-                  )}
-                </ul>
-              </section>
-            )}
+                  );
+                })}
+                {grupos.length > 0 && (
+                  <li className="text-cdm-muted">
+                    {grupos.length === 1
+                      ? "1 operación del bot sin confirmar"
+                      : `${grupos.length} operaciones del bot sin confirmar`}{" "}
+                    — se confirman por WhatsApp, jamás asientan solas.
+                  </li>
+                )}
+              </ul>
+            </motion.section>
+          )}
 
-            {sinFoto && (
-              <section className={CARD}>
-                <p className="text-sm text-cdm-muted">
-                  El ledger todavía no tiene movimientos asentados. Después de
-                  la foto inicial, acá se ve de quién es la plata de cada
-                  cuenta.
-                </p>
-              </section>
-            )}
+          {sinFoto && (
+            <motion.section
+              className={CARD}
+              variants={seccion}
+              initial="hidden"
+              animate="visible"
+              custom={0}
+            >
+              <p className="text-sm text-cdm-muted">
+                El ledger todavía no tiene movimientos asentados. Después de la
+                foto inicial, acá se ve de quién es la plata de cada cuenta.
+              </p>
+            </motion.section>
+          )}
 
-            {/* De quién es la plata */}
-            {!sinFoto && totales && (
-              <section className={CARD}>
-                <p className={LABEL}>De quién es la plata</p>
-                <div className="mt-3 grid grid-cols-3 gap-3">
-                  {(
-                    [
-                      ["obra", "Obras", "es de los clientes"],
-                      ["empresa", "RAVN", "margen de la empresa"],
-                      ["personal", "Eze", "tu bolsillo"],
-                    ] as const
-                  ).map(([tipo, titulo, hint]) => (
-                    <div key={tipo}>
-                      <p className="flex items-center gap-1.5">
-                        <span className={`inline-block h-2 w-2 ${COLOR_DUENO[tipo]}`} />
-                        <span className={LABEL}>{titulo}</span>
-                      </p>
-                      <p className="mt-1">
-                        <CifraHeroica
-                          className="text-[clamp(20px,2vw,30px)] leading-none"
-                          tono={totales[tipo].ars < 0 ? "negativo" : "neutro"}
+          {/* Hero: total neto + de quién es. UNA cifra que manda y el desglose
+              por dueño abajo — jerarquía, no tres números peleándose. */}
+          {!sinFoto && totales && (
+            <motion.section
+              className={CARD}
+              variants={seccion}
+              initial="hidden"
+              animate="visible"
+              custom={1}
+            >
+              {/* Glow de spotlight (decorativo, no interfiere con lectura) */}
+              <div
+                aria-hidden
+                className="pointer-events-none absolute -top-24 left-1/2 h-48 w-[130%] -translate-x-1/2 opacity-[0.16]"
+                style={{
+                  background:
+                    "radial-gradient(ellipse at center, var(--cdm-accent) 0%, transparent 65%)",
+                }}
+              />
+              <p className={LABEL}>Total en cuentas</p>
+              <p className="mt-2">
+                <CifraHeroica
+                  className="text-[clamp(34px,4.4vw,52px)] leading-none"
+                  tono={totalArs < 0 ? "negativo" : "neutro"}
+                >
+                  {formatMoneyInt(totalArs)}
+                </CifraHeroica>
+                {totalUsd !== 0 && (
+                  <span className="ml-3 align-baseline font-raleway text-[clamp(15px,1.6vw,20px)] font-bold tabular-nums text-cdm-muted">
+                    + US$ {formatUsdInt(totalUsd)}
+                  </span>
+                )}
+              </p>
+
+              <div className="mt-5 grid grid-cols-1 gap-4 border-t border-cdm-line pt-4 sm:grid-cols-3">
+                {(
+                  [
+                    ["obra", "Obras", "es de los clientes"],
+                    ["empresa", "RAVN", "margen de la empresa"],
+                    ["personal", "Eze", "tu bolsillo"],
+                  ] as const
+                ).map(([tipo, titulo, hint], i) => (
+                  <div key={tipo} className="min-w-0">
+                    <p className="flex items-center gap-1.5">
+                      <span className={`inline-block h-2 w-2 ${COLOR_DUENO[tipo]}`} />
+                      <span className={LABEL}>{titulo}</span>
+                    </p>
+                    <p className="mt-1.5">
+                      <CifraHeroica
+                        className="text-[clamp(20px,2.2vw,28px)] leading-none"
+                        tono={totales[tipo].ars < 0 ? "negativo" : "neutro"}
+                        delay={0.2 + i * 0.12}
+                      >
+                        {formatMoneyInt(totales[tipo].ars)}
+                      </CifraHeroica>
+                    </p>
+                    <p className="mt-1 text-[10px] tabular-nums text-cdm-muted">
+                      {totales[tipo].usd !== 0
+                        ? `+ US$ ${formatUsdInt(totales[tipo].usd)}`
+                        : hint}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </motion.section>
+          )}
+
+          {/* Cuentas: Disponible vs Tarjetas, cada grupo con su subtotal.
+              Una cuenta INACTIVA con bolsillos vivos se muestra igual. Sin
+              /api/cuentas la sección no se dibuja vacía (warn arriba). */}
+          {!sinFoto && cuentas && (
+            <motion.section
+              className={CARD}
+              variants={seccion}
+              initial="hidden"
+              animate="visible"
+              custom={2}
+            >
+              <div className="flex items-baseline justify-between gap-3">
+                <p className={LABEL}>Disponible</p>
+                <span className="shrink-0 font-mono-hud text-[10px] tabular-nums tracking-[0.08em] text-cdm-muted">
+                  {fmtSubtotal(subDisp)}
+                </span>
+              </div>
+              <ul className="mt-2">{disponibles.map(filaCuenta)}</ul>
+
+              {tarjetas.length > 0 && (
+                <>
+                  <div className="mt-4 flex items-baseline justify-between gap-3 border-t border-cdm-line pt-4">
+                    <p className={LABEL}>Tarjetas</p>
+                    <span className="shrink-0 font-mono-hud text-[10px] tabular-nums tracking-[0.08em] text-red-400/80">
+                      {fmtSubtotal(subTarj)}
+                    </span>
+                  </div>
+                  <ul className="mt-2">{tarjetas.map(filaCuenta)}</ul>
+                </>
+              )}
+            </motion.section>
+          )}
+
+          {/* Libro de deudas */}
+          <motion.section
+            className={CARD}
+            variants={seccion}
+            initial="hidden"
+            animate="visible"
+            custom={3}
+          >
+            <p className={LABEL}>Libro de deudas</p>
+            {abiertas.length === 0 ? (
+              <p className="mt-2 text-[13px] text-cdm-muted">
+                Nadie le debe nada a nadie. Las deudas nacen cuando una obra
+                gasta plata de otra (o tuya, o de RAVN).
+              </p>
+            ) : (
+              <ul className="mt-3 space-y-1">
+                {abiertas.map((d) => (
+                  <li
+                    key={d.id}
+                    className="group -mx-3 flex items-center justify-between gap-3 rounded-2xl px-3 py-2.5 transition-colors duration-200 hover:bg-cdm-fg/[0.04]"
+                  >
+                    <div className="min-w-0">
+                      <p className="flex min-w-0 items-center gap-2 text-[13px] text-cdm-fg">
+                        <span className="truncate font-medium">
+                          {nombreDueno(d.deudor_tipo, d.deudor_obra_id, obras)}
+                        </span>
+                        <svg
+                          aria-hidden
+                          viewBox="0 0 16 16"
+                          className="h-3 w-3 shrink-0 text-cdm-muted"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="1.5"
                         >
-                          {formatMoneyInt(totales[tipo].ars)}
-                        </CifraHeroica>
+                          <path d="M2 8h11M9 4l4 4-4 4" strokeLinecap="round" strokeLinejoin="round" />
+                        </svg>
+                        <span className="truncate">
+                          {nombreDueno(d.acreedor_tipo, d.acreedor_obra_id, obras)}
+                        </span>
                       </p>
-                      <p className="text-[10px] tabular-nums text-cdm-muted">
-                        {totales[tipo].usd !== 0
-                          ? `+ US$ ${formatUsdInt(totales[tipo].usd)}`
-                          : hint}
+                      <p className="mt-0.5 flex flex-wrap items-center gap-1.5">
+                        <span className={CHIP}>
+                          hace {d.dias} {d.dias === 1 ? "día" : "días"}
+                        </span>
+                        {d.saldoPendiente !== d.montoOriginal && (
+                          <span className={CHIP}>
+                            devuelto {fmtMonto(d.montoOriginal - d.saldoPendiente, d.moneda)} de{" "}
+                            {fmtMonto(d.montoOriginal, d.moneda)}
+                          </span>
+                        )}
+                        {d.notas && (
+                          <span className="text-[10px] text-cdm-muted">{d.notas}</span>
+                        )}
                       </p>
                     </div>
-                  ))}
-                </div>
-              </section>
-            )}
-
-            {/* Cuentas y bolsillos. Una cuenta INACTIVA con bolsillos vivos
-                se muestra igual: esa plata suma arriba y tiene que cerrar
-                a la vista. Sin /api/cuentas la sección no se dibuja vacía
-                (el warn de Atención ya lo explica). */}
-            {!sinFoto && cuentas && (
-            <section className={CARD}>
-              <p className={LABEL}>Cuentas y bolsillos</p>
-              <ul className="mt-3 space-y-4">
-                {cuentas.cuentas
-                  .filter((c) => porCuenta.has(c.id) || (c.activa && c.saldo !== 0))
-                  .map((c) => {
-                    const bolsillos = porCuenta.get(c.id) ?? [];
-                    return (
-                      <li key={c.id}>
-                        <div className="flex items-baseline justify-between gap-3">
-                          <span className="min-w-0 truncate text-[13px] text-cdm-fg">
-                            {c.nombre}
-                          </span>
-                          <span className="shrink-0 tabular-nums text-[13px] text-cdm-fg">
-                            {fmtMonto(c.saldo, c.moneda)}
-                          </span>
-                        </div>
-                        {bolsillos.length > 0 && (
-                          <ul className="mt-1 space-y-0.5 border-l border-cdm-line pl-3">
-                            {bolsillos.map((b) => (
-                              <li
-                                key={`${b.dueno_tipo}|${b.dueno_obra_id ?? ""}`}
-                                className="flex items-baseline justify-between gap-3 text-[11px]"
-                              >
-                                <span className="flex min-w-0 items-center gap-1.5 truncate text-cdm-muted">
-                                  <span
-                                    className={`inline-block h-1.5 w-1.5 shrink-0 ${COLOR_DUENO[b.dueno_tipo]}`}
-                                  />
-                                  {nombreDueno(b.dueno_tipo, b.dueno_obra_id, obras)}
-                                </span>
-                                <span
-                                  className={`shrink-0 tabular-nums ${
-                                    parseNum(b.saldo) < 0 ? "text-red-400" : "text-cdm-fg"
-                                  }`}
-                                >
-                                  {fmtMonto(parseNum(b.saldo), b.moneda)}
-                                </span>
-                              </li>
-                            ))}
-                          </ul>
-                        )}
-                      </li>
-                    );
-                  })}
+                    <span className="shrink-0 tabular-nums text-[15px] font-semibold tracking-tight text-red-400">
+                      {fmtMonto(d.saldoPendiente, d.moneda)}
+                    </span>
+                  </li>
+                ))}
               </ul>
-            </section>
             )}
-
-            {/* Libro de deudas */}
-            <section className={CARD}>
-              <p className={LABEL}>Libro de deudas</p>
-              {abiertas.length === 0 ? (
-                <p className="mt-2 text-[13px] text-cdm-muted">
-                  Nadie le debe nada a nadie. Las deudas nacen cuando una obra
-                  gasta plata de otra (o tuya, o de RAVN).
-                </p>
-              ) : (
-                <ul className="mt-3 space-y-2.5">
-                  {abiertas.map((d) => (
-                    <li key={d.id} className="flex items-baseline justify-between gap-3">
-                      <div className="min-w-0">
-                        <p className="truncate text-[13px] text-cdm-fg">
-                          {nombreDueno(d.deudor_tipo, d.deudor_obra_id, obras)}{" "}
-                          <span className="text-cdm-muted">debe a</span>{" "}
-                          {nombreDueno(d.acreedor_tipo, d.acreedor_obra_id, obras)}
-                        </p>
-                        <p className="text-[10px] tabular-nums text-cdm-muted">
-                          hace {d.dias} {d.dias === 1 ? "día" : "días"}
-                          {d.saldoPendiente !== d.montoOriginal &&
-                            ` · devuelto ${fmtMonto(d.montoOriginal - d.saldoPendiente, d.moneda)} de ${fmtMonto(d.montoOriginal, d.moneda)}`}
-                          {d.notas ? ` · ${d.notas}` : ""}
-                        </p>
-                      </div>
-                      <span className="shrink-0 tabular-nums text-[13px] text-red-400">
-                        {fmtMonto(d.saldoPendiente, d.moneda)}
+            {historicas.length > 0 && (
+              <details className="mt-3 border-t border-cdm-line pt-2">
+                <summary className="cursor-pointer font-mono-hud text-[10px] uppercase tracking-[0.18em] text-cdm-muted">
+                  Historial ({historicas.length})
+                </summary>
+                <ul className="mt-2 space-y-1.5">
+                  {historicas.map((d) => (
+                    <li
+                      key={d.id}
+                      className="flex items-baseline justify-between gap-3 text-[11px] text-cdm-muted"
+                    >
+                      <span className="min-w-0 truncate">
+                        {nombreDueno(d.deudor_tipo, d.deudor_obra_id, obras)} →{" "}
+                        {nombreDueno(d.acreedor_tipo, d.acreedor_obra_id, obras)} · {d.estado}
+                      </span>
+                      <span className="shrink-0 tabular-nums">
+                        {fmtMonto(d.montoOriginal, d.moneda)}
                       </span>
                     </li>
                   ))}
                 </ul>
-              )}
-              {historicas.length > 0 && (
-                <details className="mt-3 border-t border-cdm-line pt-2">
-                  <summary className="cursor-pointer text-[10px] uppercase tracking-[0.18em] text-cdm-muted">
-                    Historial ({historicas.length})
-                  </summary>
-                  <ul className="mt-2 space-y-1.5">
-                    {historicas.map((d) => (
-                      <li
-                        key={d.id}
-                        className="flex items-baseline justify-between gap-3 text-[11px] text-cdm-muted"
-                      >
-                        <span className="min-w-0 truncate">
-                          {nombreDueno(d.deudor_tipo, d.deudor_obra_id, obras)} →{" "}
-                          {nombreDueno(d.acreedor_tipo, d.acreedor_obra_id, obras)} ·{" "}
-                          {d.estado}
-                        </span>
-                        <span className="shrink-0 tabular-nums">
-                          {fmtMonto(d.montoOriginal, d.moneda)}
-                        </span>
-                      </li>
-                    ))}
-                  </ul>
-                </details>
-              )}
-            </section>
-
-            {/* Borradores del bot */}
-            {grupos.length > 0 && (
-              <section className={CARD}>
-                <p className={LABEL}>Borradores sin confirmar</p>
-                <ul className="mt-3 space-y-2">
-                  {grupos.map((g) => (
-                    <li key={g.grupo_id} className="flex items-baseline justify-between gap-3">
-                      <div className="min-w-0">
-                        <p className="truncate text-[13px] text-cdm-fg">
-                          {g.descripcion || g.origen_tipo.replace(/_/g, " ")}
-                        </p>
-                        <p className="text-[10px] tabular-nums text-cdm-muted">
-                          {fmtFecha(g.fecha)} · {g.patas}{" "}
-                          {g.patas === 1 ? "pata" : "patas"} · confirmalo desde
-                          WhatsApp
-                        </p>
-                      </div>
-                      <span className="shrink-0 tabular-nums text-[13px] text-amber-300">
-                        {g.totalArs > 0 && formatMoneyInt(g.totalArs)}
-                        {g.totalArs > 0 && g.totalUsd > 0 && " + "}
-                        {g.totalUsd > 0 && `US$ ${formatUsdInt(g.totalUsd)}`}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              </section>
+              </details>
             )}
+          </motion.section>
 
-            {/* Composición del costo por obra */}
-            {composicion.length > 0 && (
-              <section className={CARD}>
-                <p className={LABEL}>Quién financia cada obra</p>
-                <ul className="mt-3 space-y-4">
-                  {composicion.map((c) => (
-                    <li key={c.obra_id}>
-                      <div className="flex items-baseline justify-between gap-3">
-                        <span className="min-w-0 truncate text-[13px] text-cdm-fg">
-                          {obras[c.obra_id] ?? "Obra sin nombre"}
-                        </span>
-                        <span className="shrink-0 text-[10px] tabular-nums text-cdm-muted">
-                          costo {formatMoneyInt(c.costo)}
-                        </span>
-                      </div>
-                      {c.costo > 0 && (
-                        <div className="mt-1.5 flex h-1.5 w-full overflow-hidden bg-cdm-fg/10">
-                          <div
-                            className="h-full bg-cdm-accent/70"
-                            style={{ width: `${Math.round(c.pctPropio * 100)}%` }}
-                            title="caja propia"
-                          />
-                          <div
-                            className="h-full bg-red-400/70"
-                            style={{
-                              width: `${Math.min(100, Math.round((c.financiadoTotal / c.costo) * 100))}%`,
-                            }}
-                            title="financiado"
-                          />
-                        </div>
-                      )}
-                      <p className="mt-1 text-[10px] tabular-nums text-cdm-muted">
-                        {c.costo > 0 && `${Math.round(c.pctPropio * 100)}% caja propia · `}
-                        {c.financiado
-                          .map(
-                            (f) =>
-                              `${nombreDueno(f.acreedor_tipo, f.acreedor_obra_id, obras)} puso ${formatMoneyInt(f.monto)}`
-                          )
-                          .join(" · ")}
+          {/* Borradores del bot */}
+          {grupos.length > 0 && (
+            <motion.section
+              className={CARD}
+              variants={seccion}
+              initial="hidden"
+              animate="visible"
+              custom={4}
+            >
+              <p className={LABEL}>Borradores sin confirmar</p>
+              <ul className="mt-3 space-y-2">
+                {grupos.map((g) => (
+                  <li key={g.grupo_id} className="flex items-baseline justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="truncate text-[13px] text-cdm-fg">
+                        {g.descripcion || g.origen_tipo.replace(/_/g, " ")}
                       </p>
-                    </li>
-                  ))}
-                </ul>
-              </section>
-            )}
+                      <p className="mt-0.5 flex flex-wrap items-center gap-1.5">
+                        <span className={CHIP}>{fmtFecha(g.fecha)}</span>
+                        <span className={CHIP}>
+                          {g.patas} {g.patas === 1 ? "pata" : "patas"}
+                        </span>
+                        <span className="text-[10px] text-cdm-muted">
+                          confirmalo desde WhatsApp
+                        </span>
+                      </p>
+                    </div>
+                    <span className="shrink-0 tabular-nums text-[13px] font-semibold text-amber-300">
+                      {g.totalArs > 0 && formatMoneyInt(g.totalArs)}
+                      {g.totalArs > 0 && g.totalUsd > 0 && " + "}
+                      {g.totalUsd > 0 && `US$ ${formatUsdInt(g.totalUsd)}`}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </motion.section>
+          )}
+
+          {/* Composición del costo por obra */}
+          {composicion.length > 0 && (
+            <motion.section
+              className={CARD}
+              variants={seccion}
+              initial="hidden"
+              animate="visible"
+              custom={5}
+            >
+              <p className={LABEL}>Quién financia cada obra</p>
+              <ul className="mt-3 space-y-4">
+                {composicion.map((c) => (
+                  <li key={c.obra_id}>
+                    <div className="flex items-baseline justify-between gap-3">
+                      <span className="min-w-0 truncate text-[13px] font-medium text-cdm-fg">
+                        {obras[c.obra_id] ?? "Obra sin nombre"}
+                      </span>
+                      <span className="shrink-0 font-mono-hud text-[10px] tabular-nums tracking-[0.08em] text-cdm-muted">
+                        costo {formatMoneyInt(c.costo)}
+                      </span>
+                    </div>
+                    {c.costo > 0 && (
+                      <div className="mt-2 flex h-1.5 w-full overflow-hidden bg-cdm-fg/10">
+                        <motion.div
+                          className="h-full origin-left bg-cdm-accent/70"
+                          style={{ width: `${Math.round(c.pctPropio * 100)}%` }}
+                          initial={reducirMovimiento ? false : { scaleX: 0 }}
+                          animate={{ scaleX: 1 }}
+                          transition={{ duration: 0.7, ease: "easeOut", delay: 0.35 }}
+                          title="caja propia"
+                        />
+                        <motion.div
+                          className="h-full origin-left bg-red-400/70"
+                          style={{
+                            width: `${Math.min(100, Math.round((c.financiadoTotal / c.costo) * 100))}%`,
+                          }}
+                          initial={reducirMovimiento ? false : { scaleX: 0 }}
+                          animate={{ scaleX: 1 }}
+                          transition={{ duration: 0.7, ease: "easeOut", delay: 0.5 }}
+                          title="financiado"
+                        />
+                      </div>
+                    )}
+                    <p className="mt-1.5 text-[10px] tabular-nums text-cdm-muted">
+                      {c.costo > 0 && `${Math.round(c.pctPropio * 100)}% caja propia · `}
+                      {c.financiado
+                        .map(
+                          (f) =>
+                            `${nombreDueno(f.acreedor_tipo, f.acreedor_obra_id, obras)} puso ${formatMoneyInt(f.monto)}`
+                        )
+                        .join(" · ")}
+                    </p>
+                  </li>
+                ))}
+              </ul>
+            </motion.section>
+          )}
         </div>
       </div>
     </main>
