@@ -234,6 +234,26 @@ html.light {
   }
 
   /**
+   * Carta suave (familia "content card" de /dia y /dinero): mismo radius-24
+   * translúcido de siempre, pero con las DOS capas de profundidad de
+   * .cdm-glass — hairline superior (el filo del vidrio) + sombra ambiental
+   * honda (despega la card del fondo) — sin el blur de distorsión, que sobre
+   * listas densas de números cuesta lectura. Aditivo: no reemplaza bg/ring.
+   */
+  .cdm-card {
+    box-shadow:
+      inset 0 1px 0 0 rgba(234, 246, 251, 0.07),
+      0 28px 64px -34px rgba(0, 0, 0, 0.6);
+    transition: box-shadow 0.35s ease;
+  }
+  .cdm-card:hover {
+    box-shadow:
+      inset 0 1px 0 0 rgba(234, 246, 251, 0.1),
+      0 28px 64px -34px rgba(0, 0, 0, 0.68),
+      0 0 40px -22px rgba(34, 211, 238, 0.16);
+  }
+
+  /**
    * Prompt box del cockpit (referencia: "AI Prompt Box" de 21st.dev):
    * EXCEPCIÓN deliberada de radius — es EL objeto que flota sobre el
    * sistema rígido. Borde luminoso sutil + glow cian al focus.
@@ -564,6 +584,20 @@ html.light .cdm-glass:hover {
     0 0 32px -12px rgba(8, 145, 178, 0.22),
     inset 0 1px 0 rgba(255, 255, 255, 1),
     inset 0 -24px 40px -32px rgba(8, 145, 178, 0.12);
+}
+
+/* Carta suave clara: la misma honda ambiental pero calibrada a tinta sobre
+   blanco (sombra fría, no negra) + hairline blanco real (no rgba(234…)). */
+html.light .cdm-card {
+  box-shadow:
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.75),
+    0 24px 48px -30px rgba(15, 23, 42, 0.16);
+}
+html.light .cdm-card:hover {
+  box-shadow:
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.9),
+    0 24px 48px -30px rgba(15, 23, 42, 0.2),
+    0 0 32px -18px rgba(8, 145, 178, 0.22);
 }
 
 /* Prompt box claro: vidrio blanco con foco cian profundo (anillo suave,

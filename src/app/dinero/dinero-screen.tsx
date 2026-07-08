@@ -46,7 +46,7 @@ type PayloadDinero = {
 };
 
 const CARD =
-  "relative overflow-hidden rounded-[24px] ring-1 ring-cdm-line bg-white/60 dark:bg-zinc-900/40 p-5 sm:p-6";
+  "cdm-card relative overflow-hidden rounded-[24px] ring-1 ring-cdm-line bg-white/60 dark:bg-zinc-900/40 p-5 sm:p-6";
 const LABEL = "font-mono-hud text-[10px] uppercase tracking-[0.24em] text-cdm-muted";
 const CHIP =
   "inline-flex items-center gap-1.5 rounded-full ring-1 ring-cdm-line px-2 py-0.5 font-mono-hud text-[9px] uppercase tracking-[0.14em] text-cdm-muted";
@@ -56,6 +56,34 @@ const COLOR_DUENO: Record<string, string> = {
   empresa: "bg-emerald-400/80",
   personal: "bg-amber-300/80",
 };
+
+/** Mismo semáforo de dueño, en tinte de fondo/ring bajito para sub-cards. */
+const TINTE_DUENO: Record<string, string> = {
+  obra: "ring-cdm-accent/15 bg-cdm-accent/[0.03] hover:bg-cdm-accent/[0.06]",
+  empresa: "ring-emerald-400/15 bg-emerald-400/[0.03] hover:bg-emerald-400/[0.06]",
+  personal: "ring-amber-300/15 bg-amber-300/[0.03] hover:bg-amber-300/[0.06]",
+};
+
+/** Entrada escalonada fina para filas de lista (stagger de hijos). */
+function useLista(reducir: boolean | null) {
+  return useMemo(
+    () => ({
+      contenedor: {
+        hidden: {},
+        visible: reducir
+          ? {}
+          : { transition: { staggerChildren: 0.045, delayChildren: 0.05 } },
+      },
+      fila: {
+        hidden: reducir ? {} : { opacity: 0, y: 8 },
+        visible: reducir
+          ? {}
+          : { opacity: 1, y: 0, transition: { duration: 0.32, ease: [0.22, 1, 0.36, 1] as const } },
+      },
+    }),
+    [reducir]
+  );
+}
 
 /** USD como en el resto del cockpit: "US$ 1.234" es-AR (paridad modulo-plata). */
 function formatUsdInt(n: number): string {
@@ -205,6 +233,7 @@ export function DineroScreen() {
   const [error, setError] = useState<string | null>(null);
   const reducirMovimiento = useReducedMotion();
   const seccion = useSeccion(reducirMovimiento);
+  const lista = useLista(reducirMovimiento);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -305,8 +334,8 @@ export function DineroScreen() {
   );
   const tarjetas = visibles.filter((c) => /^tarjeta/i.test(c.nombre));
   const disponibles = visibles.filter((c) => !/^tarjeta/i.test(c.nombre));
-  const subtotal = (lista: typeof visibles) =>
-    lista.reduce(
+  const subtotal = (filas: typeof visibles) =>
+    filas.reduce(
       (acc, c) => {
         if (c.moneda === "USD") acc.usd += c.saldo;
         else acc.ars += c.saldo;
@@ -333,9 +362,13 @@ export function DineroScreen() {
       unico !== null && Math.abs(parseNum(unico.saldo) - c.saldo) < 0.005;
     const desglosar = bolsillos.length > 1 || (unico !== null && !unicoCubreTodo);
     return (
-      <li key={c.id} className="group relative -mx-3 rounded-2xl px-3 py-2.5 transition-colors duration-200 hover:bg-cdm-fg/[0.04]">
+      <motion.li
+        key={c.id}
+        variants={lista.fila}
+        className="group relative -mx-3 rounded-2xl px-3 py-2.5 transition-colors duration-200 hover:bg-cdm-fg/[0.04]"
+      >
         <div className="flex items-center gap-3">
-          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl ring-1 ring-cdm-line bg-cdm-fg/[0.05] font-mono-hud text-[10px] tracking-[0.08em] text-cdm-muted transition-colors duration-200 group-hover:text-cdm-fg">
+          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl ring-1 ring-cdm-line bg-cdm-fg/[0.05] font-mono-hud text-[10px] tracking-[0.08em] text-cdm-muted transition-all duration-200 group-hover:text-cdm-fg group-hover:ring-cdm-accent/40">
             {monograma(c.nombre)}
           </span>
           <div className="min-w-0 flex-1">
@@ -388,7 +421,7 @@ export function DineroScreen() {
             ))}
           </ul>
         )}
-      </li>
+      </motion.li>
     );
   };
 
@@ -413,12 +446,34 @@ export function DineroScreen() {
           {(divergencias.length > 0 || grupos.length > 0 || warnCuentas) && (
             <motion.section
               className={`${CARD} ring-amber-300/40`}
+              style={{
+                boxShadow:
+                  "0 0 36px 0 color-mix(in srgb, var(--cdm-alerta, #fcd34d) 7%, transparent)",
+              }}
               variants={seccion}
               initial="hidden"
               animate="visible"
               custom={0}
             >
-              <p className={LABEL}>Atención</p>
+              <p className="flex items-center gap-1.5">
+                <svg
+                  aria-hidden
+                  viewBox="0 0 16 16"
+                  className="h-3 w-3 shrink-0 text-amber-300"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.5"
+                >
+                  <path
+                    d="M8 1.5 14.5 13h-13L8 1.5Z"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                  <path d="M8 6.2v3.1" strokeLinecap="round" />
+                  <circle cx="8" cy="11.3" r="0.6" fill="currentColor" stroke="none" />
+                </svg>
+                <span className={LABEL}>Atención</span>
+              </p>
               <ul className="mt-2 space-y-1.5 text-[13px]">
                 {warnCuentas && <li className="text-red-400">{warnCuentas}</li>}
                 {divergencias.map((d) => {
@@ -467,7 +522,11 @@ export function DineroScreen() {
               por dueño abajo — jerarquía, no tres números peleándose. */}
           {!sinFoto && totales && (
             <motion.section
-              className={CARD}
+              className={`${CARD} ring-cdm-accent/25`}
+              style={{
+                boxShadow:
+                  "0 0 44px 0 color-mix(in srgb, var(--cdm-accent, #22d3ee) 9%, transparent)",
+              }}
               variants={seccion}
               initial="hidden"
               animate="visible"
@@ -476,7 +535,7 @@ export function DineroScreen() {
               {/* Glow de spotlight (decorativo, no interfiere con lectura) */}
               <div
                 aria-hidden
-                className="pointer-events-none absolute -top-24 left-1/2 h-48 w-[130%] -translate-x-1/2 opacity-[0.16]"
+                className="pointer-events-none absolute -top-24 left-1/2 h-48 w-[130%] -translate-x-1/2 opacity-[0.18]"
                 style={{
                   background:
                     "radial-gradient(ellipse at center, var(--cdm-accent) 0%, transparent 65%)",
@@ -521,7 +580,12 @@ export function DineroScreen() {
                     ["personal", "Eze", "tu bolsillo"],
                   ] as const
                 ).map(([tipo, titulo, hint], i) => (
-                  <div key={tipo} className="min-w-0">
+                  <motion.div
+                    key={tipo}
+                    className={`min-w-0 rounded-2xl p-3 ring-1 transition-colors duration-200 ${TINTE_DUENO[tipo]}`}
+                    whileHover={reducirMovimiento ? undefined : { y: -2 }}
+                    transition={{ duration: 0.2, ease: "easeOut" }}
+                  >
                     <p className="flex items-center gap-1.5">
                       <span className={`inline-block h-2 w-2 ${COLOR_DUENO[tipo]}`} />
                       <span className={LABEL}>{titulo}</span>
@@ -540,7 +604,7 @@ export function DineroScreen() {
                         ? `+ US$ ${formatUsdInt(totales[tipo].usd)}`
                         : hint}
                     </p>
-                  </div>
+                  </motion.div>
                 ))}
               </div>
             </motion.section>
@@ -563,7 +627,14 @@ export function DineroScreen() {
                   {fmtSubtotal(subDisp)}
                 </span>
               </div>
-              <ul className="mt-2">{disponibles.map(filaCuenta)}</ul>
+              <motion.ul
+                className="mt-2"
+                variants={lista.contenedor}
+                initial="hidden"
+                animate="visible"
+              >
+                {disponibles.map(filaCuenta)}
+              </motion.ul>
 
               {tarjetas.length > 0 && (
                 <>
@@ -573,7 +644,14 @@ export function DineroScreen() {
                       {fmtSubtotal(subTarj)}
                     </span>
                   </div>
-                  <ul className="mt-2">{tarjetas.map(filaCuenta)}</ul>
+                  <motion.ul
+                    className="mt-2"
+                    variants={lista.contenedor}
+                    initial="hidden"
+                    animate="visible"
+                  >
+                    {tarjetas.map(filaCuenta)}
+                  </motion.ul>
                 </>
               )}
             </motion.section>
@@ -594,9 +672,18 @@ export function DineroScreen() {
                 gasta plata de otra (o tuya, o de RAVN).
               </p>
             ) : (
-              <ul className="mt-3 space-y-4">
+              <motion.ul
+                className="mt-3 space-y-3"
+                variants={lista.contenedor}
+                initial="hidden"
+                animate="visible"
+              >
                 {grupos_deudores.map((g) => (
-                  <li key={`${g.deudor_tipo}|${g.deudor_obra_id ?? ""}`}>
+                  <motion.li
+                    key={`${g.deudor_tipo}|${g.deudor_obra_id ?? ""}`}
+                    variants={lista.fila}
+                    className="rounded-2xl p-3 ring-1 ring-red-400/10 bg-red-400/[0.02]"
+                  >
                     <div className="flex items-baseline justify-between gap-3">
                       <p className="min-w-0 truncate text-[13px] text-cdm-fg">
                         <span className="font-medium">
@@ -620,13 +707,23 @@ export function DineroScreen() {
                         />
                       ))}
                     </ul>
-                  </li>
+                  </motion.li>
                 ))}
-              </ul>
+              </motion.ul>
             )}
             {historicas.length > 0 && (
-              <details className="mt-3 border-t border-cdm-line pt-2">
-                <summary className="cursor-pointer font-mono-hud text-[10px] uppercase tracking-[0.18em] text-cdm-muted">
+              <details className="group mt-3 border-t border-cdm-line pt-2">
+                <summary className="flex cursor-pointer list-none items-center gap-1.5 font-mono-hud text-[10px] uppercase tracking-[0.18em] text-cdm-muted transition-colors duration-200 hover:text-cdm-fg [&::-webkit-details-marker]:hidden">
+                  <svg
+                    aria-hidden
+                    viewBox="0 0 16 16"
+                    className="h-3 w-3 shrink-0 transition-transform duration-200 group-open:rotate-90"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.5"
+                  >
+                    <path d="M6 4l4 4-4 4" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
                   Historial ({historicas.length})
                 </summary>
                 <ul className="mt-2 space-y-1.5">
@@ -659,9 +756,18 @@ export function DineroScreen() {
               custom={4}
             >
               <p className={LABEL}>Borradores sin confirmar</p>
-              <ul className="mt-3 space-y-2">
+              <motion.ul
+                className="mt-3 space-y-2"
+                variants={lista.contenedor}
+                initial="hidden"
+                animate="visible"
+              >
                 {grupos.map((g) => (
-                  <li key={g.grupo_id} className="flex items-baseline justify-between gap-3">
+                  <motion.li
+                    key={g.grupo_id}
+                    variants={lista.fila}
+                    className="flex items-baseline justify-between gap-3 rounded-2xl p-3 ring-1 ring-amber-300/15 bg-amber-300/[0.03] transition-colors duration-200 hover:bg-amber-300/[0.06]"
+                  >
                     <div className="min-w-0">
                       <p className="truncate text-[13px] text-cdm-fg">
                         {g.descripcion || g.origen_tipo.replace(/_/g, " ")}
@@ -681,9 +787,9 @@ export function DineroScreen() {
                       {g.totalArs > 0 && g.totalUsd > 0 && " + "}
                       {g.totalUsd > 0 && `US$ ${formatUsdInt(g.totalUsd)}`}
                     </span>
-                  </li>
+                  </motion.li>
                 ))}
-              </ul>
+              </motion.ul>
             </motion.section>
           )}
 
@@ -696,10 +802,31 @@ export function DineroScreen() {
               animate="visible"
               custom={5}
             >
-              <p className={LABEL}>Quién financia cada obra</p>
-              <ul className="mt-3 space-y-4">
+              <div className="flex items-center justify-between gap-3">
+                <p className={LABEL}>Quién financia cada obra</p>
+                <p className="flex items-center gap-3 font-mono-hud text-[9px] uppercase tracking-[0.14em] text-cdm-muted">
+                  <span className="flex items-center gap-1.5">
+                    <span className="inline-block h-1.5 w-1.5 rounded-full bg-cdm-accent/70" />
+                    caja propia
+                  </span>
+                  <span className="flex items-center gap-1.5">
+                    <span className="inline-block h-1.5 w-1.5 rounded-full bg-red-400/70" />
+                    financiado
+                  </span>
+                </p>
+              </div>
+              <motion.ul
+                className="mt-3 space-y-4"
+                variants={lista.contenedor}
+                initial="hidden"
+                animate="visible"
+              >
                 {composicion.map((c) => (
-                  <li key={c.obra_id}>
+                  <motion.li
+                    key={c.obra_id}
+                    variants={lista.fila}
+                    className="-mx-3 rounded-2xl px-3 py-2 transition-colors duration-200 hover:bg-cdm-fg/[0.03]"
+                  >
                     <div className="flex items-baseline justify-between gap-3">
                       <span className="min-w-0 truncate text-[13px] font-medium text-cdm-fg">
                         {obras[c.obra_id] ?? "Obra sin nombre"}
@@ -709,24 +836,22 @@ export function DineroScreen() {
                       </span>
                     </div>
                     {c.costo > 0 && (
-                      <div className="mt-2 flex h-1.5 w-full overflow-hidden bg-cdm-fg/10">
+                      <div className="mt-2 flex h-1.5 w-full overflow-hidden rounded-full bg-cdm-fg/10">
                         <motion.div
-                          className="h-full origin-left bg-cdm-accent/70"
+                          className="h-full origin-left rounded-full bg-cdm-accent/70 shadow-[0_0_10px_rgba(34,211,238,0.5)]"
                           style={{ width: `${Math.round(c.pctPropio * 100)}%` }}
                           initial={reducirMovimiento ? false : { scaleX: 0 }}
                           animate={{ scaleX: 1 }}
                           transition={{ duration: 0.7, ease: "easeOut", delay: 0.35 }}
-                          title="caja propia"
                         />
                         <motion.div
-                          className="h-full origin-left bg-red-400/70"
+                          className="h-full origin-left rounded-full bg-red-400/70"
                           style={{
                             width: `${Math.min(100, Math.round((c.financiadoTotal / c.costo) * 100))}%`,
                           }}
                           initial={reducirMovimiento ? false : { scaleX: 0 }}
                           animate={{ scaleX: 1 }}
                           transition={{ duration: 0.7, ease: "easeOut", delay: 0.5 }}
-                          title="financiado"
                         />
                       </div>
                     )}
@@ -739,9 +864,9 @@ export function DineroScreen() {
                         )
                         .join(" · ")}
                     </p>
-                  </li>
+                  </motion.li>
                 ))}
-              </ul>
+              </motion.ul>
             </motion.section>
           )}
         </div>
