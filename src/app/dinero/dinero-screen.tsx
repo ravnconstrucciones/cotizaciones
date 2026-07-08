@@ -381,20 +381,36 @@ export function DineroScreen() {
                     "radial-gradient(ellipse at center, var(--cdm-accent) 0%, transparent 65%)",
                 }}
               />
-              <p className={LABEL}>Total en cuentas</p>
+              {/* La cifra que manda es la plata que HAY (disponible); las
+                  tarjetas son deuda de fin de ciclo y van como dato aparte —
+                  un neto negativo arriba asusta y no dice cuánto hay hoy. */}
+              <p className={LABEL}>Plata disponible</p>
               <p className="mt-2">
                 <CifraHeroica
                   className="text-[clamp(34px,4.4vw,52px)] leading-none"
-                  tono={totalArs < 0 ? "negativo" : "neutro"}
+                  tono={(cuentas ? subDisp.ars : totalArs) < 0 ? "negativo" : "neutro"}
                 >
-                  {formatMoneyInt(totalArs)}
+                  {formatMoneyInt(cuentas ? subDisp.ars : totalArs)}
                 </CifraHeroica>
-                {totalUsd !== 0 && (
+                {(cuentas ? subDisp.usd : totalUsd) !== 0 && (
                   <span className="ml-3 align-baseline font-raleway text-[clamp(15px,1.6vw,20px)] font-bold tabular-nums text-cdm-muted">
-                    + US$ {formatUsdInt(totalUsd)}
+                    + US$ {formatUsdInt(cuentas ? subDisp.usd : totalUsd)}
                   </span>
                 )}
               </p>
+              {cuentas && tarjetas.length > 0 && (
+                <p className="mt-2 font-mono-hud text-[10px] uppercase tracking-[0.14em] text-cdm-muted">
+                  tarjetas deben{" "}
+                  <span className="tabular-nums text-red-400/80">
+                    {formatMoneyInt(Math.abs(subTarj.ars))}
+                    {subTarj.usd !== 0 && ` · US$ ${formatUsdInt(Math.abs(subTarj.usd))}`}
+                  </span>{" "}
+                  · neto{" "}
+                  <span className={`tabular-nums ${totalArs < 0 ? "text-red-400/80" : "text-cdm-fg"}`}>
+                    {formatMoneyInt(totalArs)}
+                  </span>
+                </p>
+              )}
 
               <div className="mt-5 grid grid-cols-1 gap-4 border-t border-cdm-line pt-4 sm:grid-cols-3">
                 {(
