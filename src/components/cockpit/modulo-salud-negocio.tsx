@@ -349,10 +349,9 @@ export function ModuloSaludNegocio({ className }: { className?: string }) {
     ? cajaEmpresaPesos(resumen.saldo_caja_total ?? 0, retiros?.neto_total ?? 0)
     : null;
   const sueldoObjetivo = cfg?.sueldo_mensual_objetivo_ars ?? 0;
-  // Un solo dueño: lo que Eze se lleva del mes = retiros + gastos personales
-  // (una carga, dos lecturas) — contra el sueldo objetivo van juntos.
-  const gastoPersonalMes = retiros?.gasto_personal_mes ?? 0;
-  const retiradoMes = (retiros?.retirado_mes ?? 0) + gastoPersonalMes;
+  // Retiro es SOLO lo declarado por Eze (retiros_socio) — sus gastos
+  // personales los analiza el módulo Finanzas Personales, no esta card.
+  const retiradoMes = retiros?.retirado_mes ?? 0;
   const sueldoExcedido = sueldoObjetivo > 0 && retiradoMes > sueldoObjetivo;
   const sueldoRestante = Math.max(0, sueldoObjetivo - retiradoMes);
 
@@ -509,11 +508,6 @@ export function ModuloSaludNegocio({ className }: { className?: string }) {
                         : `quedan ${formatMoneyInt(sueldoRestante)} del sueldo`
                       : "sueldo objetivo sin fijar"}
                   </p>
-                  {gastoPersonalMes > 0 && (
-                    <p className="text-[10px] tabular-nums text-zinc-500 dark:text-zinc-400">
-                      incluye {formatMoneyInt(gastoPersonalMes)} de gastos personales
-                    </p>
-                  )}
                 </div>
                 <div className="rounded-xl bg-zinc-100/70 px-3 py-2.5 dark:bg-white/[0.04]">
                   <p className="text-[10px] uppercase tracking-wider text-zinc-500 dark:text-zinc-400">

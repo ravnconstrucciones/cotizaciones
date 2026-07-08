@@ -48,11 +48,10 @@ type RetiroRow = {
   concepto: string | null;
 };
 
-/** Un solo dueño (08/07): todo gasto personal es plata de RAVN que se lleva
- * Eze — desde la foto del ledger cuenta como retiro (una carga, dos
- * lecturas). Va aparte de retiros_socio: NO entra en neto_total, que
- * cajaEmpresaPesos descuenta del saldo de la libreta de obras. */
-const FOTO_UN_SOLO_DUENO = "2026-07-07";
+// Un solo dueño (08/07, criterio final de Eze): retiro es SOLO lo que él
+// declara como retiro (fila en retiros_socio — por la card o el bot, o el
+// retiro directo al pagar la tarjeta). Los gastos personales se analizan en
+// Finanzas Personales y NO se suman acá como retiros automáticos.
 
 function num(v: unknown): number {
   const n = typeof v === "number" ? v : parseFloat(String(v ?? ""));
@@ -73,17 +72,13 @@ export async function GET() {
   try {
     const supabase = createSupabaseAdminClient();
 
-    const [cfgRes, retsRes, gastosPersRes] = await Promise.all([
+    const [cfgRes, retsRes] = await Promise.all([
       supabase.from("negocio_config").select("*").eq("id", 1).maybeSingle(),
       supabase
         .from("retiros_socio")
         .select("id, fecha, monto_ars, moneda, tipo, concepto")
         .order("fecha", { ascending: false })
         .limit(120),
-      supabase
-        .from("gastos_personales")
-        .select("fecha, monto")
-        .gte("fecha", FOTO_UN_SOLO_DUENO),
     ]);
 
     if (cfgRes.error) {
@@ -127,15 +122,6 @@ export async function GET() {
       }
     }
 
-    // Gastos personales desde la foto: la otra lectura del retiro.
-    let gastoPersonalMes = 0;
-    let gastoPersonalTotal = 0;
-    for (const g of gastosPersRes.data ?? []) {
-      const m = num(g.monto);
-      gastoPersonalTotal = roundArs2(gastoPersonalTotal + m);
-      if (String(g.fecha).slice(0, 7) === mes) gastoPersonalMes = roundArs2(gastoPersonalMes + m);
-    }
-
     const payload = NextResponse.json({
       config,
       retiros: {
@@ -147,11 +133,6 @@ export async function GET() {
         aportado_total: aportadoTotal,
         neto_total: roundArs2(retiradoTotal - aportadoTotal),
         retirado_total_usd: retiradoTotalUsd,
-        // Un solo dueño: gastos personales desde la foto (07/07) — la otra
-        // lectura del retiro. Se muestran junto a los retiros pero NO entran
-        // en neto_total (la caja de la libreta no los vio salir).
-        gasto_personal_mes: gastoPersonalMes,
-        gasto_personal_total: gastoPersonalTotal,
         ultimos: rets.slice(0, 8).map((r) => ({
           id: r.id,
           fecha: String(r.fecha).slice(0, 10),
