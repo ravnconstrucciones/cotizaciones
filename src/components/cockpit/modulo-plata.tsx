@@ -7,13 +7,9 @@ import { Panel } from "./panel";
 import { CifraHeroica } from "./cifra-heroica";
 import { SkeletonCifra } from "./skeleton-glass";
 import { fetchCompartido } from "@/lib/fetch-compartido";
-import { formatMoneyInt } from "@/lib/format-currency";
-import {
-  guitaTotal,
-  comprometidoDerivado,
-  type ObraResumen,
-  type RetirosResumen,
-} from "@/lib/salud-negocio";
+import { formatMoneyInt, roundArs2 } from "@/lib/format-currency";
+import { comprometidoDerivado, type ObraResumen } from "@/lib/salud-negocio";
+import { totalesPorDueno, type BolsilloVista } from "@/lib/dinero-tablero";
 import type { SaldosCuentas } from "@/lib/cuentas";
 
 type Semaforo = "verde" | "amarillo" | "rojo";
@@ -28,13 +24,10 @@ type ResumenCaja = {
   gastos_obra_hoy_ars?: number;
 };
 
-/** De /api/negocio/config: retiros netos + patrimonio (pesos y USD) para el total. */
-type ConfigPayload = {
-  config?: {
-    patrimonio_neto_inicial_ars?: number;
-    patrimonio_neto_inicial_usd?: number;
-  };
-  retiros?: RetirosResumen;
+/** De /api/dinero: los bolsillos del ledger — la posta que carga Eze. */
+type PayloadDinero = {
+  bolsillos: BolsilloVista[];
+  tarjetas?: string[];
 };
 
 /** Contrato de /api/finanzas (presupuesto personal por ciclo de tarjeta). */
@@ -77,13 +70,14 @@ function PuntoSemaforo({ s }: { s: Semaforo }) {
 }
 
 /**
- * Módulo 3: GUITA TOTAL (rediseño 02/07: "contá todo lo que tenemos").
+ * Módulo 3: DINERO TOTAL desde el LEDGER (rediseño 08/07: "la posta es lo
+ * que venimos cargando en Dinero").
  *
- * El héroe es TODA la guita en un número: patrimonio personal en pesos +
- * caja de la empresa (obras − retiros netos) + los dólares (patrimonio USD +
- * cobros de obra en billete) valuados al blue venta del día — los USD flotan,
- * nunca se congelan en pesos. Abajo, el desglose y el movimiento:
- *  - Caja empresa: lo que queda de las obras; de acá salen los retiros.
+ * El héroe es TODA la guita en un número, sumando los bolsillos del ledger
+ * Dinero (obra + RAVN): pesos + dólares valuados al blue venta del día — los
+ * USD flotan, nunca se congelan en pesos. Las tarjetas quedan afuera: son
+ * personales, control nomás (regla 08/07). Abajo, el desglose y el movimiento:
+ *  - Caja RAVN: el bolsillo empresa del ledger; de acá salen los retiros.
  *  - Por cobrar: guita que viene a entrar (NO está todavía).
  *  - Comprometido: lo que falta gastar para terminar las obras en curso,
  *    derivado obra por obra (costo estimado − gastado). Es plata del cliente.
@@ -91,26 +85,26 @@ function PuntoSemaforo({ s }: { s: Semaforo }) {
  */
 export function ModuloPlata({ className }: { className?: string }) {
   const [caja, setCaja] = useState<ResumenCaja | null>(null);
-  const [cfgPayload, setCfgPayload] = useState<ConfigPayload | null>(null);
+  const [dinero, setDinero] = useState<PayloadDinero | null>(null);
   const [fin, setFin] = useState<FinanzasResumen | null>(null);
   const [cuentas, setCuentas] = useState<SaldosCuentas | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const cargar = useCallback(async () => {
     try {
-      // fetchCompartido: /cashflow/resumen y /api/negocio/config se comparten
-      // con ModuloSaludNegocio (un solo request por endpoint).
-      const [resCaja, resCfg, resFin, resCuentas] = await Promise.all([
+      // fetchCompartido: /cashflow/resumen y /api/dinero se comparten con
+      // ModuloSaludNegocio y ModuloDinero (un solo request por endpoint).
+      const [resCaja, resDinero, resFin, resCuentas] = await Promise.all([
         fetchCompartido("/cashflow/resumen"),
-        fetchCompartido("/api/negocio/config"),
+        fetchCompartido("/api/dinero"),
         fetchCompartido("/api/finanzas"),
         fetchCompartido("/api/cuentas"),
       ]);
       if (resCaja.ok) setCaja(resCaja.body as ResumenCaja);
-      if (resCfg.ok) setCfgPayload(resCfg.body as ConfigPayload);
+      if (resDinero.ok) setDinero(resDinero.body as PayloadDinero);
       if (resFin.ok) setFin(resFin.body as FinanzasResumen);
       if (resCuentas.ok) setCuentas(resCuentas.body as SaldosCuentas);
-      if (!resCaja.ok && !resFin.ok) setError("No se pudo cargar la plata.");
+      if (!resDinero.ok && !resFin.ok) setError("No se pudo cargar la plata.");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Error de red");
     }
@@ -120,19 +114,26 @@ export function ModuloPlata({ className }: { className?: string }) {
     void cargar();
   }, [cargar]);
 
-  const total = useMemo(() => {
-    if (!caja) return null;
-    return guitaTotal({
-      patrimonioArs: cfgPayload?.config?.patrimonio_neto_inicial_ars ?? 0,
-      saldoCajaObras: caja.saldo_caja_total ?? 0,
-      retirosNetoTotal: cfgPayload?.retiros?.neto_total ?? 0,
-      usd:
-        (cfgPayload?.config?.patrimonio_neto_inicial_usd ?? 0) +
-        (caja.caja_obras_usd ?? 0),
-      blue: caja.blue_venta ?? null,
-    });
-  }, [caja, cfgPayload]);
   const blue = caja?.blue_venta ?? null;
+
+  // Bolsillos del ledger por dueño (tarjetas afuera). El total junta obra +
+  // RAVN: los pesos directo, los USD al blue del día — sin blue no hay total.
+  const totales = useMemo(
+    () =>
+      dinero && dinero.bolsillos.length > 0
+        ? totalesPorDueno(dinero.bolsillos, new Set(dinero.tarjetas ?? []))
+        : null,
+    [dinero]
+  );
+  const total = useMemo(() => {
+    if (!totales) return null;
+    const ars = roundArs2(totales.obra.ars + totales.empresa.ars);
+    const usd = roundArs2(totales.obra.usd + totales.empresa.usd);
+    const usdEnArs =
+      usd === 0 ? 0 : blue && blue > 0 ? roundArs2(usd * blue) : null;
+    const totalArs = usdEnArs == null ? null : roundArs2(ars + usdEnArs);
+    return { ars, usd, usdEnArs, totalArs };
+  }, [totales, blue]);
 
   const porCobrar = caja?.total_por_cobrar_clientes_ars ?? 0;
   const comprometido = useMemo(
@@ -170,7 +171,7 @@ export function ModuloPlata({ className }: { className?: string }) {
           <p className="text-[10px] uppercase tracking-[0.24em] text-cdm-muted">
             Dinero total (pesos + USD al blue)
           </p>
-          {!caja && !error ? (
+          {!dinero && !error ? (
             <SkeletonCifra className="mt-2" />
           ) : (
             <p className="mt-1">
@@ -183,16 +184,16 @@ export function ModuloPlata({ className }: { className?: string }) {
                 </CifraHeroica>
               ) : (
                 <span className="text-2xl font-light text-cdm-muted">
-                  {total && total.usd > 0 ? "sin blue del día" : "—"}
+                  {total && total.usd !== 0 ? "sin blue del día" : "—"}
                 </span>
               )}
             </p>
           )}
-          {total && (
+          {total && totales && (
             <p className="text-[10px] tabular-nums text-cdm-muted">
-              personal {formatMoneyInt(total.patrimonioArs)} · empresa{" "}
-              {formatMoneyInt(total.cajaEmpresaArs)}
-              {total.usd > 0 && (
+              RAVN {formatMoneyInt(totales.empresa.ars)} · obras{" "}
+              {formatMoneyInt(totales.obra.ars)}
+              {total.usd !== 0 && (
                 <>
                   {" "}· US$ {formatUsdInt(total.usd)}
                   {total.usdEnArs != null && blue != null && (
@@ -243,13 +244,19 @@ export function ModuloPlata({ className }: { className?: string }) {
         <div className="grid grid-cols-3 gap-3 border-t border-cdm-line pt-3">
           <div>
             <p className="text-[10px] uppercase tracking-[0.24em] text-cdm-muted">
-              Caja empresa
+              Caja RAVN
             </p>
-            <p className="text-lg font-light tabular-nums">
-              {total ? formatMoneyInt(total.cajaEmpresaArs) : "—"}
+            <p
+              className={`text-lg font-light tabular-nums ${
+                totales && totales.empresa.ars < 0 ? "text-red-400" : ""
+              }`}
+            >
+              {totales ? formatMoneyInt(totales.empresa.ars) : "—"}
             </p>
             <p className="text-[10px] text-cdm-muted">
-              de acá salen los retiros
+              {totales && totales.empresa.usd !== 0
+                ? `+ US$ ${formatUsdInt(totales.empresa.usd)} · de acá salen los retiros`
+                : "de acá salen los retiros"}
             </p>
           </div>
           <div>

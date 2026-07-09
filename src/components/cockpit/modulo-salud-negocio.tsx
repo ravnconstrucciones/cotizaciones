@@ -22,6 +22,7 @@ import {
   type Semaforo,
   type ObraCalc,
 } from "@/lib/salud-negocio";
+import { totalesPorDueno, type BolsilloVista } from "@/lib/dinero-tablero";
 
 /**
  * MÓDULO SALUD DEL NEGOCIO — lo primero que ve Eze al entrar (pedido 25/06).
@@ -50,6 +51,12 @@ type ResumenCashflow = {
     fecha_real: string;
   }[];
   error?: string;
+};
+
+/** Lo mínimo de /api/dinero para la caja RAVN posta (ledger, tarjetas afuera). */
+type PayloadDinero = {
+  bolsillos: BolsilloVista[];
+  tarjetas?: string[];
 };
 
 type ConfigPayload = {
@@ -216,6 +223,7 @@ function MoneyInput({
 export function ModuloSaludNegocio({ className }: { className?: string }) {
   const [resumen, setResumen] = useState<ResumenCashflow | null>(null);
   const [cfgPayload, setCfgPayload] = useState<ConfigPayload | null>(null);
+  const [dinero, setDinero] = useState<PayloadDinero | null>(null);
   const [blueVenta, setBlueVenta] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [editando, setEditando] = useState(false);
@@ -238,13 +246,15 @@ export function ModuloSaludNegocio({ className }: { className?: string }) {
 
   const cargar = useCallback(async () => {
     try {
-      const [resCaja, resCfg, resDolar] = await Promise.all([
+      const [resCaja, resCfg, resDolar, resDinero] = await Promise.all([
         fetchCompartido("/cashflow/resumen"),
         fetchCompartido("/api/negocio/config"),
         fetchCompartido("/api/cotizacion-dolar"),
+        fetchCompartido("/api/dinero"),
       ]);
       if (resCaja.ok) setResumen(resCaja.body as ResumenCashflow);
       if (resCfg.ok) setCfgPayload(resCfg.body as ConfigPayload);
+      if (resDinero.ok) setDinero(resDinero.body as PayloadDinero);
       if (resDolar.ok) {
         const v = Number((resDolar.body as { blue_venta?: number })?.blue_venta);
         setBlueVenta(Number.isFinite(v) && v > 0 ? v : null);
@@ -343,11 +353,16 @@ export function ModuloSaludNegocio({ className }: { className?: string }) {
     }
   }
 
-  // Caja empresa = saldo de obras − retiros netos: el MISMO número que la
-  // tarjeta Dinero. (La "caja del mes" calendario confundía — pedido 02/07.)
-  const cajaEmpresa = resumen
-    ? cajaEmpresaPesos(resumen.saldo_caja_total ?? 0, retiros?.neto_total ?? 0)
-    : null;
+  // Caja empresa = bolsillo RAVN del ledger Dinero (la posta que carga Eze,
+  // pedido 08/07) — no más "obras − retiros" derivado. Tarjetas afuera:
+  // son personales, su deuda nunca resta acá.
+  const cajaRavn = useMemo(
+    () =>
+      dinero && dinero.bolsillos.length > 0
+        ? totalesPorDueno(dinero.bolsillos, new Set(dinero.tarjetas ?? [])).empresa
+        : null,
+    [dinero]
+  );
   const sueldoObjetivo = cfg?.sueldo_mensual_objetivo_ars ?? 0;
   // Retiro es SOLO lo declarado por Eze (retiros_socio) — sus gastos
   // personales los analiza el módulo Finanzas Personales, no esta card.
@@ -426,10 +441,14 @@ export function ModuloSaludNegocio({ className }: { className?: string }) {
                 }
               />
               <Kpi
-                label="Caja empresa"
-                valor={cajaEmpresa == null ? "—" : formatMoneyInt(cajaEmpresa)}
-                tono={cajaEmpresa != null && cajaEmpresa < 0 ? "negativo" : "neutro"}
-                sub="obras − retiros · de acá salen los retiros"
+                label="Caja RAVN"
+                valor={cajaRavn == null ? "—" : formatMoneyInt(cajaRavn.ars)}
+                tono={cajaRavn != null && cajaRavn.ars < 0 ? "negativo" : "neutro"}
+                sub={
+                  cajaRavn && cajaRavn.usd !== 0
+                    ? `+ US$ ${formatUsdInt(cajaRavn.usd)} · bolsillo RAVN (Dinero)`
+                    : "bolsillo RAVN (Dinero) · de acá salen los retiros"
+                }
               />
             </div>
           </div>
