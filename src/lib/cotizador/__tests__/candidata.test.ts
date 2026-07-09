@@ -70,4 +70,92 @@ describe("validarRecetaCandidata", () => {
     const out = validarRecetaCandidata(r);
     if (!out.ok) expect(out.violaciones.length).toBeGreaterThanOrEqual(2);
   });
+
+  it("rechaza nombre que no sea string (coerción de tipos)", () => {
+    const r = { ...base(), nombre: 123 };
+    const out = validarRecetaCandidata(r);
+    expect(out.ok).toBe(false);
+    if (!out.ok) expect(out.violaciones.join(" ")).toMatch(/nombre/);
+  });
+
+  it("rechaza titulo que no sea string (coerción de tipos)", () => {
+    const r = { ...base(), titulo: 456 };
+    const out = validarRecetaCandidata(r);
+    expect(out.ok).toBe(false);
+    if (!out.ok) expect(out.violaciones.join(" ")).toMatch(/titulo/);
+  });
+
+  it("rechaza origen.fuente que no sea string", () => {
+    const r = base();
+    (r.etapas[0].items[0].origen as unknown as { fuente: unknown }).fuente = 123;
+    const out = validarRecetaCandidata(r);
+    expect(out.ok).toBe(false);
+    if (!out.ok) expect(out.violaciones.join(" ")).toMatch(/origen/);
+  });
+
+  it("rechaza origen.fuente vacío o solo espacios", () => {
+    const r = base();
+    r.etapas[0].items[0].origen.fuente = "   ";
+    const out = validarRecetaCandidata(r);
+    expect(out.ok).toBe(false);
+    if (!out.ok) expect(out.violaciones.join(" ")).toMatch(/origen/);
+  });
+
+  it("rechaza fuentes malformadas ([{}]): sin titulo, tipo ni fecha", () => {
+    const r = { ...base(), fuentes: [{}] };
+    const out = validarRecetaCandidata(r);
+    expect(out.ok).toBe(false);
+    if (!out.ok) {
+      const msg = out.violaciones.join(" ");
+      expect(msg).toMatch(/fuente 1/);
+      expect(msg).toMatch(/titulo/);
+      expect(msg).toMatch(/tipo/);
+      expect(msg).toMatch(/fecha/);
+    }
+  });
+
+  it("rechaza fuente con tipo fuera del enum permitido", () => {
+    const r = { ...base(), fuentes: [{ titulo: "Algo", tipo: "wikipedia", fecha: "2026-07-09" }] };
+    const out = validarRecetaCandidata(r);
+    expect(out.ok).toBe(false);
+    if (!out.ok) expect(out.violaciones.join(" ")).toMatch(/tipo inválido/);
+  });
+
+  it("rechaza fuente con fecha en formato inválido", () => {
+    const r = { ...base(), fuentes: [{ titulo: "Algo", tipo: "internet", fecha: "09/07/2026" }] };
+    const out = validarRecetaCandidata(r);
+    expect(out.ok).toBe(false);
+    if (!out.ok) expect(out.violaciones.join(" ")).toMatch(/fecha/);
+  });
+
+  it("rechaza unidad inválida en un ítem", () => {
+    const r = base();
+    (r.etapas[0].items[0] as Record<string, unknown>).unidad = "toneladas";
+    const out = validarRecetaCandidata(r);
+    expect(out.ok).toBe(false);
+    if (!out.ok) expect(out.violaciones.join(" ")).toMatch(/unidad inválida/);
+  });
+
+  it("rechaza tipo de ítem inválido", () => {
+    const r = base();
+    (r.etapas[0].items[0] as Record<string, unknown>).tipo = "servicio";
+    const out = validarRecetaCandidata(r);
+    expect(out.ok).toBe(false);
+    if (!out.ok) expect(out.violaciones.join(" ")).toMatch(/tipo inválido/);
+  });
+
+  it("rechaza confianza inválida (ej. 'capaz')", () => {
+    const r = base();
+    (r.etapas[0].items[0].origen as unknown as { confianza: unknown }).confianza = "capaz";
+    const out = validarRecetaCandidata(r);
+    expect(out.ok).toBe(false);
+    if (!out.ok) expect(out.violaciones.join(" ")).toMatch(/origen/);
+  });
+
+  it("rechaza parametros que no sea un array", () => {
+    const r = { ...base(), parametros: "no-es-lista" };
+    const out = validarRecetaCandidata(r);
+    expect(out.ok).toBe(false);
+    if (!out.ok) expect(out.violaciones.join(" ")).toMatch(/parametros/);
+  });
 });
