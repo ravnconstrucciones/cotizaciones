@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import type {
   Desglose,
   ItemDesglose,
@@ -139,7 +139,13 @@ function agruparPorEtapa(items: ItemDesglose[]): Array<{ nombre: string; items: 
   return etapas;
 }
 
-export function CotizarScreen({ recetas }: { recetas: RecetaOpcion[] }) {
+export function CotizarScreen({
+  recetas,
+  errorCarga,
+}: {
+  recetas: RecetaOpcion[];
+  errorCarga?: string;
+}) {
   const [recetaNombre, setRecetaNombre] = useState<string>("");
   const [valores, setValores] = useState<Record<string, string>>({});
   const [faltantes, setFaltantes] = useState<Set<string>>(new Set());
@@ -148,6 +154,8 @@ export function CotizarScreen({ recetas }: { recetas: RecetaOpcion[] }) {
   const [refrescoMsg, setRefrescoMsg] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [resultado, setResultado] = useState<TakeoffOk | null>(null);
+  /** Guardia anti-carrera: solo el pedido más reciente puede escribir el resultado. */
+  const calculoSeq = useRef(0);
 
   const receta = useMemo(
     () => recetas.find((r) => r.nombre === recetaNombre) ?? null,
@@ -175,6 +183,7 @@ export function CotizarScreen({ recetas }: { recetas: RecetaOpcion[] }) {
 
   const calcular = useCallback(async () => {
     if (!receta) return;
+    const miSeq = ++calculoSeq.current;
     setCalculando(true);
     setError(null);
     try {
@@ -187,6 +196,9 @@ export function CotizarScreen({ recetas }: { recetas: RecetaOpcion[] }) {
         | (TakeoffOk & { error?: undefined })
         | { error: string; faltan?: string[] }
         | null;
+      // Si mientras esperábamos esta respuesta se disparó un pedido más nuevo
+      // (Calcular/Refrescar), esta respuesta quedó obsoleta: no pisar el resultado fresco.
+      if (miSeq !== calculoSeq.current) return;
       if (!res.ok) {
         if (json && json.error === "faltan_parametros" && Array.isArray(json.faltan)) {
           // No es un error del sistema: la receta está pidiendo datos.
@@ -199,9 +211,10 @@ export function CotizarScreen({ recetas }: { recetas: RecetaOpcion[] }) {
       setFaltantes(new Set());
       setResultado(json as TakeoffOk);
     } catch (e) {
+      if (miSeq !== calculoSeq.current) return;
       setError(e instanceof Error ? e.message : "Error al calcular el take-off");
     } finally {
-      setCalculando(false);
+      if (miSeq === calculoSeq.current) setCalculando(false);
     }
   }, [receta, bodyParametros]);
 
@@ -257,25 +270,38 @@ export function CotizarScreen({ recetas }: { recetas: RecetaOpcion[] }) {
           </p>
         </header>
 
+        {errorCarga && (
+          <p className="mb-4 border border-red-400/50 bg-red-400/[0.08] px-4 py-3 text-sm text-red-400">
+            {errorCarga}
+          </p>
+        )}
         {error && <p className="mb-4 text-sm text-red-400">{error}</p>}
 
         <Seccion titulo="Receta">
-          <label className="block max-w-xl text-xs text-cdm-muted">
-            Elegí la receta a cotizar
-            <select
-              value={recetaNombre}
-              onChange={(e) => cambiarReceta(e.target.value)}
-              className={INPUT_CLS}
-            >
-              <option value="">— seleccionar —</option>
-              {recetas.map((r) => (
-                <option key={r.nombre} value={r.nombre}>
-                  {r.estado === "candidata" ? "[CANDIDATA] " : ""}
-                  {r.titulo} (v{r.version})
-                </option>
-              ))}
-            </select>
-          </label>
+          {recetas.length === 0 ? (
+            <p className="text-xs text-cdm-muted">
+              {errorCarga
+                ? "No se pudo traer el listado de recetas por el error de arriba."
+                : "Todavía no hay recetas cargadas."}
+            </p>
+          ) : (
+            <label className="block max-w-xl text-xs text-cdm-muted">
+              Elegí la receta a cotizar
+              <select
+                value={recetaNombre}
+                onChange={(e) => cambiarReceta(e.target.value)}
+                className={INPUT_CLS}
+              >
+                <option value="">— seleccionar —</option>
+                {recetas.map((r) => (
+                  <option key={r.nombre} value={r.nombre}>
+                    {r.estado === "candidata" ? "[CANDIDATA] " : ""}
+                    {r.titulo} (v{r.version})
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
 
           {receta && receta.estado === "candidata" && (
             <div className="mt-4 border border-amber-300/50 bg-amber-300/[0.08] p-4">
@@ -299,7 +325,7 @@ export function CotizarScreen({ recetas }: { recetas: RecetaOpcion[] }) {
         {receta && (
           <Seccion titulo="Parámetros">
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {receta.parametros.map((p) => (
+              {(receta.parametros ?? []).map((p) => (
                 <CampoParametro
                   key={p.nombre}
                   parametro={p}
@@ -318,7 +344,7 @@ export function CotizarScreen({ recetas }: { recetas: RecetaOpcion[] }) {
             <div className="mt-4 flex flex-wrap items-center gap-3">
               <button
                 type="button"
-                disabled={calculando}
+                disabled={calculando || refrescando}
                 onClick={() => void calcular()}
                 className="cdm-chip cursor-pointer border border-cdm-accent/60 bg-cdm-accent/15 px-4 py-2 text-xs uppercase tracking-[0.14em] text-cdm-accent shadow-[0_0_18px_-6px_rgba(34,211,238,0.55)] transition-colors hover:bg-cdm-accent/25 disabled:opacity-50"
               >
@@ -326,7 +352,7 @@ export function CotizarScreen({ recetas }: { recetas: RecetaOpcion[] }) {
               </button>
               <button
                 type="button"
-                disabled={refrescando}
+                disabled={calculando || refrescando}
                 onClick={() => void refrescarPrecios()}
                 className="cdm-chip cursor-pointer border border-cdm-line px-4 py-2 text-xs uppercase tracking-[0.14em] text-cdm-muted transition-colors hover:text-cdm-fg disabled:opacity-50"
               >

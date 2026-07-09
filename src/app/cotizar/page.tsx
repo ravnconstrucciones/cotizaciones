@@ -20,6 +20,7 @@ export default async function CotizarPage() {
   }
 
   const recetas = (Array.isArray(data) ? data : []) as unknown as RecetaOpcion[];
+  const errorCarga = error ? "No se pudieron cargar las recetas. Reintentá en unos segundos." : undefined;
 
-  return <CotizarScreen recetas={recetas} />;
+  return <CotizarScreen recetas={recetas} errorCarga={errorCarga} />;
 }
