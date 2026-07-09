@@ -163,6 +163,8 @@ export function CotizarScreen({
   );
 
   const cambiarReceta = useCallback((nombre: string) => {
+    // Invalida cualquier cálculo en vuelo: su respuesta ya no corresponde a esta receta.
+    calculoSeq.current++;
     setRecetaNombre(nombre);
     setValores({});
     setFaltantes(new Set());
