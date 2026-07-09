@@ -15,6 +15,7 @@ import {
   deudasConAntiguedad,
   deudasPorDeudor,
   divergenciasContraMotor,
+  esTarjeta,
   nombreDueno,
   totalesPorDueno,
   type AcreedorDeGrupo,
@@ -43,6 +44,8 @@ type PayloadDinero = {
   borradores: BorradorVista[];
   obras: Record<string, string>;
   costos_obra: Record<string, number>;
+  /** Cuentas tarjeta: personales, solo control — nunca restan en bolsillos. */
+  tarjetas?: string[];
 };
 
 const CARD =
@@ -269,8 +272,10 @@ export function DineroScreen() {
     void load();
   }, [load]);
 
+  // Tarjetas afuera (regla 08/07): son personales, control nomás — su deuda
+  // no le resta a RAVN ni a las obras; se cancela con retiro declarado.
   const totales = useMemo(
-    () => (data ? totalesPorDueno(data.bolsillos) : null),
+    () => (data ? totalesPorDueno(data.bolsillos, new Set(data.tarjetas ?? [])) : null),
     [data]
   );
   const porCuenta = useMemo(
@@ -326,8 +331,8 @@ export function DineroScreen() {
   const visibles = (cuentas?.cuentas ?? []).filter(
     (c) => porCuenta.has(c.id) || (c.activa && c.saldo !== 0)
   );
-  const tarjetas = visibles.filter((c) => /^tarjeta/i.test(c.nombre));
-  const disponibles = visibles.filter((c) => !/^tarjeta/i.test(c.nombre));
+  const tarjetas = visibles.filter((c) => esTarjeta(c.nombre));
+  const disponibles = visibles.filter((c) => !esTarjeta(c.nombre));
   const subtotal = (filas: typeof visibles) =>
     filas.reduce(
       (acc, c) => {
@@ -544,6 +549,8 @@ export function DineroScreen() {
                   </span>
                 )}
               </p>
+              {/* Tarjetas: PERSONALES (regla 08/07) — control de cómo van,
+                  sin neto contra la plata de RAVN; se pagan con retiro. */}
               {cuentas && tarjetas.length > 0 && (
                 <p className="mt-2 font-mono-hud text-[10px] uppercase tracking-[0.14em] text-cdm-muted">
                   tarjetas deben{" "}
@@ -551,10 +558,7 @@ export function DineroScreen() {
                     {formatMoneyInt(Math.abs(subTarj.ars))}
                     {subTarj.usd !== 0 && ` · US$ ${formatUsdInt(Math.abs(subTarj.usd))}`}
                   </span>{" "}
-                  · neto{" "}
-                  <span className={`tabular-nums ${totalArs < 0 ? "text-red-400/80" : "text-cdm-fg"}`}>
-                    {formatMoneyInt(totalArs)}
-                  </span>
+                  · personales, se pagan con retiro
                 </p>
               )}
 

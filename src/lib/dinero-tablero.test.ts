@@ -6,6 +6,7 @@ import {
   deudasConAntiguedad,
   deudasPorDeudor,
   divergenciasContraMotor,
+  esTarjeta,
   nombreDueno,
   totalesPorDueno,
   type BolsilloVista,
@@ -63,6 +64,31 @@ describe("totalesPorDueno", () => {
     ]);
     expect(t.obra).toEqual({ ars: 300000, usd: 120 });
     expect(t.empresa).toEqual({ ars: 276.5, usd: 0 });
+  });
+
+  // Regla de Eze (08/07): las tarjetas son PERSONALES — control de cómo van,
+  // pero su deuda jamás le resta al bolsillo RAVN. Se paga con retiro declarado.
+  it("excluye los bolsillos de cuentas tarjeta cuando se le pasa el set", () => {
+    const t = totalesPorDueno(
+      [
+        bolsillo({ cuenta_id: "c-mp", dueno_tipo: "empresa", dueno_obra_id: null, saldo: "1016243" }),
+        bolsillo({ cuenta_id: "c-visa", dueno_tipo: "empresa", dueno_obra_id: null, saldo: "-1372601.87" }),
+        bolsillo({ cuenta_id: "c-visa-usd", dueno_tipo: "empresa", dueno_obra_id: null, saldo: "-78.47", moneda: "USD" }),
+        bolsillo({ cuenta_id: "c-efe", saldo: "1125500" }),
+      ],
+      new Set(["c-visa", "c-visa-usd"])
+    );
+    expect(t.empresa).toEqual({ ars: 1016243, usd: 0 });
+    expect(t.obra).toEqual({ ars: 1125500, usd: 0 });
+  });
+});
+
+describe("esTarjeta", () => {
+  it("reconoce las cuentas tarjeta por nombre (mismo criterio que la pantalla)", () => {
+    expect(esTarjeta("Tarjeta Visa")).toBe(true);
+    expect(esTarjeta("tarjeta Master US$")).toBe(true);
+    expect(esTarjeta("Mercado Pago")).toBe(false);
+    expect(esTarjeta("Efectivo obra Pueyrredón")).toBe(false);
   });
 });
 

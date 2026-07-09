@@ -52,13 +52,27 @@ export type BorradorVista = {
 export type TotalMoneda = { ars: number; usd: number };
 export type TotalesPorDueno = Record<DuenoTipo, TotalMoneda>;
 
-/** De quién es la plata: Σ bolsillos por dueño, pesos y dólares aparte. */
-export function totalesPorDueno(bolsillos: BolsilloVista[]): TotalesPorDueno {
+/** Cuenta tarjeta, por nombre — único criterio en toda la app. */
+export function esTarjeta(nombre: string): boolean {
+  return /^tarjeta/i.test(nombre);
+}
+
+/**
+ * De quién es la plata: Σ bolsillos por dueño, pesos y dólares aparte.
+ * Regla de Eze (08/07): las tarjetas son PERSONALES — se listan como control,
+ * pero su deuda jamás resta en los bolsillos; se cancela con retiro declarado.
+ * `excluirCuentas` trae esas cuenta_id (las arma /api/dinero con esTarjeta).
+ */
+export function totalesPorDueno(
+  bolsillos: BolsilloVista[],
+  excluirCuentas?: Set<string>
+): TotalesPorDueno {
   const t: TotalesPorDueno = {
     obra: { ars: 0, usd: 0 },
     empresa: { ars: 0, usd: 0 },
   };
   for (const b of bolsillos) {
+    if (excluirCuentas?.has(b.cuenta_id)) continue;
     const clave = b.moneda === "USD" ? "usd" : "ars";
     t[b.dueno_tipo][clave] = roundArs2(t[b.dueno_tipo][clave] + parseNum(b.saldo));
   }

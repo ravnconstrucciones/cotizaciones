@@ -29,6 +29,8 @@ type PayloadDinero = {
   financiamientos: FinanciamientoVista[];
   borradores: BorradorVista[];
   obras: Record<string, string>;
+  /** Cuentas tarjeta: personales, solo control — nunca restan en bolsillos. */
+  tarjetas?: string[];
 };
 
 const COLOR_DUENO: Record<string, string> = {
@@ -59,8 +61,10 @@ export function ModuloDinero({ className }: { className?: string }) {
     void cargar();
   }, [cargar]);
 
+  // Tarjetas afuera (regla 08/07): personales, control nomás — su deuda no
+  // le resta a RAVN; se cancela con retiro declarado.
   const totales = useMemo(
-    () => (data ? totalesPorDueno(data.bolsillos) : null),
+    () => (data ? totalesPorDueno(data.bolsillos, new Set(data.tarjetas ?? [])) : null),
     [data]
   );
   const abiertas = useMemo(

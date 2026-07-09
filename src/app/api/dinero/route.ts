@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
+import { esTarjeta } from "@/lib/dinero-tablero";
 
 /**
  * Módulo DINERO — datos del tablero (Fase 3, spec 2026-07-06).
@@ -20,7 +21,7 @@ export async function GET() {
   try {
     const supabase = createSupabaseAdminClient();
 
-    const [bolsillosRes, financiamientosRes, borradoresRes, gastosRes] =
+    const [bolsillosRes, financiamientosRes, borradoresRes, gastosRes, cuentasRes] =
       await Promise.all([
         supabase
           .from("dinero_saldos_bolsillos")
@@ -43,13 +44,17 @@ export async function GET() {
         supabase
           .from("dinero_costos_obra")
           .select("presupuesto_id, costo"),
+        // Para marcar qué cuentas son tarjeta (personales: control, nunca
+        // restan en bolsillos — regla de Eze 08/07).
+        supabase.from("cuentas").select("id, nombre"),
       ]);
 
     const firstError =
       bolsillosRes.error ??
       financiamientosRes.error ??
       borradoresRes.error ??
-      gastosRes.error;
+      gastosRes.error ??
+      cuentasRes.error;
     if (firstError) {
       return NextResponse.json({ error: firstError.message }, { status: 500 });
     }
@@ -95,12 +100,17 @@ export async function GET() {
       }
     }
 
+    const tarjetas = (cuentasRes.data ?? [])
+      .filter((c) => esTarjeta(c.nombre ?? ""))
+      .map((c) => c.id);
+
     const payload = NextResponse.json({
       bolsillos,
       financiamientos,
       borradores,
       obras,
       costos_obra,
+      tarjetas,
     });
     payload.headers.set(
       "Cache-Control",
