@@ -8,10 +8,8 @@ import { ModuloSaludNegocio } from "./modulo-salud-negocio";
 import { ModuloFinanzas } from "./modulo-finanzas";
 import { ModuloObras } from "./modulo-obras";
 import { ModuloPlata } from "./modulo-plata";
-import { ModuloDinero } from "./modulo-dinero";
 import { ModuloPendientes } from "./modulo-pendientes";
 import { ModuloSemana } from "./modulo-semana";
-import { ModuloAdn } from "./modulo-adn";
 
 const stagger = {
   hidden: {},
@@ -89,8 +87,8 @@ export function CockpitHome() {
             <ModuloObras className="lg:col-span-7" />
             <ModuloPlata className="lg:col-span-5" />
 
-            {/* Fila 1b — DINERO (Fase 3): bolsillos por dueño + libro de deudas */}
-            <ModuloDinero className="lg:col-span-12" />
+            {/* DINERO (Bolsillos y deudas) salió de la home (pedido 09/07):
+                vive en /dinero. */}
 
             {/* Fila 2 — Pendientes (sectorizado por área) a todo el ancho.
                 "El cerebro" se borró (pedido 09/07: FODA/Patrones zombie). */}
@@ -100,10 +98,8 @@ export function CockpitHome() {
             <ModuloSemana className="lg:col-span-12" />
 
             {/* Actividad y Cotizaciones salieron de la home (pedido 02/07):
-                viven en /actividad y /cotizaciones. */}
-
-            {/* Fila 4 — ADN (teaser) a todo el ancho */}
-            <ModuloAdn className="lg:col-span-12" />
+                viven en /actividad y /cotizaciones.
+                ADN (teaser) salió de la home (pedido 09/07): vive en /adn. */}
           </motion.div>
         </div>
       </div>
