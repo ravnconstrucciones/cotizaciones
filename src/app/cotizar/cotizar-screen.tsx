@@ -66,24 +66,79 @@ function haceCuanto(iso: string): string {
   return `hace ${anios} año${anios === 1 ? "" : "s"}`;
 }
 
-function fuentesDeItem(precios: PrecioItem): { label: string; fuente: string; fecha: string }[] {
-  const out: { label: string; fuente: string; fecha: string }[] = [];
-  if (precios.sismat) out.push({ label: "SISMAT", fuente: precios.sismat.fuente, fecha: precios.sismat.fecha });
-  if (
-    precios.internet &&
-    precios.retail &&
-    precios.internet.fuente === precios.retail.fuente &&
-    precios.internet.fecha === precios.retail.fecha
-  ) {
-    // combinarPrecios copió retail→internet (mismo precio, misma fuente y fecha): es UNA
-    // sola cotización, no dos independientes — mostrarla una vez sola, como "Retail".
-    out.push({ label: "Retail", fuente: precios.retail.fuente, fecha: precios.retail.fecha });
-  } else {
-    if (precios.internet)
-      out.push({ label: "Internet", fuente: precios.internet.fuente, fecha: precios.internet.fecha });
-    if (precios.retail) out.push({ label: "Retail", fuente: precios.retail.fuente, fecha: precios.retail.fecha });
+/** Rango min–max colapsado a una sola cifra cuando ambas puntas coinciden. */
+function rango(min: number, max: number): string {
+  return min === max ? formatMoneyInt(min) : `${formatMoneyInt(min)} – ${formatMoneyInt(max)}`;
+}
+
+/** "2026-04-12" → "12/04/26" — fecha corta legible sin ISO crudo en la tabla. */
+function fechaCorta(iso: string): string {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso);
+  return m ? `${m[3]}/${m[2]}/${m[1].slice(2)}` : iso;
+}
+
+/** Un precio revisado hace más de 30 días envejece a la vista (ámbar, no rojo). */
+function esViejo(iso: string): boolean {
+  const then = new Date(iso).getTime();
+  return Number.isFinite(then) && Date.now() - then > 30 * 24 * 60 * 60 * 1000;
+}
+
+type FuenteValuada = { label: string; fuente: string; fecha: string; valor: number };
+
+/**
+ * Fuentes que PARTICIPAN del min–max (SISMAT + internet — instanciar.ts) con su
+ * valor, para atribuir cada punta del rango a su fuente. Retail copiado a
+ * internet por combinarPrecios (misma fuente y fecha) se etiqueta "Retail":
+ * es UNA sola cotización, no dos independientes.
+ */
+function fuentesValuadas(precios: PrecioItem): FuenteValuada[] {
+  const out: FuenteValuada[] = [];
+  if (precios.sismat)
+    out.push({ label: "SISMAT", fuente: precios.sismat.fuente, fecha: precios.sismat.fecha, valor: precios.sismat.valor });
+  if (precios.internet) {
+    const esRetailCopiado =
+      precios.retail != null &&
+      precios.internet.fuente === precios.retail.fuente &&
+      precios.internet.fecha === precios.retail.fecha;
+    out.push({
+      label: esRetailCopiado ? "Retail" : "Internet",
+      fuente: precios.internet.fuente,
+      fecha: precios.internet.fecha,
+      valor: precios.internet.valor,
+    });
   }
   return out;
+}
+
+/** Retail como TERCERA referencia (no entra al min–max) — solo si es distinto de internet. */
+function retailReferencia(precios: PrecioItem): { fuente: string; fecha: string } | null {
+  if (!precios.retail) return null;
+  if (
+    precios.internet &&
+    precios.internet.fuente === precios.retail.fuente &&
+    precios.internet.fecha === precios.retail.fecha
+  )
+    return null;
+  return { fuente: precios.retail.fuente, fecha: precios.retail.fecha };
+}
+
+/**
+ * Traza de la celda de precio: qué fuente aporta cada punta del rango.
+ * Una sola fuente (o empate) → "SISMAT · 12/04/26". Dos → atribución
+ * min/max explícita: "min SISMAT · 12/04/26 — max Retail · 09/07/26".
+ */
+function trazaPrecio(precios: PrecioItem): string {
+  const fuentes = fuentesValuadas(precios);
+  if (fuentes.length === 0) return "";
+  let traza: string;
+  if (fuentes.length === 1 || fuentes[0].valor === fuentes[1].valor) {
+    traza = fuentes.map((f) => `${f.label} · ${fechaCorta(f.fecha)}`).join(" · ");
+  } else {
+    const [min, max] = fuentes[0].valor < fuentes[1].valor ? [fuentes[0], fuentes[1]] : [fuentes[1], fuentes[0]];
+    traza = `min ${min.label} · ${fechaCorta(min.fecha)} — max ${max.label} · ${fechaCorta(max.fecha)}`;
+  }
+  const ref = retailReferencia(precios);
+  return ref ? `${traza} · ref. Retail ${fechaCorta(ref.fecha)}` : traza;
 }
 
 function Seccion({ titulo, children }: { titulo: string; children: React.ReactNode }) {
@@ -290,6 +345,19 @@ export function CotizarScreen({
     () => (desglose ? desglose.items.some((i) => i.sin_precio) : false),
     [desglose]
   );
+  // Por categoría: si TODOS los ítems de la categoría están sin precio, su total
+  // sumado da $0 — y un "$0" se lee como precio cuando en realidad es una pregunta
+  // abierta. En ese caso se muestra "SIN PRECIO", no el cero.
+  const sinPrecioPorTipo = useMemo(() => {
+    const de = (tipo: "material" | "mano_de_obra") => {
+      const its = desglose?.items.filter((i) => i.tipo === tipo) ?? [];
+      return {
+        alguno: its.some((i) => i.sin_precio),
+        todos: its.length > 0 && its.every((i) => i.sin_precio),
+      };
+    };
+    return { material: de("material"), mano_de_obra: de("mano_de_obra") };
+  }, [desglose]);
 
   return (
     <main className="font-grotesk relative min-h-screen bg-cdm-bg px-4 pb-24 pt-10 text-cdm-fg sm:px-6">
@@ -405,67 +473,95 @@ export function CotizarScreen({
 
         {desglose && resultado && (
           <>
-            <header className="mb-2">
-              <CifraHeroica className="text-[clamp(24px,2.2vw,36px)] leading-none">
-                {formatMoneyInt(resultado.total_min)} – {formatMoneyInt(resultado.total_max)}
+            <header className="mb-4">
+              <p className="font-mono-hud flex items-baseline gap-2 text-[10px] uppercase tracking-[0.22em] text-cdm-muted">
+                <span aria-hidden className="text-cdm-accent/60">{"//"}</span>
+                Take-off — total estimado (min–max)
+              </p>
+              <CifraHeroica className="mt-1 text-[clamp(24px,2.2vw,36px)] leading-none">
+                {rango(resultado.total_min, resultado.total_max)}
                 {hayItemsSinPrecio ? "*" : ""}
               </CifraHeroica>
+              {hayItemsSinPrecio && (
+                <p className="font-mono-hud mt-1.5 text-[10px] uppercase tracking-[0.14em] text-amber-300">
+                  * incompleto — hay ítems sin precio (no se inventan)
+                </p>
+              )}
             </header>
 
             <Seccion titulo="Ítems — cantidades por fórmula y precio">
               {etapas.map((etapa, ei) => (
                 <div key={ei} className="mb-5 last:mb-0">
-                  <p className="font-mono-hud mb-2 text-[10px] uppercase tracking-[0.14em] text-cdm-muted">
+                  <p className="font-mono-hud mb-2 flex items-baseline gap-2 text-[10px] uppercase tracking-[0.22em] text-cdm-muted">
+                    <span aria-hidden className="text-cdm-accent/50">{"//"}</span>
                     {etapa.nombre}
                   </p>
                   <div className="overflow-x-auto">
                     <table className="w-full text-left text-xs">
                       <thead>
-                        <tr className="text-[10px] uppercase tracking-[0.14em] text-cdm-muted">
-                          <th className="py-2 pr-3">Ítem</th>
-                          <th className="py-2 pr-3">Tipo</th>
-                          <th className="py-2 pr-3 text-right">Cant.</th>
-                          <th className="py-2 pr-3 text-right">Precio</th>
-                          <th className="py-2 text-right">Subtotal</th>
+                        <tr className="font-mono-hud border-b border-cdm-line text-[9px] uppercase tracking-[0.18em] text-cdm-muted">
+                          <th className="py-2 pr-3 font-medium">Ítem</th>
+                          <th className="py-2 pr-3 font-medium">Tipo</th>
+                          <th className="py-2 pr-3 text-right font-medium">Cant.</th>
+                          <th className="py-2 pr-3 text-right font-medium">Precio</th>
+                          <th className="py-2 text-right font-medium">Subtotal</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-cdm-line">
                         {etapa.items.map((it, i) => {
                           const revisadoIso = resultado.revisado[it.nombre];
-                          const fuentes = fuentesDeItem(it.precios);
                           return (
-                            <tr key={i} className={it.sin_precio ? "bg-amber-300/10" : undefined}>
-                              <td className="py-2 pr-3">{it.nombre}</td>
-                              <td className="py-2 pr-3 text-cdm-muted">
-                                {it.tipo === "material" ? "Mat." : "M.O."}
+                            <tr
+                              key={i}
+                              className={`transition-colors duration-150 ${
+                                it.sin_precio ? "bg-amber-300/[0.07]" : "hover:bg-cdm-fg/[0.03]"
+                              }`}
+                            >
+                              <td className="py-2.5 pr-3">{it.nombre}</td>
+                              <td className="py-2.5 pr-3">
+                                <span className="font-mono-hud text-[9px] uppercase tracking-[0.14em] text-cdm-muted">
+                                  {it.tipo === "material" ? "Mat." : "M.O."}
+                                </span>
                               </td>
-                              <td className="py-2 pr-3 text-right tabular-nums">
+                              <td className="py-2.5 pr-3 text-right tabular-nums">
                                 {it.cantidad} {it.unidad}
-                                <span className="block text-[10px] font-mono text-cdm-muted">
+                                <span className="font-mono-hud block text-[10px] text-cdm-muted">
                                   {it.formula}
                                   {it.desperdicio_pct > 0 ? ` +${it.desperdicio_pct}% desp.` : ""}
                                 </span>
                               </td>
-                              <td className="py-2 pr-3 text-right tabular-nums">
+                              <td className="py-2.5 pr-3 text-right tabular-nums">
                                 {it.sin_precio ? (
-                                  <span className="font-semibold text-amber-300">
-                                    SIN PRECIO — pregunta abierta, no se inventa
-                                  </span>
+                                  <>
+                                    <span className="font-mono-hud inline-block border border-amber-300/60 bg-amber-300/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.12em] text-amber-300">
+                                      Sin precio
+                                    </span>
+                                    <span className="mt-1 block text-[10px] text-amber-300/80">
+                                      pregunta abierta — no se inventa
+                                    </span>
+                                  </>
                                 ) : (
                                   <>
-                                    {formatMoneyInt(it.precio_min ?? 0)} –{" "}
-                                    {formatMoneyInt(it.precio_max ?? 0)}
+                                    {rango(it.precio_min ?? 0, it.precio_max ?? 0)}
                                     <span className="block text-[10px] text-cdm-muted">
-                                      {fuentes.map((f) => `${f.label} · ${f.fecha}`).join(" · ")}
-                                      {revisadoIso ? ` · revisado ${haceCuanto(revisadoIso)}` : ""}
+                                      {trazaPrecio(it.precios)}
                                     </span>
+                                    {revisadoIso && (
+                                      <span
+                                        className={`block text-[10px] ${
+                                          esViejo(revisadoIso) ? "text-amber-300/90" : "text-cdm-muted"
+                                        }`}
+                                      >
+                                        revisado {haceCuanto(revisadoIso)}
+                                      </span>
+                                    )}
                                   </>
                                 )}
                               </td>
-                              <td className="py-2 text-right tabular-nums">
+                              <td className="py-2.5 text-right tabular-nums">
                                 {it.sin_precio
                                   ? "—"
-                                  : `${formatMoneyInt(it.subtotal_min)} – ${formatMoneyInt(it.subtotal_max)}`}
+                                  : rango(it.subtotal_min, it.subtotal_max)}
                               </td>
                             </tr>
                           );
@@ -487,49 +583,61 @@ export function CotizarScreen({
                         </span>
                       </span>
                       <span className="tabular-nums">
-                        {formatMoneyInt(ex.monto_min)} – {formatMoneyInt(ex.monto_max)}
+                        {rango(ex.monto_min, ex.monto_max)}
                       </span>
                     </li>
                   ))}
                 </ul>
               )}
 
-              <dl className="mt-4 space-y-1 border-t border-cdm-line pt-3 text-xs">
-                <div className="flex justify-between">
+              <dl className="mt-4 space-y-1.5 border-t border-cdm-line pt-3 text-xs">
+                <div className="flex items-baseline justify-between">
                   <dt className="text-cdm-muted">Materiales</dt>
                   <dd className="tabular-nums">
-                    {formatMoneyInt(desglose.totales.materiales_min)} –{" "}
-                    {formatMoneyInt(desglose.totales.materiales_max)}
-                    {hayItemsSinPrecio ? "*" : ""}
+                    {sinPrecioPorTipo.material.todos ? (
+                      <span className="font-mono-hud text-[10px] font-bold uppercase tracking-[0.12em] text-amber-300">
+                        Sin precio — pregunta abierta
+                      </span>
+                    ) : (
+                      <>
+                        {rango(desglose.totales.materiales_min, desglose.totales.materiales_max)}
+                        {sinPrecioPorTipo.material.alguno ? "*" : ""}
+                      </>
+                    )}
                   </dd>
                 </div>
-                <div className="flex justify-between">
+                <div className="flex items-baseline justify-between">
                   <dt className="text-cdm-muted">Mano de obra</dt>
                   <dd className="tabular-nums">
-                    {formatMoneyInt(desglose.totales.mano_de_obra_min)} –{" "}
-                    {formatMoneyInt(desglose.totales.mano_de_obra_max)}
-                    {hayItemsSinPrecio ? "*" : ""}
+                    {sinPrecioPorTipo.mano_de_obra.todos ? (
+                      <span className="font-mono-hud text-[10px] font-bold uppercase tracking-[0.12em] text-amber-300">
+                        Sin precio — pregunta abierta
+                      </span>
+                    ) : (
+                      <>
+                        {rango(desglose.totales.mano_de_obra_min, desglose.totales.mano_de_obra_max)}
+                        {sinPrecioPorTipo.mano_de_obra.alguno ? "*" : ""}
+                      </>
+                    )}
                   </dd>
                 </div>
-                <div className="flex justify-between">
+                <div className="flex items-baseline justify-between">
                   <dt className="text-cdm-muted">Extras</dt>
                   <dd className="tabular-nums">
-                    {formatMoneyInt(desglose.totales.extras_min)} –{" "}
-                    {formatMoneyInt(desglose.totales.extras_max)}
+                    {rango(desglose.totales.extras_min, desglose.totales.extras_max)}
                   </dd>
                 </div>
-                <div className="flex justify-between">
+                <div className="flex items-baseline justify-between border-t border-cdm-line pt-2">
                   <dt className="text-cdm-muted">
-                    Imprevistos {desglose.totales.imprevistos_pct}% · Factor zona{" "}
+                    Total · imprevistos {desglose.totales.imprevistos_pct}% · factor zona{" "}
                     {desglose.totales.factor_zona_min}–{desglose.totales.factor_zona_max}
                   </dt>
-                  <dd className="font-medium tabular-nums">
-                    {formatMoneyInt(desglose.totales.total_min)} –{" "}
-                    {formatMoneyInt(desglose.totales.total_max)}
+                  <dd className="text-sm font-medium tabular-nums text-cdm-fg">
+                    {rango(desglose.totales.total_min, desglose.totales.total_max)}
                     {hayItemsSinPrecio ? "*" : ""}
                   </dd>
                 </div>
-                <div className="flex justify-between text-cdm-muted">
+                <div className="flex items-baseline justify-between text-cdm-muted">
                   <dt>Tiempo estimado</dt>
                   <dd>
                     {desglose.tiempo.dias_min}–{desglose.tiempo.dias_max} días ·{" "}
