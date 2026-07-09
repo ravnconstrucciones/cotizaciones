@@ -36,6 +36,19 @@ export type RangoFisico = {
   max: number; // cantidad máxima admisible por unidad del parámetro
 };
 
+/** Confianza de un dato de receta candidata (ley 1: todo número con traza). */
+export type ConfianzaDato = "verificado" | "estimado";
+
+/**
+ * De dónde salió una cantidad/fórmula de una receta candidata y con qué
+ * confianza. Obligatorio en candidatas (lo exige validarRecetaCandidata):
+ * un ítem sin origen es un número inventado, y eso está prohibido.
+ */
+export type OrigenDato = {
+  fuente: string; // "ficha Superboard (Eternit)", "Seia: revestimientos", "SISMAT 4721"
+  confianza: ConfianzaDato;
+};
+
 /** Ítem de una etapa de la receta. La fórmula se evalúa con los parámetros numéricos. */
 export type ItemReceta = {
   nombre: string; // "Látex interior 20L"
@@ -45,6 +58,8 @@ export type ItemReceta = {
   desperdicio_pct?: number; // 0–100; default 0
   redondeo?: "arriba" | "ninguno"; // default: "arriba" material, "ninguno" MO
   rango_fisico?: RangoFisico;
+  /** Traza del dato en recetas candidatas: fuente + confianza (ley 1). */
+  origen?: OrigenDato;
   notas?: string;
 };
 
@@ -69,12 +84,14 @@ export type Receta = {
   id?: string;
   nombre: string; // slug único: "pintura-interior"
   titulo: string; // "Pintura interior completa"
-  estado: "investigada" | "confiable";
+  estado: "candidata" | "investigada" | "confiable";
   parametros: ParametroReceta[];
   etapas: EtapaReceta[];
   checklist: string[]; // anti-olvidos propios del tipo de laburo
   fuentes: FuenteReceta[];
   version: number;
+  /** Solo candidatas: lo que el sistema NO pudo determinar y le pregunta a Eze. */
+  preguntas_abiertas?: string[];
 };
 
 /** Todo precio del desglose lleva valor + fuente + fecha (vencimiento §6.2.4). */
@@ -95,6 +112,16 @@ export type PrecioItem = {
   sismat?: PrecioFechado;
   internet?: PrecioFechado;
   retail?: PrecioFechado;
+};
+
+/** Fila de `precios_items` — cache fechado que alimenta el panel /cotizar. */
+export type PrecioItemRow = {
+  item: string;
+  origen: "sismat" | "internet" | "retail";
+  valor: number;
+  fuente: string;
+  fecha: string; // YYYY-MM-DD
+  revisado_at: string; // ISO — cuándo lo escribió el sistema
 };
 
 export type ItemDesglose = {
