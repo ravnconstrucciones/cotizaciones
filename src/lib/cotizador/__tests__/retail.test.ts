@@ -1,5 +1,10 @@
 import { describe, it, expect, afterEach, vi } from "vitest";
-import { parsePrecioML, parsePrecioEasy, fetchPrecioRetail } from "../retail";
+import {
+  parsePrecioML,
+  parsePrecioEasy,
+  fetchPrecioRetail,
+  elegirCadena,
+} from "../retail";
 
 describe("parsePrecioML", () => {
   it("devuelve la mediana de los precios válidos (impar)", () => {
@@ -134,5 +139,119 @@ describe("fetchPrecioRetail", () => {
     }) as unknown as typeof fetch;
     expect(await fetchPrecioRetail("   ", "2026-07-01", f)).toBeNull();
     expect(llamado).toBe(false);
+  });
+});
+
+describe("elegirCadena (ruteo rubro → cadena)", () => {
+  it("pintura va a Prestigio", () => {
+    expect(elegirCadena("látex interior 20 litros")).toBe("prestigio");
+    expect(elegirCadena("Esmalte sintético blanco")).toBe("prestigio");
+    expect(elegirCadena("fijador al agua")).toBe("prestigio");
+  });
+
+  it("cerámico y baño van a Blaisten", () => {
+    expect(elegirCadena("porcelanato símil madera 60x60")).toBe("blaisten");
+    expect(elegirCadena("grifería monocomando cocina")).toBe("blaisten");
+    expect(elegirCadena("inodoro corto")).toBe("blaisten");
+  });
+
+  it("obra gris, electricidad y plomería caen a Easy (default)", () => {
+    expect(elegirCadena("cemento loma negra 50kg")).toBe("easy");
+    expect(elegirCadena("cable unipolar 2.5")).toBe("easy");
+    expect(elegirCadena("caño pvc 110")).toBe("easy");
+    expect(elegirCadena("membrana líquida 20kg")).toBe("easy");
+  });
+
+  it("normaliza acentos y mayúsculas para matchear", () => {
+    expect(elegirCadena("CERÁMICA esmaltada")).toBe("blaisten");
+    expect(elegirCadena("PINTURA látex")).toBe("prestigio");
+  });
+
+  it("pintura gana a cerámico cuando hay ambas palabras (comprás la pintura)", () => {
+    // "esmalte para azulejos" = compra de pintura, no de azulejo.
+    expect(elegirCadena("esmalte para azulejos")).toBe("prestigio");
+  });
+
+  it("query sin rubro reconocible → Easy", () => {
+    expect(elegirCadena("tornillos autoperforantes")).toBe("easy");
+  });
+
+  // Regresión: colisiones de substring que el match por \b tiene que evitar.
+  it("NO confunde 'placa' con 'laca' — Durlock va a Easy, no a la pinturería", () => {
+    expect(elegirCadena("placa de yeso 12.5mm")).toBe("easy");
+    expect(elegirCadena("placa cementicia 8mm")).toBe("easy");
+    expect(elegirCadena("placa OSB 18mm")).toBe("easy");
+  });
+
+  it("'caño sanitario' (desagüe PVC) va a Easy, no a Blaisten", () => {
+    expect(elegirCadena("caño sanitario 110mm")).toBe("easy");
+    expect(elegirCadena("codo sanitario 45")).toBe("easy");
+  });
+
+  it("'césped sintético' NO cae en la pinturería (esmalte sintético sí)", () => {
+    expect(elegirCadena("césped sintético 20mm")).toBe("easy");
+    expect(elegirCadena("esmalte sintético blanco")).toBe("prestigio");
+  });
+
+  it("lavatorio y ducha van a Blaisten", () => {
+    expect(elegirCadena("lavatorio con columna")).toBe("blaisten");
+    expect(elegirCadena("columna de ducha")).toBe("blaisten");
+  });
+});
+
+describe("fetchPrecioRetail — ruteo a la cadena del rubro", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  const fetchDe = (porUrl: (url: string) => unknown) =>
+    (async (url: unknown) => ({
+      ok: true,
+      status: 200,
+      json: async () => porUrl(String(url)),
+    })) as unknown as typeof fetch;
+
+  const prod = (Price: number) => ({
+    items: [{ sellers: [{ commertialOffer: { Price, IsAvailable: true } }] }],
+  });
+
+  it("pintura pega a Prestigio y marca la fuente", async () => {
+    vi.stubEnv("ML_ACCESS_TOKEN", "");
+    const urls: string[] = [];
+    const f = fetchDe((url) => {
+      urls.push(url);
+      return [prod(30000), prod(31459), prod(33000)];
+    });
+    const p = await fetchPrecioRetail("látex interior 20L", "2026-07-09", f);
+    expect(p).toEqual({
+      valor: 31459,
+      fuente: "Prestigio (ref. retail)",
+      fecha: "2026-07-09",
+    });
+    expect(urls[0]).toContain("prestigio.com.ar");
+  });
+
+  it("cerámico/baño pega a Blaisten", async () => {
+    vi.stubEnv("ML_ACCESS_TOKEN", "");
+    const urls: string[] = [];
+    const f = fetchDe((url) => {
+      urls.push(url);
+      return [prod(155890)];
+    });
+    const p = await fetchPrecioRetail("grifería monocomando", "2026-07-09", f);
+    expect(p?.fuente).toBe("Blaisten (ref. retail)");
+    expect(urls[0]).toContain("blaisten.com.ar");
+  });
+
+  it("electricidad cae a Easy", async () => {
+    vi.stubEnv("ML_ACCESS_TOKEN", "");
+    const urls: string[] = [];
+    const f = fetchDe((url) => {
+      urls.push(url);
+      return [prod(94995)];
+    });
+    const p = await fetchPrecioRetail("cable unipolar 2.5mm", "2026-07-09", f);
+    expect(p?.fuente).toBe("Easy (ref. retail)");
+    expect(urls[0]).toContain("easy.com.ar");
   });
 });

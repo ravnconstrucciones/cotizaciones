@@ -10,31 +10,142 @@
  * Fuentes, en orden:
  * 1. MercadoLibre API oficial — SOLO si hay `ML_ACCESS_TOKEN` (el search
  *    anónimo devuelve 403 desde jun 2026, y scrapear el listado público
- *    tampoco va: sirve página anti-bot — verificado 2026-07-01). Para
- *    activarla: app gratis en developers.mercadolibre.com.ar.
- * 2. Easy (VTEX catalog API) — pública, sin auth, JSON estable con precio
- *    del día. Es la fuente automática por defecto.
+ *    tampoco va: sirve página anti-bot — verificado 2026-07-01). Queda
+ *    dormido: sin token no se llama. Para activarlo: app gratis en
+ *    developers.mercadolibre.com.ar.
+ * 2. Cadena VTEX según RUBRO — la fuente automática por defecto. Cada gran
+ *    cadena expone el MISMO endpoint de catálogo VTEX (JSON público, sin auth,
+ *    precio del día), así que enrutamos el material a la cadena que es
+ *    referencia real de su rubro (verificado en vivo 2026-07-09):
+ *      · pintura            → Prestigio
+ *      · cerámico / baño     → Blaisten (porcelanato, grifería, sanitarios)
+ *      · resto (obra gris,
+ *        electricidad,
+ *        plomería, etc.)     → Easy
+ *    Un material que no matchea ningún rubro cae a Easy, que es la más amplia.
  *
  * Cualquier falla devuelve null y el cotizador sigue con SISMAT+internet.
  */
 import type { PrecioFechado } from "./tipos";
 
 const ML_ENDPOINT = "https://api.mercadolibre.com/sites/MLA/search";
-const EASY_ENDPOINT =
-  "https://www.easy.com.ar/api/catalog_system/pub/products/search/";
 const TIMEOUT_MS = 6000;
 const MAX_RESULTADOS = 12;
 const UA =
   "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36";
 
+/** Sufijo del path de catálogo VTEX, común a todas las cadenas. */
+const VTEX_PATH = "/api/catalog_system/pub/products/search/";
+
+/** Id de cada cadena de referencia retail. */
+export type CadenaId = "easy" | "prestigio" | "colorshop" | "blaisten";
+
+/**
+ * Cadenas VTEX verificadas en vivo (2026-07-09). Todas devuelven el mismo
+ * JSON de catálogo, así que las lee el mismo parser (parsePrecioVtex).
+ * `colorshop` queda cableada como segunda opción de pintura (más promo) para
+ * comparar en la capa de UI; hoy el ruteo de pintura usa Prestigio.
+ */
+export const CADENAS: Record<CadenaId, { host: string; fuente: string }> = {
+  easy: { host: "https://www.easy.com.ar", fuente: "Easy (ref. retail)" },
+  prestigio: {
+    host: "https://www.prestigio.com.ar",
+    fuente: "Prestigio (ref. retail)",
+  },
+  colorshop: {
+    host: "https://www.colorshop.com.ar",
+    fuente: "Colorshop (ref. retail)",
+  },
+  blaisten: {
+    host: "https://www.blaisten.com.ar",
+    fuente: "Blaisten (ref. retail)",
+  },
+};
+
+/**
+ * Ruteo rubro → cadena por palabras clave sobre el nombre del material.
+ * Orden de prioridad: se toma el PRIMER rubro que matchea. Pintura va antes que
+ * cerámico/baño a propósito: "esmalte para azulejo" es una compra de pintura
+ * (comprás el esmalte, no el azulejo). Sin match → Easy (default, la más amplia).
+ * Claves ya normalizadas (minúsculas, sin acentos) — ver normalizar().
+ */
+const RUBROS: Array<{ cadena: CadenaId; claves: string[] }> = [
+  {
+    cadena: "prestigio",
+    claves: [
+      "latex",
+      "esmalte",
+      "esmalte sintetico",
+      "fijador",
+      "enduido",
+      "barniz",
+      "laca",
+      "convertidor",
+      "antioxido",
+      "imprimacion",
+      "aguarras",
+      "diluyente",
+      "pinceleta",
+      "rodillo",
+      "pintura",
+      "entonador",
+      "impregnante",
+    ],
+  },
+  {
+    cadena: "blaisten",
+    claves: [
+      "porcelanato",
+      "porcellanato",
+      "ceramico",
+      "ceramica",
+      "azulejo",
+      "mayolica",
+      "griferia",
+      "canilla",
+      "monocomando",
+      "inodoro",
+      "bidet",
+      "vanitory",
+      "lavatorio",
+      "bacha",
+      "mampara",
+      "receptaculo",
+      "ducha",
+    ],
+  },
+];
+
 type MLResp = { results?: Array<{ price?: unknown }> };
-type EasyProducto = {
+type VtexProducto = {
   items?: Array<{
     sellers?: Array<{
       commertialOffer?: { Price?: unknown; IsAvailable?: unknown };
     }>;
   }>;
 };
+
+/** minúsculas + sin acentos, para que "látex"/"latex"/"CERÁMICO" matcheen igual. */
+function normalizar(texto: string): string {
+  return texto
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+}
+
+/**
+ * Elige la cadena de referencia para un material según su rubro. Exportada
+ * para test y para que la UI muestre "de qué cadena sale este precio".
+ */
+export function elegirCadena(query: string): CadenaId {
+  const n = normalizar(query);
+  for (const r of RUBROS) {
+    // \b al inicio de la clave: matchea "azulejos" (plural) pero NO el infijo
+    // ("placa" ya NO cae en "laca" → Durlock deja de rutear a la pinturería).
+    if (r.claves.some((k) => new RegExp(`\\b${k}`).test(n))) return r.cadena;
+  }
+  return "easy";
+}
 
 /** Mediana de una lista de precios ya filtrados. Null si está vacía. */
 function mediana(precios: number[]): number | null {
@@ -58,13 +169,14 @@ export function parsePrecioML(json: unknown, max = MAX_RESULTADOS): number | nul
 }
 
 /**
- * Mediana de los precios disponibles de la respuesta Easy (VTEX).
+ * Mediana de los precios disponibles de una respuesta de catálogo VTEX
+ * (Easy, Prestigio, Colorshop, Blaisten — todas comparten el formato).
  * Toma el primer seller del primer item de cada producto (el precio de lista
  * del resultado) y descarta los sin stock. Null si no hay ninguno.
  */
-export function parsePrecioEasy(json: unknown, max = MAX_RESULTADOS): number | null {
+export function parsePrecioVtex(json: unknown, max = MAX_RESULTADOS): number | null {
   if (!Array.isArray(json)) return null;
-  const precios = (json as EasyProducto[])
+  const precios = (json as VtexProducto[])
     .slice(0, max)
     .map((p) => p?.items?.[0]?.sellers?.[0]?.commertialOffer)
     .filter((o) => o && o.IsAvailable !== false)
@@ -72,6 +184,9 @@ export function parsePrecioEasy(json: unknown, max = MAX_RESULTADOS): number | n
     .filter((p) => Number.isFinite(p) && p > 0);
   return mediana(precios);
 }
+
+/** Alias histórico: el parser VTEX nació leyendo Easy. */
+export const parsePrecioEasy = parsePrecioVtex;
 
 async function fetchJson(
   url: string,
@@ -92,9 +207,10 @@ async function fetchJson(
 }
 
 /**
- * Trae un precio de referencia retail para `query`. Devuelve null ante
- * cualquier falla (red, timeout, sin resultados) — el cotizador sigue con
- * SISMAT+internet. `fetchImpl` inyectable para tests.
+ * Trae un precio de referencia retail para `query`, de la cadena que es
+ * referencia de su rubro (ver elegirCadena). Devuelve null ante cualquier
+ * falla (red, timeout, sin resultados) — el cotizador sigue con SISMAT+internet.
+ * `fetchImpl` inyectable para tests.
  */
 export async function fetchPrecioRetail(
   query: string,
@@ -117,13 +233,14 @@ export async function fetchPrecioRetail(
       return { valor, fuente: "MercadoLibre (ref. retail)", fecha: hoy };
   }
 
-  // 2. Easy (VTEX) — fuente automática por defecto.
+  // 2. Cadena VTEX según rubro del material (default: Easy).
+  const cadena = CADENAS[elegirCadena(q)];
   const json = await fetchJson(
-    `${EASY_ENDPOINT}?ft=${encodeURIComponent(q)}&_from=0&_to=${MAX_RESULTADOS - 1}`,
+    `${cadena.host}${VTEX_PATH}?ft=${encodeURIComponent(q)}&_from=0&_to=${MAX_RESULTADOS - 1}`,
     { Accept: "application/json", "User-Agent": UA },
     fetchImpl
   );
-  const valor = parsePrecioEasy(json);
+  const valor = parsePrecioVtex(json);
   if (valor == null) return null;
-  return { valor, fuente: "Easy (ref. retail)", fecha: hoy };
+  return { valor, fuente: cadena.fuente, fecha: hoy };
 }
