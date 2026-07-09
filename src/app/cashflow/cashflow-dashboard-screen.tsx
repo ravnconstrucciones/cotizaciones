@@ -10,8 +10,6 @@ import { WavesBackdrop } from "@/components/cockpit/waves-backdrop";
 import { CifraHeroica } from "@/components/cockpit/cifra-heroica";
 import { SkeletonGlass } from "@/components/cockpit/skeleton-glass";
 import { fetchCompartido } from "@/lib/fetch-compartido";
-import { guitaTotal, type RetirosResumen } from "@/lib/salud-negocio";
-import type { SaldosCuentas } from "@/lib/cuentas";
 
 type ObraActiva = {
   obra_id: string;
@@ -31,16 +29,6 @@ type ObraActiva = {
   saldo_por_cobrar_usd?: number | null;
   monto_total_a_cobrar_usd?: number | null;
   cobranza_cerrada?: boolean;
-};
-
-/** De /api/negocio/config: patrimonio (pesos y USD) + retiros netos, para que
- * el hero diga LO MISMO que la tarjeta Dinero de la home (pedido 02/07). */
-type ConfigPayload = {
-  config?: {
-    patrimonio_neto_inicial_ars?: number;
-    patrimonio_neto_inicial_usd?: number;
-  };
-  retiros?: RetirosResumen;
 };
 
 type LibretaEmpresaResumen = {
@@ -106,8 +94,6 @@ function formatUsdInt(n: number): string {
 
 export function CashflowDashboardScreen() {
   const [data, setData] = useState<ResumenJson | null>(null);
-  const [cfgPayload, setCfgPayload] = useState<ConfigPayload | null>(null);
-  const [cuentas, setCuentas] = useState<SaldosCuentas | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
@@ -123,11 +109,7 @@ export function CashflowDashboardScreen() {
       // fetchCompartido consume el prefetch del documento en el primer load
       // (ronda 6 — perf); los reloads post-mutación siempre van frescos
       // porque el prefetch se consume una sola vez.
-      const [res, resCfg, resCuentas] = await Promise.all([
-        fetchCompartido("/cashflow/resumen"),
-        fetchCompartido("/api/negocio/config"),
-        fetchCompartido("/api/cuentas"),
-      ]);
+      const res = await fetchCompartido("/cashflow/resumen");
       const j = res.body as ResumenJson & { error?: string };
       if (!res.ok) {
         setError(j.error ?? "No se pudo cargar el resumen.");
@@ -135,8 +117,6 @@ export function CashflowDashboardScreen() {
         return;
       }
       setData(j);
-      if (resCfg.ok) setCfgPayload(resCfg.body as ConfigPayload);
-      if (resCuentas.ok) setCuentas(resCuentas.body as SaldosCuentas);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Error de red.");
       setData(null);
@@ -168,21 +148,6 @@ export function CashflowDashboardScreen() {
   );
 
   const puedeRegistrar = obraOpts.length > 0;
-
-  // El MISMO número que la tarjeta Dinero de la home: patrimonio personal en
-  // pesos + caja empresa (obras − retiros) + USD valuados al blue del día.
-  const total = useMemo(() => {
-    if (!data) return null;
-    return guitaTotal({
-      patrimonioArs: cfgPayload?.config?.patrimonio_neto_inicial_ars ?? 0,
-      saldoCajaObras: data.saldo_caja_total ?? 0,
-      retirosNetoTotal: cfgPayload?.retiros?.neto_total ?? 0,
-      usd:
-        (cfgPayload?.config?.patrimonio_neto_inicial_usd ?? 0) +
-        (data.caja_obras_usd ?? 0),
-      blue: data.blue_venta ?? null,
-    });
-  }, [data, cfgPayload]);
 
   // Por cobrar detallado: de qué obra viene cada cobro y EN QUÉ MONEDA entra.
   // Obras en dólares: pendiente = contrato USD − cobrado USD (entra en billete,
@@ -303,9 +268,9 @@ export function CashflowDashboardScreen() {
         </div>
 
         <p className="mt-4 text-sm text-cdm-muted">
-          Toda la caja en un lugar: cuánto hay (pesos + dólares al blue), en
-          qué cuenta está cada peso, qué falta cobrar y de qué obra viene cada
-          cobro, y todos los ingresos y egresos.
+          El movimiento de la plata: qué falta cobrar y de qué obra viene cada
+          cobro, y todos los ingresos y egresos. Cuánto hay y dónde está vive
+          en la tarjeta Dinero de la home.
         </p>
 
         <div className="mt-6 grid grid-cols-2 gap-3 sm:max-w-md">
@@ -353,78 +318,6 @@ export function CashflowDashboardScreen() {
           <p className="mt-12 text-sm text-red-400">{error}</p>
         ) : data ? (
           <div className="mt-10 flex flex-col gap-10">
-            {/* Dinero total — el mismo número que la tarjeta Dinero de la home */}
-            <div className="cdm-glass px-5 py-5">
-              <p className="text-[10px] font-medium uppercase tracking-[0.14em] text-cdm-muted">
-                Dinero total (pesos + USD al blue)
-              </p>
-              <CifraHeroica
-                className="mt-2 text-[clamp(28px,2.2vw,40px)] leading-none"
-                tono={
-                  total?.totalArs != null && total.totalArs < 0
-                    ? "negativo"
-                    : "neutro"
-                }
-              >
-                {total?.totalArs != null
-                  ? formatMoneyInt(total.totalArs)
-                  : total && total.usd > 0
-                    ? "sin blue del día"
-                    : "—"}
-              </CifraHeroica>
-              {total ? (
-                <p className="mt-2 text-[11px] tabular-nums text-cdm-muted">
-                  personal {formatMoneyInt(total.patrimonioArs)} · empresa{" "}
-                  {formatMoneyInt(total.cajaEmpresaArs)}
-                  {total.usd > 0 ? (
-                    <>
-                      {" "}· US$ {formatUsdInt(total.usd)}
-                      {total.usdEnArs != null && data.blue_venta ? (
-                        <>
-                          {" "}≈ {formatMoneyInt(total.usdEnArs)} (blue{" "}
-                          {formatUsdInt(data.blue_venta)})
-                        </>
-                      ) : null}
-                    </>
-                  ) : null}
-                </p>
-              ) : null}
-              {cuentas && cuentas.cuentas.some((c) => c.activa) ? (
-                <div className="mt-4 border-t border-cdm-line pt-4">
-                  <p className="text-[10px] uppercase tracking-[0.14em] text-cdm-muted">
-                    Dónde está cada peso
-                  </p>
-                  <ul className="mt-2 grid grid-cols-1 gap-x-6 gap-y-1.5 sm:grid-cols-2">
-                    {cuentas.cuentas
-                      .filter((c) => c.activa)
-                      .map((c) => (
-                        <li
-                          key={c.id}
-                          className="flex items-baseline justify-between gap-2 text-xs"
-                        >
-                          <span className="min-w-0 truncate text-cdm-muted">
-                            {c.nombre}
-                            {c.procedencia === "obra" ? (
-                              <span
-                                className="ml-1 text-[9px] uppercase tracking-[0.08em] text-cdm-muted/60"
-                                title="Caja de obra: es plata del cliente, no tuya"
-                              >
-                                obra
-                              </span>
-                            ) : null}
-                          </span>
-                          <span className="shrink-0 tabular-nums font-medium text-cdm-fg">
-                            {c.moneda === "USD"
-                              ? `US$ ${formatUsdInt(c.saldo)}`
-                              : formatMoneyInt(c.saldo)}
-                          </span>
-                        </li>
-                      ))}
-                  </ul>
-                </div>
-              ) : null}
-            </div>
-
             {/* Por cobrar — total + de dónde viene cada cobro y en qué moneda */}
             <div className="cdm-glass px-5 py-5">
               <p className="text-[10px] font-medium uppercase tracking-[0.14em] text-cdm-muted">
@@ -492,142 +385,23 @@ export function CashflowDashboardScreen() {
               )}
             </div>
 
-            {/* Saldo total */}
-            <div className="cdm-glass px-5 py-5">
-              <p className="text-[10px] font-medium uppercase tracking-[0.14em] text-cdm-muted">
-                Caja de obras — ingresos y egresos
-              </p>
-              <CifraHeroica
-                className="mt-2 text-[clamp(28px,2.2vw,40px)] leading-none"
-                tono={data.saldo_caja_total >= 0 ? "positivo" : "negativo"}
-              >
-                {formatMoneyInt(data.saldo_caja_total)}
-              </CifraHeroica>
-              <div className="mt-4 grid gap-2 border-t border-cdm-line pt-4 text-xs tabular-nums sm:grid-cols-2 lg:grid-cols-4">
-                <div>
-                  <p className="text-[10px] uppercase tracking-wider text-cdm-muted">
-                    Ingresos caja
-                  </p>
-                  <p className="mt-1 font-medium text-cdm-fg">
-                    {formatMoneyInt(data.totales_caja.ingresos)}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-[10px] uppercase tracking-wider text-cdm-muted">
-                    Egr. libreta
-                  </p>
-                  <p className="mt-1 font-medium text-cdm-fg">
-                    {formatMoneyInt(
-                      data.totales_caja.egresos_libreta ??
-                        data.totales_caja.egresos
-                    )}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-[10px] uppercase tracking-wider text-cdm-muted">
-                    Egr. gastos obra
-                  </p>
-                  <p className="mt-1 font-medium text-cdm-fg">
-                    {formatMoneyInt(data.totales_caja.egresos_gastos_obra ?? 0)}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-[10px] uppercase tracking-wider text-cdm-muted">
-                    Saldo (ing − egr)
-                  </p>
-                  <p className="mt-1 font-medium text-cdm-fg">
-                    {formatMoneyInt(data.totales_caja.saldo)}
-                  </p>
-                </div>
-              </div>
-              <p className="mt-2 text-[10px] uppercase tracking-wider text-cdm-muted">
-                Egresos caja total: {formatMoneyInt(data.totales_caja.egresos)} (
-                libreta + gastos de obra)
-              </p>
-              <p className="mt-3 text-[11px] leading-snug text-cdm-muted">
-                Incluye obras aprobadas y cuenta empresa. Referencia:{" "}
-                {fmtFecha(data.fecha_referencia)}.
-              </p>
-            </div>
-
-            {/* Caja en dólares — cobros USD de obras, separada de los pesos */}
-            {(data.caja_obras_usd ?? 0) > 0 ? (
-              <div className="cdm-glass border-emerald-400/20 px-5 py-5">
-                <p className="text-[10px] font-medium uppercase tracking-[0.14em] text-emerald-400">
-                  Caja en dólares
-                </p>
-                <p className="mt-1 text-xs text-cdm-muted">
-                  Cobros de obra en USD. Se cuentan aparte: no entran en el saldo
-                  en pesos de arriba y flotan al blue venta del día.
-                </p>
-                <p className="mt-3 text-2xl font-semibold tabular-nums text-emerald-400">
-                  US$ {formatUsdInt(data.caja_obras_usd ?? 0)}
-                  {data.blue_venta != null && data.blue_venta > 0 ? (
-                    <span className="ml-2 align-baseline text-sm font-medium text-cdm-muted">
-                      ≈ {formatMoneyInt((data.caja_obras_usd ?? 0) * data.blue_venta)}
-                    </span>
-                  ) : null}
-                </p>
-                {data.blue_venta != null && data.blue_venta > 0 ? (
-                  <p className="mt-2 text-[10px] uppercase tracking-wider text-cdm-muted">
-                    Blue venta ${formatUsdInt(data.blue_venta)} ·{" "}
-                    {fmtFecha(data.fecha_referencia)}
-                  </p>
-                ) : null}
-              </div>
-            ) : null}
-
-            {/* Cuenta empresa */}
+            {/* Cuenta empresa — acceso a sus gastos y movimientos; el saldo
+                derivado murió con el punto cero (la verdad son las cuentas). */}
             {data.libreta_empresa ? (
-              <div className="cdm-glass border-amber-300/20 px-5 py-5">
-                <p className="text-[10px] font-medium uppercase tracking-[0.14em] text-amber-300">
-                  Cuenta empresa
-                </p>
-                <p className="mt-1 text-xs text-cdm-muted">
-                  Gastos o ingresos no imputados a una obra de cliente. Ya
-                  está pagado — no es deuda.
-                </p>
-                {/* Esto no es una caja con saldo: es cuánto se lleva gastado.
-                    Mostrarlo en negativo leía como deuda (pedido de Eze 04/07). */}
-                <p className="mt-3 text-lg font-medium tabular-nums text-cdm-fg">
-                  {formatMoneyInt(data.libreta_empresa.egresos_caja)}{" "}
-                  <span className="text-xs font-normal text-cdm-muted">
-                    gastado
-                  </span>
-                </p>
-                <div className="mt-3 flex flex-wrap gap-x-6 gap-y-1 text-xs tabular-nums text-cdm-muted">
-                  {data.libreta_empresa.ingresos_caja > 0 ? (
-                    <span>
-                      Ing.:{" "}
-                      <span className="font-medium text-cdm-fg">
-                        {formatMoneyInt(data.libreta_empresa.ingresos_caja)}
-                      </span>
-                    </span>
-                  ) : null}
-                  {(data.libreta_empresa.egresos_gastos_obra_ars ?? 0) > 0 ? (
-                    <span className="text-[10px]">
-                      (libreta{" "}
-                      {formatMoneyInt(data.libreta_empresa.egresos_libreta_ars ?? 0)}{" "}
-                      + gastos obra{" "}
-                      {formatMoneyInt(data.libreta_empresa.egresos_gastos_obra_ars ?? 0)})
-                    </span>
-                  ) : null}
-                </div>
-                <p className="mt-3 flex flex-wrap gap-x-5 gap-y-1">
-                  <Link
-                    href="/empresa"
-                    className="text-[10px] font-semibold uppercase tracking-wider text-cdm-accent underline-offset-2 hover:underline"
-                  >
-                    Gastos de empresa · día por día
-                  </Link>
-                  <Link
-                    href={`/cashflow/obra/${encodeURIComponent(data.libreta_empresa.obra_id)}`}
-                    className="text-[10px] uppercase tracking-wider text-cdm-muted underline-offset-2 hover:underline"
-                  >
-                    Movimientos de caja
-                  </Link>
-                </p>
-              </div>
+              <p className="flex flex-wrap gap-x-5 gap-y-1">
+                <Link
+                  href="/empresa"
+                  className="text-[10px] font-semibold uppercase tracking-wider text-cdm-accent underline-offset-2 hover:underline"
+                >
+                  Gastos de empresa · día por día
+                </Link>
+                <Link
+                  href={`/cashflow/obra/${encodeURIComponent(data.libreta_empresa.obra_id)}`}
+                  className="text-[10px] uppercase tracking-wider text-cdm-muted underline-offset-2 hover:underline"
+                >
+                  Movimientos cuenta empresa
+                </Link>
+              </p>
             ) : null}
 
             {/* Últimos movimientos */}
