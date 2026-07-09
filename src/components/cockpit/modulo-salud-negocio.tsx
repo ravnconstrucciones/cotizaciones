@@ -14,8 +14,6 @@ import {
 } from "@/lib/format-currency";
 import {
   calcularSalud,
-  calcularCajaLibre,
-  cajaEmpresaPesos,
   type ObraResumen,
   type ConfigNegocio,
   type RetirosResumen,
@@ -224,18 +222,9 @@ export function ModuloSaludNegocio({ className }: { className?: string }) {
   const [resumen, setResumen] = useState<ResumenCashflow | null>(null);
   const [cfgPayload, setCfgPayload] = useState<ConfigPayload | null>(null);
   const [dinero, setDinero] = useState<PayloadDinero | null>(null);
-  const [blueVenta, setBlueVenta] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [editando, setEditando] = useState(false);
   const [verFinalizadas, setVerFinalizadas] = useState(false);
   const [guardando, setGuardando] = useState(false);
-
-  // Form de edición de config
-  const [fPatrim, setFPatrim] = useState("");
-  const [fPatrimUsd, setFPatrimUsd] = useState("");
-  const [fSueldo, setFSueldo] = useState("");
-  const [fFijos, setFFijos] = useState("");
-  const [fComprometido, setFComprometido] = useState("");
 
   // Form de retiro rápido
   const [retiroOpen, setRetiroOpen] = useState(false);
@@ -246,19 +235,14 @@ export function ModuloSaludNegocio({ className }: { className?: string }) {
 
   const cargar = useCallback(async () => {
     try {
-      const [resCaja, resCfg, resDolar, resDinero] = await Promise.all([
+      const [resCaja, resCfg, resDinero] = await Promise.all([
         fetchCompartido("/cashflow/resumen"),
         fetchCompartido("/api/negocio/config"),
-        fetchCompartido("/api/cotizacion-dolar"),
         fetchCompartido("/api/dinero"),
       ]);
       if (resCaja.ok) setResumen(resCaja.body as ResumenCashflow);
       if (resCfg.ok) setCfgPayload(resCfg.body as ConfigPayload);
       if (resDinero.ok) setDinero(resDinero.body as PayloadDinero);
-      if (resDolar.ok) {
-        const v = Number((resDolar.body as { blue_venta?: number })?.blue_venta);
-        setBlueVenta(Number.isFinite(v) && v > 0 ? v : null);
-      }
       if (!resCaja.ok && !resCfg.ok) setError("No se pudo cargar la salud del negocio.");
       else setError(null);
     } catch (e) {
@@ -277,56 +261,6 @@ export function ModuloSaludNegocio({ className }: { className?: string }) {
 
   const cfg = cfgPayload?.config ?? null;
   const retiros = cfgPayload?.retiros ?? null;
-
-  const cajaLibre = useMemo(() => {
-    if (!cfg) return null;
-    // cajaObras neta de retiros: el saldo de obras solo mira la libreta, así
-    // que lo que Eze ya se llevó (retiros_socio) hay que descontarlo acá.
-    const cajaObras = cajaEmpresaPesos(
-      resumen?.saldo_caja_total ?? 0,
-      retiros?.neto_total ?? 0
-    );
-    const proyectado = salud?.porCobrarTotal ?? 0;
-    return calcularCajaLibre(cfg, cajaObras, proyectado);
-  }, [cfg, resumen, salud, retiros]);
-
-  // Caja en dólares = patrimonio USD + cobros de obra en USD (adelantos en billete).
-  // Se valúa al blue venta del día; flota con la cotización, NO se cuenta en pesos.
-  const usd =
-    (cfg?.patrimonio_neto_inicial_usd ?? 0) + (resumen?.caja_obras_usd ?? 0);
-  const usdEnPesos = blueVenta && usd > 0 ? usd * blueVenta : null;
-
-  function abrirEdicion() {
-    if (cfg) {
-      setFPatrim(cfg.patrimonio_neto_inicial_ars ? formatArsEnteroDesdeDigitos(String(Math.round(cfg.patrimonio_neto_inicial_ars))) : "");
-      setFPatrimUsd(cfg.patrimonio_neto_inicial_usd ? String(Math.round(cfg.patrimonio_neto_inicial_usd)) : "");
-      setFSueldo(cfg.sueldo_mensual_objetivo_ars ? formatArsEnteroDesdeDigitos(String(Math.round(cfg.sueldo_mensual_objetivo_ars))) : "");
-      setFFijos(cfg.costos_fijos_mensuales_ars ? formatArsEnteroDesdeDigitos(String(Math.round(cfg.costos_fijos_mensuales_ars))) : "");
-      setFComprometido(cfg.comprometido_obras_ars ? formatArsEnteroDesdeDigitos(String(Math.round(cfg.comprometido_obras_ars))) : "");
-    }
-    setEditando(true);
-  }
-
-  async function guardarConfig() {
-    setGuardando(true);
-    try {
-      await fetch("/api/negocio/config", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          patrimonio_neto_inicial_ars: parseFormattedNumber(fPatrim),
-          patrimonio_neto_inicial_usd: parseFormattedNumber(fPatrimUsd),
-          sueldo_mensual_objetivo_ars: parseFormattedNumber(fSueldo),
-          costos_fijos_mensuales_ars: parseFormattedNumber(fFijos),
-          comprometido_obras_ars: parseFormattedNumber(fComprometido),
-        }),
-      });
-      setEditando(false);
-      await cargar();
-    } finally {
-      setGuardando(false);
-    }
-  }
 
   async function guardarRetiro() {
     const monto = parseFormattedNumber(rMonto);
@@ -496,7 +430,7 @@ export function ModuloSaludNegocio({ className }: { className?: string }) {
           </div>
 
           {/* ── 3. CASHFLOW DEL MES + SISTEMA DE PLATA ── */}
-          <div className="grid grid-cols-1 gap-6 border-t border-zinc-950/[0.06] pt-6 lg:grid-cols-2 dark:border-white/[0.06]">
+          <div className="grid grid-cols-1 gap-6 border-t border-zinc-950/[0.06] pt-6 dark:border-white/[0.06]">
             {/* 3a. Movimientos del mes + retiros de Eze */}
             <div>
               <div className="flex items-center justify-between">
@@ -602,143 +536,8 @@ export function ModuloSaludNegocio({ className }: { className?: string }) {
               </ul>
             </div>
 
-            {/* 3b. Sistema de plata: patrimonio pesos/USD + caja libre real */}
-            <div>
-              <div className="flex items-center justify-between">
-                <h3 className="text-[13px] font-semibold text-zinc-800 dark:text-zinc-100">
-                  Mi plata vs. la empresa
-                </h3>
-                {!editando && (
-                  <button
-                    type="button"
-                    onClick={abrirEdicion}
-                    className="text-[11px] font-medium text-cyan-700 transition-colors hover:text-cyan-800 dark:text-cyan-400"
-                  >
-                    Ajustar
-                  </button>
-                )}
-              </div>
-
-              {!cfg?.configurado && !editando && (
-                <p className="mt-2 rounded-lg bg-amber-50 px-3 py-2 text-[11px] text-amber-700 dark:bg-amber-500/10 dark:text-amber-300">
-                  Falta fijar el patrimonio neto y el sueldo. Tocá <b>Ajustar</b> para
-                  cargar los números base.
-                </p>
-              )}
-
-              {editando ? (
-                <div className="mt-3 space-y-3">
-                  <div className="grid grid-cols-2 gap-2">
-                    <div>
-                      <label className="text-[11px] text-zinc-500 dark:text-zinc-400">Patrimonio en pesos</label>
-                      <MoneyInput value={fPatrim} onChange={setFPatrim} placeholder="0" />
-                    </div>
-                    <div>
-                      <label className="text-[11px] text-zinc-500 dark:text-zinc-400">Patrimonio en dólares</label>
-                      <div className="flex items-center rounded-lg border border-zinc-300 bg-white px-2.5 py-1.5 focus-within:border-cyan-500 dark:border-white/15 dark:bg-white/[0.04]">
-                        <span className="mr-1 text-[12px] text-zinc-400">US$</span>
-                        <input
-                          inputMode="numeric"
-                          value={fPatrimUsd}
-                          placeholder="0"
-                          onChange={(e) => setFPatrimUsd(e.target.value.replace(/[^\d]/g, ""))}
-                          className="w-full bg-transparent text-[13px] tabular-nums text-zinc-900 outline-none dark:text-zinc-50"
-                        />
-                      </div>
-                    </div>
-                  </div>
-                  <div>
-                    <label className="text-[11px] text-zinc-500 dark:text-zinc-400">Sueldo mensual objetivo (lo que te cobrás)</label>
-                    <MoneyInput value={fSueldo} onChange={setFSueldo} placeholder="0" />
-                  </div>
-                  <div>
-                    <label className="text-[11px] text-zinc-500 dark:text-zinc-400">Costos fijos del mes (monotributo + contador)</label>
-                    <MoneyInput value={fFijos} onChange={setFFijos} placeholder="0" />
-                  </div>
-                  <div>
-                    <label className="text-[11px] text-zinc-500 dark:text-zinc-400">Comprometido en obras (lo que falta gastar para terminarlas)</label>
-                    <MoneyInput value={fComprometido} onChange={setFComprometido} placeholder="0" />
-                  </div>
-                  <div className="flex gap-2">
-                    <button
-                      type="button"
-                      disabled={guardando}
-                      onClick={guardarConfig}
-                      className="flex-1 rounded-lg bg-cyan-600 py-1.5 text-[13px] font-semibold text-white transition-colors hover:bg-cyan-700 disabled:opacity-40"
-                    >
-                      {guardando ? "Guardando…" : "Guardar"}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setEditando(false)}
-                      className="rounded-lg border border-zinc-300 px-3 py-1.5 text-[13px] text-zinc-600 dark:border-white/15 dark:text-zinc-300"
-                    >
-                      Cancelar
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <div className="mt-3 space-y-3">
-                  <div className="flex items-baseline justify-between gap-2">
-                    <span className="text-[12px] text-zinc-500 dark:text-zinc-400">Patrimonio base</span>
-                    <span className="text-right">
-                      <span className="block text-[15px] font-semibold tabular-nums text-zinc-900 dark:text-zinc-50">
-                        {cfg && cfg.patrimonio_neto_inicial_ars > 0 ? formatMoneyInt(cfg.patrimonio_neto_inicial_ars) : "a fijar"}
-                      </span>
-                      {usd > 0 && (
-                        <span className="block text-[12px] tabular-nums text-zinc-500 dark:text-zinc-400">
-                          <span className="text-zinc-400 dark:text-zinc-500">Caja en dólares </span>
-                          US$ {formatUsdInt(usd)}
-                          {usdEnPesos != null && (
-                            <span className="text-emerald-600 dark:text-emerald-400">
-                              {" "}≈ {formatMoneyInt(usdEnPesos)}
-                            </span>
-                          )}
-                        </span>
-                      )}
-                      {usdEnPesos != null && blueVenta != null && (
-                        <span className="block text-[10px] tabular-nums text-zinc-400 dark:text-zinc-500">
-                          blue venta ${formatUsdInt(blueVenta)}
-                        </span>
-                      )}
-                    </span>
-                  </div>
-
-                  {/* Caja libre real — el freno del "no me paso" */}
-                  {cajaLibre && (
-                    <div
-                      className={`rounded-xl border px-3 py-2.5 ${
-                        cajaLibre.cajaLibre >= 0
-                          ? "border-emerald-200 bg-emerald-50/60 dark:border-emerald-500/20 dark:bg-emerald-500/[0.06]"
-                          : "border-red-300 bg-red-50/70 dark:border-red-500/30 dark:bg-red-500/[0.07]"
-                      }`}
-                    >
-                      <p className={`text-[10px] uppercase tracking-wider ${cajaLibre.cajaLibre >= 0 ? "text-emerald-700 dark:text-emerald-400" : "text-red-700 dark:text-red-400"}`}>
-                        {cajaLibre.cajaLibre >= 0 ? "Caja libre real — podés mover esto" : "Caja libre real — te estás pasando"}
-                      </p>
-                      <p className={`mt-0.5 text-[22px] font-semibold tabular-nums ${cajaLibre.cajaLibre >= 0 ? "text-emerald-700 dark:text-emerald-300" : "text-red-600 dark:text-red-400"}`}>
-                        {formatMoneyInt(cajaLibre.cajaLibre)}
-                      </p>
-                      <div className="mt-2 space-y-1 text-[11px] text-zinc-600 dark:text-zinc-300">
-                        <DescuentoLinea label="Patrimonio en pesos" valor={cajaLibre.patrimonioPesos} signo="" />
-                        <DescuentoLinea
-                          label="Caja de obras (cobrado sin retirar)"
-                          valor={Math.abs(cajaLibre.cajaObras)}
-                          signo={cajaLibre.cajaObras < 0 ? "−" : "+"}
-                        />
-                        <DescuentoLinea label="Comprometido en obras" valor={cajaLibre.comprometidoObras} signo="−" />
-                        <DescuentoLinea label="Costos fijos del mes" valor={cajaLibre.costosFijosMes} signo="−" />
-                      </div>
-                      {cajaLibre.proyectadoCobrar > 0 && (
-                        <p className="mt-2 border-t border-zinc-950/[0.06] pt-2 text-[11px] text-cyan-700 dark:border-white/[0.06] dark:text-cyan-300">
-                          + {formatMoneyInt(cajaLibre.proyectadoCobrar)} por cobrar — en camino, todavía no disponible
-                        </p>
-                      )}
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
+            {/* "Mi plata vs. la empresa" (patrimonio config + caja libre)
+                BORRADO 08/07 noche: dato erróneo — la posta vive en Dinero. */}
           </div>
         </div>
       )}
@@ -746,22 +545,3 @@ export function ModuloSaludNegocio({ className }: { className?: string }) {
   );
 }
 
-function DescuentoLinea({
-  label,
-  valor,
-  signo,
-}: {
-  label: string;
-  valor: number;
-  signo: string;
-}) {
-  return (
-    <div className="flex items-center justify-between gap-2">
-      <span className="min-w-0 truncate">{label}</span>
-      <span className="shrink-0 tabular-nums">
-        {signo}
-        {formatMoneyInt(valor)}
-      </span>
-    </div>
-  );
-}
