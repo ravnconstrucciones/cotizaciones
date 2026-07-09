@@ -86,15 +86,15 @@ export type PrecioFechado = {
 
 /**
  * Doble precio por ítem: SISMAT referencia + internet vivo (el que exista).
- * `mercadolibre` es un TERCER precio de REFERENCIA retail (nombre histórico
- * del campo; hoy sale de Easy, o de ML si hay ML_ACCESS_TOKEN — ver retail.ts):
- * NO entra en el total ni dispara alertas — sirve de desempate cuando SISMAT e
- * internet divergen (te dice a cuál le da la razón el mercado).
+ * `retail` es un TERCER precio de REFERENCIA — sale de la cadena grande que es
+ * referencia del rubro (Easy/Prestigio/Blaisten, ver retail.ts): NO entra en el
+ * total ni dispara alertas — sirve de desempate cuando SISMAT e internet
+ * divergen (te dice a cuál le da la razón el mercado).
  */
 export type PrecioItem = {
   sismat?: PrecioFechado;
   internet?: PrecioFechado;
-  mercadolibre?: PrecioFechado;
+  retail?: PrecioFechado;
 };
 
 export type ItemDesglose = {
@@ -189,13 +189,14 @@ export type Divergencia = {
   fuente_sismat: string;
   fuente_internet: string;
   /**
-   * Desempate de MercadoLibre (referencia retail, si se pudo traer): el precio
-   * y a cuál de los dos (SISMAT o internet) se acerca más. Ayuda a decidir
-   * quién tiene razón en una divergencia crítica. `null` = ML no concluye.
+   * Desempate retail (precio de la cadena de referencia del rubro, si se pudo
+   * traer): el precio y a cuál de los dos (SISMAT o internet) se acerca más.
+   * Ayuda a decidir quién tiene razón en una divergencia crítica. `null` = el
+   * retail no concluye.
    */
-  mercadolibre?: number;
-  fuente_mercadolibre?: string;
-  ml_respalda?: "sismat" | "internet" | null;
+  retail?: number;
+  fuente_retail?: string;
+  retail_respalda?: "sismat" | "internet" | null;
 };
 
 /** Datos del documento final (los carga Eze al emitir desde la mesa). */

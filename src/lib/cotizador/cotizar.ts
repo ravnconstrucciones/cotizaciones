@@ -87,13 +87,13 @@ export function cotizar(entrada: EntradaCotizacion): CotizacionCalculada {
     .map((i) => {
       const s = i.precios.sismat!.valor;
       const net = i.precios.internet!.valor;
-      const ml = i.precios.mercadolibre;
-      // ML (retail) como desempate: ¿a cuál se acerca más? Equidistante = null.
-      let mlRespalda: "sismat" | "internet" | null = null;
-      if (ml) {
-        const dS = Math.abs(ml.valor - s);
-        const dN = Math.abs(ml.valor - net);
-        mlRespalda = dS === dN ? null : dS < dN ? "sismat" : "internet";
+      const ret = i.precios.retail;
+      // Retail como desempate: ¿a cuál se acerca más? Equidistante = null.
+      let retailRespalda: "sismat" | "internet" | null = null;
+      if (ret) {
+        const dS = Math.abs(ret.valor - s);
+        const dN = Math.abs(ret.valor - net);
+        retailRespalda = dS === dN ? null : dS < dN ? "sismat" : "internet";
       }
       return {
         item: i.nombre,
@@ -106,11 +106,11 @@ export function cotizar(entrada: EntradaCotizacion): CotizacionCalculada {
             : ("marca" as const),
         fuente_sismat: i.precios.sismat!.fuente,
         fuente_internet: i.precios.internet!.fuente,
-        ...(ml
+        ...(ret
           ? {
-              mercadolibre: ml.valor,
-              fuente_mercadolibre: ml.fuente,
-              ml_respalda: mlRespalda,
+              retail: ret.valor,
+              fuente_retail: ret.fuente,
+              retail_respalda: retailRespalda,
             }
           : {}),
       };

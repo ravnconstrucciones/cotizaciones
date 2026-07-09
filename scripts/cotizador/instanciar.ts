@@ -39,14 +39,14 @@ async function enriquecerConML(entrada: EntradaCotizacion): Promise<void> {
     for (const item of etapa.items ?? []) {
       if (item.tipo !== "material") continue;
       const p = entrada.precios?.[item.nombre];
-      if (p && p.sismat && p.internet && !p.mercadolibre) nombres.add(item.nombre);
+      if (p && p.sismat && p.internet && !p.retail) nombres.add(item.nombre);
     }
   }
   if (nombres.size === 0) return;
   await Promise.all(
     [...nombres].map(async (nombre) => {
-      const ml = await fetchPrecioRetail(nombre, hoy);
-      if (ml) entrada.precios[nombre].mercadolibre = ml;
+      const ret = await fetchPrecioRetail(nombre, hoy);
+      if (ret) entrada.precios[nombre].retail = ret;
     })
   );
 }

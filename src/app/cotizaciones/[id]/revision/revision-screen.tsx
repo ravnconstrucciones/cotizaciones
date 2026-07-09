@@ -318,7 +318,7 @@ export function RevisionScreen({ id }: { id: string }) {
                         <th className="py-2 pr-3 text-right">Cant.</th>
                         <th className="py-2 pr-3 text-right">SISMAT</th>
                         <th className="py-2 pr-3 text-right">Internet</th>
-                        <th className="py-2 pr-3 text-right">ML ref.</th>
+                        <th className="py-2 pr-3 text-right">Retail</th>
                         <th className="py-2 pr-3 text-right">Δ%</th>
                         <th className="py-2 text-right">Subtotal</th>
                       </tr>
@@ -350,7 +350,7 @@ export function RevisionScreen({ id }: { id: string }) {
                               <PrecioCelda precio={it.precios.internet} />
                             </td>
                             <td className="py-2 pr-3 text-right tabular-nums text-cdm-muted">
-                              <PrecioCelda precio={it.precios.mercadolibre} />
+                              <PrecioCelda precio={it.precios.retail} />
                             </td>
                             <td
                               className={`py-2 pr-3 text-right tabular-nums ${divergente ? "font-semibold text-red-400" : "text-cdm-muted"}`}
@@ -474,18 +474,18 @@ export function RevisionScreen({ id }: { id: string }) {
                                 <span className="opacity-70">· {d.fuente_internet}</span>
                               </span>
                             </div>
-                            {d.mercadolibre != null && (
+                            {d.retail != null && (
                               <p className="mt-1.5 text-[11px] text-cdm-muted">
                                 <span className="font-mono-hud uppercase tracking-[0.12em] text-cdm-accent-2">
-                                  ML ref.
+                                  {d.fuente_retail ?? "Retail"}
                                 </span>{" "}
-                                {formatMoneyInt(d.mercadolibre)}
-                                {d.ml_respalda ? (
+                                {formatMoneyInt(d.retail)}
+                                {d.retail_respalda ? (
                                   <span className="opacity-80">
                                     {" "}
                                     — el mercado le da la razón a{" "}
                                     <span className="font-semibold text-cdm-fg">
-                                      {d.ml_respalda === "sismat" ? "SISMAT" : "internet"}
+                                      {d.retail_respalda === "sismat" ? "SISMAT" : "internet"}
                                     </span>
                                   </span>
                                 ) : (

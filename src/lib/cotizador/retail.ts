@@ -1,34 +1,35 @@
 /**
  * Referencia RETAIL por ítem — la tercera pata de la curva de precios.
  *
- * Se usa SOLO como desempate/referencia en la mesa (ver PrecioItem.mercadolibre
- * en tipos.ts — el campo conserva el nombre histórico, hoy guarda la referencia
- * retail venga de donde venga): no entra en el total ni dispara alertas.
- * Tomamos la MEDIANA de los primeros resultados para aguantar outliers
- * (accesorios, muestras, combos).
+ * Se usa SOLO como desempate/referencia en la mesa (ver PrecioItem.retail en
+ * tipos.ts): no entra en el total ni dispara alertas. Tomamos la MEDIANA de los
+ * primeros resultados para aguantar outliers (accesorios, muestras, combos).
  *
- * Fuentes, en orden:
- * 1. MercadoLibre API oficial — SOLO si hay `ML_ACCESS_TOKEN` (el search
- *    anónimo devuelve 403 desde jun 2026, y scrapear el listado público
- *    tampoco va: sirve página anti-bot — verificado 2026-07-01). Queda
- *    dormido: sin token no se llama. Para activarlo: app gratis en
- *    developers.mercadolibre.com.ar.
- * 2. Cadena VTEX según RUBRO — la fuente automática por defecto. Cada gran
- *    cadena expone el MISMO endpoint de catálogo VTEX (JSON público, sin auth,
- *    precio del día), así que enrutamos el material a la cadena que es
- *    referencia real de su rubro (verificado en vivo 2026-07-09):
- *      · pintura            → Prestigio
- *      · cerámico / baño     → Blaisten (porcelanato, grifería, sanitarios)
- *      · resto (obra gris,
- *        electricidad,
- *        plomería, etc.)     → Easy
- *    Un material que no matchea ningún rubro cae a Easy, que es la más amplia.
+ * Cómo sale el precio:
+ *   Cada gran cadena expone el MISMO endpoint de catálogo VTEX (JSON público,
+ *   sin auth, precio del día), así que enrutamos el material a la cadena que es
+ *   referencia real de su rubro (verificado en vivo 2026-07-09):
+ *     · pintura            → Prestigio (Colorshop como 2ª para comparar)
+ *     · cerámico / baño     → Blaisten (porcelanato, grifería, sanitarios)
+ *     · resto (obra gris,
+ *       electricidad,
+ *       plomería, gas)      → Easy
+ *   Un material que no matchea ningún rubro cae a Easy, que es la más amplia.
+ *
+ * Rubros pendientes de cadena especializada (hoy caen a Easy, que cubre lo común
+ * — se suma acá una cadena propia cuando encontremos una VTEX pinchable y
+ * verificada, NO se inventa):
+ *     · artefactos de electricidad (tableros, térmicas, artefactos de luz)
+ *     · artefactos de plomería (bombas, tanques, termotanques finos)
+ *     · artefactos de gas (calefones, calderas, estufas)
+ *
+ * MercadoLibre quedó descartado (API sin token = 403, scrapeo = página anti-bot,
+ * precios de reventa/combos que no son referencia — verificado 2026-07-09).
  *
  * Cualquier falla devuelve null y el cotizador sigue con SISMAT+internet.
  */
 import type { PrecioFechado } from "./tipos";
 
-const ML_ENDPOINT = "https://api.mercadolibre.com/sites/MLA/search";
 const TIMEOUT_MS = 6000;
 const MAX_RESULTADOS = 12;
 const UA =
@@ -43,20 +44,30 @@ export type CadenaId = "easy" | "prestigio" | "colorshop" | "blaisten";
 /**
  * Cadenas VTEX verificadas en vivo (2026-07-09). Todas devuelven el mismo
  * JSON de catálogo, así que las lee el mismo parser (parsePrecioVtex).
- * `colorshop` queda cableada como segunda opción de pintura (más promo) para
- * comparar en la capa de UI; hoy el ruteo de pintura usa Prestigio.
+ * `nombre` es la etiqueta corta para la UI; `fuente` es la traza que queda
+ * guardada en el precio (de dónde salió).
  */
-export const CADENAS: Record<CadenaId, { host: string; fuente: string }> = {
-  easy: { host: "https://www.easy.com.ar", fuente: "Easy (ref. retail)" },
+export const CADENAS: Record<
+  CadenaId,
+  { nombre: string; host: string; fuente: string }
+> = {
+  easy: {
+    nombre: "Easy",
+    host: "https://www.easy.com.ar",
+    fuente: "Easy (ref. retail)",
+  },
   prestigio: {
+    nombre: "Prestigio",
     host: "https://www.prestigio.com.ar",
     fuente: "Prestigio (ref. retail)",
   },
   colorshop: {
+    nombre: "Colorshop",
     host: "https://www.colorshop.com.ar",
     fuente: "Colorshop (ref. retail)",
   },
   blaisten: {
+    nombre: "Blaisten",
     host: "https://www.blaisten.com.ar",
     fuente: "Blaisten (ref. retail)",
   },
@@ -116,7 +127,16 @@ const RUBROS: Array<{ cadena: CadenaId; claves: string[] }> = [
   },
 ];
 
-type MLResp = { results?: Array<{ price?: unknown }> };
+/**
+ * Rubros que vale la pena COMPARAR entre varias cadenas (lo consume la capa 3).
+ * Clave = cadena principal que devuelve elegirCadena; valor = lista de cadenas a
+ * mostrar lado a lado. Pintura se compara Prestigio vs Colorshop (dos
+ * pinturerías, promos distintas). El resto usa solo su cadena principal.
+ */
+const COMPARACION: Partial<Record<CadenaId, CadenaId[]>> = {
+  prestigio: ["prestigio", "colorshop"],
+};
+
 type VtexProducto = {
   items?: Array<{
     sellers?: Array<{
@@ -147,6 +167,15 @@ export function elegirCadena(query: string): CadenaId {
   return "easy";
 }
 
+/**
+ * Cadenas a comparar para un material (capa 3). Devuelve la principal + las
+ * alternativas de su rubro; si no hay comparación definida, solo la principal.
+ */
+export function cadenasComparacion(query: string): CadenaId[] {
+  const principal = elegirCadena(query);
+  return COMPARACION[principal] ?? [principal];
+}
+
 /** Mediana de una lista de precios ya filtrados. Null si está vacía. */
 function mediana(precios: number[]): number | null {
   if (precios.length === 0) return null;
@@ -155,17 +184,6 @@ function mediana(precios: number[]): number | null {
   return orden.length % 2 === 1
     ? orden[mid]
     : Math.round((orden[mid - 1] + orden[mid]) / 2);
-}
-
-/** Mediana de los precios válidos de la respuesta ML. Null si no hay ninguno. */
-export function parsePrecioML(json: unknown, max = MAX_RESULTADOS): number | null {
-  const results = (json as MLResp | null)?.results;
-  if (!Array.isArray(results)) return null;
-  const precios = results
-    .slice(0, max)
-    .map((r) => Number(r?.price))
-    .filter((p) => Number.isFinite(p) && p > 0);
-  return mediana(precios);
 }
 
 /**
@@ -185,9 +203,6 @@ export function parsePrecioVtex(json: unknown, max = MAX_RESULTADOS): number | n
   return mediana(precios);
 }
 
-/** Alias histórico: el parser VTEX nació leyendo Easy. */
-export const parsePrecioEasy = parsePrecioVtex;
-
 async function fetchJson(
   url: string,
   headers: Record<string, string>,
@@ -206,6 +221,21 @@ async function fetchJson(
   }
 }
 
+/** Precio de una cadena puntual para `query`. Null ante cualquier falla. */
+async function fetchPrecioCadena(
+  cadena: CadenaId,
+  query: string,
+  fetchImpl: typeof fetch
+): Promise<number | null> {
+  const { host } = CADENAS[cadena];
+  const json = await fetchJson(
+    `${host}${VTEX_PATH}?ft=${encodeURIComponent(query)}&_from=0&_to=${MAX_RESULTADOS - 1}`,
+    { Accept: "application/json", "User-Agent": UA },
+    fetchImpl
+  );
+  return parsePrecioVtex(json);
+}
+
 /**
  * Trae un precio de referencia retail para `query`, de la cadena que es
  * referencia de su rubro (ver elegirCadena). Devuelve null ante cualquier
@@ -219,28 +249,44 @@ export async function fetchPrecioRetail(
 ): Promise<PrecioFechado | null> {
   const q = query.trim();
   if (!q) return null;
-
-  // 1. MercadoLibre, solo con token (sin token es 403 seguro: ni gastamos la llamada).
-  const token = process.env.ML_ACCESS_TOKEN;
-  if (token) {
-    const json = await fetchJson(
-      `${ML_ENDPOINT}?q=${encodeURIComponent(q)}&limit=${MAX_RESULTADOS}`,
-      { Accept: "application/json", Authorization: `Bearer ${token}` },
-      fetchImpl
-    );
-    const valor = parsePrecioML(json);
-    if (valor != null)
-      return { valor, fuente: "MercadoLibre (ref. retail)", fecha: hoy };
-  }
-
-  // 2. Cadena VTEX según rubro del material (default: Easy).
-  const cadena = CADENAS[elegirCadena(q)];
-  const json = await fetchJson(
-    `${cadena.host}${VTEX_PATH}?ft=${encodeURIComponent(q)}&_from=0&_to=${MAX_RESULTADOS - 1}`,
-    { Accept: "application/json", "User-Agent": UA },
-    fetchImpl
-  );
-  const valor = parsePrecioVtex(json);
+  const cadena = elegirCadena(q);
+  const valor = await fetchPrecioCadena(cadena, q, fetchImpl);
   if (valor == null) return null;
-  return { valor, fuente: cadena.fuente, fecha: hoy };
+  return { valor, fuente: CADENAS[cadena].fuente, fecha: hoy };
+}
+
+/** Precio vivo de una cadena, con su traza (de dónde y de cuándo). */
+export type PrecioCadena = {
+  cadena: CadenaId;
+  nombre: string;
+  fuente: string;
+  precio: PrecioFechado | null; // null = esa cadena no devolvió dato
+};
+
+/**
+ * Precio de `query` en TODAS las cadenas que vale comparar para su rubro
+ * (capa 3: panel de precios vivos). Cada entrada trae de qué cadena salió y con
+ * qué fecha; `precio: null` marca la cadena que no tenía el ítem. Nunca lanza:
+ * las cadenas que fallan quedan en null.
+ */
+export async function fetchPreciosComparados(
+  query: string,
+  hoy: string,
+  fetchImpl: typeof fetch = fetch
+): Promise<PrecioCadena[]> {
+  const q = query.trim();
+  if (!q) return [];
+  const ids = cadenasComparacion(q);
+  return Promise.all(
+    ids.map(async (cadena): Promise<PrecioCadena> => {
+      const { nombre, fuente } = CADENAS[cadena];
+      const valor = await fetchPrecioCadena(cadena, q, fetchImpl);
+      return {
+        cadena,
+        nombre,
+        fuente,
+        precio: valor == null ? null : { valor, fuente, fecha: hoy },
+      };
+    })
+  );
 }
