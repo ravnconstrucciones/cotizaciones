@@ -23,6 +23,7 @@ import job_dolar
 import job_inbox
 import job_maestro
 import job_noticias
+import job_precios
 import job_resumen
 import job_salud
 import job_sismat
@@ -40,6 +41,7 @@ JOBS = [
     ("resumen",  job_resumen.correr,  lambda u, a: vencio_diario(u, a, hora_minima=7)),
     ("noticias", job_noticias.correr, lambda u, a: vencio_diario(u, a, hora_minima=7)),
     ("dolar",   job_dolar.correr,   lambda u, a: vencio_diario(u, a, hora_minima=8)),
+    ("precios", job_precios.correr, lambda u, a: vencio_diario(u, a, hora_minima=8)),
     ("sismat",  job_sismat.correr,  lambda u, a: vencio_mensual(u, a, dia_minimo=2, hora_minima=8)),
     ("maestro", job_maestro.correr, lambda u, a: vencio_mensual(u, a, dia_minimo=2, hora_minima=9)),
     ("top30",   job_top30.correr,   lambda u, a: vencio_semanal(u, a, hora_minima=8)),
