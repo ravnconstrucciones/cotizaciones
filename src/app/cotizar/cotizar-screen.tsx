@@ -69,9 +69,20 @@ function haceCuanto(iso: string): string {
 function fuentesDeItem(precios: PrecioItem): { label: string; fuente: string; fecha: string }[] {
   const out: { label: string; fuente: string; fecha: string }[] = [];
   if (precios.sismat) out.push({ label: "SISMAT", fuente: precios.sismat.fuente, fecha: precios.sismat.fecha });
-  if (precios.internet)
-    out.push({ label: "Internet", fuente: precios.internet.fuente, fecha: precios.internet.fecha });
-  if (precios.retail) out.push({ label: "Retail", fuente: precios.retail.fuente, fecha: precios.retail.fecha });
+  if (
+    precios.internet &&
+    precios.retail &&
+    precios.internet.fuente === precios.retail.fuente &&
+    precios.internet.fecha === precios.retail.fecha
+  ) {
+    // combinarPrecios copió retail→internet (mismo precio, misma fuente y fecha): es UNA
+    // sola cotización, no dos independientes — mostrarla una vez sola, como "Retail".
+    out.push({ label: "Retail", fuente: precios.retail.fuente, fecha: precios.retail.fecha });
+  } else {
+    if (precios.internet)
+      out.push({ label: "Internet", fuente: precios.internet.fuente, fecha: precios.internet.fecha });
+    if (precios.retail) out.push({ label: "Retail", fuente: precios.retail.fuente, fecha: precios.retail.fecha });
+  }
   return out;
 }
 
@@ -156,6 +167,14 @@ export function CotizarScreen({
   const [resultado, setResultado] = useState<TakeoffOk | null>(null);
   /** Guardia anti-carrera: solo el pedido más reciente puede escribir el resultado. */
   const calculoSeq = useRef(0);
+  /**
+   * Última receta seleccionada, en un ref (no state) para que closures viejas de
+   * calcular()/refrescarPrecios() la lean actualizada. Un calcular() encadenado desde un
+   * refrescarPrecios() viejo puede "ganar" la carrera de calculoSeq igual (arranca su propio
+   * ++calculoSeq.current al volver), así que el número de secuencia solo no alcanza: hay que
+   * confirmar además que la receta capturada al arrancar siga siendo la que está en pantalla.
+   */
+  const recetaNombreRef = useRef<string>("");
 
   const receta = useMemo(
     () => recetas.find((r) => r.nombre === recetaNombre) ?? null,
@@ -165,6 +184,7 @@ export function CotizarScreen({
   const cambiarReceta = useCallback((nombre: string) => {
     // Invalida cualquier cálculo en vuelo: su respuesta ya no corresponde a esta receta.
     calculoSeq.current++;
+    recetaNombreRef.current = nombre;
     setRecetaNombre(nombre);
     setValores({});
     setFaltantes(new Set());
@@ -185,6 +205,7 @@ export function CotizarScreen({
 
   const calcular = useCallback(async () => {
     if (!receta) return;
+    const recetaEnCurso = receta.nombre;
     const miSeq = ++calculoSeq.current;
     setCalculando(true);
     setError(null);
@@ -199,8 +220,12 @@ export function CotizarScreen({
         | { error: string; faltan?: string[] }
         | null;
       // Si mientras esperábamos esta respuesta se disparó un pedido más nuevo
-      // (Calcular/Refrescar), esta respuesta quedó obsoleta: no pisar el resultado fresco.
-      if (miSeq !== calculoSeq.current) return;
+      // (Calcular/Refrescar) O el usuario cambió de receta, esta respuesta quedó obsoleta.
+      // El chequeo de secuencia solo no alcanza: un calcular() encadenado desde un
+      // refrescarPrecios() viejo toma su propio ++calculoSeq.current al volver y "gana" la
+      // carrera igual, aunque siga cerrado sobre la receta vieja — por eso se confirma también
+      // contra recetaNombreRef (no contra el state capturado, que un closure viejo vería viejo).
+      if (miSeq !== calculoSeq.current || recetaNombreRef.current !== recetaEnCurso) return;
       if (!res.ok) {
         if (json && json.error === "faltan_parametros" && Array.isArray(json.faltan)) {
           // No es un error del sistema: la receta está pidiendo datos.
@@ -213,7 +238,7 @@ export function CotizarScreen({
       setFaltantes(new Set());
       setResultado(json as TakeoffOk);
     } catch (e) {
-      if (miSeq !== calculoSeq.current) return;
+      if (miSeq !== calculoSeq.current || recetaNombreRef.current !== recetaEnCurso) return;
       setError(e instanceof Error ? e.message : "Error al calcular el take-off");
     } finally {
       if (miSeq === calculoSeq.current) setCalculando(false);
@@ -222,6 +247,7 @@ export function CotizarScreen({
 
   const refrescarPrecios = useCallback(async () => {
     if (!receta) return;
+    const recetaEnCurso = receta.nombre;
     setRefrescando(true);
     setError(null);
     setRefrescoMsg(null);
@@ -235,6 +261,11 @@ export function CotizarScreen({
         | (RefreshResp & { error?: undefined })
         | { error: string }
         | null;
+      // Si el usuario cambió de receta mientras el refresh estaba en vuelo, esta respuesta ya
+      // no corresponde a lo que está en pantalla — descartarla en silencio (el calcular()
+      // encadenado de abajo también se descartaría solo por su propio chequeo, pero cortamos
+      // acá antes para no mostrar el mensaje de "actualizados" de la receta vieja).
+      if (recetaNombreRef.current !== recetaEnCurso) return;
       if (!res.ok) throw new Error((json as { error?: string })?.error ?? "Error al refrescar precios");
       const r = json as RefreshResp;
       setRefrescoMsg(
@@ -243,6 +274,7 @@ export function CotizarScreen({
       // Recalcular automáticamente con los precios frescos.
       await calcular();
     } catch (e) {
+      if (recetaNombreRef.current !== recetaEnCurso) return;
       setError(e instanceof Error ? e.message : "Error al refrescar precios");
     } finally {
       setRefrescando(false);
@@ -252,6 +284,12 @@ export function CotizarScreen({
   const desglose = resultado?.desglose ?? null;
   const revision = resultado?.revision ?? null;
   const etapas = useMemo(() => (desglose ? agruparPorEtapa(desglose.items) : []), [desglose]);
+  // Ley 1 (nunca inventar): si algún ítem quedó sin precio, el total sumado NO es el total real
+  // del trabajo — es un total parcial. Se marca en vez de mostrarlo como si estuviera completo.
+  const hayItemsSinPrecio = useMemo(
+    () => (desglose ? desglose.items.some((i) => i.sin_precio) : false),
+    [desglose]
+  );
 
   return (
     <main className="font-grotesk relative min-h-screen bg-cdm-bg px-4 pb-24 pt-10 text-cdm-fg sm:px-6">
@@ -370,6 +408,7 @@ export function CotizarScreen({
             <header className="mb-2">
               <CifraHeroica className="text-[clamp(24px,2.2vw,36px)] leading-none">
                 {formatMoneyInt(resultado.total_min)} – {formatMoneyInt(resultado.total_max)}
+                {hayItemsSinPrecio ? "*" : ""}
               </CifraHeroica>
             </header>
 
@@ -461,6 +500,7 @@ export function CotizarScreen({
                   <dd className="tabular-nums">
                     {formatMoneyInt(desglose.totales.materiales_min)} –{" "}
                     {formatMoneyInt(desglose.totales.materiales_max)}
+                    {hayItemsSinPrecio ? "*" : ""}
                   </dd>
                 </div>
                 <div className="flex justify-between">
@@ -468,6 +508,7 @@ export function CotizarScreen({
                   <dd className="tabular-nums">
                     {formatMoneyInt(desglose.totales.mano_de_obra_min)} –{" "}
                     {formatMoneyInt(desglose.totales.mano_de_obra_max)}
+                    {hayItemsSinPrecio ? "*" : ""}
                   </dd>
                 </div>
                 <div className="flex justify-between">
@@ -485,6 +526,7 @@ export function CotizarScreen({
                   <dd className="font-medium tabular-nums">
                     {formatMoneyInt(desglose.totales.total_min)} –{" "}
                     {formatMoneyInt(desglose.totales.total_max)}
+                    {hayItemsSinPrecio ? "*" : ""}
                   </dd>
                 </div>
                 <div className="flex justify-between text-cdm-muted">
@@ -495,6 +537,11 @@ export function CotizarScreen({
                   </dd>
                 </div>
               </dl>
+              {hayItemsSinPrecio && (
+                <p className="mt-2 text-[10px] text-amber-300">
+                  * total INCOMPLETO: hay ítems sin precio (no se inventan).
+                </p>
+              )}
             </Seccion>
 
             {revision && (
