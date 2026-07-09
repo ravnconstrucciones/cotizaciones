@@ -125,15 +125,3 @@ export type ObraAvance = {
   creado_at: string;
 };
 
-/** Lectura del vault para el módulo "El cerebro" (lib server-side src/lib/vault.ts). */
-export type CerebroData = {
-  orientacion: { titulo: string; siguientePaso: string | null } | null;
-  patrones: { potencian: string[]; frenan: string[] };
-  foda: {
-    fortalezas: string[];
-    oportunidades: string[];
-    debilidades: string[];
-    amenazas: string[];
-  };
-  error: string | null;
-};

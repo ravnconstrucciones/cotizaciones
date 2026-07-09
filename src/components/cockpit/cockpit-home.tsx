@@ -2,7 +2,6 @@
 
 import { motion } from "framer-motion";
 import { useEntradaAnimada } from "@/hooks/use-entrada-animada";
-import type { CerebroData } from "@/types/centro-mando";
 import { CommandBar } from "./command-bar";
 import { PanelVariantProvider } from "./panel";
 import { ModuloSaludNegocio } from "./modulo-salud-negocio";
@@ -12,7 +11,6 @@ import { ModuloPlata } from "./modulo-plata";
 import { ModuloDinero } from "./modulo-dinero";
 import { ModuloPendientes } from "./modulo-pendientes";
 import { ModuloSemana } from "./modulo-semana";
-import { ModuloCerebro } from "./modulo-cerebro";
 import { ModuloAdn } from "./modulo-adn";
 
 const stagger = {
@@ -30,7 +28,7 @@ const stagger = {
  * carcasa, vía <PanelVariantProvider value="card"> (los Panel internos pasan
  * a piel CARD). Fuente Geist (limpia); la marca "RAVN." sigue Raleway.
  */
-export function CockpitHome({ cerebro }: { cerebro: CerebroData }) {
+export function CockpitHome() {
   const animar = useEntradaAnimada();
   const hoy = new Date().toLocaleDateString("es-AR", {
     weekday: "long",
@@ -94,9 +92,9 @@ export function CockpitHome({ cerebro }: { cerebro: CerebroData }) {
             {/* Fila 1b — DINERO (Fase 3): bolsillos por dueño + libro de deudas */}
             <ModuloDinero className="lg:col-span-12" />
 
-            {/* Fila 2 — Pendientes (sectorizado por área) + Cerebro */}
-            <ModuloPendientes className="lg:col-span-7" />
-            <ModuloCerebro cerebro={cerebro} className="lg:col-span-5" />
+            {/* Fila 2 — Pendientes (sectorizado por área) a todo el ancho.
+                "El cerebro" se borró (pedido 09/07: FODA/Patrones zombie). */}
+            <ModuloPendientes className="lg:col-span-12" />
 
             {/* Fila 3 — Semana (ancha, calendario lun→dom) */}
             <ModuloSemana className="lg:col-span-12" />
