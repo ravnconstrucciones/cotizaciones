@@ -31,9 +31,10 @@ import job_top30
 
 MAX_ERRORES_DIA = 3
 # Peor caso real de UN tick que corre todo lo vencido (domingo con catch-up):
-# inbox (1800s) + top30 (1500s) + auditoria (1200s) + sismat (300s) + dolar ≈ 82 min.
-# 120 min deja margen antes de declarar muerta una corrida viva (un lock "vivo"
-# robado = doble Claude headless + doble push).
+# inbox (1800s) + top30 (1500s) + auditoria (1200s) + precios (600s) +
+# sismat (300s) + dolar ≈ 92 min. 120 min deja margen antes de declarar
+# muerta una corrida viva (un lock "vivo" robado = doble Claude headless +
+# doble push).
 LOCK_VIEJO = 7200
 
 JOBS = [

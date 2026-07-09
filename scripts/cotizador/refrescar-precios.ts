@@ -8,7 +8,7 @@
  *
  * Uso: npx tsx scripts/cotizador/refrescar-precios.ts
  */
-import { createClient } from "@supabase/supabase-js";
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { refrescarRetail } from "../../src/lib/cotizador/precios-cache";
@@ -30,6 +30,34 @@ function cargarEnv(): Record<string, string> {
   return { ...env, ...process.env } as Record<string, string>;
 }
 
+/**
+ * PostgREST (supabase-js) corta cualquier `.select()` sin `.range()` en 1000
+ * filas — SIN error, devuelve 206 "partial content" como si fuera todo. Con
+ * más de 1000 recetas el refresco se comería materiales en silencio (menos
+ * ítems refrescados de los que hay). Paginamos con `.order("id")` +
+ * `.range()` hasta que una página vuelva con menos de 1000 filas (ahí se
+ * acabaron los datos).
+ */
+async function traerTodasLasRecetas(
+  sb: SupabaseClient
+): Promise<Pick<Receta, "etapas">[]> {
+  const TAMANO_PAGINA = 1000;
+  const filas: Pick<Receta, "etapas">[] = [];
+  let desde = 0;
+  for (;;) {
+    const { data, error } = await sb
+      .from("recetas")
+      .select("etapas")
+      .order("id")
+      .range(desde, desde + TAMANO_PAGINA - 1);
+    if (error) throw new Error(error.message);
+    filas.push(...((data ?? []) as Pick<Receta, "etapas">[]));
+    if (!data || data.length < TAMANO_PAGINA) break;
+    desde += TAMANO_PAGINA;
+  }
+  return filas;
+}
+
 async function main(): Promise<void> {
   const env = cargarEnv();
   const url = env.NEXT_PUBLIC_SUPABASE_URL || env.SUPABASE_URL;
@@ -40,15 +68,18 @@ async function main(): Promise<void> {
   }
   const sb = createClient(url, key, { auth: { persistSession: false } });
 
-  const { data: recetas, error } = await sb.from("recetas").select("etapas");
-  if (error) {
-    console.error("Error consultando recetas:", error.message);
+  let recetas: Pick<Receta, "etapas">[];
+  try {
+    recetas = await traerTodasLasRecetas(sb);
+  } catch (e) {
+    console.error("Error consultando recetas:", (e as Error).message);
     process.exit(1);
+    return;
   }
 
   const materiales = new Set<string>();
-  for (const receta of recetas ?? []) {
-    for (const nombre of materialesDeReceta(receta as Pick<Receta, "etapas">)) {
+  for (const receta of recetas) {
+    for (const nombre of materialesDeReceta(receta)) {
       materiales.add(nombre);
     }
   }

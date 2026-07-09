@@ -10,7 +10,7 @@
  *
  * Uso:  npx tsx scripts/cotizador/sembrar-precios.ts
  */
-import { createClient } from "@supabase/supabase-js";
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { Desglose, PrecioItemRow } from "../../src/lib/cotizador/tipos";
@@ -28,6 +28,33 @@ function cargarEnv(): Record<string, string> {
     /* sin .env.local: caemos a process.env */
   }
   return { ...env, ...process.env } as Record<string, string>;
+}
+
+/**
+ * PostgREST (supabase-js) corta cualquier `.select()` sin `.range()` en 1000
+ * filas — SIN error, devuelve 206 "partial content" como si fuera todo. Con
+ * más de 1000 cotizaciones el seed se comería filas en silencio. Paginamos
+ * con `.order("id")` + `.range()` hasta que una página vuelva con menos de
+ * 1000 filas (ahí se acabaron los datos).
+ */
+async function traerTodasLasCotizaciones(
+  sb: SupabaseClient
+): Promise<{ desglose: unknown }[]> {
+  const TAMANO_PAGINA = 1000;
+  const filas: { desglose: unknown }[] = [];
+  let desde = 0;
+  for (;;) {
+    const { data, error } = await sb
+      .from("cotizaciones")
+      .select("desglose")
+      .order("id")
+      .range(desde, desde + TAMANO_PAGINA - 1);
+    if (error) throw new Error(error.message);
+    filas.push(...(data ?? []));
+    if (!data || data.length < TAMANO_PAGINA) break;
+    desde += TAMANO_PAGINA;
+  }
+  return filas;
 }
 
 /** Junta las filas más nuevas por clave item+origen a partir de un desglose. */
@@ -66,17 +93,20 @@ async function main(): Promise<void> {
 
   // Traemos todo `desglose` y filtramos "no vacío" en JS: la igualdad jsonb
   // por filtro PostgREST (`eq={}`) es frágil, y el volumen de cotizaciones es
-  // chico — no hace falta empujar el filtro a la base.
-  const { data: filas, error } = await sb.from("cotizaciones").select("desglose");
-
-  if (error) {
-    console.error("Error consultando cotizaciones:", error.message);
+  // chico — no hace falta empujar el filtro a la base. Sí hace falta paginar
+  // (ver traerTodasLasCotizaciones): el volumen puede pasar de 1000 filas.
+  let filas: { desglose: unknown }[];
+  try {
+    filas = await traerTodasLasCotizaciones(sb);
+  } catch (e) {
+    console.error("Error consultando cotizaciones:", (e as Error).message);
     process.exit(1);
+    return;
   }
 
   const acumulado = new Map<string, PrecioItemRow>();
   let filasConDesglose = 0;
-  for (const fila of filas ?? []) {
+  for (const fila of filas) {
     const desglose = fila.desglose as Desglose | null;
     if (!desglose || !Array.isArray(desglose.items) || desglose.items.length === 0) continue;
     filasConDesglose++;
