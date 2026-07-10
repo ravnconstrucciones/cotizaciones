@@ -10,6 +10,7 @@ import { ModuloObras } from "./modulo-obras";
 import { ModuloPlata } from "./modulo-plata";
 import { ModuloPendientes } from "./modulo-pendientes";
 import { ModuloSemana } from "./modulo-semana";
+import { ModuloGrafo } from "./modulo-grafo";
 
 const stagger = {
   hidden: {},
@@ -96,6 +97,11 @@ export function CockpitHome() {
 
             {/* Fila 3 — Semana (ancha, calendario lun→dom) */}
             <ModuloSemana className="lg:col-span-12" />
+
+            {/* Fila 4 — EL GRAFO: el segundo cerebro visible (pedido 09/07).
+                Reemplaza al "cerebro" zombie borrado: esta data es VIVA
+                (graphify --update la refresca vía Storage). */}
+            <ModuloGrafo className="lg:col-span-12" />
 
             {/* Actividad y Cotizaciones salieron de la home (pedido 02/07):
                 viven en /actividad y /cotizaciones.

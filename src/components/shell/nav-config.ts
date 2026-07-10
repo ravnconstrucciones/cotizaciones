@@ -22,6 +22,7 @@ export const NAV_COCKPIT: NavItem[] = [
   { href: "/proveedores", label: "Proveedores" },
   { href: "/archivados", label: "Archivados y pendientes" },
   { href: "/adn", label: "ADN" },
+  { href: "/grafo", label: "El grafo" },
 ];
 
 export const NAV_DATOS: NavItem[] = [
