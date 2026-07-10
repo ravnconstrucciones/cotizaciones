@@ -6,18 +6,26 @@
  * primeros resultados para aguantar outliers (accesorios, muestras, combos).
  *
  * Cómo sale el precio:
- *   Cada gran cadena expone el MISMO endpoint de catálogo VTEX (JSON público,
- *   sin auth, precio del día), así que enrutamos el material a la cadena que es
- *   referencia real de su rubro (verificado en vivo 2026-07-09):
+ *   Tres tipos de fuente, cada una con su fetcher (verificado en vivo 2026-07-10):
+ *     · VTEX (Easy, Prestigio, Colorshop, Blaisten): endpoint de catálogo JSON
+ *       público, sin auth, precio del día.
+ *     · Sodimac: su API de búsqueda da 403 (anti-bot), pero la página de búsqueda
+ *       renderiza server-side y trae TODO el resultado en el JSON __NEXT_DATA__
+ *       embebido — se lee el HTML y se parsea ese JSON.
+ *     · Tiendanube (Rojas Materiales, corralón): los productos de la búsqueda
+ *       vienen embebidos en el dataLayer del HTML (item_name + price numérico).
+ *   Ruteo del material a la cadena que es referencia real de su rubro:
  *     · pintura            → Prestigio (Colorshop como 2ª para comparar)
  *     · cerámico / baño     → Blaisten (porcelanato, grifería, sanitarios)
- *     · resto (obra gris,
- *       electricidad,
- *       plomería, gas)      → Easy
+ *     · obra gris (cemento,
+ *       cal, arena, hierro) → Rojas Materiales (corralón — es donde se compra de
+ *                             verdad; Easy y Sodimac al lado para comparar)
+ *     · resto (electricidad,
+ *       plomería, gas)      → Easy (Sodimac como 2ª para comparar)
  *   Un material que no matchea ningún rubro cae a Easy, que es la más amplia.
  *
  * Rubros pendientes de cadena especializada (hoy caen a Easy, que cubre lo común
- * — se suma acá una cadena propia cuando encontremos una VTEX pinchable y
+ * — se suma acá una cadena propia cuando encontremos una fuente pinchable y
  * verificada, NO se inventa):
  *     · artefactos de electricidad (tableros, térmicas, artefactos de luz)
  *     · artefactos de plomería (bombas, tanques, termotanques finos)
@@ -39,37 +47,62 @@ const UA =
 const VTEX_PATH = "/api/catalog_system/pub/products/search/";
 
 /** Id de cada cadena de referencia retail. */
-export type CadenaId = "easy" | "prestigio" | "colorshop" | "blaisten";
+export type CadenaId =
+  | "easy"
+  | "prestigio"
+  | "colorshop"
+  | "blaisten"
+  | "sodimac"
+  | "rojas";
+
+/** Cómo se le saca el precio a la cadena (qué fetcher/parser le toca). */
+type TipoCadena = "vtex" | "sodimac" | "tiendanube";
 
 /**
- * Cadenas VTEX verificadas en vivo (2026-07-09). Todas devuelven el mismo
- * JSON de catálogo, así que las lee el mismo parser (parsePrecioVtex).
- * `nombre` es la etiqueta corta para la UI; `fuente` es la traza que queda
- * guardada en el precio (de dónde salió).
+ * Cadenas verificadas en vivo (2026-07-10). Las VTEX devuelven el mismo JSON de
+ * catálogo (parsePrecioVtex); Sodimac y Tiendanube se leen del HTML de búsqueda
+ * (ver header). `nombre` es la etiqueta corta para la UI; `fuente` es la traza
+ * que queda guardada en el precio (de dónde salió).
  */
 export const CADENAS: Record<
   CadenaId,
-  { nombre: string; host: string; fuente: string }
+  { nombre: string; host: string; fuente: string; tipo: TipoCadena }
 > = {
   easy: {
     nombre: "Easy",
     host: "https://www.easy.com.ar",
     fuente: "Easy (ref. retail)",
+    tipo: "vtex",
   },
   prestigio: {
     nombre: "Prestigio",
     host: "https://www.prestigio.com.ar",
     fuente: "Prestigio (ref. retail)",
+    tipo: "vtex",
   },
   colorshop: {
     nombre: "Colorshop",
     host: "https://www.colorshop.com.ar",
     fuente: "Colorshop (ref. retail)",
+    tipo: "vtex",
   },
   blaisten: {
     nombre: "Blaisten",
     host: "https://www.blaisten.com.ar",
     fuente: "Blaisten (ref. retail)",
+    tipo: "vtex",
+  },
+  sodimac: {
+    nombre: "Sodimac",
+    host: "https://www.sodimac.com.ar",
+    fuente: "Sodimac (ref. retail)",
+    tipo: "sodimac",
+  },
+  rojas: {
+    nombre: "Rojas Materiales",
+    host: "https://www.rojasmateriales.com.ar",
+    fuente: "Rojas Materiales (corralón)",
+    tipo: "tiendanube",
   },
 };
 
@@ -125,16 +158,44 @@ const RUBROS: Array<{ cadena: CadenaId; claves: string[] }> = [
       "ducha",
     ],
   },
+  {
+    // Obra gris → corralón: es donde se compra de verdad (Easy/Sodimac quedan
+    // al lado en la comparación). "cal" va con sufijos explícitos porque el
+    // match es por prefijo (\bcal solo agarraría "calefón" y "calibre").
+    cadena: "rojas",
+    claves: [
+      "cemento",
+      "hormigon",
+      "plasticor",
+      "cal hidrat",
+      "cal aerea",
+      "cal hidraulica",
+      "arena",
+      "piedra partida",
+      "canto rodado",
+      "granza",
+      "cascote",
+      "ladrillo",
+      "bloque de hormigon",
+      "hierro",
+      "malla sima",
+      "alambre",
+    ],
+  },
 ];
 
 /**
  * Rubros que vale la pena COMPARAR entre varias cadenas (lo consume la capa 3).
  * Clave = cadena principal que devuelve elegirCadena; valor = lista de cadenas a
  * mostrar lado a lado. Pintura se compara Prestigio vs Colorshop (dos
- * pinturerías, promos distintas). El resto usa solo su cadena principal.
+ * pinturerías, promos distintas); obra gris compara corralón vs las dos grandes;
+ * el default (Easy) siempre lleva Sodimac al lado. Blaisten queda solo en su
+ * rubro (sanitarios: Sodimac también tiene, se puede sumar si suma).
  */
 const COMPARACION: Partial<Record<CadenaId, CadenaId[]>> = {
   prestigio: ["prestigio", "colorshop"],
+  rojas: ["rojas", "easy", "sodimac"],
+  easy: ["easy", "sodimac"],
 };
 
 type VtexProducto = {
@@ -203,6 +264,90 @@ export function parsePrecioVtex(json: unknown, max = MAX_RESULTADOS): number | n
   return mediana(precios);
 }
 
+/** Forma mínima del __NEXT_DATA__ de la búsqueda de Sodimac. */
+type SodimacNextData = {
+  props?: {
+    pageProps?: {
+      searchProps?: {
+        searchData?: {
+          results?: Array<{
+            prices?: Array<{ type?: unknown; priceWithoutFormatting?: unknown }>;
+          }>;
+        };
+      };
+    };
+  };
+};
+
+/**
+ * Mediana de los precios del HTML de búsqueda de Sodimac. La página renderiza
+ * server-side: los resultados vienen completos en el JSON __NEXT_DATA__
+ * embebido (su API directa da 403 anti-bot, esto NO — verificado 2026-07-10).
+ * De cada producto se toma el precio tipo NORMAL (el de lista, no PRECIOS_PRO).
+ */
+export function parsePrecioSodimac(html: string, max = MAX_RESULTADOS): number | null {
+  const m = html.match(
+    /<script id="__NEXT_DATA__" type="application\/json">([\s\S]*?)<\/script>/
+  );
+  if (!m) return null;
+  let data: SodimacNextData;
+  try {
+    data = JSON.parse(m[1]) as SodimacNextData;
+  } catch {
+    return null;
+  }
+  const results = data.props?.pageProps?.searchProps?.searchData?.results;
+  if (!Array.isArray(results)) return null;
+  const precios = results
+    .slice(0, max)
+    .map((r) => r?.prices?.find((p) => p?.type === "NORMAL") ?? r?.prices?.[0])
+    .map((p) => Number(p?.priceWithoutFormatting))
+    .filter((p) => Number.isFinite(p) && p > 0);
+  return mediana(precios);
+}
+
+/** Palabras de la query que no dicen nada del material (no sirven para filtrar). */
+const STOPWORDS = new Set(["del", "los", "las", "con", "sin", "por", "para", "una"]);
+
+/**
+ * Mediana de los precios del HTML de búsqueda de una tienda Tiendanube (Rojas).
+ * Los productos del resultado van embebidos en el dataLayer de la página como
+ * {"item_id":"...","item_name":"...","price":N}. El mismo ítem aparece varias
+ * veces (la página pushea más de un evento), así que se deduplica por item_id.
+ *
+ * Dos filtros que la búsqueda de Tiendanube hace necesarios (verificado
+ * 2026-07-10: "cemento 25kg" devolvía micropisos de $415k y la mediana daba
+ * $46k contra los $9k reales del cemento):
+ *   1. Relevancia: el nombre del ítem tiene que matchear al menos UNA palabra
+ *      significativa de la query (prefijo con \b, igual que el ruteo de rubros).
+ *   2. Combos/promos afuera: son paquetes armados, no precio de UN material.
+ */
+export function parsePrecioTiendanube(
+  html: string,
+  query: string,
+  max = MAX_RESULTADOS
+): number | null {
+  const tokens = normalizar(query)
+    .split(/[^a-z0-9]+/)
+    .filter((t) => t.length >= 3 && !/^\d/.test(t) && !STOPWORDS.has(t));
+  const re =
+    /"item_id":"(\d+)"[^{}]*?"item_name":"((?:[^"\\]|\\.)*)"[^{}]*?"price":([0-9]+(?:\.[0-9]+)?)/g;
+  const vistos = new Set<string>();
+  const precios: number[] = [];
+  for (const m of html.matchAll(re)) {
+    const [, id, nombre, precio] = m;
+    if (vistos.has(id)) continue;
+    vistos.add(id);
+    if (/\b(combo|promo)/i.test(nombre)) continue;
+    const n = normalizar(nombre);
+    if (tokens.length > 0 && !tokens.some((t) => new RegExp(`\\b${t}`).test(n))) continue;
+    const p = Number(precio);
+    if (Number.isFinite(p) && p > 0) precios.push(p);
+    if (precios.length >= max) break;
+  }
+  return mediana(precios);
+}
+
 async function fetchJson(
   url: string,
   headers: Record<string, string>,
@@ -221,19 +366,48 @@ async function fetchJson(
   }
 }
 
+async function fetchTexto(
+  url: string,
+  fetchImpl: typeof fetch
+): Promise<string | null> {
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), TIMEOUT_MS);
+  try {
+    const res = await fetchImpl(url, {
+      signal: ctrl.signal,
+      headers: { Accept: "text/html", "User-Agent": UA },
+    });
+    if (!res.ok) return null;
+    return await res.text();
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(t);
+  }
+}
+
 /** Precio de una cadena puntual para `query`. Null ante cualquier falla. */
 async function fetchPrecioCadena(
   cadena: CadenaId,
   query: string,
   fetchImpl: typeof fetch
 ): Promise<number | null> {
-  const { host } = CADENAS[cadena];
-  const json = await fetchJson(
-    `${host}${VTEX_PATH}?ft=${encodeURIComponent(query)}&_from=0&_to=${MAX_RESULTADOS - 1}`,
-    { Accept: "application/json", "User-Agent": UA },
-    fetchImpl
-  );
-  return parsePrecioVtex(json);
+  const { host, tipo } = CADENAS[cadena];
+  if (tipo === "vtex") {
+    const json = await fetchJson(
+      `${host}${VTEX_PATH}?ft=${encodeURIComponent(query)}&_from=0&_to=${MAX_RESULTADOS - 1}`,
+      { Accept: "application/json", "User-Agent": UA },
+      fetchImpl
+    );
+    return parsePrecioVtex(json);
+  }
+  const url =
+    tipo === "sodimac"
+      ? `${host}/sodimac-ar/search?Ntt=${encodeURIComponent(query)}`
+      : `${host}/search/?q=${encodeURIComponent(query)}`;
+  const html = await fetchTexto(url, fetchImpl);
+  if (html == null) return null;
+  return tipo === "sodimac" ? parsePrecioSodimac(html) : parsePrecioTiendanube(html, query);
 }
 
 /**

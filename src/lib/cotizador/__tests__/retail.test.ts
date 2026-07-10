@@ -1,6 +1,8 @@
 import { describe, it, expect } from "vitest";
 import {
   parsePrecioVtex,
+  parsePrecioSodimac,
+  parsePrecioTiendanube,
   fetchPrecioRetail,
   fetchPreciosComparados,
   elegirCadena,
@@ -56,7 +58,7 @@ describe("fetchPrecioRetail", () => {
       urls.push(url);
       return [prodVtex(1000), prodVtex(2000), prodVtex(3000)];
     });
-    const p = await fetchPrecioRetail("cemento loma negra", "2026-07-01", f);
+    const p = await fetchPrecioRetail("membrana líquida 20kg", "2026-07-01", f);
     expect(p).toEqual({ valor: 2000, fuente: "Easy (ref. retail)", fecha: "2026-07-01" });
     expect(urls).toHaveLength(1);
     expect(urls[0]).toContain("easy.com.ar");
@@ -108,8 +110,20 @@ describe("elegirCadena (ruteo rubro → cadena)", () => {
     expect(elegirCadena("inodoro corto")).toBe("blaisten");
   });
 
-  it("obra gris, electricidad y plomería caen a Easy (default)", () => {
-    expect(elegirCadena("cemento loma negra 50kg")).toBe("easy");
+  it("obra gris va al corralón (Rojas)", () => {
+    expect(elegirCadena("cemento loma negra 50kg")).toBe("rojas");
+    expect(elegirCadena("cal hidratada 25kg")).toBe("rojas");
+    expect(elegirCadena("arena gruesa bolsón")).toBe("rojas");
+    expect(elegirCadena("hierro del 8 x 12m")).toBe("rojas");
+    expect(elegirCadena("ladrillo hueco 12x18x33")).toBe("rojas");
+  });
+
+  it("'cal' pelada NO agarra calefón/calibre (match por prefijo)", () => {
+    expect(elegirCadena("calefón 14 litros")).toBe("easy");
+    expect(elegirCadena("calibre digital")).toBe("easy");
+  });
+
+  it("electricidad y plomería caen a Easy (default)", () => {
     expect(elegirCadena("cable unipolar 2.5")).toBe("easy");
     expect(elegirCadena("caño pvc 110")).toBe("easy");
     expect(elegirCadena("membrana líquida 20kg")).toBe("easy");
@@ -200,9 +214,90 @@ describe("cadenasComparacion", () => {
     expect(cadenasComparacion("látex interior 20L")).toEqual(["prestigio", "colorshop"]);
   });
 
-  it("el resto usa solo su cadena principal", () => {
-    expect(cadenasComparacion("cemento loma negra")).toEqual(["easy"]);
+  it("obra gris compara corralón vs las dos grandes", () => {
+    expect(cadenasComparacion("cemento loma negra")).toEqual(["rojas", "easy", "sodimac"]);
+  });
+
+  it("el default Easy lleva Sodimac al lado", () => {
+    expect(cadenasComparacion("cable unipolar 2.5")).toEqual(["easy", "sodimac"]);
+  });
+
+  it("cerámico/baño usa solo Blaisten", () => {
     expect(cadenasComparacion("porcelanato 60x60")).toEqual(["blaisten"]);
+  });
+});
+
+describe("parsePrecioSodimac", () => {
+  const htmlSodimac = (results: unknown) =>
+    `<html><script id="__NEXT_DATA__" type="application/json">${JSON.stringify({
+      props: { pageProps: { searchProps: { searchData: { results } } } },
+    })}</script></html>`;
+  const prodSodimac = (normal: number, pro?: number) => ({
+    prices: [
+      { type: "NORMAL", priceWithoutFormatting: normal },
+      ...(pro ? [{ type: "PRECIOS_PRO", priceWithoutFormatting: pro }] : []),
+    ],
+  });
+
+  it("mediana de los precios NORMAL (ignora PRECIOS_PRO)", () => {
+    const html = htmlSodimac([
+      prodSodimac(7799, 7409),
+      prodSodimac(8549),
+      prodSodimac(8089),
+    ]);
+    expect(parsePrecioSodimac(html)).toBe(8089);
+  });
+
+  it("null si no hay __NEXT_DATA__ o el JSON no tiene resultados", () => {
+    expect(parsePrecioSodimac("<html>bloqueado</html>")).toBeNull();
+    expect(parsePrecioSodimac(htmlSodimac([]))).toBeNull();
+    expect(
+      parsePrecioSodimac('<script id="__NEXT_DATA__" type="application/json">{no json}</script>')
+    ).toBeNull();
+  });
+});
+
+describe("parsePrecioTiendanube", () => {
+  const item = (id: string, nombre: string, precio: number) =>
+    `{"item_id":"${id}","item_brand":"X","item_name":"${nombre}","price":${precio},"item_category":"Obra Gruesa"}`;
+
+  it("mediana de los ítems del dataLayer, deduplicando por item_id", () => {
+    // el mismo ítem aparece dos veces (la página pushea varios eventos)
+    const html = [
+      item("1", "Cemento Avellaneda 25 kg", 9440),
+      item("2", "Cemento albañilería 20Kg", 7788),
+      item("1", "Cemento Avellaneda 25 kg", 9440),
+      item("3", "Cemento portland 50kg", 8260),
+    ].join(",");
+    expect(parsePrecioTiendanube(html, "cemento 25kg")).toBe(8260);
+  });
+
+  it("filtra ítems que no matchean la query (la búsqueda Tiendanube trae de todo)", () => {
+    const html = [
+      item("1", "Cemento Avellaneda 25 kg", 9440),
+      item("2", "Micropiso Cementicio Kit Grande (35kg)", 415100),
+      item("3", "Protex Tap 5kg", 70590),
+    ].join(",");
+    expect(parsePrecioTiendanube(html, "cemento 25kg")).toBe(9440);
+  });
+
+  it("descarta combos y promos (no son precio de UN material)", () => {
+    const html = [
+      item("1", "Cemento Avellaneda 25 kg", 9440),
+      item("2", "COMBO Promo Habitacion cemento", 672434),
+      item("3", "Promo Medianera cemento", 762988),
+    ].join(",");
+    expect(parsePrecioTiendanube(html, "cemento")).toBe(9440);
+  });
+
+  it("normaliza acentos: query 'albañilería' matchea el nombre sin tilde", () => {
+    const html = item("1", "Cemento de albanileria 20kg", 8260);
+    expect(parsePrecioTiendanube(html, "cemento albañilería")).toBe(8260);
+  });
+
+  it("null si el HTML no trae ítems o ninguno matchea", () => {
+    expect(parsePrecioTiendanube("<html>vacío</html>", "cemento")).toBeNull();
+    expect(parsePrecioTiendanube(item("1", "Taladro percutor", 90000), "cemento")).toBeNull();
   });
 });
 
