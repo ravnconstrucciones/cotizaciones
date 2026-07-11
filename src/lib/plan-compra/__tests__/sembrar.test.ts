@@ -135,3 +135,15 @@ describe("sembrarPlanDesdeDesglose", () => {
     expect(filas[0].cotizado).toMatchObject({ precio_min: null, subtotal_min: 0 });
   });
 });
+
+describe("sembrarPlanDesdeDesglose + hoja viva (Tramo B)", () => {
+  it("un ítem apagado en la mesa (activo: false) NO se siembra en el plan", () => {
+    const conApagado: Desglose = {
+      ...desglose,
+      items: [{ ...desglose.items[0], activo: false }, desglose.items[1]],
+    };
+    const filas = sembrarPlanDesdeDesglose(conApagado, "pres-1", "cot-1");
+    expect(filas).toHaveLength(2); // 1 item + 1 extra — el apagado no resucita
+    expect(filas.some((f) => f.nombre === "Látex interior 20L")).toBe(false);
+  });
+});

@@ -76,7 +76,11 @@ export function sembrarPlanDesdeDesglose(
   presupuestoId: string,
   cotizacionId: string
 ): PlanItemInsert[] {
-  const items = (desglose.items ?? []).map((i) => desdeItem(i, presupuestoId, cotizacionId));
+  // Los ítems apagados en la hoja viva (activo: false) están FUERA del alcance
+  // cotizado: no suman al total y no deben resucitar como compra en el plan.
+  const items = (desglose.items ?? [])
+    .filter((i) => i.activo !== false)
+    .map((i) => desdeItem(i, presupuestoId, cotizacionId));
   const extras = (desglose.extras ?? []).map((e) => desdeExtra(e, presupuestoId, cotizacionId));
   return [...items, ...extras];
 }

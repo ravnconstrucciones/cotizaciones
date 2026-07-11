@@ -225,14 +225,18 @@ export function HojaViva({ cotizacionId, desglose, editable, onRefresh }: Props)
                 <tr key={it.nombre} className={apagado ? "opacity-45" : undefined}>
                   {editable && (
                     <td className="py-2 pr-2 align-top">
-                      <input
-                        type="checkbox"
-                        checked={!apagado}
-                        disabled={guardando}
-                        onChange={(e) => void patch({ ajuste: { nombre: it.nombre, activo: e.target.checked } })}
-                        className="h-3.5 w-3.5 cursor-pointer accent-cdm-accent"
-                        title={apagado ? "Volver al alcance" : "Sacar del alcance (no suma)"}
-                      />
+                      {/* Un manual no admite toggle (el endpoint solo ajusta ítems
+                          de receta): se saca del alcance borrándolo con ×. */}
+                      {!it.manual && (
+                        <input
+                          type="checkbox"
+                          checked={!apagado}
+                          disabled={guardando}
+                          onChange={(e) => void patch({ ajuste: { nombre: it.nombre, activo: e.target.checked } })}
+                          className="h-3.5 w-3.5 cursor-pointer accent-cdm-accent"
+                          title={apagado ? "Volver al alcance" : "Sacar del alcance (no suma)"}
+                        />
+                      )}
                     </td>
                   )}
                   <td className="py-2 pr-3 align-top">
