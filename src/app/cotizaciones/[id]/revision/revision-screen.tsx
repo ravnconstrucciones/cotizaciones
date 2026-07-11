@@ -122,8 +122,10 @@ export function RevisionScreen({ id }: { id: string }) {
     };
   }, []);
 
-  const cargar = useCallback(async () => {
-    setCargando(true);
+  // silencioso: refresco sin skeleton (la hoja viva re-pide datos tras cada
+  // edición y no debe desmontarse — perdería la pestaña activa).
+  const cargar = useCallback(async (silencioso = false) => {
+    if (!silencioso) setCargando(true);
     setError(null);
     try {
       const res = await fetch(`/api/cotizaciones/${id}`, { cache: "no-store" });
@@ -300,7 +302,7 @@ export function RevisionScreen({ id }: { id: string }) {
                   cotizacionId={id}
                   desglose={desglose}
                   editable={detalle.estado === "en_revision"}
-                  onRefresh={cargar}
+                  onRefresh={() => cargar(true)}
                 />
               </Seccion>
             )}
