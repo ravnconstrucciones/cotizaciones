@@ -11,6 +11,16 @@
 - **UI:** `hoja-viva.tsx` reemplaza la tabla estática en la mesa — botonera de rubros con acento fino + total por rubro, edición inline (cantidad con ↺ a fórmula, precio con sello EZE y ↺, toggle sí/no, alta/baja de ítems manuales), pestañas MO y Extras. Refresh silencioso (no pierde la pestaña activa).
 - **Verificado de punta a punta:** round-trip determinístico contra la cotización real 01cf33ce (totales al peso exacto), mapeo de los 23 ítems reales correcto, y prueba viva por UI (login bot en localhost): editar precio porcelanato → fila eze en base + totales frescos → revert → punto cero exacto.
 
+## Code review (11/07, agente revisor) — HECHO
+
+2 bugs ARREGLADOS (commit 0bb72b8): (1) CRÍTICO sembrar.ts sembraba ítems apagados en el plan de compra → ahora filtra activo:false, con test; (2) checkbox de ítems manuales daba 400 → oculto (un manual se saca con ×). 462 tests pasan.
+
+**4 observaciones NO bloqueantes, a decidir con Eze:**
+1. `vencimiento.ts` no vence nunca el precio 'eze' — un precio corregido en enero seguiría pisando en julio sin alerta. ¿Debe vencer (30d?) o es definitivo?
+2. Sin lock optimista entre dos PATCH concurrentes al mismo desglose (mono-usuario hoy, riesgo bajo).
+3. `parseLiteral` interpreta punto como miles: "2.5" → 25, sin preview. Footgun en cantidades decimales (m²/litros).
+4. `divergencia_pct` con precio eze usa eze como denominador (cosmético, solo display).
+
 ## Pendiente inmediato
 
 - **Push/deploy de home-cards**: commits locales SIN pushear (esperando visto de Eze). Incluye también Frentes A y C + retail del 10/07 que ya estaban commiteados.
