@@ -56,9 +56,12 @@ export function instanciarItems(
       const valores = [precioItem.sismat?.valor, precioItem.internet?.valor].filter(
         (v): v is number => typeof v === "number" && Number.isFinite(v) && v > 0
       );
-      const sinPrecio = valores.length === 0;
-      const precioMin = sinPrecio ? null : Math.min(...valores);
-      const precioMax = sinPrecio ? null : Math.max(...valores);
+      // Precio corregido por Eze (mesa, regla de oro): PISA el rango. Las
+      // fuentes quedan en `precios` como referencia visible, no suman.
+      const eze = precioItem.eze;
+      const sinPrecio = eze ? false : valores.length === 0;
+      const precioMin = eze ? eze.valor : sinPrecio ? null : Math.min(...valores);
+      const precioMax = eze ? eze.valor : sinPrecio ? null : Math.max(...valores);
 
       let divergencia: number | null = null;
       if (precioItem.sismat && precioItem.internet && precioMin && precioMin > 0) {

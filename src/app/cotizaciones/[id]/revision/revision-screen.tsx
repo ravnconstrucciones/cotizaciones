@@ -6,7 +6,6 @@ import type {
   CotizacionRow,
   Desglose,
   FuenteReceta,
-  PrecioFechado,
   Revision,
 } from "@/lib/cotizador/tipos";
 import { formatMoneyInt } from "@/lib/format-currency";
@@ -17,6 +16,7 @@ import { SkeletonGlass } from "@/components/cockpit/skeleton-glass";
 import { WavesBackdrop } from "@/components/cockpit/waves-backdrop";
 import { CifraHeroica } from "@/components/cockpit/cifra-heroica";
 import { ConversacionPanel } from "./conversacion-panel";
+import { HojaViva } from "./hoja-viva";
 import { ESTADO_COLOR, ESTADO_LABEL } from "../../cotizaciones-screen";
 
 type RecetaJoin = {
@@ -75,18 +75,6 @@ function Seccion({ titulo, children }: { titulo: string; children: React.ReactNo
       </h2>
       <div className="border-t border-cdm-line pt-3">{children}</div>
     </section>
-  );
-}
-
-function PrecioCelda({ precio }: { precio?: PrecioFechado }) {
-  if (!precio) return <span className="text-cdm-muted">—</span>;
-  return (
-    <span title={`${precio.fuente} · ${precio.fecha}`}>
-      {formatMoneyInt(precio.valor)}
-      <span className="block text-[10px] text-cdm-muted">
-        {precio.fuente} · {precio.fecha}
-      </span>
-    </span>
   );
 }
 
@@ -307,128 +295,13 @@ export function RevisionScreen({ id }: { id: string }) {
             )}
 
             {desglose && (
-              <Seccion titulo="Ítems — cantidades por fórmula y doble precio">
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left text-xs">
-                    <thead>
-                      <tr className="text-[10px] uppercase tracking-[0.14em] text-cdm-muted">
-                        <th className="py-2 pr-3">Etapa</th>
-                        <th className="py-2 pr-3">Ítem</th>
-                        <th className="py-2 pr-3">Fórmula</th>
-                        <th className="py-2 pr-3 text-right">Cant.</th>
-                        <th className="py-2 pr-3 text-right">SISMAT</th>
-                        <th className="py-2 pr-3 text-right">Internet</th>
-                        <th className="py-2 pr-3 text-right">Retail</th>
-                        <th className="py-2 pr-3 text-right">Δ%</th>
-                        <th className="py-2 text-right">Subtotal</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-cdm-line">
-                      {desglose.items.map((it, i) => {
-                        const divergente = it.divergencia_pct != null && it.divergencia_pct > 25;
-                        const critica = it.divergencia_pct != null && it.divergencia_pct >= 100;
-                        return (
-                          <tr key={i} className={critica ? "bg-red-400/15" : divergente ? "bg-red-400/5" : undefined}>
-                            <td className="py-2 pr-3 text-cdm-muted">{it.etapa}</td>
-                            <td className="py-2 pr-3">
-                              {it.nombre}
-                              {it.sin_precio && (
-                                <span className="ml-1 text-[10px] text-amber-300">SIN PRECIO</span>
-                              )}
-                            </td>
-                            <td className="py-2 pr-3 font-mono text-[10px] text-cdm-muted">
-                              {it.formula}
-                              {it.desperdicio_pct > 0 ? ` +${it.desperdicio_pct}% desp.` : ""}
-                            </td>
-                            <td className="py-2 pr-3 text-right tabular-nums">
-                              {it.cantidad} {it.unidad}
-                            </td>
-                            <td className="py-2 pr-3 text-right tabular-nums">
-                              <PrecioCelda precio={it.precios.sismat} />
-                            </td>
-                            <td className="py-2 pr-3 text-right tabular-nums">
-                              <PrecioCelda precio={it.precios.internet} />
-                            </td>
-                            <td className="py-2 pr-3 text-right tabular-nums text-cdm-muted">
-                              <PrecioCelda precio={it.precios.retail} />
-                            </td>
-                            <td
-                              className={`py-2 pr-3 text-right tabular-nums ${divergente ? "font-semibold text-red-400" : "text-cdm-muted"}`}
-                            >
-                              {it.divergencia_pct != null
-                                ? `${critica ? "⚠ " : ""}${it.divergencia_pct}%`
-                                : "—"}
-                            </td>
-                            <td className="py-2 text-right tabular-nums">
-                              {it.sin_precio
-                                ? "—"
-                                : `${formatMoneyInt(it.subtotal_min)} – ${formatMoneyInt(it.subtotal_max)}`}
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-
-                {desglose.extras.length > 0 && (
-                  <ul className="mt-4 space-y-1 text-xs">
-                    {desglose.extras.map((ex, i) => (
-                      <li key={i} className="flex justify-between">
-                        <span>
-                          {ex.nombre}{" "}
-                          <span className="text-cdm-muted">
-                            ({ex.fuente} · {ex.fecha})
-                          </span>
-                        </span>
-                        <span className="tabular-nums">
-                          {formatMoneyInt(ex.monto_min)} – {formatMoneyInt(ex.monto_max)}
-                        </span>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-
-                <dl className="mt-4 space-y-1 border-t border-cdm-line pt-3 text-xs">
-                  <div className="flex justify-between">
-                    <dt className="text-cdm-muted">Materiales</dt>
-                    <dd className="tabular-nums">
-                      {formatMoneyInt(desglose.totales.materiales_min)} –{" "}
-                      {formatMoneyInt(desglose.totales.materiales_max)}
-                    </dd>
-                  </div>
-                  <div className="flex justify-between">
-                    <dt className="text-cdm-muted">Mano de obra</dt>
-                    <dd className="tabular-nums">
-                      {formatMoneyInt(desglose.totales.mano_de_obra_min)} –{" "}
-                      {formatMoneyInt(desglose.totales.mano_de_obra_max)}
-                    </dd>
-                  </div>
-                  <div className="flex justify-between">
-                    <dt className="text-cdm-muted">Extras</dt>
-                    <dd className="tabular-nums">
-                      {formatMoneyInt(desglose.totales.extras_min)} –{" "}
-                      {formatMoneyInt(desglose.totales.extras_max)}
-                    </dd>
-                  </div>
-                  <div className="flex justify-between">
-                    <dt className="text-cdm-muted">
-                      Imprevistos {desglose.totales.imprevistos_pct}% · Factor zona{" "}
-                      {desglose.totales.factor_zona_min}–{desglose.totales.factor_zona_max}
-                    </dt>
-                    <dd className="font-medium tabular-nums">
-                      {formatMoneyInt(desglose.totales.total_min)} –{" "}
-                      {formatMoneyInt(desglose.totales.total_max)}
-                    </dd>
-                  </div>
-                  <div className="flex justify-between text-cdm-muted">
-                    <dt>Tiempo estimado</dt>
-                    <dd>
-                      {desglose.tiempo.dias_min}–{desglose.tiempo.dias_max} días ·{" "}
-                      {desglose.tiempo.cuadrilla_max} persona(s)
-                    </dd>
-                  </div>
-                </dl>
+              <Seccion titulo="Hoja viva — ítems por rubro, editable">
+                <HojaViva
+                  cotizacionId={id}
+                  desglose={desglose}
+                  editable={detalle.estado === "en_revision"}
+                  onRefresh={cargar}
+                />
               </Seccion>
             )}
 

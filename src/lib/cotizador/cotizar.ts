@@ -1,9 +1,11 @@
+import { aplicarAjustes } from "./ajustes";
 import { evaluarChecklist } from "./checklist";
 import { instanciarItems, validarParametros } from "./instanciar";
 import { evaluarSanidad, type BandaM2 } from "./sanidad";
 import { calcularTiempo, calcularTotales } from "./totales";
 import { avisosVencidos } from "./vencimiento";
 import type {
+  AjustesMesa,
   Desglose,
   Divergencia,
   ExtraDesglose,
@@ -46,6 +48,8 @@ export type EntradaCotizacion = {
   zona?: string;
   banda_m2?: BandaM2;
   dudas?: string[];
+  /** Ediciones de la mesa (hoja viva): se aplican sobre los ítems instanciados. */
+  ajustes?: AjustesMesa;
   /** YYYY-MM-DD para el cálculo de vencimientos; default: hoy. Inyectable en tests. */
   hoy?: string;
 };
@@ -69,14 +73,19 @@ export function cotizar(entrada: EntradaCotizacion): CotizacionCalculada {
   const extras = entrada.extras ?? [];
   const imprevistos = entrada.imprevistos_pct ?? IMPREVISTOS_DEFAULT_PCT;
 
-  const items = instanciarItems(entrada.receta, entrada.parametros, entrada.precios);
-  const totales = calcularTotales(items, extras, {
+  const instanciados = instanciarItems(entrada.receta, entrada.parametros, entrada.precios);
+  const items = entrada.ajustes ? aplicarAjustes(instanciados, entrada.ajustes) : instanciados;
+  // Los ítems que Eze apagó en la mesa (activo: false) quedan VISIBLES en el
+  // desglose pero fuera de todo cálculo y control: no suman, y si el checklist
+  // los reclama debe cantar "faltante" (el recorte de alcance se ve).
+  const activos = items.filter((i) => i.activo !== false);
+  const totales = calcularTotales(activos, extras, {
     imprevistos_pct: imprevistos,
     zona: entrada.zona,
   });
   const tiempo = calcularTiempo(entrada.receta);
 
-  const divergencias: Divergencia[] = items
+  const divergencias: Divergencia[] = activos
     .filter(
       (i) =>
         i.divergencia_pct != null &&
@@ -118,19 +127,19 @@ export function cotizar(entrada: EntradaCotizacion): CotizacionCalculada {
 
   const revision: Revision = {
     checklist: evaluarChecklist({
-      items,
+      items: activos,
       extras,
       checklist_receta: entrada.receta.checklist,
       imprevistos_pct: imprevistos,
       zona: entrada.zona,
     }),
     sanidad: evaluarSanidad({
-      items,
+      items: activos,
       totales,
       parametros: entrada.parametros,
       banda_m2: entrada.banda_m2,
     }),
-    precios_vencidos: avisosVencidos(items, extras, hoy),
+    precios_vencidos: avisosVencidos(activos, extras, hoy),
     divergencias,
     dudas: entrada.dudas ?? [],
   };
@@ -144,6 +153,7 @@ export function cotizar(entrada: EntradaCotizacion): CotizacionCalculada {
     totales,
     tiempo,
     generado_at: new Date().toISOString(),
+    ...(entrada.ajustes ? { ajustes: entrada.ajustes } : {}),
   };
 
   return {

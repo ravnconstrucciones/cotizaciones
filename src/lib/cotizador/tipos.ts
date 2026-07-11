@@ -107,17 +107,23 @@ export type PrecioFechado = {
  * referencia del rubro (Easy/Prestigio/Blaisten, ver retail.ts): NO entra en el
  * total ni dispara alertas — sirve de desempate cuando SISMAT e internet
  * divergen (te dice a cuál le da la razón el mercado).
+ * `eze` es el precio corregido por Eze en la mesa (regla de oro Tramo B): si
+ * existe, PISA el rango (min = max = eze.valor); sismat/internet quedan como
+ * referencia visible. Así la mesa calibra al cotizador.
  */
 export type PrecioItem = {
   sismat?: PrecioFechado;
   internet?: PrecioFechado;
   retail?: PrecioFechado;
+  eze?: PrecioFechado;
 };
+
+export type OrigenPrecio = "sismat" | "internet" | "retail" | "eze";
 
 /** Fila de `precios_items` — cache fechado que alimenta el panel /cotizar. */
 export type PrecioItemRow = {
   item: string;
-  origen: "sismat" | "internet" | "retail";
+  origen: OrigenPrecio;
   valor: number;
   fuente: string;
   fecha: string; // YYYY-MM-DD
@@ -142,6 +148,43 @@ export type ItemDesglose = {
   sin_precio: boolean;
   rango_fisico?: RangoFisico;
   notas?: string;
+  /** false = Eze lo sacó del alcance en la mesa (no suma al total; queda visible). */
+  activo?: boolean;
+  /** true = la cantidad la pisó Eze en la mesa (la fórmula queda de traza). */
+  cantidad_editada?: boolean;
+  /** true = ítem agregado a mano en la mesa (no viene de la receta). */
+  manual?: boolean;
+  /** Rubro fijado a mano (ítems manuales); si falta se infiere de etapa+nombre (rubros.ts). */
+  rubro?: string;
+};
+
+/**
+ * Ajustes de la mesa (hoja viva, Tramo B) sobre UN ítem de receta, por nombre.
+ * Se persisten en desglose.ajustes y se re-aplican en cada corrida del motor,
+ * así una edición sobrevive a re-corridas por cambio de parámetros.
+ */
+export type AjusteItem = {
+  nombre: string; // ItemDesglose.nombre al que aplica
+  activo?: boolean; // false = fuera del alcance
+  cantidad?: number; // pisa la cantidad final (post-desperdicio)
+  precio_eze?: PrecioFechado; // pisa el rango (regla de oro)
+};
+
+/** Ítem agregado a mano en la mesa — no existe en la receta. */
+export type ItemManualMesa = {
+  nombre: string;
+  rubro: string; // id de rubros.ts, lo elige Eze al agregarlo
+  tipo: TipoItem;
+  unidad: Unidad;
+  cantidad: number;
+  precio?: PrecioFechado; // sin precio ⇒ queda como hueco visible (ley 1)
+  notas?: string;
+};
+
+/** Todo lo editado en la mesa. Vive en desglose.ajustes. */
+export type AjustesMesa = {
+  items?: AjusteItem[];
+  manuales?: ItemManualMesa[];
 };
 
 /** Extra fuera de receta (flete, volquete, …): monto directo con fuente fechada. */
@@ -179,6 +222,8 @@ export type Desglose = {
   totales: TotalesDesglose;
   tiempo: { dias_min: number; dias_max: number; cuadrilla_max: number };
   generado_at: string; // ISO
+  /** Ediciones de la mesa (hoja viva) — se re-aplican en cada corrida. */
+  ajustes?: AjustesMesa;
 };
 
 export type ResultadoChecklist = {
