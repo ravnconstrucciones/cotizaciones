@@ -14,7 +14,7 @@
 
 ## Pendiente inmediato
 
-- **El RENDER REAL del baño rosa/verde**: no existe en la app, la Mac ni el bucket — quedó solo en el WhatsApp de Eze (10/07). Eze quedó en pasarlo (lo pega en el chat o lo sube él con el botón del modal). Con eso: recortar mampara/vanitory/inodoro en la cotización 01cf33ce.
+- ~~Render real del baño~~ HECHO 12/07: Eze pasó el render por el chat → subido como portada de 01cf33ce + 3 recortes crop_item (mampara/vanitory/inodoro) directo con admin client (script temporal, ya borrado). Verificado en base: portada seteada + 3 filas.
 - **Feedback de Eze sobre la mesa/test del ojo** (sigue abierto del 10/07): medidas reales, estado de partida, piso ducha (nivel vs plato), gama mesada, veredicto vs su vara.
 - **Tramo C**: entrada por bot en la nube (foto → candidata sin la Mac). Ojo: el bot HOY no guarda imágenes en referencias (imagen_path existe pero no se usa para esto).
 - Code review 11/07 CERRADO 12/07: obs 3 y 4 arregladas (parseLiteral decimales inequívocos + divergencia_pct sobre menor fuente, 6616aea); obs 1 resuelta por decisión de Eze = precio eze vence a los 30 días con AVISO en sanidad, nunca se borra (338e63a); obs 2 (lock optimista) DESCARTADA por Eze — mono-usuario.
