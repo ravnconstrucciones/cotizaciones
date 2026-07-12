@@ -23,7 +23,7 @@
 
 ## Pendiente inmediato
 
-- **Push/deploy de home-cards**: commits locales SIN pushear (esperando visto de Eze). Incluye también Frentes A y C + retail del 10/07 que ya estaban commiteados.
+- ~~Push de home-cards~~ HECHO 12/07 con visto de Eze (14accf2..3f37690 → deploy Vercel corriendo). Verificar en prod: ravn-app-one-five.vercel.app/cotizaciones/01cf33ce-f7dd-486d-ab8a-c825561cace7/revision.
 - **Feedback de Eze sobre la mesa/test del ojo** (sigue abierto del 10/07): medidas reales del baño render, estado de partida, piso ducha (nivel vs plato), gama mesada, veredicto vs su vara.
 - **Tramo B item 5 — recortes del render por ítem** (crop mampara/vanitory/inodoro como thumbnail fijo al bucket): NO construido todavía, es lo próximo del capítulo.
 - **Tramo C**: entrada por bot en la nube (foto → candidata sin la Mac).
