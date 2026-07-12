@@ -7,10 +7,11 @@
  * Cada edición pega a PATCH /api/cotizaciones/[id]/desglose, que re-corre el
  * motor SERVER-SIDE y persiste — acá no se suma nada, solo se muestra.
  */
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { Desglose, ItemDesglose, PrecioFechado, Unidad } from "@/lib/cotizador/tipos";
 import { RUBROS, rubroDeItem, type RubroId } from "@/lib/cotizador/rubros";
 import { formatMoneyInt } from "@/lib/format-currency";
+import { RecorteItemModal } from "./recorte-item";
 
 const UNIDADES: Unidad[] = ["u", "m2", "ml", "kg", "l", "bolsa", "caja", "m3", "rollo", "dia", "global"];
 
@@ -35,6 +36,44 @@ function parseLiteral(s: string): number | null {
   if (limpio === "") return null;
   const n = Number(limpio);
   return Number.isFinite(n) && n > 0 ? n : null;
+}
+
+/** Caja FIJA de 36×36 por fila: recorte del render del ítem, o ✂ para marcarlo. */
+function MiniCrop({
+  url,
+  editable,
+  onAbrir,
+}: {
+  url: string | null;
+  editable: boolean;
+  onAbrir: () => void;
+}) {
+  if (url) {
+    return (
+      <button
+        type="button"
+        onClick={editable ? onAbrir : () => window.open(url, "_blank", "noopener")}
+        className="h-9 w-9 shrink-0 cursor-pointer overflow-hidden border border-cdm-line"
+        title={editable ? "Ver / rehacer el recorte" : "Ver recorte"}
+      >
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={url} alt="" className="h-full w-full object-cover" />
+      </button>
+    );
+  }
+  if (!editable) {
+    return <span aria-hidden className="h-9 w-9 shrink-0 border border-cdm-line/30" />;
+  }
+  return (
+    <button
+      type="button"
+      onClick={onAbrir}
+      className="h-9 w-9 shrink-0 cursor-pointer border border-dashed border-cdm-line text-[11px] text-cdm-muted/70 transition-colors hover:border-cdm-accent/60 hover:text-cdm-accent"
+      title="Recortar el ítem del render"
+    >
+      ✂
+    </button>
+  );
 }
 
 function FuenteMini({ etiqueta, precio }: { etiqueta: string; precio?: PrecioFechado }) {
@@ -68,6 +107,27 @@ export function HojaViva({ cotizacionId, desglose, editable, onRefresh }: Props)
   const [borradores, setBorradores] = useState<Record<string, string>>({});
   const [altaAbierta, setAltaAbierta] = useState(false);
   const [alta, setAlta] = useState({ nombre: "", cantidad: "1", unidad: "u" as Unidad, precio: "" });
+  // Recortes del render por ítem (thumbnail fijo por fila) + render base.
+  const [fotos, setFotos] = useState<{ render_url: string | null; crops: Record<string, string> }>({
+    render_url: null,
+    crops: {},
+  });
+  const [recorteDe, setRecorteDe] = useState<string | null>(null);
+
+  const cargarCrops = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/cotizaciones/${cotizacionId}/crops`, { cache: "no-store" });
+      if (!res.ok) return; // sin thumbnails no se rompe nada
+      const json = (await res.json()) as { render_url: string | null; crops: Record<string, string> };
+      setFotos({ render_url: json.render_url ?? null, crops: json.crops ?? {} });
+    } catch {
+      /* la hoja sigue funcionando sin fotos */
+    }
+  }, [cotizacionId]);
+
+  useEffect(() => {
+    void cargarCrops();
+  }, [cargarCrops]);
 
   const grupos = useMemo(() => {
     const porRubro = new Map<RubroId, ItemDesglose[]>();
@@ -240,18 +300,28 @@ export function HojaViva({ cotizacionId, desglose, editable, onRefresh }: Props)
                     </td>
                   )}
                   <td className="py-2 pr-3 align-top">
-                    <span className={apagado ? "line-through" : undefined}>{it.nombre}</span>
-                    {it.sin_precio && (
-                      <span className="ml-1.5 text-[10px] font-semibold text-amber-300">SIN PRECIO</span>
-                    )}
-                    {it.manual && (
-                      <span className="ml-1.5 cdm-chip border border-cdm-line px-1 text-[9px] uppercase tracking-[0.1em] text-cdm-muted">
-                        manual
+                    <span className="flex items-start gap-2.5">
+                      {/* Thumbnail de tamaño FIJO (nada se corre de margen). */}
+                      <MiniCrop
+                        url={fotos.crops[it.nombre] ?? null}
+                        editable={editable}
+                        onAbrir={() => setRecorteDe(it.nombre)}
+                      />
+                      <span className="min-w-0">
+                        <span className={apagado ? "line-through" : undefined}>{it.nombre}</span>
+                        {it.sin_precio && (
+                          <span className="ml-1.5 text-[10px] font-semibold text-amber-300">SIN PRECIO</span>
+                        )}
+                        {it.manual && (
+                          <span className="ml-1.5 cdm-chip border border-cdm-line px-1 text-[9px] uppercase tracking-[0.1em] text-cdm-muted">
+                            manual
+                          </span>
+                        )}
+                        <span className="mt-0.5 block font-mono text-[10px] text-cdm-muted">
+                          {it.etapa} · {it.formula}
+                          {it.desperdicio_pct > 0 ? ` +${it.desperdicio_pct}% desp.` : ""}
+                        </span>
                       </span>
-                    )}
-                    <span className="mt-0.5 block font-mono text-[10px] text-cdm-muted">
-                      {it.etapa} · {it.formula}
-                      {it.desperdicio_pct > 0 ? ` +${it.desperdicio_pct}% desp.` : ""}
                     </span>
                   </td>
                   <td className="py-2 pr-3 text-right align-top">
@@ -499,6 +569,17 @@ export function HojaViva({ cotizacionId, desglose, editable, onRefresh }: Props)
           </dd>
         </div>
       </dl>
+
+      {recorteDe && (
+        <RecorteItemModal
+          cotizacionId={cotizacionId}
+          itemNombre={recorteDe}
+          renderUrl={fotos.render_url}
+          cropUrl={fotos.crops[recorteDe] ?? null}
+          onCerrar={() => setRecorteDe(null)}
+          onCambio={cargarCrops}
+        />
+      )}
     </div>
   );
 }
