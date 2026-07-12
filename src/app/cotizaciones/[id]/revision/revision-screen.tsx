@@ -197,7 +197,7 @@ export function RevisionScreen({ id }: { id: string }) {
         <WavesBackdrop />
         <div className="relative z-10 mx-auto w-full max-w-6xl">
           <VolverAlInicio />
-          <div className="grid gap-6 lg:grid-cols-[1fr_380px]">
+          <div className="grid gap-6">
             <div className="cdm-glass p-5">
               <SkeletonGlass filas={5} anchos={["w-2/3", "w-full", "w-1/2", "w-3/4", "w-2/5"]} />
             </div>
@@ -263,7 +263,7 @@ export function RevisionScreen({ id }: { id: string }) {
 
         {error && <p className="mb-4 text-sm text-red-400">{error}</p>}
 
-        <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_380px]">
+        <div>
           <div className="min-w-0">
             {receta && (
               <Seccion titulo="Receta">
@@ -608,8 +608,8 @@ export function RevisionScreen({ id }: { id: string }) {
             )}
           </div>
 
-          {/* Columna derecha: el hilo de ESTA cotización (sticky en desktop). */}
-          <div className="xl:sticky xl:top-6">
+          {/* Al fondo, ancho completo: el hilo de ESTA cotización. */}
+          <div>
             <ConversacionPanel
               cotizacionId={id}
               estado={detalle.estado}
