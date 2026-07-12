@@ -63,14 +63,20 @@ export function instanciarItems(
       const precioMin = eze ? eze.valor : sinPrecio ? null : Math.min(...valores);
       const precioMax = eze ? eze.valor : sinPrecio ? null : Math.max(...valores);
 
+      // La divergencia es entre las dos FUENTES: el denominador es la menor
+      // de ellas, no el precio vigente (con precio eze, precioMin es eze y
+      // distorsionaría el %).
       let divergencia: number | null = null;
-      if (precioItem.sismat && precioItem.internet && precioMin && precioMin > 0) {
-        divergencia =
-          Math.round(
-            (Math.abs(precioItem.internet.valor - precioItem.sismat.valor) /
-              precioMin) *
-              1000
-          ) / 10;
+      if (precioItem.sismat && precioItem.internet) {
+        const menorFuente = Math.min(precioItem.sismat.valor, precioItem.internet.valor);
+        if (menorFuente > 0) {
+          divergencia =
+            Math.round(
+              (Math.abs(precioItem.internet.valor - precioItem.sismat.valor) /
+                menorFuente) *
+                1000
+            ) / 10;
+        }
       }
 
       items.push({

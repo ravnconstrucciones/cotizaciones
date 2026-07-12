@@ -10,6 +10,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { Desglose, ItemDesglose, PrecioFechado, Unidad } from "@/lib/cotizador/tipos";
 import { RUBROS, rubroDeItem, type RubroId } from "@/lib/cotizador/rubros";
+import { parseLiteral } from "@/lib/cotizador/parse-literal";
 import { formatMoneyInt } from "@/lib/format-currency";
 import { RecorteItemModal } from "./recorte-item";
 
@@ -28,14 +29,6 @@ function compacto(v: number): string {
 function compactoRango(min: number, max: number): string {
   if (min === max) return compacto(min);
   return `${compacto(min)}–${compacto(max)}`;
-}
-
-/** Número literal del input (acepta coma decimal). null = vacío/no parseable. */
-function parseLiteral(s: string): number | null {
-  const limpio = s.trim().replace(/\./g, "").replace(",", ".");
-  if (limpio === "") return null;
-  const n = Number(limpio);
-  return Number.isFinite(n) && n > 0 ? n : null;
 }
 
 /** Caja FIJA de 36×36 por fila: recorte del render del ítem, o ✂ para marcarlo. */
