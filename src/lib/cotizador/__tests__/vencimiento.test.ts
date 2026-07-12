@@ -1,5 +1,11 @@
 import { describe, it, expect } from "vitest";
-import { diasEntre, precioVencido, avisosVencidos, VENCIMIENTO_DIAS } from "../vencimiento";
+import {
+  diasEntre,
+  precioVencido,
+  avisosVencidos,
+  VENCIMIENTO_DIAS,
+  VENCIMIENTO_EZE_DIAS,
+} from "../vencimiento";
 import type { ExtraDesglose, ItemDesglose } from "../tipos";
 
 const HOY = "2026-06-12";
@@ -47,5 +53,28 @@ describe("avisosVencidos", () => {
     });
     expect(avisos[1].item).toBe("Flete");
     expect(avisos[1].limite).toBe(15);
+  });
+
+  it("el precio eze avisa a los 30 días pero nunca se borra del ítem", () => {
+    const item = (fechaEze: string) =>
+      [
+        {
+          nombre: "Porcelanato",
+          tipo: "material",
+          precios: { eze: { valor: 50000, fuente: "Eze", fecha: fechaEze } },
+        },
+      ] as unknown as ItemDesglose[];
+
+    expect(avisosVencidos(item("2026-05-14"), [], HOY)).toHaveLength(0); // 29 días
+    const avisos = avisosVencidos(item("2026-05-01"), [], HOY); // 42 días
+    expect(avisos).toEqual([
+      {
+        item: "Porcelanato",
+        fuente: "Eze",
+        fecha: "2026-05-01",
+        dias: 42,
+        limite: VENCIMIENTO_EZE_DIAS,
+      },
+    ]);
   });
 });

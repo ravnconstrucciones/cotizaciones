@@ -6,6 +6,13 @@ export const VENCIMIENTO_DIAS: Record<TipoItem, number> = {
   mano_de_obra: 30,
 };
 
+/**
+ * El precio corregido por Eze pisa el rango pero no es eterno: pasados estos
+ * días AVISA en sanidad (decisión Eze 12/07: aviso, nunca borrado — la regla
+ * de oro sigue pisando hasta que él lo toque o lo limpie).
+ */
+export const VENCIMIENTO_EZE_DIAS = 30;
+
 const MS_DIA = 24 * 60 * 60 * 1000;
 
 /** Días de calendario entre dos fechas YYYY-MM-DD (UTC, sin horas). */
@@ -44,6 +51,16 @@ export function avisosVencidos(
           limite: limites[it.tipo],
         });
       }
+    }
+    const eze = it.precios.eze;
+    if (eze && diasEntre(eze.fecha, hoy) > VENCIMIENTO_EZE_DIAS) {
+      avisos.push({
+        item: it.nombre,
+        fuente: eze.fuente,
+        fecha: eze.fecha,
+        dias: diasEntre(eze.fecha, hoy),
+        limite: VENCIMIENTO_EZE_DIAS,
+      });
     }
   }
   for (const ex of extras) {
