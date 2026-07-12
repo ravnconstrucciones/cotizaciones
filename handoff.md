@@ -1,36 +1,30 @@
-# Handoff — 11/07/2026 · Tramo B "hoja viva" CONSTRUIDO y verificado
+# Handoff — 12/07/2026 · Tramo B COMPLETO (ítem 5 recortes) + gotcha deploy resuelto
 
 ## Hecho en esta sesión (commits en home-cards)
 
-**Tramo B completo** (spec del 10/07 + las 4 respuestas de Eze del 11/07):
-
-- **Decisiones de Eze (11/07):** 9 rubros canónicos (Obra · Humedad · Revestimientos · Plomería · Electricidad e iluminación · Sanitarios · Griferías · Mobiliario y accesorios · Extras) · MO en pestaña propia · precio editado PISA el rango con sello "Eze" y fuentes visibles abajo · "cerrada" = estado `aprobada` existente (caño aprobar→plan de compra, sin estados nuevos).
-- **Motor:** `ajustes.ts` + `rubros.ts` nuevos; `cotizar()` acepta `ajustes` (AjustesMesa) que se persisten en `desglose.ajustes` y sobreviven re-corridas; ítems `activo:false` visibles pero fuera de totales/checklist/sanidad; `instanciar.ts` honra `precios.eze` del cache (futuras cotizaciones nacen calibradas). 13 tests nuevos (151 total pasan).
-- **Endpoint:** `PATCH /api/cotizaciones/[id]/desglose` — una operación por request (ajuste / manual / quitar_manual), re-corre el motor server-side, guard de carrera `en_revision`, y regla de oro: precio corregido → upsert a `precios_items` origen `eze` (limpiar corrección borra la fila).
-- **Migración:** `20260711090000_precios_items_origen_eze.sql` — APLICADA A PROD 11/07 vía MCP.
-- **UI:** `hoja-viva.tsx` reemplaza la tabla estática en la mesa — botonera de rubros con acento fino + total por rubro, edición inline (cantidad con ↺ a fórmula, precio con sello EZE y ↺, toggle sí/no, alta/baja de ítems manuales), pestañas MO y Extras. Refresh silencioso (no pierde la pestaña activa).
-- **Verificado de punta a punta:** round-trip determinístico contra la cotización real 01cf33ce (totales al peso exacto), mapeo de los 23 ítems reales correcto, y prueba viva por UI (login bot en localhost): editar precio porcelanato → fila eze en base + totales frescos → revert → punto cero exacto.
-
-## Code review (11/07, agente revisor) — HECHO
-
-2 bugs ARREGLADOS (commit 0bb72b8): (1) CRÍTICO sembrar.ts sembraba ítems apagados en el plan de compra → ahora filtra activo:false, con test; (2) checkbox de ítems manuales daba 400 → oculto (un manual se saca con ×). 462 tests pasan.
-
-**4 observaciones NO bloqueantes, a decidir con Eze:**
-1. `vencimiento.ts` no vence nunca el precio 'eze' — un precio corregido en enero seguiría pisando en julio sin alerta. ¿Debe vencer (30d?) o es definitivo?
-2. Sin lock optimista entre dos PATCH concurrentes al mismo desglose (mono-usuario hoy, riesgo bajo).
-3. `parseLiteral` interpreta punto como miles: "2.5" → 25, sin preview. Footgun en cantidades decimales (m²/litros).
-4. `divergencia_pct` con precio eze usa eze como denominador (cosmético, solo display).
+- **GOTCHA DEPLOY (importante):** el push a `home-cards` genera SOLO Preview — la production branch de Vercel es `main` (abandonada, 116+ commits atrás). Prod estaba sirviendo el commit del 10/07 y Eze no veía la botonera. Resuelto: `vercel promote <url-preview>` tras cada push + verificar que el alias `ravn-app-one-five.vercel.app` apunte al commit (API `/v6/deployments?target=production`). Registrado en memoria `ravn-app-vercel-deploy-target`.
+- **UX por pedido de Eze (528b63d):** la Conversación dejó de ser columna derecha (recortaba la hoja) → al fondo a ancho completo. Verificado local y EN PROD.
+- **Tramo B ítem 5 — recortes del render por ítem (ad80e58):** decisión de Eze 12/07 = "manual primero" (IA para Tramo C).
+  - Render base = **portada de la cotización** (se puede subir desde el mismo modal si falta).
+  - Modal de recorte: arrastrás el recuadro sobre el render, se corta en el browser (canvas, sin deps nuevas), exporta máx 512px.
+  - Thumbnail FIJO 36×36 por fila (recorte o ✂ punteado) — nada se corre de margen.
+  - Persistencia: `cotizacion_archivos` tipo `crop_item` + `item_nombre` (único por ítem; **migración `20260712130000` APLICADA A PROD** vía MCP) + bucket `obra-archivos` prefijo `crops-item/{cotizacion_id}/`.
+  - Endpoint `GET/POST/DELETE /api/cotizaciones/[id]/crops` (patrón de /portada). Lógica pura en `src/lib/cotizador/crops.ts` con 9 tests (471 total pasan).
+  - **Verificado e2e en localhost** (login bot): subir render → recortar → thumbnail → rehacer → quitar → revertido a punto cero exacto (portada null, bucket limpio, 0 filas).
 
 ## Pendiente inmediato
 
-- ~~Push de home-cards~~ HECHO 12/07 con visto de Eze (14accf2..3f37690 → deploy Vercel corriendo). Verificar en prod: ravn-app-one-five.vercel.app/cotizaciones/01cf33ce-f7dd-486d-ab8a-c825561cace7/revision.
-- **Feedback de Eze sobre la mesa/test del ojo** (sigue abierto del 10/07): medidas reales del baño render, estado de partida, piso ducha (nivel vs plato), gama mesada, veredicto vs su vara.
-- **Tramo B item 5 — recortes del render por ítem** (crop mampara/vanitory/inodoro como thumbnail fijo al bucket): NO construido todavía, es lo próximo del capítulo.
-- **Tramo C**: entrada por bot en la nube (foto → candidata sin la Mac).
-- Siguen vivos: 6 preguntas siding · CYPE vs receta real (pregunta abierta en receta v3) · Chandías · fuentes MO (UOCRA/CAC).
+- **El RENDER REAL del baño rosa/verde**: no existe en la app, la Mac ni el bucket — quedó solo en el WhatsApp de Eze (10/07). Eze quedó en pasarlo (lo pega en el chat o lo sube él con el botón del modal). Con eso: recortar mampara/vanitory/inodoro en la cotización 01cf33ce.
+- **Feedback de Eze sobre la mesa/test del ojo** (sigue abierto del 10/07): medidas reales, estado de partida, piso ducha (nivel vs plato), gama mesada, veredicto vs su vara.
+- **Tramo C**: entrada por bot en la nube (foto → candidata sin la Mac). Ojo: el bot HOY no guarda imágenes en referencias (imagen_path existe pero no se usa para esto).
+- Code review 11/07: obs 3 y 4 ARREGLADAS 12/07 (parseLiteral decimales inequívocos + divergencia_pct sobre menor fuente, commit 6616aea, en prod). Quedan 2 a decisión de Eze: (1) ¿el precio 'eze' vence a los 30d o es definitivo? (2) lock optimista entre PATCH concurrentes (mono-usuario, riesgo bajo).
+- Galería /cotizaciones arranca en "En revisión" (pedido de Eze 12/07, commit dcf5c64, en prod).
+- Siguen vivos: 6 preguntas siding · CYPE vs receta real · Chandías · fuentes MO (UOCRA/CAC).
+- **Regla de Eze (12/07): NADA corriendo constante en la Mac** — todo por evento/calendario. Hoy cumple: com.ravn.jobs (3 disparos/día) y com.ravn.homereno-goteo (cada 3 h, tanda corta y sale; va 270/403). **Cuando el goteo llegue a 403/403 (aparece `_COMPLETO.flag`): `launchctl bootout gui/$(id -u)/com.ravn.homereno-goteo` + borrar el plist.**
 
 ## Gotchas de esta sesión
 
-- Verificación UI local: login con credenciales del bot (`~/.ravn-jobs/.env`) FUNCIONA para la mesa porque los /api usan admin client (RLS no aplica); solo el selector de presupuestos (query browser directa) queda vacío para el bot.
-- Scripts sueltos tsx: correr DESDE el repo (scratchpad no resuelve node_modules) y extensión `.mts` para top-level await.
-- En el repo siguen los dos archivos ajenos a esta sesión: `goal.md` y `scripts/__shot-cotizar.tmp.mjs` (no los toqué).
+- Deploy: ver arriba — SIEMPRE promote después del push, el push solo NO actualiza prod.
+- `npm run lint` está roto (migración ESLint pendiente, prompt interactivo). Verificar con `npx tsc --noEmit` + `npx vitest run`.
+- El error de consola `manifest.webmanifest` en dev es preexistente, no es de la mesa.
+- En el repo siguen los dos archivos ajenos: `goal.md` y `scripts/__shot-cotizar.tmp.mjs` (no los toqué).
