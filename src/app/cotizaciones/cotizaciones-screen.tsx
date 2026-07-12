@@ -42,13 +42,14 @@ export const ESTADO_LABEL: Record<EstadoCotizacion, string> = {
   documento_emitido: "Emitida",
 };
 
+// Arranca por "En revisión" (pedido de Eze 12/07): abrir por todas hace ruido.
 const FILTROS: Array<{ valor: EstadoCotizacion | "todas"; etiqueta: string }> = [
-  { valor: "todas", etiqueta: "Todas" },
   { valor: "en_revision", etiqueta: "En revisión" },
   { valor: "aprobada", etiqueta: "Aprobadas" },
   { valor: "documento_emitido", etiqueta: "Emitidas" },
   { valor: "rechazada", etiqueta: "Rechazadas" },
   { valor: "borrador", etiqueta: "Borradores" },
+  { valor: "todas", etiqueta: "Todas" },
 ];
 
 function aFoto(c: CotizacionListada): CotizacionFoto {
@@ -66,7 +67,7 @@ function aFoto(c: CotizacionListada): CotizacionFoto {
 
 export function CotizacionesScreen() {
   const [cotizaciones, setCotizaciones] = useState<CotizacionFoto[]>([]);
-  const [filtro, setFiltro] = useState<EstadoCotizacion | "todas">("todas");
+  const [filtro, setFiltro] = useState<EstadoCotizacion | "todas">("en_revision");
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [eliminando, setEliminando] = useState<string | null>(null);
