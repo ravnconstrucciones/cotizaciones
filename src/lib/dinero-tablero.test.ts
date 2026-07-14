@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  arqueosPorCuenta,
   borradoresAgrupados,
   bolsillosPorCuenta,
   composicionPorObra,
@@ -8,6 +9,7 @@ import {
   divergenciasContraMotor,
   esTarjeta,
   nombreDueno,
+  nombreParte,
   totalesPorDueno,
   type BolsilloVista,
   type BorradorVista,
@@ -193,6 +195,40 @@ describe("deudasPorDeudor", () => {
       deudasPorDeudor(deudasConAntiguedad([fin({ estado: "devuelto" })], ahora))
     ).toEqual([]);
   });
+
+  it("terceros: se distinguen por nombre y no se mezclan con RAVN", () => {
+    const grupos = deudasPorDeudor(
+      deudasConAntiguedad(
+        [
+          fin({
+            id: "f-carlos",
+            deudor_tipo: "empresa",
+            deudor_obra_id: null,
+            acreedor_tipo: "tercero",
+            acreedor_obra_id: null,
+            contraparte: "Carlos",
+            saldo_pendiente: 200000,
+          }),
+          fin({
+            id: "f-marta",
+            deudor_tipo: "empresa",
+            deudor_obra_id: null,
+            acreedor_tipo: "tercero",
+            acreedor_obra_id: null,
+            contraparte: "Marta",
+            saldo_pendiente: 50000,
+          }),
+        ],
+        ahora
+      )
+    );
+    expect(grupos).toHaveLength(1);
+    expect(grupos[0].totalArs).toBe(250000);
+    expect(grupos[0].acreedores.map((a) => [a.contraparte, a.totalArs])).toEqual([
+      ["Carlos", 200000],
+      ["Marta", 50000],
+    ]);
+  });
 });
 
 describe("borradoresAgrupados", () => {
@@ -223,8 +259,8 @@ describe("composicionPorObra", () => {
     expect(c.financiadoTotal).toBe(700000);
     expect(c.pctPropio).toBe(0.3);
     expect(c.financiado).toEqual([
-      { acreedor_tipo: "obra", acreedor_obra_id: "p-puey", monto: 450000 },
-      { acreedor_tipo: "empresa", acreedor_obra_id: null, monto: 250000 },
+      { acreedor_tipo: "obra", acreedor_obra_id: "p-puey", contraparte: null, monto: 450000 },
+      { acreedor_tipo: "empresa", acreedor_obra_id: null, contraparte: null, monto: 250000 },
     ]);
   });
 
@@ -241,5 +277,38 @@ describe("nombreDueno", () => {
     expect(nombreDueno("empresa", null, obras)).toBe("RAVN");
     expect(nombreDueno("obra", "p-puey", obras)).toBe("Baño Pueyrredón");
     expect(nombreDueno("obra", "p-x", obras)).toBe("Obra sin nombre");
+  });
+});
+
+describe("nombreParte", () => {
+  it("tercero por contraparte con fallback; internos igual que nombreDueno", () => {
+    const obras = { "p-puey": "Baño Pueyrredón" };
+    expect(nombreParte("tercero", null, "Carlos", obras)).toBe("Carlos");
+    expect(nombreParte("tercero", null, null, obras)).toBe("Tercero");
+    expect(nombreParte("empresa", null, null, obras)).toBe("RAVN");
+    expect(nombreParte("obra", "p-puey", null, obras)).toBe("Baño Pueyrredón");
+  });
+});
+
+describe("arqueosPorCuenta", () => {
+  it("agrupa por caja con desviación neta y absoluta, último arqueo primero", () => {
+    const cajas = arqueosPorCuenta([
+      { id: "a-1", cuenta_id: "c-mp", fecha: "2026-07-08", saldo_declarado: "1100002", delta: "1100002", nota: "arqueo 08/07" },
+      { id: "a-2", cuenta_id: "c-mp", fecha: "2026-07-13", saldo_declarado: 18129, delta: 4639, nota: "" },
+      { id: "a-3", cuenta_id: "c-efec", fecha: "2026-07-08", saldo_declarado: 0, delta: -81500, nota: "faltó plata" },
+    ]);
+    expect(cajas.map((c) => c.cuenta_id)).toEqual(["c-mp", "c-efec"]);
+    expect(cajas[0]).toMatchObject({ desviacionNeta: 1104641, desviacionAbsoluta: 1104641 });
+    expect(cajas[0].arqueos.map((a) => a.id)).toEqual(["a-2", "a-1"]);
+    expect(cajas[1]).toMatchObject({ desviacionNeta: -81500, desviacionAbsoluta: 81500 });
+  });
+
+  it("deltas que se cancelan: neta 0 pero absoluta acusa el ruido", () => {
+    const [c] = arqueosPorCuenta([
+      { id: "a-1", cuenta_id: "c-1", fecha: "2026-07-01", saldo_declarado: 100, delta: 5000, nota: "" },
+      { id: "a-2", cuenta_id: "c-1", fecha: "2026-07-02", saldo_declarado: 100, delta: -5000, nota: "" },
+    ]);
+    expect(c.desviacionNeta).toBe(0);
+    expect(c.desviacionAbsoluta).toBe(10000);
   });
 });

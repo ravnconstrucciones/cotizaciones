@@ -9,7 +9,7 @@ import { formatMoneyInt } from "@/lib/format-currency";
 import {
   borradoresAgrupados,
   deudasConAntiguedad,
-  nombreDueno,
+  nombreParte,
   totalesPorDueno,
   type BolsilloVista,
   type BorradorVista,
@@ -164,8 +164,8 @@ export function ModuloDinero({ className }: { className?: string }) {
                     className="flex items-baseline justify-between gap-2 text-[11px]"
                   >
                     <span className="min-w-0 truncate text-cdm-muted">
-                      {nombreDueno(d.deudor_tipo, d.deudor_obra_id, data.obras)} →{" "}
-                      {nombreDueno(d.acreedor_tipo, d.acreedor_obra_id, data.obras)}
+                      {nombreParte(d.deudor_tipo, d.deudor_obra_id, d.contraparte, data.obras)} →{" "}
+                      {nombreParte(d.acreedor_tipo, d.acreedor_obra_id, d.contraparte, data.obras)}
                     </span>
                     <span className="shrink-0 tabular-nums text-red-400">
                       {d.moneda === "USD"

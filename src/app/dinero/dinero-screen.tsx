@@ -9,6 +9,7 @@ import { CifraHeroica } from "@/components/cockpit/cifra-heroica";
 import { fetchCompartido } from "@/lib/fetch-compartido";
 import type { SaldosCuentas } from "@/lib/cuentas";
 import {
+  arqueosPorCuenta,
   borradoresAgrupados,
   bolsillosPorCuenta,
   composicionPorObra,
@@ -17,8 +18,10 @@ import {
   divergenciasContraMotor,
   esTarjeta,
   nombreDueno,
+  nombreParte,
   totalesPorDueno,
   type AcreedorDeGrupo,
+  type ArqueoVista,
   type BolsilloVista,
   type BorradorVista,
   type FinanciamientoVista,
@@ -46,6 +49,8 @@ type PayloadDinero = {
   costos_obra: Record<string, number>;
   /** Cuentas tarjeta: personales, solo control — nunca restan en bolsillos. */
   tarjetas?: string[];
+  /** Arqueos declarados (cuenta_ajustes) para el análisis de desviaciones. */
+  arqueos?: ArqueoVista[];
 };
 
 const CARD =
@@ -155,7 +160,12 @@ function AcreedorFila({
         </motion.svg>
         <span className="min-w-0 flex-1 truncate text-[13px] text-cdm-fg">
           <span className="text-cdm-muted">a</span>{" "}
-          {nombreDueno(acreedor.acreedor_tipo, acreedor.acreedor_obra_id, obras)}
+          {nombreParte(
+            acreedor.acreedor_tipo,
+            acreedor.acreedor_obra_id,
+            acreedor.contraparte,
+            obras
+          )}
           {acreedor.deudas.length > 1 && (
             <span className="ml-2 font-mono-hud text-[9px] uppercase tracking-[0.14em] text-cdm-muted">
               {acreedor.deudas.length} mov
@@ -301,6 +311,10 @@ export function DineroScreen() {
       cuentas.cuentas.map((c) => ({ id: c.id, saldo: c.saldo }))
     );
   }, [data, cuentas]);
+  const arqueos = useMemo(
+    () => (data?.arqueos ? arqueosPorCuenta(data.arqueos) : []),
+    [data]
+  );
 
   if (loading) return <CargandoCockpit label="Dinero" />;
 
@@ -676,7 +690,7 @@ export function DineroScreen() {
                     <div className="flex items-baseline justify-between gap-3">
                       <p className="min-w-0 truncate text-[13px] text-cdm-fg">
                         <span className="font-medium">
-                          {nombreDueno(g.deudor_tipo, g.deudor_obra_id, obras)}
+                          {nombreParte(g.deudor_tipo, g.deudor_obra_id, g.contraparte, obras)}
                         </span>{" "}
                         <span className="font-mono-hud text-[10px] uppercase tracking-[0.14em] text-cdm-muted">
                           le debe
@@ -689,7 +703,7 @@ export function DineroScreen() {
                     <ul className="mt-1">
                       {g.acreedores.map((a) => (
                         <AcreedorFila
-                          key={`${a.acreedor_tipo}|${a.acreedor_obra_id ?? ""}`}
+                          key={`${a.acreedor_tipo}|${a.acreedor_obra_id ?? ""}|${a.contraparte ?? ""}`}
                           acreedor={a}
                           obras={obras}
                           reducir={reducirMovimiento}
@@ -722,8 +736,8 @@ export function DineroScreen() {
                       className="flex items-baseline justify-between gap-3 text-[11px] text-cdm-muted"
                     >
                       <span className="min-w-0 truncate">
-                        {nombreDueno(d.deudor_tipo, d.deudor_obra_id, obras)} →{" "}
-                        {nombreDueno(d.acreedor_tipo, d.acreedor_obra_id, obras)} · {d.estado}
+                        {nombreParte(d.deudor_tipo, d.deudor_obra_id, d.contraparte, obras)} →{" "}
+                        {nombreParte(d.acreedor_tipo, d.acreedor_obra_id, d.contraparte, obras)} · {d.estado}
                       </span>
                       <span className="shrink-0 tabular-nums">
                         {fmtMonto(d.montoOriginal, d.moneda)}
@@ -849,12 +863,104 @@ export function DineroScreen() {
                       {c.financiado
                         .map(
                           (f) =>
-                            `${nombreDueno(f.acreedor_tipo, f.acreedor_obra_id, obras)} puso ${formatMoneyInt(f.monto)}`
+                            `${nombreParte(f.acreedor_tipo, f.acreedor_obra_id, f.contraparte, obras)} puso ${formatMoneyInt(f.monto)}`
                         )
                         .join(" · ")}
                     </p>
                   </motion.li>
                 ))}
+              </motion.ul>
+            </motion.section>
+          )}
+
+          {/* Arqueos por caja: cada vez que Eze declaró "en X hay tanto" y el
+              ledger decía otra cosa. El delta es la desviación — hacia dónde
+              y cuánto le viene errando el registro a la realidad. */}
+          {arqueos.length > 0 && (
+            <motion.section
+              className={CARD}
+              variants={seccion}
+              initial="hidden"
+              animate="visible"
+              custom={6}
+            >
+              <div className="flex items-center justify-between gap-3">
+                <p className={LABEL}>Arqueos por caja</p>
+                <p className="font-mono-hud text-[9px] uppercase tracking-[0.14em] text-cdm-muted">
+                  Δ = lo que hubo que corregir
+                </p>
+              </div>
+              <motion.ul
+                className="mt-3 space-y-4"
+                variants={lista.contenedor}
+                initial="hidden"
+                animate="visible"
+              >
+                {arqueos.map((caja) => {
+                  const c = nombreCuenta.get(caja.cuenta_id);
+                  const moneda = c?.moneda ?? "ARS";
+                  return (
+                    <motion.li
+                      key={caja.cuenta_id}
+                      variants={lista.fila}
+                      className="-mx-3 rounded-2xl px-3 py-2 transition-colors duration-200 hover:bg-cdm-fg/[0.03]"
+                    >
+                      <div className="flex items-baseline justify-between gap-3">
+                        <span className="min-w-0 truncate text-[13px] font-medium text-cdm-fg">
+                          {c?.nombre ?? "Cuenta"}
+                          <span className="ml-2 font-mono-hud text-[9px] uppercase tracking-[0.14em] text-cdm-muted">
+                            {caja.arqueos.length}{" "}
+                            {caja.arqueos.length === 1 ? "arqueo" : "arqueos"}
+                          </span>
+                        </span>
+                        <span
+                          className={`shrink-0 tabular-nums text-[13px] font-semibold tracking-tight ${
+                            caja.desviacionNeta === 0
+                              ? "text-cdm-muted"
+                              : caja.desviacionNeta > 0
+                                ? "text-emerald-400"
+                                : "text-red-400"
+                          }`}
+                        >
+                          Δ neto {caja.desviacionNeta > 0 ? "+" : ""}
+                          {fmtMonto(caja.desviacionNeta, moneda)}
+                        </span>
+                      </div>
+                      <ul className="mt-2 space-y-1.5 border-l border-cdm-line pl-4">
+                        {caja.arqueos.map((a) => (
+                          <li
+                            key={a.id}
+                            className="flex items-baseline justify-between gap-3 text-[11px]"
+                          >
+                            <span className="flex min-w-0 flex-wrap items-center gap-1.5">
+                              <span className={CHIP}>{fmtFecha(a.fecha)}</span>
+                              <span className="text-cdm-muted">
+                                declaró {fmtMonto(a.saldoDeclarado, moneda)}
+                              </span>
+                              {a.nota && (
+                                <span className="min-w-0 truncate text-[10px] text-cdm-muted/70">
+                                  {a.nota}
+                                </span>
+                              )}
+                            </span>
+                            <span
+                              className={`shrink-0 tabular-nums ${
+                                a.delta === 0
+                                  ? "text-cdm-muted"
+                                  : a.delta > 0
+                                    ? "text-emerald-400"
+                                    : "text-red-400"
+                              }`}
+                            >
+                              {a.delta > 0 ? "+" : ""}
+                              {fmtMonto(a.delta, moneda)}
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                    </motion.li>
+                  );
+                })}
               </motion.ul>
             </motion.section>
           )}

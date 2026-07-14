@@ -21,7 +21,7 @@ export async function GET() {
   try {
     const supabase = createSupabaseAdminClient();
 
-    const [bolsillosRes, financiamientosRes, borradoresRes, gastosRes, cuentasRes] =
+    const [bolsillosRes, financiamientosRes, borradoresRes, gastosRes, cuentasRes, arqueosRes] =
       await Promise.all([
         supabase
           .from("dinero_saldos_bolsillos")
@@ -29,7 +29,7 @@ export async function GET() {
         supabase
           .from("financiamientos")
           .select(
-            "id, deudor_tipo, deudor_obra_id, acreedor_tipo, acreedor_obra_id, monto_original, saldo_pendiente, moneda, estado, notas, created_at"
+            "id, deudor_tipo, deudor_obra_id, acreedor_tipo, acreedor_obra_id, contraparte, monto_original, saldo_pendiente, moneda, estado, notas, created_at"
           )
           .order("created_at", { ascending: false }),
         supabase
@@ -47,6 +47,12 @@ export async function GET() {
         // Para marcar qué cuentas son tarjeta (personales: control, nunca
         // restan en bolsillos — regla de Eze 08/07).
         supabase.from("cuentas").select("id, nombre"),
+        // Arqueos declarados caja por caja (análisis de desviaciones, 13/07).
+        supabase
+          .from("cuenta_ajustes")
+          .select("id, cuenta_id, fecha, saldo_declarado, delta, nota")
+          .order("fecha", { ascending: false })
+          .limit(200),
       ]);
 
     const firstError =
@@ -54,7 +60,8 @@ export async function GET() {
       financiamientosRes.error ??
       borradoresRes.error ??
       gastosRes.error ??
-      cuentasRes.error;
+      cuentasRes.error ??
+      arqueosRes.error;
     if (firstError) {
       return NextResponse.json({ error: firstError.message }, { status: 500 });
     }
@@ -111,6 +118,7 @@ export async function GET() {
       obras,
       costos_obra,
       tarjetas,
+      arqueos: arqueosRes.data ?? [],
     });
     payload.headers.set(
       "Cache-Control",

@@ -20,12 +20,21 @@ export type BolsilloVista = {
   movimientos: number;
 };
 
+/**
+ * Una punta del libro de deudas: los dueños internos (obra/RAVN) o un
+ * tercero de afuera (13/07: préstamos tipo "Carlos le presta a RAVN").
+ * Los terceros llevan su nombre en `contraparte` y nunca obra_id.
+ */
+export type ParteDeuda = DuenoTipo | "tercero";
+
 export type FinanciamientoVista = {
   id: string;
-  deudor_tipo: DuenoTipo;
+  deudor_tipo: ParteDeuda;
   deudor_obra_id: string | null;
-  acreedor_tipo: DuenoTipo;
+  acreedor_tipo: ParteDeuda;
   acreedor_obra_id: string | null;
+  /** Nombre del tercero cuando una punta es 'tercero'; null en deudas internas. */
+  contraparte?: string | null;
   monto_original: unknown;
   saldo_pendiente: unknown;
   moneda: Moneda;
@@ -128,10 +137,11 @@ export function divergenciasContraMotor(
 
 export type DeudaVista = {
   id: string;
-  deudor_tipo: DuenoTipo;
+  deudor_tipo: ParteDeuda;
   deudor_obra_id: string | null;
-  acreedor_tipo: DuenoTipo;
+  acreedor_tipo: ParteDeuda;
   acreedor_obra_id: string | null;
+  contraparte: string | null;
   montoOriginal: number;
   saldoPendiente: number;
   moneda: Moneda;
@@ -155,6 +165,7 @@ export function deudasConAntiguedad(
       deudor_obra_id: f.deudor_obra_id,
       acreedor_tipo: f.acreedor_tipo,
       acreedor_obra_id: f.acreedor_obra_id,
+      contraparte: f.contraparte ?? null,
       montoOriginal: roundArs2(parseNum(f.monto_original)),
       saldoPendiente: roundArs2(parseNum(f.saldo_pendiente)),
       moneda: f.moneda,
@@ -171,8 +182,9 @@ export function deudasConAntiguedad(
 }
 
 export type AcreedorDeGrupo = {
-  acreedor_tipo: DuenoTipo;
+  acreedor_tipo: ParteDeuda;
   acreedor_obra_id: string | null;
+  contraparte: string | null;
   totalArs: number;
   totalUsd: number;
   /** Los financiamientos individuales detrás del total (para el desplegable). */
@@ -180,8 +192,9 @@ export type AcreedorDeGrupo = {
 };
 
 export type GrupoDeudor = {
-  deudor_tipo: DuenoTipo;
+  deudor_tipo: ParteDeuda;
   deudor_obra_id: string | null;
+  contraparte: string | null;
   totalArs: number;
   totalUsd: number;
   acreedores: AcreedorDeGrupo[];
@@ -194,26 +207,30 @@ export type GrupoDeudor = {
  * movimiento queda adentro de cada acreedor para el desplegable.
  */
 export function deudasPorDeudor(deudas: DeudaVista[]): GrupoDeudor[] {
-  const clave = (tipo: DuenoTipo, obraId: string | null) => `${tipo}|${obraId ?? ""}`;
+  // Los terceros se distinguen por nombre (dos "Carlos" distintos no hay).
+  const clave = (tipo: ParteDeuda, obraId: string | null, contraparte: string | null) =>
+    `${tipo}|${obraId ?? ""}|${tipo === "tercero" ? contraparte ?? "" : ""}`;
   const porDeudor = new Map<string, GrupoDeudor>();
   for (const d of deudas) {
     if (d.estado !== "abierto") continue;
-    const kD = clave(d.deudor_tipo, d.deudor_obra_id);
+    const kD = clave(d.deudor_tipo, d.deudor_obra_id, d.contraparte);
     const grupo = porDeudor.get(kD) ?? {
       deudor_tipo: d.deudor_tipo,
       deudor_obra_id: d.deudor_obra_id,
+      contraparte: d.deudor_tipo === "tercero" ? d.contraparte : null,
       totalArs: 0,
       totalUsd: 0,
       acreedores: [],
     };
-    const kA = clave(d.acreedor_tipo, d.acreedor_obra_id);
+    const kA = clave(d.acreedor_tipo, d.acreedor_obra_id, d.contraparte);
     let acreedor = grupo.acreedores.find(
-      (a) => clave(a.acreedor_tipo, a.acreedor_obra_id) === kA
+      (a) => clave(a.acreedor_tipo, a.acreedor_obra_id, a.contraparte) === kA
     );
     if (!acreedor) {
       acreedor = {
         acreedor_tipo: d.acreedor_tipo,
         acreedor_obra_id: d.acreedor_obra_id,
+        contraparte: d.acreedor_tipo === "tercero" ? d.contraparte : null,
         totalArs: 0,
         totalUsd: 0,
         deudas: [],
@@ -283,8 +300,9 @@ export type ComposicionObra = {
   costo: number;
   /** Cuánto del costo lo puso cada dueño ajeno (solo ARS, spec §Tablero). */
   financiado: Array<{
-    acreedor_tipo: DuenoTipo;
+    acreedor_tipo: ParteDeuda;
     acreedor_obra_id: string | null;
+    contraparte: string | null;
     monto: number;
   }>;
   financiadoTotal: number;
@@ -313,15 +331,17 @@ export function composicionPorObra(
       pctPropio: 1,
     };
     const monto = roundArs2(parseNum(f.monto_original));
-    const clave = `${f.acreedor_tipo}|${f.acreedor_obra_id ?? ""}`;
+    const contraparte = f.acreedor_tipo === "tercero" ? f.contraparte ?? null : null;
+    const clave = `${f.acreedor_tipo}|${f.acreedor_obra_id ?? ""}|${contraparte ?? ""}`;
     const previo = c.financiado.find(
-      (x) => `${x.acreedor_tipo}|${x.acreedor_obra_id ?? ""}` === clave
+      (x) => `${x.acreedor_tipo}|${x.acreedor_obra_id ?? ""}|${x.contraparte ?? ""}` === clave
     );
     if (previo) previo.monto = roundArs2(previo.monto + monto);
     else
       c.financiado.push({
         acreedor_tipo: f.acreedor_tipo,
         acreedor_obra_id: f.acreedor_obra_id,
+        contraparte,
         monto,
       });
     c.financiadoTotal = roundArs2(c.financiadoTotal + monto);
@@ -343,4 +363,76 @@ export function nombreDueno(
 ): string {
   if (tipo === "empresa") return "RAVN";
   return (obraId && obras[obraId]) || "Obra sin nombre";
+}
+
+/** Etiqueta de una punta del libro de deudas: dueño interno o tercero por nombre. */
+export function nombreParte(
+  tipo: ParteDeuda,
+  obraId: string | null,
+  contraparte: string | null,
+  obras: Record<string, string>
+): string {
+  if (tipo === "tercero") return contraparte || "Tercero";
+  return nombreDueno(tipo, obraId, obras);
+}
+
+/** Fila cruda de cuenta_ajustes (los arqueos que declaró Eze, caja por caja). */
+export type ArqueoVista = {
+  id: string;
+  cuenta_id: string;
+  fecha: string;
+  saldo_declarado: unknown;
+  delta: unknown;
+  nota: string;
+};
+
+export type ArqueoFila = {
+  id: string;
+  fecha: string;
+  saldoDeclarado: number;
+  delta: number;
+  nota: string;
+};
+
+export type ArqueosDeCuenta = {
+  cuenta_id: string;
+  arqueos: ArqueoFila[];
+  /** Σ deltas de la caja: cuánto hubo que corregir en total (con signo). */
+  desviacionNeta: number;
+  /** Σ |delta|: magnitud total de las desviaciones, sin que se cancelen. */
+  desviacionAbsoluta: number;
+};
+
+/**
+ * Arqueos agrupados caja por caja para leer las desviaciones: dónde la
+ * realidad le viene errando al ledger y hacia qué lado. El último arqueo
+ * primero; las cajas más corregidas arriba.
+ */
+export function arqueosPorCuenta(arqueos: ArqueoVista[]): ArqueosDeCuenta[] {
+  const porCuenta = new Map<string, ArqueosDeCuenta>();
+  for (const a of arqueos) {
+    const c = porCuenta.get(a.cuenta_id) ?? {
+      cuenta_id: a.cuenta_id,
+      arqueos: [],
+      desviacionNeta: 0,
+      desviacionAbsoluta: 0,
+    };
+    const delta = roundArs2(parseNum(a.delta));
+    c.arqueos.push({
+      id: a.id,
+      fecha: a.fecha,
+      saldoDeclarado: roundArs2(parseNum(a.saldo_declarado)),
+      delta,
+      nota: a.nota,
+    });
+    c.desviacionNeta = roundArs2(c.desviacionNeta + delta);
+    c.desviacionAbsoluta = roundArs2(c.desviacionAbsoluta + Math.abs(delta));
+    porCuenta.set(a.cuenta_id, c);
+  }
+  for (const c of porCuenta.values()) {
+    c.arqueos.sort((a, z) => z.fecha.localeCompare(a.fecha) || z.id.localeCompare(a.id));
+  }
+  return [...porCuenta.values()].sort(
+    (a, z) => z.desviacionAbsoluta - a.desviacionAbsoluta
+  );
 }
