@@ -884,7 +884,7 @@ export function DineroScreen() {
               animate="visible"
               custom={6}
             >
-              <div className="flex items-center justify-between gap-3">
+              <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
                 <p className={LABEL}>Arqueos por caja</p>
                 <p className="font-mono-hud text-[9px] uppercase tracking-[0.14em] text-cdm-muted">
                   Δ = lo que hubo que corregir
@@ -899,6 +899,20 @@ export function DineroScreen() {
                 {arqueos.map((caja) => {
                   const c = nombreCuenta.get(caja.cuenta_id);
                   const moneda = c?.moneda ?? "ARS";
+                  const n = caja.arqueos.length;
+                  // Cuánto de lo corregido en total se CANCELÓ entre sí (una
+                  // caja con Δ neto chico puede venir de mucho vaivén — la
+                  // absoluta es la única forma de ver ese ruido). Se compara a
+                  // la resolución que se MUESTRA (enteros): dos cifras que en
+                  // pantalla se leen iguales no deben aparecer las dos.
+                  const ruido =
+                    Math.round(caja.desviacionAbsoluta) !== Math.round(Math.abs(caja.desviacionNeta));
+                  const tono =
+                    caja.desviacionNeta === 0
+                      ? "cero"
+                      : caja.desviacionNeta > 0
+                        ? "positivo"
+                        : "negativo";
                   return (
                     <motion.li
                       key={caja.cuenta_id}
@@ -906,18 +920,19 @@ export function DineroScreen() {
                       className="-mx-3 rounded-2xl px-3 py-2 transition-colors duration-200 hover:bg-cdm-fg/[0.03]"
                     >
                       <div className="flex items-baseline justify-between gap-3">
-                        <span className="min-w-0 truncate text-[13px] font-medium text-cdm-fg">
-                          {c?.nombre ?? "Cuenta"}
-                          <span className="ml-2 font-mono-hud text-[9px] uppercase tracking-[0.14em] text-cdm-muted">
-                            {caja.arqueos.length}{" "}
-                            {caja.arqueos.length === 1 ? "arqueo" : "arqueos"}
+                        <span className="flex min-w-0 items-baseline gap-2">
+                          <span className="min-w-0 truncate text-[13px] font-medium text-cdm-fg">
+                            {c?.nombre ?? "Cuenta"}
+                          </span>
+                          <span className="shrink-0 font-mono-hud text-[9px] uppercase tracking-[0.14em] text-cdm-muted">
+                            {n} {n === 1 ? "arqueo" : "arqueos"}
                           </span>
                         </span>
                         <span
                           className={`shrink-0 tabular-nums text-[13px] font-semibold tracking-tight ${
-                            caja.desviacionNeta === 0
+                            tono === "cero"
                               ? "text-cdm-muted"
-                              : caja.desviacionNeta > 0
+                              : tono === "positivo"
                                 ? "text-emerald-400"
                                 : "text-red-400"
                           }`}
@@ -926,35 +941,47 @@ export function DineroScreen() {
                           {fmtMonto(caja.desviacionNeta, moneda)}
                         </span>
                       </div>
-                      <ul className="mt-2 space-y-1.5 border-l border-cdm-line pl-4">
+                      {ruido && (
+                        <p className="-mt-0.5 text-right font-mono-hud text-[9px] uppercase tracking-[0.1em] tabular-nums text-cdm-muted">
+                          Δ absoluta {fmtMonto(caja.desviacionAbsoluta, moneda)}
+                        </p>
+                      )}
+                      <ul
+                        className={`mt-2 space-y-2.5 border-l pl-4 ${
+                          tono === "positivo"
+                            ? "border-emerald-400/25"
+                            : tono === "negativo"
+                              ? "border-red-400/25"
+                              : "border-cdm-line"
+                        }`}
+                      >
                         {caja.arqueos.map((a) => (
-                          <li
-                            key={a.id}
-                            className="flex items-baseline justify-between gap-3 text-[11px]"
-                          >
-                            <span className="flex min-w-0 flex-wrap items-center gap-1.5">
-                              <span className={CHIP}>{fmtFecha(a.fecha)}</span>
-                              <span className="text-cdm-muted">
-                                declaró {fmtMonto(a.saldoDeclarado, moneda)}
-                              </span>
-                              {a.nota && (
-                                <span className="min-w-0 truncate text-[10px] text-cdm-muted/70">
-                                  {a.nota}
+                          <li key={a.id} className="text-[11px]">
+                            <div className="flex items-baseline justify-between gap-3">
+                              <span className="flex min-w-0 items-center gap-1.5">
+                                <span className={CHIP}>{fmtFecha(a.fecha)}</span>
+                                <span className="text-cdm-muted">
+                                  declaró {fmtMonto(a.saldoDeclarado, moneda)}
                                 </span>
-                              )}
-                            </span>
-                            <span
-                              className={`shrink-0 tabular-nums ${
-                                a.delta === 0
-                                  ? "text-cdm-muted"
-                                  : a.delta > 0
-                                    ? "text-emerald-400"
-                                    : "text-red-400"
-                              }`}
-                            >
-                              {a.delta > 0 ? "+" : ""}
-                              {fmtMonto(a.delta, moneda)}
-                            </span>
+                              </span>
+                              <span
+                                className={`shrink-0 tabular-nums ${
+                                  a.delta === 0
+                                    ? "text-cdm-muted"
+                                    : a.delta > 0
+                                      ? "text-emerald-400"
+                                      : "text-red-400"
+                                }`}
+                              >
+                                {a.delta > 0 ? "+" : ""}
+                                {fmtMonto(a.delta, moneda)}
+                              </span>
+                            </div>
+                            {a.nota && (
+                              <p className="mt-1 text-[10px] leading-snug text-cdm-muted/70">
+                                {a.nota}
+                              </p>
+                            )}
                           </li>
                         ))}
                       </ul>
