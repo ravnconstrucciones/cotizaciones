@@ -303,6 +303,12 @@ export function ObrasScreen() {
             Galería de obras
           </p>
         </div>
+        <Link
+          href="/mano-obra"
+          className="font-mono-hud text-[10px] uppercase tracking-[0.08em] text-cdm-muted transition-colors hover:text-cdm-accent"
+        >
+          [MANO DE OBRA] ↑
+        </Link>
       </header>
 
       {/* Toggle ACTIVAS / TODAS + alta de obra */}
