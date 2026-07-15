@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useMemo, useRef, useState } from "react";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import type {
   Desglose,
   ItemDesglose,
@@ -141,14 +142,70 @@ function trazaPrecio(precios: PrecioItem): string {
   return ref ? `${traza} · ref. Retail ${fechaCorta(ref.fecha)}` : traza;
 }
 
-function Seccion({ titulo, children }: { titulo: string; children: React.ReactNode }) {
+/** Entrada escalonada de secciones (respeta prefers-reduced-motion) — mismo patrón que /dinero. */
+function useSeccion(reducir: boolean | null) {
+  return useMemo(
+    () => ({
+      hidden: reducir ? {} : { opacity: 0, y: 18 },
+      visible: (i: number) =>
+        reducir
+          ? {}
+          : {
+              opacity: 1,
+              y: 0,
+              transition: { duration: 0.5, ease: [0.22, 1, 0.36, 1] as const, delay: i * 0.07 },
+            },
+    }),
+    [reducir]
+  );
+}
+
+/** Filas de tabla escalonadas dentro de un bloque que ya montó — mismo patrón que /dinero. */
+function useLista(reducir: boolean | null) {
+  return useMemo(
+    () => ({
+      contenedor: {
+        hidden: {},
+        visible: reducir ? {} : { transition: { staggerChildren: 0.03, delayChildren: 0.04 } },
+      },
+      fila: {
+        hidden: reducir ? {} : { opacity: 0, y: 6 },
+        visible: reducir
+          ? {}
+          : { opacity: 1, y: 0, transition: { duration: 0.28, ease: [0.22, 1, 0.36, 1] as const } },
+      },
+    }),
+    [reducir]
+  );
+}
+
+function Seccion({
+  titulo,
+  children,
+  indice = 0,
+  variants,
+  className,
+}: {
+  titulo: string;
+  children: React.ReactNode;
+  indice?: number;
+  variants: ReturnType<typeof useSeccion>;
+  className?: string;
+}) {
   return (
-    <section className="cdm-glass mb-6 p-5">
+    <motion.section
+      className={`cdm-glass mb-6 p-5 ${className ?? ""}`}
+      variants={variants}
+      custom={indice}
+      initial="hidden"
+      animate="visible"
+      exit="hidden"
+    >
       <h2 className="mb-3 text-[10px] font-semibold uppercase tracking-[0.25em] text-cdm-accent">
         {titulo}
       </h2>
       <div className="border-t border-cdm-line pt-3">{children}</div>
-    </section>
+    </motion.section>
   );
 }
 
@@ -359,6 +416,10 @@ export function CotizarScreen({
     return { material: de("material"), mano_de_obra: de("mano_de_obra") };
   }, [desglose]);
 
+  const reducirMovimiento = useReducedMotion();
+  const seccion = useSeccion(reducirMovimiento);
+  const lista = useLista(reducirMovimiento);
+
   return (
     <main className="font-grotesk relative min-h-screen bg-cdm-bg px-4 pb-24 pt-10 text-cdm-fg sm:px-6">
       <WavesBackdrop />
@@ -385,7 +446,7 @@ export function CotizarScreen({
         )}
         {error && <p className="mb-4 text-sm text-red-400">{error}</p>}
 
-        <Seccion titulo="Receta">
+        <Seccion titulo="Receta" indice={0} variants={seccion}>
           {recetas.length === 0 ? (
             <p className="text-xs text-cdm-muted">
               {errorCarga
@@ -411,131 +472,194 @@ export function CotizarScreen({
             </label>
           )}
 
-          {receta && receta.estado === "candidata" && (
-            <div className="mt-4 border border-amber-300/50 bg-amber-300/[0.08] p-4">
-              <p className="font-mono-hud text-[10px] font-bold uppercase tracking-[0.14em] text-amber-300">
-                CANDIDATA
-              </p>
-              <p className="mt-1 text-xs text-amber-200">
-                El sistema no pudo determinar esto — se construye con Eze.
-              </p>
-              {Array.isArray(receta.preguntas_abiertas) && receta.preguntas_abiertas.length > 0 && (
-                <ul className="mt-2 list-inside list-disc space-y-1 text-xs text-amber-100">
-                  {receta.preguntas_abiertas.map((p, i) => (
-                    <li key={i}>{p}</li>
-                  ))}
-                </ul>
-              )}
-            </div>
+          <AnimatePresence initial={false}>
+            {receta && receta.estado === "candidata" && (
+              <motion.div
+                key="candidata"
+                initial={reducirMovimiento ? false : { opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: "auto" }}
+                exit={reducirMovimiento ? undefined : { opacity: 0, height: 0 }}
+                transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
+                className="overflow-hidden"
+              >
+                <div className="mt-4 border border-amber-300/50 bg-amber-300/[0.08] p-4">
+                  <p className="font-mono-hud flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-[0.14em] text-amber-300">
+                    <span aria-hidden className="inline-block h-1.5 w-1.5 rounded-full bg-amber-300" />
+                    CANDIDATA
+                  </p>
+                  <p className="mt-1 text-xs text-amber-200">
+                    El sistema no pudo determinar esto — se construye con Eze.
+                  </p>
+                  {Array.isArray(receta.preguntas_abiertas) && receta.preguntas_abiertas.length > 0 && (
+                    <ul className="mt-2 list-inside list-disc space-y-1.5 text-xs text-amber-100">
+                      {receta.preguntas_abiertas.map((p, i) => (
+                        <li key={i}>{p}</li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {!receta && (
+            <p className="font-mono-hud mt-4 text-[10px] uppercase tracking-[0.14em] text-cdm-muted/60">
+              {"//"} elegí una receta para ver el take-off ítem por ítem, en vivo
+            </p>
           )}
         </Seccion>
 
-        {receta && (
-          <Seccion titulo="Parámetros">
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {(receta.parametros ?? []).map((p) => (
-                <CampoParametro
-                  key={p.nombre}
-                  parametro={p}
-                  value={valores[p.nombre] ?? ""}
-                  falta={faltantes.has(p.nombre)}
-                  onChange={(v) => setValores((prev) => ({ ...prev, [p.nombre]: v }))}
-                />
-              ))}
-            </div>
-            {faltantes.size > 0 && (
-              <p className="mt-4 text-xs text-amber-300">
-                Faltan completar {faltantes.size} dato(s) marcado(s) arriba — la receta los
-                necesita para poder calcular.
-              </p>
-            )}
-            <div className="mt-4 flex flex-wrap items-center gap-3">
-              <button
-                type="button"
-                disabled={calculando || refrescando}
-                onClick={() => void calcular()}
-                className="cdm-chip cursor-pointer border border-cdm-accent/60 bg-cdm-accent/15 px-4 py-2 text-xs uppercase tracking-[0.14em] text-cdm-accent shadow-[0_0_18px_-6px_rgba(34,211,238,0.55)] transition-colors hover:bg-cdm-accent/25 disabled:opacity-50"
-              >
-                {calculando ? "Calculando…" : "Calcular"}
-              </button>
-              <button
-                type="button"
-                disabled={calculando || refrescando}
-                onClick={() => void refrescarPrecios()}
-                className="cdm-chip cursor-pointer border border-cdm-line px-4 py-2 text-xs uppercase tracking-[0.14em] text-cdm-muted transition-colors hover:text-cdm-fg disabled:opacity-50"
-              >
-                {refrescando ? "Refrescando…" : "Refrescar precios ahora"}
-              </button>
-              {refrescoMsg && <span className="text-xs text-cdm-muted">{refrescoMsg}</span>}
-            </div>
-          </Seccion>
-        )}
+        <AnimatePresence>
+          {receta && (
+            <Seccion titulo="Parámetros" indice={1} variants={seccion}>
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {(receta.parametros ?? []).map((p) => (
+                  <CampoParametro
+                    key={p.nombre}
+                    parametro={p}
+                    value={valores[p.nombre] ?? ""}
+                    falta={faltantes.has(p.nombre)}
+                    onChange={(v) => setValores((prev) => ({ ...prev, [p.nombre]: v }))}
+                  />
+                ))}
+              </div>
+              {faltantes.size > 0 && (
+                <p className="mt-4 text-xs text-amber-300">
+                  Faltan completar {faltantes.size} dato(s) marcado(s) arriba — la receta los
+                  necesita para poder calcular.
+                </p>
+              )}
+              <div className="mt-4 flex flex-wrap items-center gap-3">
+                <motion.button
+                  type="button"
+                  disabled={calculando || refrescando}
+                  onClick={() => void calcular()}
+                  whileHover={reducirMovimiento || calculando || refrescando ? undefined : { y: -1 }}
+                  whileTap={reducirMovimiento || calculando || refrescando ? undefined : { scale: 0.97 }}
+                  transition={{ duration: 0.15, ease: "easeOut" }}
+                  className="cdm-chip cursor-pointer border border-cdm-accent/60 bg-cdm-accent/15 px-4 py-2 text-xs uppercase tracking-[0.14em] text-cdm-accent shadow-[0_0_18px_-6px_rgba(34,211,238,0.55)] transition-colors hover:bg-cdm-accent/25 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {calculando ? "Calculando…" : "Calcular"}
+                </motion.button>
+                <motion.button
+                  type="button"
+                  disabled={calculando || refrescando}
+                  onClick={() => void refrescarPrecios()}
+                  whileHover={reducirMovimiento || calculando || refrescando ? undefined : { y: -1 }}
+                  whileTap={reducirMovimiento || calculando || refrescando ? undefined : { scale: 0.97 }}
+                  transition={{ duration: 0.15, ease: "easeOut" }}
+                  className="cdm-chip cursor-pointer border border-cdm-line px-4 py-2 text-xs uppercase tracking-[0.14em] text-cdm-muted transition-colors hover:text-cdm-fg disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {refrescando ? "Refrescando…" : "Refrescar precios ahora"}
+                </motion.button>
+                {refrescoMsg && <span className="text-xs text-cdm-muted">{refrescoMsg}</span>}
+              </div>
+            </Seccion>
+          )}
+        </AnimatePresence>
 
         {desglose && resultado && (
           <>
-            <header className="mb-4">
+            <motion.header
+              variants={seccion}
+              custom={2}
+              initial="hidden"
+              animate="visible"
+              className={`cdm-glass cdm-card mb-6 p-5 ${
+                hayItemsSinPrecio ? "cdm-card-glow-alerta" : "cdm-card-glow-accent"
+              }`}
+            >
               <p className="font-mono-hud flex items-baseline gap-2 text-[10px] uppercase tracking-[0.22em] text-cdm-muted">
-                <span aria-hidden className="text-cdm-accent/60">{"//"}</span>
+                <span aria-hidden className={hayItemsSinPrecio ? "text-amber-300/70" : "text-cdm-accent/60"}>
+                  {"//"}
+                </span>
                 Take-off — total estimado (min–max)
               </p>
-              <CifraHeroica className="mt-1 text-[clamp(24px,2.2vw,36px)] leading-none">
+              <CifraHeroica
+                className="mt-1 text-[clamp(28px,2.6vw,42px)] leading-none"
+                tono={hayItemsSinPrecio ? undefined : "accent"}
+                colorBase={hayItemsSinPrecio ? "var(--cdm-alerta)" : undefined}
+              >
                 {rango(resultado.total_min, resultado.total_max)}
                 {hayItemsSinPrecio ? "*" : ""}
               </CifraHeroica>
-              {hayItemsSinPrecio && (
-                <p className="font-mono-hud mt-1.5 text-[10px] uppercase tracking-[0.14em] text-amber-300">
-                  * incompleto — hay ítems sin precio (no se inventan)
+              {hayItemsSinPrecio ? (
+                <p className="font-mono-hud mt-2 flex items-center gap-1.5 text-[10px] uppercase tracking-[0.14em] text-amber-300">
+                  <span aria-hidden className="inline-block h-1.5 w-1.5 rounded-full bg-amber-300" />
+                  incompleto — hay ítems sin precio (no se inventan)
+                </p>
+              ) : (
+                <p className="font-mono-hud mt-2 flex items-center gap-1.5 text-[10px] uppercase tracking-[0.14em] text-emerald-400">
+                  <span aria-hidden className="inline-block h-1.5 w-1.5 rounded-full bg-emerald-400" />
+                  completo — todos los ítems tienen precio trazado
                 </p>
               )}
-            </header>
+            </motion.header>
 
-            <Seccion titulo="Ítems — cantidades por fórmula y precio">
+            <Seccion titulo="Ítems — cantidades por fórmula y precio" indice={3} variants={seccion}>
               {etapas.map((etapa, ei) => (
                 <div key={ei} className="mb-5 last:mb-0">
                   <p className="font-mono-hud mb-2 flex items-baseline gap-2 text-[10px] uppercase tracking-[0.22em] text-cdm-muted">
                     <span aria-hidden className="text-cdm-accent/50">{"//"}</span>
                     {etapa.nombre}
                   </p>
+                  {/* table-fixed + anchos por columna: el ítem envuelve en su celda (tipo como
+                      prefijo + fórmula en línea secundaria) en vez de forzar scroll horizontal.
+                      overflow-x-auto queda como red de seguridad, no como mecanismo principal —
+                      en 390px las 4 columnas (ítem/cant./precio/subtotal) entran sin scrollear. */}
                   <div className="overflow-x-auto">
-                    <table className="w-full text-left text-xs">
+                    <table className="w-full table-fixed text-left text-xs">
                       <thead>
                         <tr className="font-mono-hud border-b border-cdm-line text-[9px] uppercase tracking-[0.18em] text-cdm-muted">
-                          <th className="py-2 pr-3 font-medium">Ítem</th>
-                          <th className="py-2 pr-3 font-medium">Tipo</th>
-                          <th className="py-2 pr-3 text-right font-medium">Cant.</th>
-                          <th className="py-2 pr-3 text-right font-medium">Precio</th>
-                          <th className="py-2 text-right font-medium">Subtotal</th>
+                          <th className="w-[42%] py-2 pr-3 font-medium">Ítem</th>
+                          <th className="w-[16%] py-2 pr-3 text-right font-medium">Cant.</th>
+                          <th className="w-[24%] py-2 pr-3 text-right font-medium">Precio</th>
+                          <th className="w-[18%] py-2 text-right font-medium">Subtotal</th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-cdm-line">
+                      <motion.tbody
+                        className="divide-y divide-cdm-line"
+                        variants={lista.contenedor}
+                        initial="hidden"
+                        animate="visible"
+                      >
                         {etapa.items.map((it, i) => {
                           const revisadoIso = resultado.revisado[it.nombre];
                           return (
-                            <tr
+                            <motion.tr
                               key={i}
+                              variants={lista.fila}
                               className={`transition-colors duration-150 ${
                                 it.sin_precio ? "bg-amber-300/[0.07]" : "hover:bg-cdm-fg/[0.03]"
                               }`}
                             >
-                              <td className="py-2.5 pr-3">{it.nombre}</td>
-                              <td className="py-2.5 pr-3">
-                                <span className="font-mono-hud text-[9px] uppercase tracking-[0.14em] text-cdm-muted">
-                                  {it.tipo === "material" ? "Mat." : "M.O."}
+                              <td className="py-2.5 pr-3 align-top">
+                                <span className="font-mono-hud mr-1 text-[9px] uppercase tracking-[0.14em] text-cdm-muted">
+                                  {it.tipo === "material" ? "MAT." : "M.O."}
                                 </span>
-                              </td>
-                              <td className="py-2.5 pr-3 text-right tabular-nums">
-                                {it.cantidad} {it.unidad}
+                                {it.nombre}
                                 <span className="font-mono-hud block text-[10px] text-cdm-muted">
                                   {it.formula}
                                   {it.desperdicio_pct > 0 ? ` +${it.desperdicio_pct}% desp.` : ""}
                                 </span>
                               </td>
-                              <td className="py-2.5 pr-3 text-right tabular-nums">
+                              <td className="py-2.5 pr-3 text-right align-top tabular-nums">
+                                {it.cantidad} {it.unidad}
+                              </td>
+                              <td className="py-2.5 pr-3 text-right align-top tabular-nums">
                                 {it.sin_precio ? (
                                   <>
-                                    <span className="font-mono-hud inline-block border border-amber-300/60 bg-amber-300/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.12em] text-amber-300">
+                                    <motion.span
+                                      animate={
+                                        reducirMovimiento
+                                          ? undefined
+                                          : { opacity: [1, 0.55, 1] }
+                                      }
+                                      transition={{ duration: 2.4, repeat: Infinity, ease: "easeInOut" }}
+                                      className="font-mono-hud inline-block border border-amber-300/60 bg-amber-300/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.12em] text-amber-300"
+                                    >
                                       Sin precio
-                                    </span>
+                                    </motion.span>
                                     <span className="mt-1 block text-[10px] text-amber-300/80">
                                       pregunta abierta — no se inventa
                                     </span>
@@ -558,15 +682,15 @@ export function CotizarScreen({
                                   </>
                                 )}
                               </td>
-                              <td className="py-2.5 text-right tabular-nums">
+                              <td className="py-2.5 text-right align-top tabular-nums">
                                 {it.sin_precio
                                   ? "—"
                                   : rango(it.subtotal_min, it.subtotal_max)}
                               </td>
-                            </tr>
+                            </motion.tr>
                           );
                         })}
-                      </tbody>
+                      </motion.tbody>
                     </table>
                   </div>
                 </div>
@@ -653,7 +777,7 @@ export function CotizarScreen({
             </Seccion>
 
             {revision && (
-              <Seccion titulo="Revisión">
+              <Seccion titulo="Revisión" indice={4} variants={seccion}>
                 {revision.sanidad.some((s) => s.estado !== "ok") && (
                   <div className="mb-3">
                     <p className="mb-1 text-[10px] uppercase tracking-[0.14em] text-cdm-muted">
