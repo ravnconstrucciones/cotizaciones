@@ -256,6 +256,12 @@ export function ObraOrbitalScreen({ presupuestoId }: { presupuestoId: string }) 
             PLAN Y CRUCE ↑
           </Link>
           <Link
+            href={`/obras/${presupuestoId}/mano-obra`}
+            className="font-mono-hud text-[10px] uppercase tracking-[0.08em] text-cdm-muted transition-colors hover:text-cdm-accent"
+          >
+            [MANO DE OBRA] ↑
+          </Link>
+          <Link
             href={`/obras/${presupuestoId}/gastos`}
             className="font-mono-hud text-[10px] uppercase tracking-[0.08em] text-cdm-muted transition-colors hover:text-cdm-accent"
           >
