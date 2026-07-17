@@ -96,6 +96,9 @@ export async function GET() {
         .from("gastos_personales")
         .select("id, fecha, concepto, monto, categoria")
         .is("fijo_id", null)
+        // Extraordinario (17/07): gasto único que no cuenta en la alcancía —
+        // queda visible en /dinero (movimientos), acá no suma ni se lista.
+        .eq("extraordinario", false)
         .gte("fecha", ciclo.inicio)
         .lte("fecha", ciclo.fin)
         .order("created_at", { ascending: false }),
@@ -161,7 +164,7 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   const sb = createSupabaseAdminClient();
   const body = await req.json();
-  const { concepto, monto, categoria, fecha, fijo_id } = body;
+  const { concepto, monto, categoria, fecha, fijo_id, extraordinario } = body;
 
   if (!concepto || !monto) {
     return NextResponse.json(
@@ -187,6 +190,8 @@ export async function POST(req: NextRequest) {
       // Pago de un fijo: se registra pero NO entra al prorrateo (ya está
       // descontado del tope). null = gasto variable normal.
       fijo_id: fijo_id || null,
+      // Extraordinario (17/07): gasto único que no cuenta en la alcancía.
+      extraordinario: extraordinario === true,
     })
     .select("id")
     .single();

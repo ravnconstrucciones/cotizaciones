@@ -79,11 +79,13 @@ export async function GET() {
 
     const ciclo = calcularCiclo(hoy, diaCierre);
     // Solo gastos VARIABLES: un pago de fijo (fijo_id) ya está descontado del
-    // tope antes del prorrateo — si entrara acá se contaría dos veces.
+    // tope antes del prorrateo — si entrara acá se contaría dos veces. Los
+    // EXTRAORDINARIOS (17/07) tampoco entran: gasto único fuera de la alcancía.
     const { data: gastosData, error: gastosErr } = await sb
       .from("gastos_personales")
       .select("id, fecha, concepto, monto, categoria")
       .is("fijo_id", null)
+      .eq("extraordinario", false)
       .gte("fecha", ciclo.inicio)
       .lte("fecha", ciclo.fin);
 
