@@ -126,7 +126,13 @@ export function ManoObraGlobalScreen() {
         {error && <p className="text-[11px] text-red-400">{error}</p>}
         {!acuerdos && <SkeletonGlass filas={4} anchos={["w-1/2", "w-1/3", "w-2/5", "w-1/4"]} />}
 
-        {grupos.map(([presupuestoId, rs]) => (
+        {grupos.map(([presupuestoId, rs]) => {
+          // Avance de la obra: solo acuerdos abiertos en ARS (mismo criterio que el total)
+          const abiertos = rs.filter((r) => r.acuerdo.estado === "abierto" && r.acuerdo.moneda === "ARS");
+          const arreglado = abiertos.reduce((a, r) => a + Number(r.acuerdo.monto_arreglado), 0);
+          const pagado = abiertos.reduce((a, r) => a + r.pagado, 0);
+          const pct = arreglado > 0 ? Math.round((pagado / arreglado) * 100) : 0;
+          return (
           <section key={presupuestoId} className="border border-cdm-line p-3">
             <Link
               href={`/obras/${presupuestoId}/mano-obra`}
@@ -147,8 +153,12 @@ export function ManoObraGlobalScreen() {
                       <span className="font-mono-hud text-[9px] uppercase tracking-widest text-emerald-400"> ✓</span>
                     )}
                   </span>
-                  <span className="font-mono-hud flex items-baseline gap-3">
+                  <span className="font-mono-hud flex flex-wrap items-baseline gap-3">
                     <span className="text-[10px] text-cdm-muted">{haceDias(r.ultimoPago)}</span>
+                    <span className="text-[11px] text-cdm-muted">
+                      arreglado {fmt(Number(r.acuerdo.monto_arreglado), r.acuerdo.moneda)} · pagado{" "}
+                      {fmt(r.pagado, r.acuerdo.moneda)} ({r.porcentajePagado}%)
+                    </span>
                     <span
                       className={
                         r.saldo < 0 ? "text-red-400" : r.saldo === 0 ? "text-emerald-400" : "text-cdm-accent"
@@ -160,8 +170,25 @@ export function ManoObraGlobalScreen() {
                 </li>
               ))}
             </ul>
+            {arreglado > 0 && (
+              <div className="mt-2 border-t border-cdm-line/50 pt-2">
+                <div className="font-mono-hud flex flex-wrap items-baseline gap-3 text-[11px]">
+                  <span className="text-cdm-muted">obra: arreglado {fmt(arreglado)}</span>
+                  <span className="text-cdm-muted">pagado {fmt(pagado)}</span>
+                  <span className={pct >= 100 ? "text-emerald-400" : "text-cdm-accent"}>{pct}% pagado</span>
+                </div>
+                {/* La barra se clampa a 100; el número dice la verdad si se pagó de más */}
+                <div className="mt-1.5 h-[3px] w-full bg-cdm-line/60">
+                  <div
+                    className={`h-full ${pct > 100 ? "bg-red-400" : pct === 100 ? "bg-emerald-400" : "bg-cdm-accent"}`}
+                    style={{ width: `${Math.min(100, Math.max(0, pct))}%` }}
+                  />
+                </div>
+              </div>
+            )}
           </section>
-        ))}
+          );
+        })}
 
         {acuerdos && grupos.length === 0 && (
           <p className="text-[12px] text-cdm-muted">

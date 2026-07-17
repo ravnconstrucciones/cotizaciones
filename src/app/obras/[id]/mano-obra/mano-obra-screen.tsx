@@ -257,7 +257,9 @@ export function ManoObraScreen({ presupuestoId }: { presupuestoId: string }) {
                 <span className="text-cdm-muted">
                   arreglado {fmt(Number(r.acuerdo.monto_arreglado), r.acuerdo.moneda)}
                 </span>
-                <span className="text-cdm-muted">pagado {fmt(r.pagado, r.acuerdo.moneda)}</span>
+                <span className="text-cdm-muted">
+                  pagado {fmt(r.pagado, r.acuerdo.moneda)} ({r.porcentajePagado}%)
+                </span>
                 <span
                   className={
                     r.saldo < 0 ? "text-red-400" : r.saldo === 0 ? "text-emerald-400" : "text-cdm-accent"
@@ -266,6 +268,13 @@ export function ManoObraScreen({ presupuestoId }: { presupuestoId: string }) {
                   falta {fmt(r.saldo, r.acuerdo.moneda)}
                 </span>
               </div>
+            </div>
+            {/* Avance del pago: la barra se clampa a 100, el número dice la verdad */}
+            <div className="mt-2 h-[3px] w-full bg-cdm-line/60">
+              <div
+                className={`h-full transition-[width] ${r.saldo < 0 ? "bg-red-400" : r.saldo === 0 ? "bg-emerald-400" : "bg-cdm-accent"}`}
+                style={{ width: `${Math.min(100, Math.max(0, r.porcentajePagado))}%` }}
+              />
             </div>
             <div className="mt-1 flex flex-wrap items-center gap-3">
               <span className="text-[11px] text-cdm-muted">
@@ -369,7 +378,10 @@ export function ManoObraScreen({ presupuestoId }: { presupuestoId: string }) {
           <footer className="font-mono-hud flex flex-wrap items-baseline gap-4 border-t border-cdm-line px-1 pt-3 text-[12px]">
             <span className="text-cdm-muted">TOTAL ABIERTO (ARS):</span>
             <span className="text-cdm-muted">arreglado {fmt(totales.arreglado)}</span>
-            <span className="text-cdm-muted">pagado {fmt(totales.pagado)}</span>
+            <span className="text-cdm-muted">
+              pagado {fmt(totales.pagado)}
+              {totales.arreglado > 0 && ` (${Math.round((totales.pagado / totales.arreglado) * 100)}%)`}
+            </span>
             <span className={totales.saldo < 0 ? "text-red-400" : "text-cdm-accent"}>
               falta {fmt(totales.saldo)}
             </span>

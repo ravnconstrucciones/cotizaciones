@@ -36,6 +36,8 @@ export type ResumenAcuerdo = {
   pagos: PagoMO[];
   ultimoPago: string | null;
   pagosSinCotizacion: number;
+  /** % del arreglado ya pagado (0–100+; >100 = se pagó de más). */
+  porcentajePagado: number;
 };
 
 export function resumirAcuerdo(acuerdo: AcuerdoMO, pagos: PagoMO[]): ResumenAcuerdo {
@@ -55,13 +57,15 @@ export function resumirAcuerdo(acuerdo: AcuerdoMO, pagos: PagoMO[]): ResumenAcue
     }
   }
   pagado = Math.round(pagado * 100) / 100;
+  const monto = Number(acuerdo.monto_arreglado);
   return {
     acuerdo,
     pagado,
-    saldo: Math.round((Number(acuerdo.monto_arreglado) - pagado) * 100) / 100,
+    saldo: Math.round((monto - pagado) * 100) / 100,
     pagos: propios,
     ultimoPago: propios[0]?.fecha ?? null,
     pagosSinCotizacion,
+    porcentajePagado: monto > 0 ? Math.round((pagado / monto) * 100) : 0,
   };
 }
 
