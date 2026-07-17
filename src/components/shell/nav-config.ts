@@ -20,6 +20,7 @@ export const NAV_COCKPIT: NavItem[] = [
   { href: "/cotizaciones", label: "Cotizaciones" },
   { href: "/cotizar", label: "Cotizar" },
   { href: "/proveedores", label: "Proveedores" },
+  { href: "/mano-obra", label: "Mano de obra" },
   { href: "/archivados", label: "Archivados y pendientes" },
   { href: "/adn", label: "ADN" },
   { href: "/grafo", label: "El grafo" },
