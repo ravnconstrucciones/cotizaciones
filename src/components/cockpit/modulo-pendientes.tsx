@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { createClient } from "@/lib/supabase/client";
@@ -106,16 +107,21 @@ export function ModuloPendientes({ className, tactil = false }: { className?: st
     await cargar();
   }
 
+  // Tilde/borrado OPTIMISTA (pedido de Eze 17/07): el ítem sale de la lista al
+  // toque y la base se actualiza atrás. Solo si el update falla se recarga
+  // (el ítem reaparece — nunca queda tildado en la pantalla y vivo en la base).
   async function completar(id: string) {
+    setTareas((prev) => prev.filter((t) => t.id !== id));
     const supabase = createClient();
-    await supabase.from("tareas").update({ estado: "hecha" }).eq("id", id);
-    await cargar();
+    const { error } = await supabase.from("tareas").update({ estado: "hecha" }).eq("id", id);
+    if (error) await cargar();
   }
 
   async function borrar(id: string) {
+    setTareas((prev) => prev.filter((t) => t.id !== id));
     const supabase = createClient();
-    await supabase.from("tareas").delete().eq("id", id);
-    await cargar();
+    const { error } = await supabase.from("tareas").delete().eq("id", id);
+    if (error) await cargar();
   }
 
   // Pendientes sectorizados por área, en el orden definido; solo las que tienen.
@@ -130,11 +136,22 @@ export function ModuloPendientes({ className, tactil = false }: { className?: st
       titulo="Pendientes"
       className={className}
       accion={
-        tareas.length > 0 ? (
-          <span className="font-mono-hud text-[9px] tabular-nums text-cdm-muted">
-            {tareas.length}
-          </span>
-        ) : undefined
+        <span className="flex items-baseline gap-2.5">
+          {tareas.length > 0 && (
+            <span className="font-mono-hud text-[9px] tabular-nums text-cdm-muted">
+              {tareas.length}
+            </span>
+          )}
+          {/* En /pendientes ya estás ahí — el link solo tiene sentido en la home. */}
+          {!tactil && (
+            <Link
+              href="/pendientes"
+              className="text-[11px] font-medium text-zinc-500 transition-colors hover:text-cyan-700 dark:text-zinc-400 dark:hover:text-cyan-300"
+            >
+              Pantalla completa →
+            </Link>
+          )}
+        </span>
       }
     >
       <form onSubmit={agregar} className="mb-3 flex">
@@ -196,6 +213,7 @@ export function ModuloPendientes({ className, tactil = false }: { className?: st
                       initial={{ opacity: 0 }}
                       animate={{ opacity: 1 }}
                       exit={{ opacity: 0, x: 16 }}
+                      transition={{ duration: 0.12 }}
                       className={`group flex items-start ${tactil ? "gap-3 py-1 text-sm" : "gap-2 text-[11px]"}`}
                     >
                       <button
