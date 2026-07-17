@@ -269,10 +269,10 @@ export function ManoObraScreen({ presupuestoId }: { presupuestoId: string }) {
                 </span>
               </div>
             </div>
-            {/* Avance del pago: la barra se clampa a 100, el número dice la verdad */}
+            {/* Barra roja mientras falta, verde al completar; se clampa a 100 y el número dice la verdad */}
             <div className="mt-2 h-[3px] w-full bg-cdm-line/60">
               <div
-                className={`h-full transition-[width] ${r.saldo < 0 ? "bg-red-400" : r.saldo === 0 ? "bg-emerald-400" : "bg-cdm-accent"}`}
+                className={`h-full transition-[width] ${r.saldo <= 0 ? "bg-emerald-400" : "bg-red-400"}`}
                 style={{ width: `${Math.min(100, Math.max(0, r.porcentajePagado))}%` }}
               />
             </div>

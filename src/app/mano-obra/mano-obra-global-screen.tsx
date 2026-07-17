@@ -144,29 +144,42 @@ export function ManoObraGlobalScreen() {
               {rs.map((r) => (
                 <li
                   key={r.acuerdo.id}
-                  className={`flex flex-wrap items-baseline justify-between gap-2 text-[12px] ${r.acuerdo.estado === "saldado" ? "opacity-50" : ""}`}
+                  className={`flex flex-col gap-1 text-[12px] ${r.acuerdo.estado === "saldado" ? "opacity-50" : ""}`}
                 >
-                  <span>
-                    {r.acuerdo.persona && <span className="text-cdm-muted">{r.acuerdo.persona} — </span>}
-                    {r.acuerdo.trabajo}
-                    {r.acuerdo.estado === "saldado" && (
-                      <span className="font-mono-hud text-[9px] uppercase tracking-widest text-emerald-400"> ✓</span>
-                    )}
-                  </span>
-                  <span className="font-mono-hud flex flex-wrap items-baseline gap-3">
-                    <span className="text-[10px] text-cdm-muted">{haceDias(r.ultimoPago)}</span>
-                    <span className="text-[11px] text-cdm-muted">
-                      arreglado {fmt(Number(r.acuerdo.monto_arreglado), r.acuerdo.moneda)} · pagado{" "}
-                      {fmt(r.pagado, r.acuerdo.moneda)} ({r.porcentajePagado}%)
+                  <div className="flex flex-wrap items-baseline justify-between gap-2">
+                    <span>
+                      {r.acuerdo.persona && <span className="text-cdm-muted">{r.acuerdo.persona} — </span>}
+                      {r.acuerdo.trabajo}
+                      {r.acuerdo.estado === "saldado" && (
+                        <span className="font-mono-hud text-[9px] uppercase tracking-widest text-emerald-400"> ✓</span>
+                      )}
                     </span>
-                    <span
-                      className={
-                        r.saldo < 0 ? "text-red-400" : r.saldo === 0 ? "text-emerald-400" : "text-cdm-accent"
-                      }
-                    >
-                      falta {fmt(r.saldo, r.acuerdo.moneda)}
+                    <span className="font-mono-hud flex flex-wrap items-baseline gap-3">
+                      <span className="text-[10px] text-cdm-muted">{haceDias(r.ultimoPago)}</span>
+                      <span className="text-[11px] text-cdm-muted">
+                        arreglado {fmt(Number(r.acuerdo.monto_arreglado), r.acuerdo.moneda)} · pagado{" "}
+                        {fmt(r.pagado, r.acuerdo.moneda)} ({r.porcentajePagado}%)
+                      </span>
+                      <span
+                        className={r.saldo <= 0 ? "text-emerald-400" : "text-cdm-accent"}
+                      >
+                        falta {fmt(r.saldo, r.acuerdo.moneda)}
+                      </span>
                     </span>
-                  </span>
+                  </div>
+                  {/* Cada pago con su fecha y método (la descripción trae el método: transf., efectivo…) */}
+                  {r.pagos.length > 0 && (
+                    <ul className="flex flex-col gap-0.5 pl-3">
+                      {r.pagos.map((p) => (
+                        <li key={p.id} className="flex items-baseline justify-between gap-2 text-[11px] text-cdm-muted">
+                          <span>
+                            {p.fecha} · {p.descripcion || "pago"}
+                          </span>
+                          <span className="font-mono-hud">{fmt(Number(p.importe))}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
                 </li>
               ))}
             </ul>
@@ -175,12 +188,12 @@ export function ManoObraGlobalScreen() {
                 <div className="font-mono-hud flex flex-wrap items-baseline gap-3 text-[11px]">
                   <span className="text-cdm-muted">obra: arreglado {fmt(arreglado)}</span>
                   <span className="text-cdm-muted">pagado {fmt(pagado)}</span>
-                  <span className={pct >= 100 ? "text-emerald-400" : "text-cdm-accent"}>{pct}% pagado</span>
+                  <span className={pct >= 100 ? "text-emerald-400" : "text-red-400"}>{pct}% pagado</span>
                 </div>
-                {/* La barra se clampa a 100; el número dice la verdad si se pagó de más */}
+                {/* Barra roja mientras falta, verde al completar; se clampa a 100 y el número dice la verdad */}
                 <div className="mt-1.5 h-[3px] w-full bg-cdm-line/60">
                   <div
-                    className={`h-full ${pct > 100 ? "bg-red-400" : pct === 100 ? "bg-emerald-400" : "bg-cdm-accent"}`}
+                    className={`h-full ${pct >= 100 ? "bg-emerald-400" : "bg-red-400"}`}
                     style={{ width: `${Math.min(100, Math.max(0, pct))}%` }}
                   />
                 </div>
