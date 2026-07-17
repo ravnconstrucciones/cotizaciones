@@ -61,8 +61,10 @@ function colorDe(area: string): string {
   return AREA_COLOR[area] ?? AREA_COLOR.OTROS;
 }
 
-/** Módulo 4: tabla `tareas` unificada — única fuente de pendientes (spec §4.4). */
-export function ModuloPendientes({ className }: { className?: string }) {
+/** Módulo 4: tabla `tareas` unificada — única fuente de pendientes (spec §4.4).
+ *  `tactil`: variante /pendientes para el cel — tap targets grandes y la cruz
+ *  de borrar siempre visible (en touch no existe el hover). */
+export function ModuloPendientes({ className, tactil = false }: { className?: string; tactil?: boolean }) {
   const [tareas, setTareas] = useState<Tarea[]>([]);
   const [nueva, setNueva] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -141,12 +143,12 @@ export function ModuloPendientes({ className }: { className?: string }) {
           value={nueva}
           onChange={(e) => setNueva(e.target.value)}
           placeholder="Anotar pendiente…"
-          className="font-raleway w-full border border-cdm-line bg-transparent px-3 py-1.5 text-[11px] text-cdm-fg placeholder:text-cdm-muted/50 focus:border-cdm-accent focus:outline-none"
+          className={`font-raleway w-full border border-cdm-line bg-transparent text-cdm-fg placeholder:text-cdm-muted/50 focus:border-cdm-accent focus:outline-none ${tactil ? "px-4 py-3 text-sm" : "px-3 py-1.5 text-[11px]"}`}
         />
         <button
           type="submit"
           disabled={!nueva.trim()}
-          className="shrink-0 border border-l-0 border-cdm-line px-3 text-[10px] uppercase tracking-widest text-cdm-accent transition-colors hover:bg-cdm-accent hover:text-cdm-bg disabled:opacity-30"
+          className={`shrink-0 border border-l-0 border-cdm-line uppercase tracking-widest text-cdm-accent transition-colors hover:bg-cdm-accent hover:text-cdm-bg disabled:opacity-30 ${tactil ? "px-5 text-sm" : "px-3 text-[10px]"}`}
         >
           +
         </button>
@@ -194,17 +196,17 @@ export function ModuloPendientes({ className }: { className?: string }) {
                       initial={{ opacity: 0 }}
                       animate={{ opacity: 1 }}
                       exit={{ opacity: 0, x: 16 }}
-                      className="group flex items-start gap-2 text-[11px]"
+                      className={`group flex items-start ${tactil ? "gap-3 py-1 text-sm" : "gap-2 text-[11px]"}`}
                     >
                       <button
                         onClick={() => completar(t.id)}
                         aria-label="Marcar hecha"
-                        className="mt-0.5 h-3 w-3 shrink-0 border border-cdm-line transition-colors hover:border-cdm-accent hover:bg-cdm-accent"
+                        className={`shrink-0 border border-cdm-line transition-colors hover:border-cdm-accent hover:bg-cdm-accent ${tactil ? "mt-0.5 h-5 w-5" : "mt-0.5 h-3 w-3"}`}
                       />
                       <span className="min-w-0 flex-1 leading-snug text-cdm-fg/85">
                         {t.texto}
                         {fmtFecha(t.fecha) && (
-                          <span className="ml-2 text-[9px] uppercase tracking-widest text-cdm-muted/70">
+                          <span className={`ml-2 uppercase tracking-widest text-cdm-muted/70 ${tactil ? "text-[11px]" : "text-[9px]"}`}>
                             {fmtFecha(t.fecha)}
                           </span>
                         )}
@@ -212,7 +214,7 @@ export function ModuloPendientes({ className }: { className?: string }) {
                       <button
                         onClick={() => borrar(t.id)}
                         aria-label="Eliminar"
-                        className="text-cdm-muted opacity-0 transition-opacity hover:text-red-400 group-hover:opacity-100"
+                        className={`text-cdm-muted transition-opacity hover:text-red-400 ${tactil ? "px-2 text-lg leading-none" : "opacity-0 group-hover:opacity-100"}`}
                       >
                         ×
                       </button>
