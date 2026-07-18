@@ -21,12 +21,14 @@ import job_calendario
 import job_cerebro
 import job_datos
 import job_dolar
+import job_foda
 import job_inbox
 import job_maestro
 import job_noticias
 import job_precios
 import job_resumen
 import job_salud
+import job_sinapsis
 import job_sismat
 import job_top30
 
@@ -50,9 +52,15 @@ JOBS = [
     ("salud",   job_salud.correr,   lambda u, a: vencio_semanal(u, a, hora_minima=9)),
     ("auditoria", job_auditoria.correr, lambda u, a: vencio_dominical(u, a, hora_minima=8)),
     ("inbox",   job_inbox.correr,   lambda u, a: vencio_diario(u, a, hora_minima=2)),
+    # foda va ANTES que cerebro (mismo tick dominical): siembra su resumen como
+    # la pregunta del domingo — cerebro ve que ya hay pregunta y no pisa.
+    ("foda",    job_foda.correr,    lambda u, a: vencio_dominical(u, a, hora_minima=3)),
     # cerebro va DESPUÉS de inbox (mismo tick, orden de lista): digiere el vault
     # ya ruteado — graphify determinístico + diagnóstico + pregunta del día.
     ("cerebro", job_cerebro.correr, lambda u, a: vencio_diario(u, a, hora_minima=3)),
+    # sinapsis DESPUÉS de cerebro: con el grafo fresco, propone conexiones
+    # nuevas entre huérfanas y el resto — Eze aprueba por WhatsApp (UNIR).
+    ("sinapsis", job_sinapsis.correr, lambda u, a: vencio_diario(u, a, hora_minima=3)),
     # datos corre CADA tick: es barato (1 GET con cursor, casi siempre vacío)
     # y así un dato clasificado en Archivados llega al vault en ≤30 min.
     ("datos",   job_datos.correr,   lambda u, a: True),
