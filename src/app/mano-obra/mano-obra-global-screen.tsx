@@ -22,11 +22,10 @@ import {
 const fmt = (n: number, moneda = "ARS") =>
   `${moneda === "USD" ? "US$" : "$"}${Math.round(n).toLocaleString("es-AR")}`;
 
-const haceDias = (fechaIso: string | null) => {
-  if (!fechaIso) return "nunca cobró";
-  const dias = Math.floor((Date.now() - new Date(fechaIso).getTime()) / 86400000);
-  if (dias <= 0) return "cobró hoy";
-  return `último pago hace ${dias} día${dias > 1 ? "s" : ""}`;
+// "2026-06-26" → "26/06/26" (fecha literal del pago, sin relativos tipo "hace X días")
+const fmtFecha = (iso: string) => {
+  const [a, m, d] = iso.split("-");
+  return `${d}/${m}/${a.slice(2)}`;
 };
 
 type PresupuestoNombre = { id: string; nombre_obra: string | null; nombre_cliente: string | null };
@@ -35,19 +34,21 @@ export function ManoObraGlobalScreen() {
   const [acuerdos, setAcuerdos] = useState<AcuerdoMO[] | null>(null);
   const [pagos, setPagos] = useState<PagoMO[]>([]);
   const [nombres, setNombres] = useState<Map<string, string>>(new Map());
+  const [cuentas, setCuentas] = useState<Map<string, string>>(new Map());
   const [error, setError] = useState<string | null>(null);
   const [verSaldados, setVerSaldados] = useState(false);
 
   const cargar = useCallback(async () => {
     try {
       const supabase = createClient();
-      const [acs, gs, pres] = await Promise.all([
+      const [acs, gs, pres, ctas] = await Promise.all([
         supabase.from("mo_acuerdos").select("*").order("created_at", { ascending: true }),
         supabase
           .from("presupuestos_gastos")
-          .select("id, mo_acuerdo_id, importe, fecha, descripcion, cotizacion_venta_ars_por_usd")
+          .select("id, mo_acuerdo_id, importe, fecha, descripcion, cotizacion_venta_ars_por_usd, cuenta_id")
           .not("mo_acuerdo_id", "is", null),
         supabase.from("presupuestos").select("id, nombre_obra, nombre_cliente"),
+        supabase.from("cuentas").select("id, nombre"),
       ]);
       if (acs.error) {
         setError(acs.error.message);
@@ -63,6 +64,9 @@ export function ManoObraGlobalScreen() {
             p.nombre_obra?.trim() || p.nombre_cliente?.trim() || "Obra",
           ]),
         ),
+      );
+      setCuentas(
+        new Map(((ctas.data ?? []) as { id: string; nombre: string }[]).map((c) => [c.id, c.nombre])),
       );
     } catch (e) {
       setError(e instanceof Error ? e.message : "Error de red");
@@ -155,7 +159,9 @@ export function ManoObraGlobalScreen() {
                       )}
                     </span>
                     <span className="font-mono-hud flex flex-wrap items-baseline gap-3">
-                      <span className="text-[10px] text-cdm-muted">{haceDias(r.ultimoPago)}</span>
+                      {r.ultimoPago && (
+                        <span className="text-[10px] text-cdm-muted">último pago {fmtFecha(r.ultimoPago)}</span>
+                      )}
                       <span className="text-[11px] text-cdm-muted">
                         arreglado {fmt(Number(r.acuerdo.monto_arreglado), r.acuerdo.moneda)} · pagado{" "}
                         {fmt(r.pagado, r.acuerdo.moneda)} ({r.porcentajePagado}%)
@@ -173,7 +179,8 @@ export function ManoObraGlobalScreen() {
                       {r.pagos.map((p) => (
                         <li key={p.id} className="flex items-baseline justify-between gap-2 text-[11px] text-cdm-muted">
                           <span>
-                            {p.fecha} · {p.descripcion || "pago"}
+                            {fmtFecha(p.fecha)} · {p.cuenta_id ? (cuentas.get(p.cuenta_id) ?? "medio s/d") : "medio s/d"}
+                            {p.descripcion ? ` · ${p.descripcion}` : ""}
                           </span>
                           <span className="font-mono-hud">{fmt(Number(p.importe))}</span>
                         </li>

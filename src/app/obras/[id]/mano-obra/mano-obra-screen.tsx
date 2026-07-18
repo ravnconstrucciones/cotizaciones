@@ -22,11 +22,18 @@ import {
 const fmt = (n: number, moneda = "ARS") =>
   `${moneda === "USD" ? "US$" : "$"}${Math.round(n).toLocaleString("es-AR")}`;
 
+// "2026-06-26" → "26/06/26" (fecha literal del pago, sin relativos)
+const fmtFecha = (iso: string) => {
+  const [a, m, d] = iso.split("-");
+  return `${d}/${m}/${a.slice(2)}`;
+};
+
 export function ManoObraScreen({ presupuestoId }: { presupuestoId: string }) {
   const [nombre, setNombre] = useState("Obra");
   const [acuerdos, setAcuerdos] = useState<AcuerdoMO[] | null>(null);
   const [pagos, setPagos] = useState<PagoMO[]>([]);
   const [sueltos, setSueltos] = useState<PagoMO[]>([]); // gastos sin acuerdo, para vincular
+  const [cuentas, setCuentas] = useState<Map<string, string>>(new Map()); // id → nombre = medio de pago
   const [error, setError] = useState<string | null>(null);
   // Alta / edición inline
   const [formAbierto, setFormAbierto] = useState(false);
@@ -41,7 +48,7 @@ export function ManoObraScreen({ presupuestoId }: { presupuestoId: string }) {
   const cargar = useCallback(async () => {
     try {
       const supabase = createClient();
-      const [pres, acs, gs] = await Promise.all([
+      const [pres, acs, gs, ctas] = await Promise.all([
         supabase
           .from("presupuestos")
           .select("nombre_obra, nombre_cliente")
@@ -54,9 +61,10 @@ export function ManoObraScreen({ presupuestoId }: { presupuestoId: string }) {
           .order("created_at", { ascending: true }),
         supabase
           .from("presupuestos_gastos")
-          .select("id, mo_acuerdo_id, importe, fecha, descripcion, cotizacion_venta_ars_por_usd")
+          .select("id, mo_acuerdo_id, importe, fecha, descripcion, cotizacion_venta_ars_por_usd, cuenta_id")
           .eq("presupuesto_id", presupuestoId)
           .order("fecha", { ascending: false }),
+        supabase.from("cuentas").select("id, nombre"),
       ]);
       if (acs.error) {
         setError(acs.error.message);
@@ -68,6 +76,9 @@ export function ManoObraScreen({ presupuestoId }: { presupuestoId: string }) {
       const todos = (gs.data ?? []) as PagoMO[];
       setPagos(todos.filter((g) => g.mo_acuerdo_id));
       setSueltos(todos.filter((g) => !g.mo_acuerdo_id));
+      setCuentas(
+        new Map(((ctas.data ?? []) as { id: string; nombre: string }[]).map((c) => [c.id, c.nombre])),
+      );
     } catch (e) {
       setError(e instanceof Error ? e.message : "Error de red");
     }
@@ -279,7 +290,7 @@ export function ManoObraScreen({ presupuestoId }: { presupuestoId: string }) {
             <div className="mt-1 flex flex-wrap items-center gap-3">
               <span className="text-[11px] text-cdm-muted">
                 {r.pagos.length
-                  ? `${r.pagos.length} pago${r.pagos.length > 1 ? "s" : ""} · último ${r.ultimoPago}`
+                  ? `${r.pagos.length} pago${r.pagos.length > 1 ? "s" : ""} · último ${fmtFecha(r.ultimoPago!)}`
                   : "sin pagos todavía"}
                 {r.pagosSinCotizacion > 0 && (
                   <span className="text-amber-300">
@@ -326,7 +337,8 @@ export function ManoObraScreen({ presupuestoId }: { presupuestoId: string }) {
                 {r.pagos.map((p) => (
                   <li key={p.id} className="flex items-baseline justify-between gap-2 text-[12px]">
                     <span className="text-cdm-muted">
-                      {p.fecha} · {p.descripcion || "pago"}
+                      {fmtFecha(p.fecha)} · {p.cuenta_id ? (cuentas.get(p.cuenta_id) ?? "medio s/d") : "medio s/d"}
+                      {p.descripcion ? ` · ${p.descripcion}` : ""}
                     </span>
                     <span className="flex items-baseline gap-3">
                       <span className="font-mono-hud">{fmt(Number(p.importe))}</span>
@@ -352,7 +364,7 @@ export function ManoObraScreen({ presupuestoId }: { presupuestoId: string }) {
                 {sueltos.map((p) => (
                   <li key={p.id} className="flex items-baseline justify-between gap-2 text-[12px]">
                     <span className="text-cdm-muted">
-                      {p.fecha} · {p.descripcion || "gasto"} · {fmt(Number(p.importe))}
+                      {fmtFecha(p.fecha)} · {p.descripcion || "gasto"} · {fmt(Number(p.importe))}
                     </span>
                     <button
                       type="button"

@@ -27,6 +27,8 @@ export type PagoMO = {
   fecha: string;
   descripcion: string | null;
   cotizacion_venta_ars_por_usd: number | null;
+  /** Caja de la que salió = medio de pago (join a cuentas en la pantalla). */
+  cuenta_id?: string | null;
 };
 
 export type ResumenAcuerdo = {
