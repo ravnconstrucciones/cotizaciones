@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useReducedMotion } from "framer-motion";
 import {
   Camera,
@@ -159,13 +159,20 @@ export function OrbitalObra({
 }: OrbitalObraProps) {
   const reducirMovimiento = useReducedMotion();
   const [expandido, setExpandido] = useState<TipoArtefacto | null>(null);
-  const [rotacion, setRotacion] = useState(0);
   const [autoRotar, setAutoRotar] = useState(true);
   const [radio, setRadio] = useState(210);
   const [lightbox, setLightbox] = useState<FotoNodo | null>(null);
   const [borrando, setBorrando] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const orbitRef = useRef<HTMLDivElement>(null);
+  // La rotación vive en refs y se aplica por estilo directo dentro de un RAF
+  // (mismo idioma que el dot de waves-backdrop): el setInterval de 50ms que
+  // pasaba por setState + transition-all de 700ms hacía VIBRAR los nodos en
+  // el celu — 20 re-renders/s retargeteando una transición CSS.
+  const rotacionRef = useRef(0);
+  const targetRef = useRef<number | null>(null);
+  const expandidoRef = useRef<TipoArtefacto | null>(null);
+  const nodoRefs = useRef(new Map<TipoArtefacto, HTMLDivElement>());
 
   // Radio responsive: en pantallas angostas la órbita se achica para que
   // los nodos no queden recortados (el original fijaba 200 y desbordaba).
@@ -179,45 +186,101 @@ export function OrbitalObra({
     return () => window.removeEventListener("resize", medir);
   }, []);
 
+  const posicionNodo = useCallback(
+    (index: number, total: number, rotacion: number) => {
+      const angle = ((index / total) * 360 + rotacion) % 360;
+      const radian = (angle * Math.PI) / 180;
+      const x = radio * Math.cos(radian);
+      const y = radio * Math.sin(radian);
+      const zIndex = Math.round(100 + 50 * Math.cos(radian));
+      const opacity = Math.max(
+        0.45,
+        Math.min(1, 0.45 + 0.55 * ((1 + Math.sin(radian)) / 2))
+      );
+      return { x, y, zIndex, opacity };
+    },
+    [radio]
+  );
+
+  // Escribe transform/opacity/z-index de cada nodo directo al DOM.
+  const aplicarPosiciones = useCallback(() => {
+    const total = nodos.length;
+    nodos.forEach((nodo, index) => {
+      const el = nodoRefs.current.get(nodo.tipo);
+      if (!el) return;
+      const abierto = expandidoRef.current === nodo.tipo;
+      const pos = posicionNodo(index, total, rotacionRef.current);
+      el.style.transform = `translate(${pos.x}px, ${pos.y}px)`;
+      const z = String(abierto ? 200 : pos.zIndex);
+      if (el.style.zIndex !== z) el.style.zIndex = z;
+      el.style.opacity = String(
+        abierto ? 1 : pos.opacity * (nodo.vivo ? 1 : 0.45)
+      );
+    });
+  }, [nodos, posicionNodo]);
+
+  // Giro a ~5°/s por RAF. El loop solo corre mientras hay algo que animar
+  // (auto-rotación u easing hacia el nodo abierto); si no, se apaga solo.
   useEffect(() => {
-    if (!autoRotar || reducirMovimiento || lightbox) return;
-    const timer = setInterval(() => {
-      setRotacion((prev) => Number(((prev + 0.25) % 360).toFixed(3)));
-    }, 50);
-    return () => clearInterval(timer);
-  }, [autoRotar, reducirMovimiento, lightbox]);
+    if (reducirMovimiento || lightbox) return;
+    if (!autoRotar && targetRef.current == null) return;
+    let raf: number | null = null;
+    let last: number | null = null;
+    const tick = (time: number) => {
+      const dt = last == null ? 16 : Math.min(64, time - last);
+      last = time;
+      const target = targetRef.current;
+      let seguir = true;
+      if (target != null) {
+        // Camino más corto hacia el nodo abierto, con easing exponencial.
+        const delta =
+          ((target - rotacionRef.current + 540) % 360) - 180;
+        if (Math.abs(delta) < 0.15) {
+          rotacionRef.current = target;
+          targetRef.current = null;
+          seguir = autoRotar;
+        } else {
+          rotacionRef.current += delta * Math.min(1, dt * 0.007);
+        }
+      } else if (autoRotar) {
+        rotacionRef.current = (rotacionRef.current + 0.005 * dt) % 360;
+      } else {
+        seguir = false;
+      }
+      aplicarPosiciones();
+      raf = seguir ? requestAnimationFrame(tick) : null;
+    };
+    raf = requestAnimationFrame(tick);
+    return () => {
+      if (raf !== null) cancelAnimationFrame(raf);
+    };
+  }, [autoRotar, reducirMovimiento, lightbox, aplicarPosiciones]);
 
   const limpiar = (e: React.MouseEvent<HTMLDivElement>) => {
     if (e.target === containerRef.current || e.target === orbitRef.current) {
+      expandidoRef.current = null;
+      targetRef.current = null;
       setExpandido(null);
       setAutoRotar(true);
     }
   };
 
   const alternarNodo = (tipo: TipoArtefacto, index: number) => {
-    setExpandido((prev) => {
-      const abre = prev !== tipo;
-      setAutoRotar(!abre);
-      if (abre) {
-        // Centra el nodo abierto abajo (270°) para que el card tenga aire.
-        const target = (index / nodos.length) * 360;
-        setRotacion(270 - target);
+    const abre = expandido !== tipo;
+    if (abre) {
+      // Centra el nodo abierto abajo (270°) para que el card tenga aire.
+      const destino = 270 - (index / nodos.length) * 360;
+      if (reducirMovimiento) {
+        rotacionRef.current = ((destino % 360) + 360) % 360;
+      } else {
+        targetRef.current = ((destino % 360) + 360) % 360;
       }
-      return abre ? tipo : null;
-    });
-  };
-
-  const posicionNodo = (index: number, total: number) => {
-    const angle = ((index / total) * 360 + rotacion) % 360;
-    const radian = (angle * Math.PI) / 180;
-    const x = radio * Math.cos(radian);
-    const y = radio * Math.sin(radian);
-    const zIndex = Math.round(100 + 50 * Math.cos(radian));
-    const opacity = Math.max(
-      0.45,
-      Math.min(1, 0.45 + 0.55 * ((1 + Math.sin(radian)) / 2))
-    );
-    return { x, y, zIndex, opacity };
+    } else {
+      targetRef.current = null;
+    }
+    expandidoRef.current = abre ? tipo : null;
+    setExpandido(abre ? tipo : null);
+    setAutoRotar(!abre);
   };
 
   const borrarFoto = async (id: string) => {
@@ -278,14 +341,20 @@ export function OrbitalObra({
         />
 
         {nodos.map((nodo, index) => {
-          const pos = posicionNodo(index, nodos.length);
+          const pos = posicionNodo(index, nodos.length, rotacionRef.current);
           const abierto = expandido === nodo.tipo;
           const Icono = ICONO[nodo.tipo];
 
           return (
             <div
               key={nodo.tipo}
-              className="absolute cursor-pointer transition-all duration-700"
+              ref={(el) => {
+                if (el) nodoRefs.current.set(nodo.tipo, el);
+                else nodoRefs.current.delete(nodo.tipo);
+              }}
+              // Sin transition sobre transform: la suavidad la da el RAF.
+              // (transition-all + estado cada 50ms = vibración en el celu.)
+              className="absolute cursor-pointer"
               style={{
                 transform: `translate(${pos.x}px, ${pos.y}px)`,
                 zIndex: abierto ? 200 : pos.zIndex,
