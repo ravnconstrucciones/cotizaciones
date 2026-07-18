@@ -18,6 +18,7 @@ from jobslib import (DIR_JOBS, LOCK, STATE, cargar_cfg, cargar_estado, errores_h
                      vencio_semanal)
 import job_auditoria
 import job_calendario
+import job_cerebro
 import job_datos
 import job_dolar
 import job_inbox
@@ -49,6 +50,9 @@ JOBS = [
     ("salud",   job_salud.correr,   lambda u, a: vencio_semanal(u, a, hora_minima=9)),
     ("auditoria", job_auditoria.correr, lambda u, a: vencio_dominical(u, a, hora_minima=8)),
     ("inbox",   job_inbox.correr,   lambda u, a: vencio_diario(u, a, hora_minima=2)),
+    # cerebro va DESPUÉS de inbox (mismo tick, orden de lista): digiere el vault
+    # ya ruteado — graphify determinístico + diagnóstico + pregunta del día.
+    ("cerebro", job_cerebro.correr, lambda u, a: vencio_diario(u, a, hora_minima=3)),
     # datos corre CADA tick: es barato (1 GET con cursor, casi siempre vacío)
     # y así un dato clasificado en Archivados llega al vault en ≤30 min.
     ("datos",   job_datos.correr,   lambda u, a: True),
