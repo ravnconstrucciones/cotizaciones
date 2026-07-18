@@ -25,7 +25,6 @@ import {
   prefijoPlantillaComercial,
   resolveNumeroComercial,
 } from "@/lib/presupuesto-numero-comercial";
-import { deleteGastoAdjuntoStorage } from "@/lib/gastos-storage";
 import { estadoDesdeTipo } from "@/lib/cashflow-matching";
 import { importeGastoObraArs } from "@/lib/cashflow-gastos-obra";
 import {
@@ -58,6 +57,14 @@ type GastoDbRow = {
   adjunto_kind?: string | null;
   /** Egreso en `cashflow_items` creado al guardar (mismo movimiento en Caja). */
   cashflow_item_id?: string | null;
+};
+
+/** Fila de la papelera universal (gastos borrados recuperables). */
+type PapeleraRow = {
+  id: string;
+  registro_id: string;
+  registro: Partial<GastoDbRow>;
+  borrado_at: string;
 };
 
 type CotizacionItem = {
@@ -206,6 +213,30 @@ export function GastosScreen({
   const [movimientosCaja, setMovimientosCaja] = useState<MovimientoCajaObra[]>(
     []
   );
+  const [papelera, setPapelera] = useState<PapeleraRow[]>([]);
+  const [restaurandoId, setRestaurandoId] = useState<string | null>(null);
+
+  /** Gastos borrados de esta obra que se pueden restaurar (papelera universal). */
+  const cargarPapelera = useCallback(async () => {
+    if (!obraElegida) {
+      setPapelera([]);
+      return;
+    }
+    const supabase = createClient();
+    const { data } = await supabase
+      .from("papelera_registros")
+      .select("id, registro_id, registro, borrado_at")
+      .eq("tabla", "presupuestos_gastos")
+      .eq("registro->>presupuesto_id", obraElegida)
+      .is("restaurado_at", null)
+      .order("borrado_at", { ascending: false })
+      .limit(20);
+    setPapelera((data as PapeleraRow[] | null) ?? []);
+  }, [obraElegida]);
+
+  useEffect(() => {
+    void cargarPapelera();
+  }, [cargarPapelera]);
 
   /** IDs de Caja ya representados por una fila de esta tabla (no duplicar fila ni suma). */
   const cashflowIdsVinculadosGastoTabla = useMemo(() => {
@@ -743,7 +774,7 @@ export function GastosScreen({
       const supabase = createClient();
       const { data: rowAdj, error: errSel } = await supabase
         .from("presupuestos_gastos")
-        .select("adjunto_path, cashflow_item_id")
+        .select("*")
         .eq("id", id)
         .maybeSingle();
       if (errSel) {
@@ -751,10 +782,6 @@ export function GastosScreen({
         setDeletingId(null);
         return;
       }
-      const pathAdj =
-        rowAdj && typeof (rowAdj as { adjunto_path?: unknown }).adjunto_path === "string"
-          ? String((rowAdj as { adjunto_path: string }).adjunto_path)
-          : null;
       const cfId =
         rowAdj &&
         typeof (rowAdj as { cashflow_item_id?: unknown }).cashflow_item_id ===
@@ -762,6 +789,32 @@ export function GastosScreen({
         String((rowAdj as { cashflow_item_id: string }).cashflow_item_id).trim() !== ""
           ? String((rowAdj as { cashflow_item_id: string }).cashflow_item_id)
           : null;
+
+      // Papelera universal: la fila completa se archiva ANTES de borrar.
+      // Si el archivo falla, NO se borra nada (regla: nunca perder plata).
+      if (rowAdj) {
+        const fila = rowAdj as Partial<GastoDbRow>;
+        const { error: errPap } = await supabase
+          .from("papelera_registros")
+          .insert({
+            tabla: "presupuestos_gastos",
+            registro_id: id,
+            registro: fila,
+            contexto: [
+              String(fila.descripcion ?? "").trim(),
+              String(fila.importe ?? ""),
+            ]
+              .filter(Boolean)
+              .join(" · "),
+          });
+        if (errPap) {
+          setError(
+            `No se pudo archivar en la papelera, así que NO se borró nada: ${errPap.message}`
+          );
+          setDeletingId(null);
+          return;
+        }
+      }
 
       if (cfId) {
         const { error: errAn } = await supabase
@@ -787,12 +840,36 @@ export function GastosScreen({
       }
       espejarDinero("presupuestos_gastos", id);
       if (cfId) espejarDinero("cashflow_items", cfId);
-      await deleteGastoAdjuntoStorage(pathAdj);
+      // El adjunto NO se borra del Storage: si el gasto se restaura desde la
+      // papelera, la foto del ticket tiene que seguir estando.
       setGastos((prev) => prev.filter((g) => g.id !== id));
+      void cargarPapelera();
     } catch (e) {
       setError(e instanceof Error ? e.message : "No se pudo eliminar.");
     } finally {
       setDeletingId(null);
+    }
+  }
+
+  async function restaurarGasto(papeleraId: string) {
+    setRestaurandoId(papeleraId);
+    setError(null);
+    try {
+      const res = await fetch(
+        `/api/papelera/${encodeURIComponent(papeleraId)}/restaurar`,
+        { method: "POST" }
+      );
+      const body = (await res.json().catch(() => ({}))) as { error?: string };
+      if (!res.ok) {
+        setError(body.error ?? "No se pudo restaurar el gasto.");
+        return;
+      }
+      await load();
+      await cargarPapelera();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "No se pudo restaurar.");
+    } finally {
+      setRestaurandoId(null);
     }
   }
 
@@ -1567,6 +1644,41 @@ export function GastosScreen({
                       </span>
                     </p>
                   ) : null}
+                </div>
+              ) : null}
+              {papelera.length > 0 ? (
+                <div className="mt-8 border-t border-cdm-line pt-4">
+                  <p className="font-mono-hud text-[10px] font-bold uppercase tracking-[0.14em] text-cdm-muted">
+                    Papelera — borrados recuperables
+                  </p>
+                  <ul className="mt-3 space-y-2">
+                    {papelera.map((p) => (
+                      <li
+                        key={p.id}
+                        className="flex flex-wrap items-center justify-between gap-2 text-sm text-cdm-muted"
+                      >
+                        <span>
+                          {p.registro?.fecha
+                            ? `${fechaIsoToDisplay(String(p.registro.fecha))} · `
+                            : ""}
+                          {String(p.registro?.descripcion ?? "").trim() ||
+                            "Gasto"}{" "}
+                          ·{" "}
+                          <span className="font-medium tabular-nums text-cdm-fg">
+                            {formatMoney(Number(p.registro?.importe ?? 0))}
+                          </span>
+                        </span>
+                        <button
+                          type="button"
+                          disabled={restaurandoId === p.id}
+                          onClick={() => void restaurarGasto(p.id)}
+                          className="rounded-none border border-cdm-line px-2.5 py-1.5 text-[10px] font-medium uppercase tracking-wider text-cdm-muted transition-colors hover:border-cdm-accent hover:text-cdm-fg disabled:opacity-40"
+                        >
+                          {restaurandoId === p.id ? "Restaurando…" : "Restaurar"}
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
                 </div>
               ) : null}
             </section>
