@@ -113,7 +113,7 @@ export async function GET(_req: Request, ctx: Params) {
     const { data: rawItems, error: errItems } = await supabase
       .from("cashflow_items")
       .select(
-        "id, obra_id, tipo, categoria, descripcion, monto_proyectado, fecha_proyectada, monto_real, fecha_real, estado, notas"
+        "id, obra_id, tipo, categoria, descripcion, monto_proyectado, fecha_proyectada, monto_real, fecha_real, estado, notas, moneda, monto_usd"
       )
       .eq("obra_id", obra_id)
       .is("deleted_at", null);

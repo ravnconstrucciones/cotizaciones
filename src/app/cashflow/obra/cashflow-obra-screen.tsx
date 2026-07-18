@@ -25,6 +25,8 @@ type ItemRow = {
   fecha_real: string | null;
   estado: string;
   notas: string;
+  moneda?: string | null;
+  monto_usd?: number | null;
 };
 
 type ItemAnulado = {
@@ -206,6 +208,8 @@ export function CashflowObraScreen({ obraId }: { obraId: string }) {
       fecha_real: row.fecha_real,
       estado: row.estado,
       notas: row.notas,
+      moneda: row.moneda ?? null,
+      monto_usd: row.monto_usd ?? null,
     });
     setModalOpen(true);
   }

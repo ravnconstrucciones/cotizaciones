@@ -80,6 +80,9 @@ type DraftGasto = {
   rubro_id: string;
   descripcion: string;
   importeStr: string;
+  /** Operación en dólares: US$ y cotización editables → autocompletan el importe ARS. */
+  usdStr: string;
+  cotStr: string;
   /** Cuenta de la que salió la plata (null = sin asignar). Vive en el gasto,
    * NO en su espejo de Caja, para no restar dos veces el mismo pago. */
   cuenta_id: string | null;
@@ -643,6 +646,8 @@ export function GastosScreen({
       rubro_id: "",
       descripcion: "",
       importeStr: "",
+      usdStr: "",
+      cotStr: "",
       cuenta_id: null,
       plan_item_id: "",
     });
@@ -719,6 +724,13 @@ export function GastosScreen({
       if (esPresupuestoUsd) {
         insertPayload.cotizacion_venta_ars_por_usd = ventaEfectivaParaGastos;
         insertPayload.casa_dolar = casaDolar;
+      }
+      // Operación en dólares del draft: la cotización que tipeó Eze manda
+      // sobre la del presupuesto (queda clavada en el gasto).
+      const usdDraft = roundArs2(parseFormattedNumber(draft.usdStr));
+      const cotDraft = roundArs2(parseFormattedNumber(draft.cotStr));
+      if (usdDraft > 0 && cotDraft > 0) {
+        insertPayload.cotizacion_venta_ars_por_usd = cotDraft;
       }
       if (cashflowItemId) {
         insertPayload.cashflow_item_id = cashflowItemId;
@@ -1373,6 +1385,69 @@ export function GastosScreen({
                             placeholder="0,00"
                             className={`${inputCls} text-right tabular-nums`}
                           />
+                          {/* Operación en dólares: US$ × cotización → importe ARS solo. */}
+                          <div className="mt-2 grid grid-cols-2 gap-2">
+                            <div>
+                              <label className={labelCls}>US$</label>
+                              <input
+                                type="text"
+                                inputMode="decimal"
+                                data-no-spinner
+                                value={draft.usdStr}
+                                onChange={(e) =>
+                                  setDraft((d) => {
+                                    if (!d) return d;
+                                    const usdStr = e.target.value;
+                                    const u = parseFormattedNumber(usdStr);
+                                    const c = parseFormattedNumber(d.cotStr);
+                                    return {
+                                      ...d,
+                                      usdStr,
+                                      importeStr:
+                                        u > 0 && c > 0
+                                          ? String(roundArs2(u * c)).replace(
+                                              ".",
+                                              ","
+                                            )
+                                          : d.importeStr,
+                                    };
+                                  })
+                                }
+                                placeholder="0"
+                                className={`${inputCls} text-right tabular-nums`}
+                              />
+                            </div>
+                            <div>
+                              <label className={labelCls}>Cotización</label>
+                              <input
+                                type="text"
+                                inputMode="decimal"
+                                data-no-spinner
+                                value={draft.cotStr}
+                                onChange={(e) =>
+                                  setDraft((d) => {
+                                    if (!d) return d;
+                                    const cotStr = e.target.value;
+                                    const u = parseFormattedNumber(d.usdStr);
+                                    const c = parseFormattedNumber(cotStr);
+                                    return {
+                                      ...d,
+                                      cotStr,
+                                      importeStr:
+                                        u > 0 && c > 0
+                                          ? String(roundArs2(u * c)).replace(
+                                              ".",
+                                              ","
+                                            )
+                                          : d.importeStr,
+                                    };
+                                  })
+                                }
+                                placeholder="1500"
+                                className={`${inputCls} text-right tabular-nums`}
+                              />
+                            </div>
+                          </div>
                         </td>
                         {esPresupuestoUsd ? (
                           <>

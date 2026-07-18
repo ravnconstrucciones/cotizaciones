@@ -20,6 +20,9 @@ type Body = {
   fecha_real?: string | null;
   estado?: string;
   notas?: string;
+  /** Operación en dólares: moneda USD + cantidad de billetes (el monto ARS es el equivalente). */
+  moneda?: string;
+  monto_usd?: number | null;
 };
 
 const ESTADOS = new Set(["pendiente", "cobrado", "pagado", "vencido"]);
@@ -67,6 +70,16 @@ export async function POST(req: Request) {
       );
     }
 
+    const moneda = body.moneda === "USD" ? "USD" : "ARS";
+    const montoUsd =
+      moneda === "USD" ? roundArs2(Number(body.monto_usd ?? NaN)) : null;
+    if (moneda === "USD" && (!Number.isFinite(montoUsd!) || montoUsd! <= 0)) {
+      return NextResponse.json(
+        { error: "Operación en dólares: indicá la cantidad de US$ (mayor a cero)." },
+        { status: 400 }
+      );
+    }
+
     const supabase = createSupabaseAdminClient();
     const { data: obra, error: eObra } = await supabase
       .from("obras")
@@ -93,6 +106,8 @@ export async function POST(req: Request) {
         fecha_real: fecha,
         estado,
         notas,
+        moneda,
+        monto_usd: montoUsd,
       })
       .select()
       .single();

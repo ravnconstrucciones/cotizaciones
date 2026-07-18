@@ -35,6 +35,8 @@ export type CashflowItemModalInitial = {
   fecha_real: string | null;
   estado: string;
   notas: string;
+  moneda?: string | null;
+  monto_usd?: number | null;
 };
 
 type EntradaModo = "manual" | "foto" | "audio";
@@ -82,6 +84,10 @@ export function CashflowItemModal({
   const [descripcion, setDescripcion] = useState("");
   const [montoStr, setMontoStr] = useState("");
   const [fecha, setFecha] = useState("");
+  /** Operación en dólares: US$ y cotización editables; el ARS se calcula solo. */
+  const [esUsd, setEsUsd] = useState(false);
+  const [usdStr, setUsdStr] = useState("");
+  const [cotStr, setCotStr] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -119,6 +125,9 @@ export function CashflowItemModal({
         setCategoria("otro");
         setDescripcion("");
         setMontoStr("");
+        setEsUsd(false);
+        setUsdStr("");
+        setCotStr("");
         setFecha(hoyInput());
         setError(null);
         setEntradaModo("manual");
@@ -139,6 +148,16 @@ export function CashflowItemModal({
       setDescripcion(initial.descripcion);
       const m = initial.monto_real ?? initial.monto_proyectado;
       setMontoStr(m > 0 ? String(m).replace(".", ",") : "");
+      const mu = initial.monto_usd ?? null;
+      if (initial.moneda === "USD" && mu != null && mu > 0) {
+        setEsUsd(true);
+        setUsdStr(String(mu).replace(".", ","));
+        setCotStr(m > 0 ? String(roundArs2(m / mu)).replace(".", ",") : "");
+      } else {
+        setEsUsd(false);
+        setUsdStr("");
+        setCotStr("");
+      }
       setFecha(
         (initial.fecha_real ?? initial.fecha_proyectada).slice(0, 10) || hoyInput()
       );
@@ -269,6 +288,69 @@ export function CashflowItemModal({
     }
   }
 
+  /** US$ × cotización → autocompleta el Monto (ARS); ambos editables. */
+  function recalcularArs(usdS: string, cotS: string) {
+    const u = parseFormattedNumber(usdS);
+    const c = parseFormattedNumber(cotS);
+    if (u > 0 && c > 0) {
+      setMontoStr(String(roundArs2(u * c)).replace(".", ","));
+    }
+  }
+
+  function bloqueUsd() {
+    return (
+      <div className="mt-4">
+        <label className="flex cursor-pointer items-center gap-2 text-xs text-cdm-muted">
+          <input
+            type="checkbox"
+            checked={esUsd}
+            onChange={(e) => {
+              setEsUsd(e.target.checked);
+              if (e.target.checked) recalcularArs(usdStr, cotStr);
+            }}
+            className="h-3.5 w-3.5 accent-current"
+          />
+          Operación en dólares
+        </label>
+        {esUsd ? (
+          <div className="mt-3 grid gap-5 sm:grid-cols-2">
+            <div>
+              <span className={labelCls}>Cantidad (US$)</span>
+              <input
+                className={`${fieldCls} tabular-nums`}
+                inputMode="decimal"
+                value={usdStr}
+                onChange={(e) => {
+                  setUsdStr(e.target.value);
+                  recalcularArs(e.target.value, cotStr);
+                }}
+                placeholder="0"
+              />
+            </div>
+            <div>
+              <span className={labelCls}>Cotización ($ por US$)</span>
+              <input
+                className={`${fieldCls} tabular-nums`}
+                inputMode="decimal"
+                value={cotStr}
+                onChange={(e) => {
+                  setCotStr(e.target.value);
+                  recalcularArs(usdStr, e.target.value);
+                }}
+                placeholder="1500"
+              />
+            </div>
+            <p className="text-[10px] leading-relaxed text-cdm-muted sm:col-span-2">
+              El Monto (ARS) se calcula solo (US$ × cotización) y podés
+              retocarlo a mano. Se guarda como plata en dólares: flota al blue
+              en los tableros.
+            </p>
+          </div>
+        ) : null}
+      </div>
+    );
+  }
+
   async function submit() {
     setSaving(true);
     setError(null);
@@ -283,6 +365,15 @@ export function CashflowItemModal({
         setError("El monto debe ser mayor a cero.");
         setSaving(false);
         return;
+      }
+      let montoUsd: number | null = null;
+      if (esUsd) {
+        montoUsd = roundArs2(parseFormattedNumber(usdStr));
+        if (!(montoUsd > 0)) {
+          setError("Operación en dólares: poné la cantidad de US$.");
+          setSaving(false);
+          return;
+        }
       }
       if (esAlta && (entradaModo === "foto" || entradaModo === "audio") && extrayendo) {
         setError("Esperá a que termine de leerse el comprobante.");
@@ -337,6 +428,8 @@ export function CashflowItemModal({
                 monto_real: m,
                 fecha_real: fecha,
                 estado,
+                moneda: esUsd ? "USD" : "ARS",
+                monto_usd: montoUsd,
               }
             : {
                 obra_id: oid,
@@ -345,6 +438,8 @@ export function CashflowItemModal({
                 descripcion,
                 monto: m,
                 fecha,
+                moneda: esUsd ? "USD" : "ARS",
+                monto_usd: montoUsd,
               }
         ),
       });
@@ -508,6 +603,7 @@ export function CashflowItemModal({
                   />
                 </div>
               </div>
+              {bloqueUsd()}
             </>
           ) : (
             <>
@@ -591,6 +687,7 @@ export function CashflowItemModal({
                       />
                     </div>
                   </div>
+                  {bloqueUsd()}
                 </>
               ) : (
                 <p className="mt-6 text-xs text-cdm-muted">

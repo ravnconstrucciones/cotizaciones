@@ -22,6 +22,9 @@ type Body = {
   notas?: string;
   adjunto_path?: string | null;
   adjunto_kind?: string | null;
+  /** Operación en dólares: moneda USD + cantidad de billetes (el monto ARS es el equivalente). */
+  moneda?: string;
+  monto_usd?: number | null;
 };
 
 export async function PUT(req: Request, ctx: Params) {
@@ -47,6 +50,26 @@ export async function PUT(req: Request, ctx: Params) {
 
     if (body.descripcion !== undefined) {
       patch.descripcion = String(body.descripcion ?? "").trim();
+    }
+
+    if (body.moneda !== undefined) {
+      const mo = body.moneda === "USD" ? "USD" : "ARS";
+      patch.moneda = mo;
+      if (mo === "USD") {
+        const mu = roundArs2(Number(body.monto_usd ?? NaN));
+        if (!Number.isFinite(mu) || mu <= 0) {
+          return NextResponse.json(
+            {
+              error:
+                "Operación en dólares: indicá la cantidad de US$ (mayor a cero).",
+            },
+            { status: 400 }
+          );
+        }
+        patch.monto_usd = mu;
+      } else {
+        patch.monto_usd = null;
+      }
     }
     if (body.notas !== undefined) {
       patch.notas = String(body.notas ?? "").trim();
