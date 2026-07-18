@@ -83,12 +83,34 @@ def parsear(salida):
     return data if isinstance(data, list) else []
 
 
+def par(a, b):
+    """Clave de par SIN dirección: (A,B) y (B,A) son la misma conexión.
+    18/07 salieron las dos direcciones de un mismo par en batches distintos."""
+    return tuple(sorted((a, b)))
+
+
+def ya_linkeadas(na, nb):
+    """True si alguna de las dos notas ya linkea a la otra — una conexión que
+    ya existe en tinta no se propone (caso Entrenamiento↔Patrones, 18/07).
+    Los wikilinks del vault vienen en dos formas: [[Yo/Patrones]] (path) y
+    [[Patrones]] (solo nombre); el prefijo cubre también alias con pipe."""
+    def formas(p):
+        return {f"[[{str(Path(p).with_suffix(''))}", f"[[{Path(p).stem}"}
+    def contiene_link(archivo, destino):
+        try:
+            texto = (Path(VAULT) / archivo).read_text(encoding="utf-8", errors="ignore")
+        except OSError:
+            return False
+        return any(f in texto for f in formas(destino))
+    return contiene_link(na, nb) or contiene_link(nb, na)
+
+
 def correr(cfg, token):
     g = json.load(open(GRAPH))
 
     # pares ya propuestos alguna vez (cualquier estado: lo descartado no se repregunta)
     previas = rest(cfg, token, "cerebro_sinapsis?select=nota_a,nota_b,estado") or []
-    pares_previos = {(p["nota_a"], p["nota_b"]) for p in previas}
+    pares_previos = {par(p["nota_a"], p["nota_b"]) for p in previas}
     notas_previas = {p["nota_a"] for p in previas}
 
     candidatas = huerfanas_tibias(g, notas_previas)
@@ -101,11 +123,15 @@ def correr(cfg, token):
     validas = []
     for p in propuestas[:MAX_PROPUESTAS]:
         na, nb, razon = p.get("nota_a"), p.get("nota_b"), (p.get("razon") or "").strip()
-        if not (na and nb and razon) or na == nb or (na, nb) in pares_previos:
+        if not (na and nb and razon) or na == nb or par(na, nb) in pares_previos:
             continue
         if not (Path(VAULT) / na).is_file() or not (Path(VAULT) / nb).is_file():
             log(f"job_sinapsis: propuesta descartada, nota inexistente ({na} → {nb})")
             continue
+        if ya_linkeadas(na, nb):
+            log(f"job_sinapsis: propuesta descartada, ya se linkean ({na} ↔ {nb})")
+            continue
+        pares_previos.add(par(na, nb))  # dedup también dentro del mismo batch
         validas.append({"fecha": date.today().isoformat(), "nota_a": na, "nota_b": nb,
                         "razon": razon[:300]})
 
