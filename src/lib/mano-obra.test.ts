@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { resumirAcuerdo, resumirAcuerdos, type AcuerdoMO, type PagoMO } from "./mano-obra";
+import {
+  armarInformeMO,
+  resumirAcuerdo,
+  resumirAcuerdos,
+  type AcuerdoMO,
+  type PagoMO,
+} from "./mano-obra";
 
 const acuerdo = (over: Partial<AcuerdoMO> = {}): AcuerdoMO => ({
   id: "a1",
@@ -60,5 +66,51 @@ describe("resumirAcuerdos", () => {
     );
     expect(rs[0].pagado).toBe(100000);
     expect(rs[1].saldo).toBe(0);
+  });
+});
+
+describe("armarInformeMO", () => {
+  const base = [
+    acuerdo(), // a1 Juan, p1, arreglado 700k
+    acuerdo({ id: "a2", trabajo: "Cielorraso", monto_arreglado: 300000, presupuesto_id: "p2" }),
+    acuerdo({ id: "a3", persona: "Saivin", trabajo: "Siding", monto_arreglado: 1250000 }),
+    acuerdo({ id: "a4", persona: null, trabajo: "Plomería" }),
+  ];
+  const pagos = [
+    pago(), // a1 100k 10/07
+    pago({ id: "g2", importe: 200000, fecha: "2026-07-12" }), // a1
+    pago({ id: "g3", mo_acuerdo_id: "a2", importe: 300000, fecha: "2026-06-16" }),
+    pago({ id: "g4", mo_acuerdo_id: "a3", importe: 450000, fecha: "2026-07-03" }),
+  ];
+
+  it("filtra por persona, agrupa por presupuesto y suma totales", () => {
+    const inf = armarInformeMO(base, pagos, { persona: "Juan" });
+    expect(inf.grupos.map((g) => g.presupuestoId)).toEqual(["p1", "p2"]);
+    expect(inf.totalPagadoPeriodo).toBe(600000);
+    expect(inf.totalSaldo).toBe(400000); // a1 falta 400k, a2 saldado
+    expect(inf.cantidadPagos).toBe(3);
+    // pagos en orden cronológico viejo → nuevo
+    expect(inf.grupos[0].acuerdos[0].pagosPeriodo.map((p) => p.id)).toEqual(["g1", "g2"]);
+  });
+
+  it("con rango de fechas: solo pagos del período y omite acuerdos sin pagos en él", () => {
+    const inf = armarInformeMO(base, pagos, { persona: "Juan", desde: "2026-07-01", hasta: "2026-07-11" });
+    expect(inf.grupos).toHaveLength(1); // a2 (pago 16/06) queda afuera
+    expect(inf.grupos[0].acuerdos[0].pagosPeriodo.map((p) => p.id)).toEqual(["g1"]);
+    expect(inf.totalPagadoPeriodo).toBe(100000);
+    // el saldo del acuerdo sigue siendo el real (histórico completo)
+    expect(inf.grupos[0].acuerdos[0].saldo).toBe(400000);
+  });
+
+  it("sin filtro de fechas un acuerdo sin pagos entra igual (muestra el saldo)", () => {
+    const inf = armarInformeMO(base, [], { persona: "Juan" });
+    expect(inf.grupos.flatMap((g) => g.acuerdos)).toHaveLength(2);
+    expect(inf.totalSaldo).toBe(1000000);
+    expect(inf.cantidadPagos).toBe(0);
+  });
+
+  it("persona null nunca matchea", () => {
+    const inf = armarInformeMO(base, pagos, { persona: "" });
+    expect(inf.grupos).toHaveLength(0);
   });
 });

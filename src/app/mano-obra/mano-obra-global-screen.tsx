@@ -117,13 +117,21 @@ export function ManoObraGlobalScreen() {
             MANO DE OBRA
           </h1>
         </div>
-        <button
-          type="button"
-          onClick={() => setVerSaldados((v) => !v)}
-          className="font-mono-hud text-[10px] uppercase tracking-[0.08em] text-cdm-muted transition-colors hover:text-cdm-accent"
-        >
-          {verSaldados ? "[OCULTAR SALDADOS]" : "[VER SALDADOS]"}
-        </button>
+        <div className="flex items-baseline gap-4">
+          <Link
+            href="/mano-obra/informe"
+            className="font-mono-hud text-[10px] uppercase tracking-[0.08em] text-cdm-muted transition-colors hover:text-cdm-accent"
+          >
+            [INFORME]
+          </Link>
+          <button
+            type="button"
+            onClick={() => setVerSaldados((v) => !v)}
+            className="font-mono-hud text-[10px] uppercase tracking-[0.08em] text-cdm-muted transition-colors hover:text-cdm-accent"
+          >
+            {verSaldados ? "[OCULTAR SALDADOS]" : "[VER SALDADOS]"}
+          </button>
+        </div>
       </header>
 
       <div className="relative z-10 mt-4 flex flex-col gap-4 px-1">
