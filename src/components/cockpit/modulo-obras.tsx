@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Panel } from "./panel";
 import { SkeletonGlass } from "./skeleton-glass";
 import { fetchCompartido } from "@/lib/fetch-compartido";
+import { useRefrescoAlVolver } from "@/hooks/use-refresco-al-volver";
 import { createClient } from "@/lib/supabase/client";
 import { useRealtimeTable } from "@/hooks/use-realtime-table";
 import {
@@ -115,6 +116,7 @@ export function ModuloObras({ className }: { className?: string }) {
   useEffect(() => {
     void cargar();
   }, [cargar]);
+  useRefrescoAlVolver(cargar);
 
   // El cuadro respira: avance del bot o tarea nueva → se actualiza solo.
   useRealtimeTable("obra_avances", cargar);

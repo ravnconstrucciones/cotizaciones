@@ -7,6 +7,7 @@ import { Panel } from "./panel";
 import { SkeletonGlass } from "./skeleton-glass";
 import { SelectorCuenta } from "@/components/selector-cuenta";
 import { fetchCompartido } from "@/lib/fetch-compartido";
+import { useRefrescoAlVolver } from "@/hooks/use-refresco-al-volver";
 import {
   formatMoneyInt,
   formatArsEnteroDesdeDigitos,
@@ -253,6 +254,7 @@ export function ModuloSaludNegocio({ className }: { className?: string }) {
   useEffect(() => {
     void cargar();
   }, [cargar]);
+  useRefrescoAlVolver(cargar);
 
   const salud = useMemo(
     () => (resumen ? calcularSalud(resumen.obras_activas ?? []) : null),

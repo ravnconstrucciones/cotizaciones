@@ -6,6 +6,7 @@ import { motion } from "framer-motion";
 import { Panel } from "./panel";
 import { SkeletonGlass } from "./skeleton-glass";
 import { fetchCompartido } from "@/lib/fetch-compartido";
+import { useRefrescoAlVolver } from "@/hooks/use-refresco-al-volver";
 import { formatMoneyInt } from "@/lib/format-currency";
 
 /**
@@ -60,6 +61,7 @@ export function ModuloFinanzas({ className }: { className?: string }) {
   useEffect(() => {
     void cargar();
   }, [cargar]);
+  useRefrescoAlVolver(cargar);
 
   return (
     <Panel

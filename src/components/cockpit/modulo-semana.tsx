@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useRealtimeTable } from "@/hooks/use-realtime-table";
+import { useRefrescoAlVolver } from "@/hooks/use-refresco-al-volver";
 import { Panel } from "./panel";
 import { hoyAR, itemsDelDia, semanaCorriente, type DiaSemana } from "@/lib/semana";
 import type { CalendarioEvento, Tarea } from "@/types/centro-mando";
@@ -59,6 +60,7 @@ export function ModuloSemana({ className }: { className?: string }) {
   }, [cargar]);
   useRealtimeTable("calendario_eventos", cargar);
   useRealtimeTable("tareas", cargar);
+  useRefrescoAlVolver(cargar);
 
   const porDia = useMemo(
     () =>

@@ -6,6 +6,7 @@ import { useTheme } from "next-themes";
 import { Panel } from "./panel";
 import { SkeletonCifra } from "./skeleton-glass";
 import { fetchGrafo, type GrafoVault } from "@/lib/grafo";
+import { useRefrescoAlVolver } from "@/hooks/use-refresco-al-volver";
 import { dibujarGrafo, vistaInicial } from "@/lib/grafo-dibujo";
 
 /**
@@ -23,9 +24,13 @@ export function ModuloGrafo({ className }: { className?: string }) {
   const { resolvedTheme } = useTheme();
   const tema: "dark" | "light" = resolvedTheme === "light" ? "light" : "dark";
 
-  useEffect(() => {
+  const cargarGrafo = useCallback(() => {
     fetchGrafo().then((g) => (g ? setGrafo(g) : setError(true)));
   }, []);
+  useEffect(() => {
+    cargarGrafo();
+  }, [cargarGrafo]);
+  useRefrescoAlVolver(cargarGrafo);
 
   const dibujar = useCallback(() => {
     const cont = contRef.current;

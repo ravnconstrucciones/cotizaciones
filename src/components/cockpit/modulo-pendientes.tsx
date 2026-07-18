@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { createClient } from "@/lib/supabase/client";
 import { useRealtimeTable } from "@/hooks/use-realtime-table";
+import { useRefrescoAlVolver } from "@/hooks/use-refresco-al-volver";
 import { Panel } from "./panel";
 import type { Tarea } from "@/types/centro-mando";
 
@@ -89,6 +90,7 @@ export function ModuloPendientes({ className, tactil = false }: { className?: st
   useEffect(() => {
     void cargar();
   }, [cargar]);
+  useRefrescoAlVolver(cargar);
   useRealtimeTable("tareas", cargar);
 
   async function agregar(e: React.FormEvent) {

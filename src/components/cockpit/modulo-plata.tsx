@@ -7,6 +7,7 @@ import { Panel } from "./panel";
 import { CifraHeroica } from "./cifra-heroica";
 import { SkeletonCifra } from "./skeleton-glass";
 import { fetchCompartido } from "@/lib/fetch-compartido";
+import { useRefrescoAlVolver } from "@/hooks/use-refresco-al-volver";
 import { formatMoneyInt, roundArs2 } from "@/lib/format-currency";
 import { comprometidoDerivado, type ObraResumen } from "@/lib/salud-negocio";
 import { totalesPorDueno, type BolsilloVista } from "@/lib/dinero-tablero";
@@ -113,6 +114,7 @@ export function ModuloPlata({ className }: { className?: string }) {
   useEffect(() => {
     void cargar();
   }, [cargar]);
+  useRefrescoAlVolver(cargar);
 
   const blue = caja?.blue_venta ?? null;
 
