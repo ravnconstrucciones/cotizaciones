@@ -1,7 +1,13 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { roundArs2 } from "@/lib/format-currency";
+import { parseFormattedNumber, roundArs2 } from "@/lib/format-currency";
+import { parseRentabilidadInputsJson } from "@/lib/ravn-rentabilidad-inputs";
 
-/** Suma materiales + M.O. congelados de todas las líneas del presupuesto. */
+/**
+ * Costo directo presupuestado en ARS nominales. Primero suma materiales + M.O.
+ * congelados de las líneas del presupuesto; si no hay ítems (flujo por consola
+ * de Rentabilidad), cae a los costos de `rentabilidad_inputs` con la misma
+ * fórmula que el resumen de cashflow (material + M.O. + internos + cargos).
+ */
 export async function fetchCostoDirectoPresupuesto(
   supabase: SupabaseClient,
   presupuestoId: string
@@ -21,5 +27,40 @@ export async function fetchCostoDirectoPresupuesto(
     mo += q * (Number(row.precio_mo_congelada) || 0);
   }
   const total = roundArs2(material + mo);
-  return { material: roundArs2(material), mo: roundArs2(mo), total };
+  if (total > 0) {
+    return { material: roundArs2(material), mo: roundArs2(mo), total };
+  }
+
+  return fetchCostoDirectoDesdeConsola(supabase, presupuestoId);
+}
+
+async function fetchCostoDirectoDesdeConsola(
+  supabase: SupabaseClient,
+  presupuestoId: string
+): Promise<{ material: number; mo: number; total: number }> {
+  const { data, error } = await supabase
+    .from("presupuestos")
+    .select("rentabilidad_inputs")
+    .eq("id", presupuestoId)
+    .maybeSingle();
+
+  if (error) throw new Error(error.message);
+
+  const ri = parseRentabilidadInputsJson(
+    data?.rentabilidad_inputs,
+    presupuestoId
+  );
+  if (!ri) return { material: 0, mo: 0, total: 0 };
+
+  const material = parseFormattedNumber(ri.costoMaterialStr);
+  const mo = parseFormattedNumber(ri.costoMoStr);
+  const extras =
+    parseFormattedNumber(ri.costosInternosStr) +
+    parseFormattedNumber(ri.cargosAdicionalesStr);
+  const total = roundArs2(material + mo + extras);
+  return {
+    material: roundArs2(material),
+    mo: roundArs2(mo),
+    total: total > 0 ? total : 0,
+  };
 }
