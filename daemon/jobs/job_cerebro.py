@@ -28,7 +28,8 @@ ORGANISMO = Path.home() / "Documents" / "organismo"
 
 
 def _run(cmd, timeout, paso):
-    r = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+    # cwd=VAULT: graphify escribe artefactos (manifest) relativo al cwd
+    r = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout, cwd=VAULT)
     if r.returncode != 0:
         raise RuntimeError(f"{paso}: {(r.stderr or r.stdout)[:300]}")
     return r.stdout
