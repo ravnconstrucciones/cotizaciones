@@ -162,5 +162,79 @@ class TestEventoPayload(unittest.TestCase):
         self.assertEqual(len(p["titulo"]), 200)
 
 
+class TestRest401(unittest.TestCase):
+    """El runner pasa UN token a toda la corrida; si vence a mitad de camino,
+    rest() debe renovar UNA vez y que el resto de la corrida use el token vivo
+    (nada de sesión nueva por cada request)."""
+
+    CFG = {"SUPABASE_URL": "https://x.supabase.co", "SUPABASE_ANON_KEY": "anon"}
+
+    def setUp(self):
+        jobslib._TOKEN_VIVO["token"] = None
+
+    def tearDown(self):
+        jobslib._TOKEN_VIVO["token"] = None
+
+    def _http_401_luego_ok(self, respuestas):
+        import urllib.error
+        def fake(url, data=None, headers=None, method=None, **kw):
+            auth = (headers or {}).get("Authorization", "")
+            if auth == "Bearer viejo":
+                raise urllib.error.HTTPError(url, 401, "Unauthorized", {}, None)
+            respuestas.append(auth)
+            return {"ok": True}
+        return fake
+
+    def test_401_renueva_desde_cache_sin_sesion_nueva(self):
+        from unittest.mock import patch
+        usados = []
+        with patch.object(jobslib, "http_json", self._http_401_luego_ok(usados)), \
+             patch.object(jobslib, "supabase_auth", return_value="fresco") as auth, \
+             patch.object(jobslib, "invalidar_cache_jobs") as inval:
+            r = jobslib.rest(self.CFG, "viejo", "tabla?select=id")
+        self.assertEqual(r, {"ok": True})
+        self.assertEqual(usados, ["Bearer fresco"])
+        auth.assert_called_once()          # una sola renovación
+        inval.assert_not_called()          # el cache de disco tenía token fresco: no se toca
+        self.assertEqual(jobslib._TOKEN_VIVO["token"], "fresco")
+
+    def test_llamadas_siguientes_usan_token_vivo_sin_401(self):
+        from unittest.mock import patch
+        usados = []
+        jobslib._TOKEN_VIVO["token"] = "fresco"
+        with patch.object(jobslib, "http_json", self._http_401_luego_ok(usados)), \
+             patch.object(jobslib, "supabase_auth") as auth:
+            r = jobslib.rest(self.CFG, "viejo", "tabla?select=id")
+        self.assertEqual(r, {"ok": True})
+        self.assertEqual(usados, ["Bearer fresco"])
+        auth.assert_not_called()           # ni un 401, ni renovación
+
+    def test_401_con_cache_igual_al_rechazado_invalida_y_reloguea(self):
+        from unittest.mock import patch
+        usados = []
+        with patch.object(jobslib, "http_json", self._http_401_luego_ok(usados)), \
+             patch.object(jobslib, "supabase_auth", side_effect=["viejo", "fresco"]) as auth, \
+             patch.object(jobslib, "invalidar_cache_jobs") as inval, \
+             patch.object(jobslib, "cargar_cfg", return_value=self.CFG):
+            r = jobslib.rest(self.CFG, "viejo", "tabla?select=id")
+        self.assertEqual(r, {"ok": True})
+        self.assertEqual(usados, ["Bearer fresco"])
+        self.assertEqual(auth.call_count, 2)
+        inval.assert_called_once()         # el cacheado ERA el muerto: recién ahí se invalida
+
+
+class TestCorrerClaudeError(unittest.TestCase):
+    def test_error_incluye_stdout_si_stderr_vacio(self):
+        from unittest.mock import patch
+        class R:
+            returncode = 1
+            stderr = ""
+            stdout = '{"is_error":true,"result":"limite de uso alcanzado"}'
+        with patch.object(jobslib.subprocess, "run", return_value=R()):
+            with self.assertRaises(RuntimeError) as ctx:
+                jobslib.correr_claude("hola")
+        self.assertIn("limite de uso alcanzado", str(ctx.exception))
+
+
 if __name__ == "__main__":
     unittest.main()

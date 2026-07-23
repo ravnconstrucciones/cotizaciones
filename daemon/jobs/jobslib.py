@@ -246,21 +246,39 @@ def invalidar_cache_jobs():
     TOKEN_CACHE_JOBS.unlink(missing_ok=True)
 
 
+# Último token que reemplazó a uno rechazado en ESTE proceso. El runner saca el
+# token una vez al arrancar y lo pasa a todos los jobs; si un job largo (claude,
+# Mac dormida) lo deja vencer, cada rest() siguiente llegaría con el token viejo
+# → 401 → sesión nueva POR CADA request. Con esto, el primer 401 renueva y el
+# resto de la corrida usa el token vivo directo, sin 401 ni sesiones de más.
+_TOKEN_VIVO = {"token": None}
+
+
+def _renovar_token_rechazado(cfg, rechazado):
+    """Devuelve un token distinto al rechazado. Primero prueba el cache de disco
+    (otro pudo haberlo renovado ya); solo si el cacheado ES el rechazado, lo
+    invalida y hace login fresco."""
+    nuevo = supabase_auth(cfg)
+    if nuevo == rechazado:
+        invalidar_cache_jobs()
+        nuevo = supabase_auth(cargar_cfg())
+    _TOKEN_VIVO["token"] = nuevo
+    return nuevo
+
+
 def rest(cfg, token, path, data=None, method="GET"):
+    tok = _TOKEN_VIVO["token"] or token
     try:
         return http_json(
             f"{cfg['SUPABASE_URL']}/rest/v1/{path}",
             data=data,
-            headers={"apikey": cfg["SUPABASE_ANON_KEY"], "Authorization": f"Bearer {token}"},
+            headers={"apikey": cfg["SUPABASE_ANON_KEY"], "Authorization": f"Bearer {tok}"},
             method=method,
         )
     except urllib.error.HTTPError as e:
         if e.code == 401:
-            # Token rechazado: invalidar cache y reintentar UNA sola vez con login fresco
-            log("jobs rest: 401 recibido, invalidando cache y reintentando con token fresco")
-            invalidar_cache_jobs()
-            cfg_actual = cargar_cfg()
-            nuevo_token = supabase_auth(cfg_actual)
+            log("jobs rest: 401 recibido, renovando token y reintentando")
+            nuevo_token = _renovar_token_rechazado(cfg, tok)
             return http_json(
                 f"{cfg['SUPABASE_URL']}/rest/v1/{path}",
                 data=data,
@@ -413,6 +431,8 @@ def correr_claude(prompt, timeout=1500, modelo="sonnet"):
            "--dangerously-skip-permissions", prompt]
     r = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout, cwd=str(Path.home()))
     if r.returncode != 0:
-        raise RuntimeError(f"claude exit {r.returncode}: {r.stderr[:500]}")
+        # El CLI suele reportar el motivo (límite de uso, etc.) por stdout, no stderr.
+        detalle = (r.stderr or "").strip() or (r.stdout or "").strip() or "sin detalle"
+        raise RuntimeError(f"claude exit {r.returncode}: {detalle[:500]}")
     salida = json.loads(r.stdout)
     return salida.get("result", "")

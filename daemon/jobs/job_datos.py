@@ -17,6 +17,7 @@ para no trabajar con el vault desactualizado):
 import json
 import sys
 from pathlib import Path
+from urllib.parse import quote
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from jobslib import DIR_JOBS, VAULT, log, push_vault, registrar_evento, rest
@@ -53,9 +54,15 @@ def formatear_linea(fila):
     return f"- **{fecha}** — {texto}{tags} <!-- ref:{fila['id']} -->"
 
 
+def filtro_cursor(cursor):
+    """Filtro PostgREST para el cursor. El timestamp trae '+00:00' y un '+' crudo
+    en la URL llega como espacio → 400; por eso va URL-encodeado."""
+    return f"&creado_at=gt.{quote(cursor)}" if cursor else ""
+
+
 def correr(cfg, token):
     cursor = _leer_cursor()
-    filtro = f"&creado_at=gt.{cursor}" if cursor else ""
+    filtro = filtro_cursor(cursor)
     filas = rest(
         cfg, token,
         "referencias?select=id,creado_at,texto,etiquetas"

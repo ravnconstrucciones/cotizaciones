@@ -9,6 +9,7 @@ historia; las 'manual' no se tocan nunca.
 """
 import subprocess
 import sys
+import time
 from datetime import date, timedelta
 from pathlib import Path
 
@@ -68,15 +69,24 @@ end tell
 """
 
 
-def leer_calendar(timeout=TIMEOUT_OSASCRIPT):
-    """Corre el AppleScript y devuelve el stdout crudo. LANZA si Calendar no responde."""
+def _correr_osascript(timeout):
     try:
-        r = subprocess.run(
+        return subprocess.run(
             ["osascript", "-e", APPLESCRIPT],
             capture_output=True, text=True, timeout=timeout,
         )
     except subprocess.TimeoutExpired:
         raise RuntimeError(f"Calendar.app no respondió en {timeout}s")
+
+
+def leer_calendar(timeout=TIMEOUT_OSASCRIPT):
+    """Corre el AppleScript y devuelve el stdout crudo. LANZA si Calendar no responde."""
+    r = _correr_osascript(timeout)
+    if r.returncode != 0 and "-600" in (r.stderr or ""):
+        # Calendar cerrada (error -600): lanzarla en background y reintentar una vez.
+        subprocess.run(["open", "-gj", "-a", "Calendar"], capture_output=True)
+        time.sleep(8)
+        r = _correr_osascript(timeout)
     if r.returncode != 0:
         raise RuntimeError(f"osascript falló: {(r.stderr or '').strip()[:300] or 'sin detalle'}")
     return r.stdout
