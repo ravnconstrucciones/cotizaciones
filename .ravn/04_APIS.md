@@ -4,7 +4,7 @@
 > **Última verificación:** 2026-07-23
 > **Fuente:** src/app/api/**/route.ts
 
-**53 rutas** (`find src/app/api -name "route.ts"` = 53; todas leídas y documentadas).
+**54 rutas** (`find src/app/api -name "route.ts"` = 54; todas leídas y documentadas).
 
 **Auth global:** `src/middleware.ts` exige sesión Supabase para TODO (incluye `/api/*`); única excepción del matcher: `/api/auto-login` (que tiene su propia doble guardia: `PREVIEW_AUTO_LOGIN=true` + `VERCEL_ENV !== "production"`, si no → 404). Todos los handlers usan `createSupabaseAdminClient()` (service_role, bypass RLS) detrás de ese middleware.
 
@@ -90,6 +90,7 @@
 |---|---|---|
 | `/api/cotizacion-dolar` | GET | Blue (dolarapi.com) para el tablero de salud |
 | `/api/dolar` | GET | Tablero completo de casas (DolarAPI → Bluelytics → CriptoYa) |
+| `/api/api-uso` | GET | Gasto de API Anthropic (Admin API + tabla api_uso) para el KPI "API bot" |
 
 ### Presupuestos y proyectos
 
@@ -218,6 +219,8 @@ Todas leen/escriben `cotizaciones`; los cambios de estado usan guard de carrera 
 ### Dólar
 
 **GET /api/cotizacion-dolar** — dolarapi.com blue (revalidate 600 s) → `{ blue_venta, blue_compra, actualizado }`. 502 si la fuente falla.
+
+**GET /api/api-uso** — KPI "API bot" de Salud del Negocio (2026-07-23). Dos patas que degradan por separado: `admin` = costo posta vía Anthropic Admin API `cost_report` (necesita `ANTHROPIC_ADMIN_KEY`; montos en centavos de USD; fetch con revalidate 3600 s; sin key → `{disponible:false}`) y `propio` = suma de la tabla `api_uso` que el bot de Railway alimenta llamada a llamada (hoy + mes, hora AR) → `{ admin: {disponible, mes_usd, ultimos_30_usd}, propio: {hoy_usd, hoy_mensajes, mes_usd, mes_llamadas} }`.
 
 **GET /api/dolar** — cascada DolarAPI → Bluelytics → CriptoYa (timeout 18 s c/u) → `{ cotizaciones: [{casa, nombre, compra, venta}], fuente, cronistaUrl, referencia }`. Si todo falla devuelve **200** con `error` y lista vacía (para que el front pida carga manual). Sin Supabase.
 

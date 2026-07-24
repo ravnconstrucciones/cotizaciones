@@ -408,12 +408,17 @@ export function ModuloSaludNegocio({ className }: { className?: string }) {
                     : "bolsillo RAVN (Dinero) · de acá salen los retiros"
                 }
               />
+              {/* Cuenta Anthropic individual (sin Admin API, 24/07): el mes
+                  sale del registro propio del bot; si algún día hay org y
+                  ANTHROPIC_ADMIN_KEY, el número posta pisa al estimado solo. */}
               <Kpi
                 label="API bot"
                 valor={
                   apiUso?.admin.disponible && apiUso.admin.mes_usd != null
                     ? `US$ ${formatUsdApi(apiUso.admin.mes_usd)}`
-                    : "—"
+                    : apiUso?.propio
+                      ? `US$ ${formatUsdApi(apiUso.propio.mes_usd)}`
+                      : "—"
                 }
                 sub={
                   apiUso?.propio
