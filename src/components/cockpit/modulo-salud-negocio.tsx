@@ -58,6 +58,17 @@ type PayloadDinero = {
   tarjetas?: string[];
 };
 
+/** Gasto de API del bot (/api/api-uso): Admin API (posta) + detalle propio. */
+type PayloadApiUso = {
+  admin: { disponible: boolean; mes_usd?: number; ultimos_30_usd?: number };
+  propio: {
+    hoy_usd: number;
+    hoy_mensajes: number;
+    mes_usd: number;
+    mes_llamadas: number;
+  } | null;
+};
+
 type ConfigPayload = {
   config: ConfigNegocio & { notas: string | null; updated_at: string | null };
   retiros: RetirosResumen & {
@@ -96,6 +107,14 @@ function pct(n: number | null): string {
 
 function formatUsdInt(n: number): string {
   return new Intl.NumberFormat("es-AR", { maximumFractionDigits: 0 }).format(n);
+}
+
+/** USD chicos (gasto de API): con centavos, porque el mes puede ser US$ 3,47. */
+function formatUsdApi(n: number): string {
+  return new Intl.NumberFormat("es-AR", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(n);
 }
 
 function colorRedito(n: number | null): string {
@@ -223,6 +242,7 @@ export function ModuloSaludNegocio({ className }: { className?: string }) {
   const [resumen, setResumen] = useState<ResumenCashflow | null>(null);
   const [cfgPayload, setCfgPayload] = useState<ConfigPayload | null>(null);
   const [dinero, setDinero] = useState<PayloadDinero | null>(null);
+  const [apiUso, setApiUso] = useState<PayloadApiUso | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [verFinalizadas, setVerFinalizadas] = useState(false);
   const [guardando, setGuardando] = useState(false);
@@ -236,14 +256,16 @@ export function ModuloSaludNegocio({ className }: { className?: string }) {
 
   const cargar = useCallback(async () => {
     try {
-      const [resCaja, resCfg, resDinero] = await Promise.all([
+      const [resCaja, resCfg, resDinero, resApi] = await Promise.all([
         fetchCompartido("/cashflow/resumen"),
         fetchCompartido("/api/negocio/config"),
         fetchCompartido("/api/dinero"),
+        fetchCompartido("/api/api-uso"),
       ]);
       if (resCaja.ok) setResumen(resCaja.body as ResumenCashflow);
       if (resCfg.ok) setCfgPayload(resCfg.body as ConfigPayload);
       if (resDinero.ok) setDinero(resDinero.body as PayloadDinero);
+      if (resApi.ok) setApiUso(resApi.body as PayloadApiUso);
       if (!resCaja.ok && !resCfg.ok) setError("No se pudo cargar la salud del negocio.");
       else setError(null);
     } catch (e) {
@@ -344,7 +366,7 @@ export function ModuloSaludNegocio({ className }: { className?: string }) {
               </span>
             </div>
 
-            <div className="mt-4 grid grid-cols-2 gap-x-4 gap-y-4 sm:grid-cols-4">
+            <div className="mt-4 grid grid-cols-2 gap-x-4 gap-y-4 sm:grid-cols-5">
               <Kpi
                 label="Cartera activa"
                 valor={formatMoneyInt(salud.carteraActiva)}
@@ -384,6 +406,19 @@ export function ModuloSaludNegocio({ className }: { className?: string }) {
                   cajaRavn && cajaRavn.usd !== 0
                     ? `+ US$ ${formatUsdInt(cajaRavn.usd)} · bolsillo RAVN (Dinero)`
                     : "bolsillo RAVN (Dinero) · de acá salen los retiros"
+                }
+              />
+              <Kpi
+                label="API bot"
+                valor={
+                  apiUso?.admin.disponible && apiUso.admin.mes_usd != null
+                    ? `US$ ${formatUsdApi(apiUso.admin.mes_usd)}`
+                    : "—"
+                }
+                sub={
+                  apiUso?.propio
+                    ? `hoy US$ ${formatUsdApi(apiUso.propio.hoy_usd)} · ${apiUso.propio.hoy_mensajes} mensaje${apiUso.propio.hoy_mensajes === 1 ? "" : "s"}`
+                    : "gasto del mes (Anthropic)"
                 }
               />
             </div>
