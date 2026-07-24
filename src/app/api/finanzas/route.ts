@@ -212,6 +212,40 @@ export async function DELETE(req: NextRequest) {
   const { id } = await req.json();
   if (!id) return NextResponse.json({ error: "id requerido" }, { status: 400 });
 
+  // Papelera universal: archivar la fila completa ANTES del delete duro.
+  // Si el archivo falla, NO se borra nada (regla: nunca perder plata).
+  const sel = await sb
+    .from("gastos_personales")
+    .select("*")
+    .eq("id", id)
+    .maybeSingle();
+  if (sel.error) {
+    return NextResponse.json({ error: sel.error.message }, { status: 500 });
+  }
+  if (!sel.data) {
+    return NextResponse.json({ error: "El gasto no existe" }, { status: 404 });
+  }
+  const fila = sel.data as Record<string, unknown>;
+  const { error: errPap } = await sb.from("papelera_registros").insert({
+    tabla: "gastos_personales",
+    registro_id: id,
+    registro: fila,
+    contexto: [
+      String(fila.concepto ?? "").trim(),
+      String(fila.monto ?? ""),
+    ]
+      .filter(Boolean)
+      .join(" · "),
+  });
+  if (errPap) {
+    return NextResponse.json(
+      {
+        error: `No se pudo archivar en la papelera, así que NO se borró nada: ${errPap.message}`,
+      },
+      { status: 500 }
+    );
+  }
+
   const { error } = await sb.from("gastos_personales").delete().eq("id", id);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 

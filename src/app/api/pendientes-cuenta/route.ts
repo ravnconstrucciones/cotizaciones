@@ -343,38 +343,68 @@ export async function DELETE(req: Request) {
       return NextResponse.json({ ok: true });
     }
 
+    // Papelera universal: la fila COMPLETA se archiva ANTES del delete duro,
+    // para cualquier tabla de plata. Si el archivo falla, NO se borra nada
+    // (regla: nunca perder plata). Caso real 24/07: 2 pagos MO de Correa
+    // borrados desde acá sin rastro — este era el único path sin papelera.
+    const sel = await supabase
+      .from(tabla)
+      .select("*")
+      .eq("id", body.id)
+      .is("cuenta_id", null)
+      .maybeSingle();
+    if (sel.error) {
+      return NextResponse.json({ error: sel.error.message }, { status: 500 });
+    }
+    if (!sel.data) {
+      return NextResponse.json(
+        { error: "El movimiento no existe o ya tiene cuenta" },
+        { status: 409 }
+      );
+    }
+    const fila = sel.data as Record<string, unknown>;
+    const { data: pap, error: errPap } = await supabase
+      .from("papelera_registros")
+      .insert({
+        tabla,
+        registro_id: body.id,
+        registro: fila,
+        contexto: [
+          String(fila.descripcion ?? fila.concepto ?? "").trim(),
+          String(fila.importe ?? fila.monto ?? fila.monto_ars ?? ""),
+        ]
+          .filter(Boolean)
+          .join(" · "),
+      })
+      .select("id")
+      .maybeSingle();
+    if (errPap) {
+      return NextResponse.json(
+        {
+          error: `No se pudo archivar en la papelera, así que NO se borró nada: ${errPap.message}`,
+        },
+        { status: 500 }
+      );
+    }
+
     // Un gasto de obra puede tener espejo en la libreta: se va con él para
     // que no reaparezca como pendiente propio.
-    if (body.origen === "gasto_obra") {
-      const g = await supabase
-        .from("presupuestos_gastos")
-        .select("id, cashflow_item_id")
-        .eq("id", body.id)
-        .is("cuenta_id", null)
-        .maybeSingle();
-      if (g.error) {
-        return NextResponse.json({ error: g.error.message }, { status: 500 });
-      }
-      if (!g.data) {
-        return NextResponse.json(
-          { error: "El gasto no existe o ya tiene cuenta" },
-          { status: 409 }
-        );
-      }
-      if (g.data.cashflow_item_id) {
-        await supabase
-          .from("cashflow_items")
-          .update({ deleted_at: new Date().toISOString() })
-          .eq("id", g.data.cashflow_item_id)
-          .is("deleted_at", null);
+    const cfId =
+      typeof fila.cashflow_item_id === "string" &&
+      fila.cashflow_item_id.trim() !== ""
+        ? fila.cashflow_item_id
+        : null;
+    if (cfId) {
+      await supabase
+        .from("cashflow_items")
+        .update({ deleted_at: new Date().toISOString() })
+        .eq("id", cfId)
+        .is("deleted_at", null);
 
-        // Espejo Dinero (Fase 2): best-effort, jamás rompe la operación original.
-        await sincronizarEspejo(
-          supabase,
-          "cashflow_items",
-          g.data.cashflow_item_id
-        ).catch((e) => console.error("[dinero espejo]", e));
-      }
+      // Espejo Dinero (Fase 2): best-effort, jamás rompe la operación original.
+      await sincronizarEspejo(supabase, "cashflow_items", cfId).catch((e) =>
+        console.error("[dinero espejo]", e)
+      );
     }
 
     const del = await supabase
@@ -383,10 +413,15 @@ export async function DELETE(req: Request) {
       .eq("id", body.id)
       .is("cuenta_id", null)
       .select("id");
-    if (del.error) {
-      return NextResponse.json({ error: del.error.message }, { status: 500 });
-    }
-    if (!del.data?.length) {
+    if (del.error || !del.data?.length) {
+      // El delete no pasó (error o carrera con una asignación de cuenta):
+      // se retira el archivo de papelera para no mostrar un borrado que no fue.
+      if (pap?.id) {
+        await supabase.from("papelera_registros").delete().eq("id", pap.id);
+      }
+      if (del.error) {
+        return NextResponse.json({ error: del.error.message }, { status: 500 });
+      }
       return NextResponse.json(
         { error: "El movimiento no existe o ya tiene cuenta" },
         { status: 409 }

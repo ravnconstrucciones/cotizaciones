@@ -10,7 +10,12 @@ import { sincronizarEspejo } from "@/lib/dinero-sync";
 
 type Params = { params: Promise<{ id: string }> };
 
-const TABLAS_PERMITIDAS = new Set(["presupuestos_gastos"]);
+const TABLAS_PERMITIDAS = new Set([
+  "presupuestos_gastos",
+  "gastos_personales",
+  "gastos_empresa",
+  "retiros_socio",
+]);
 
 export async function POST(_req: Request, ctx: Params) {
   try {
