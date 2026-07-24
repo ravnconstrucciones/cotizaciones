@@ -1,4 +1,4 @@
-# CLAUDE.md — Contexto de trabajo con Ravn
+# AGENTS.md — Contexto de trabajo con Ravn
 
 > **Fuente de verdad técnica de este proyecto: carpeta `.ravn/`.**
 > Leer SIEMPRE `.ravn/02_AI_RULES.md` antes de tocar código.
@@ -33,7 +33,7 @@ El tono en textos hacia clientes es **formal, técnico-comercial, directo**. Sin
 - **NanoBanana2**: renders fotorrealistas.
 - Sé programar (desarrollé la app con Cursor + Supabase). No soy fanático del Excel.
 
-## Lo que más me aporta trabajar con Claude
+## Lo que más me aporta trabajar con Codex
 
 1. **Explicación técnica de trabajos de construcción** — paso a paso detallado, con método y secuencia, para poder venderlos con criterio y controlarlos en obra.
 2. **Análisis de números** — rentabilidad, cashflow, costos, métricas del negocio.
@@ -78,3 +78,5 @@ El tono en textos hacia clientes es **formal, técnico-comercial, directo**. Sin
 **Toda plata que se toque por SQL directo (fuera de la app) DEBE asentar sus patas en `movimientos_plata` en la misma operación.** El espejo (`sincronizarEspejo`) corre SOLO cuando la carga entra por los write-points de la app — NO existe ningún "sync al abrir la app". Si insertás/editás filas en `presupuestos_gastos`, `gastos_empresa`, `gastos_personales`, `retiros_socio`, `transferencias` o `cashflow_items` con `cuenta_id`, asentá las patas (origen_tipo/origen_id correspondientes, estado `asentado`) o llamá `POST /api/dinero/espejo {tabla, id}`.
 
 **Antes de cerrar cualquier sesión que tocó plata:** `select * from dinero_huerfanos;` — esa vista lista filas con cuenta sin pata en el ledger y debe estar SIEMPRE vacía. (Nació del caso 17/07: MO Pacheco $1.200.000 + seña mueble $570.000 quedaron sin espejo y la home mostró $1.770.000 de más.)
+
+## Imported Claude Cowork project instructions
