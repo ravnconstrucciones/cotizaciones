@@ -69,10 +69,11 @@ Además del ledger existe la vista **`dinero_huerfanos`** (no es tabla, no cuent
 |---|---|---|
 | `mo_acuerdos` | Acuerdos de mano de obra por persona y obra (monto arreglado, saldo vía pagos). | `presupuesto_id → presupuestos`, `persona`, `monto_arreglado`, `moneda`, `estado`; los pagos son `presupuestos_gastos` con `mo_acuerdo_id` |
 
-### Dominio: Otros — bot, cerebro, agenda, inmobiliario, sistema (14)
+### Dominio: Otros — bot, cerebro, agenda, inmobiliario, sistema (15)
 
 | Tabla | Propósito | Columnas clave / FKs |
 |---|---|---|
+| `api_uso` | Uso de API Anthropic registrado por el bot (KPI "API bot"): tokens y costo estimado por llamada. Append-only (sin UPDATE/DELETE). | `servicio`, `modelo`, `*_tokens`, `costo_usd`, `meta` (jsonb) |
 | `eventos` | Inbox universal del bot de WhatsApp: cada mensaje/borrador con destino polimórfico. | `tipo`, `estado`, `contenido` (jsonb), `destino_tabla`/`destino_id` (sin FK), `wa_message_id` |
 | `referencias` | Referencias guardadas por el bot (texto, imagen, video, dato). | `evento_id → eventos`, `tipo`, `etiquetas`, `imagen_path`, `url` |
 | `proveedores` | Agenda de proveedores (teléfonos, rubro, zona) cargada por el bot. | `nombre`, `rubro`, `telefonos` (array), `evento_id` (uuid, sin FK declarada) |
