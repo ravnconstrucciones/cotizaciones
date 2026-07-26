@@ -142,16 +142,31 @@ export function MesaChat({
         </h2>
         <span
           className={`flex items-center gap-1.5 text-[9px] uppercase tracking-[0.14em] ${
-            motorConectado ? "text-emerald-400" : "text-red-400"
+            motorConectado === null
+              ? "text-cdm-muted"
+              : motorConectado
+                ? "text-emerald-400"
+                : "text-red-400"
           }`}
         >
           <span
             aria-hidden
             className={`h-1.5 w-1.5 rounded-full ${
-              motorConectado ? "bg-emerald-400" : "bg-red-400"
+              motorConectado === null
+                ? "bg-cdm-muted"
+                : motorConectado
+                  ? "bg-emerald-400"
+                  : "bg-red-400"
             }`}
           />
-          {motorConectado ? "motor conectado" : "motor desconectado — la Mac tiene que estar prendida"}
+          {/* null = todavía no llegó el primer fetch del latido: no afirmamos
+              "desconectado" en rojo antes de saber el estado real (fix ronda 1,
+              finding 3). */}
+          {motorConectado === null
+            ? "verificando motor…"
+            : motorConectado
+              ? "motor conectado"
+              : "motor desconectado — la Mac tiene que estar prendida"}
         </span>
       </header>
 
