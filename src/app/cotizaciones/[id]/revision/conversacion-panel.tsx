@@ -69,16 +69,22 @@ export function ConversacionPanel({
   const [enviando, setEnviando] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const finRef = useRef<HTMLDivElement>(null);
+  // Ráfagas de eventos/trabajos_cola disparan varios `cargar()` concurrentes;
+  // sin esto, si el fetch VIEJO responde último, pisa el estado con datos
+  // desactualizados y el mensaje más nuevo "desaparece" hasta el próximo
+  // refresh (fix ronda 3, finding 2 — mismo patrón que MesaChat).
+  const seqRef = useRef(0);
 
   const esCorreccion = estado === "en_revision";
 
   const cargar = useCallback(async () => {
+    const seq = ++seqRef.current;
     try {
       const res = await fetch(`/api/cotizaciones/${cotizacionId}/conversacion`, {
         cache: "no-store",
       });
       const json = await res.json();
-      if (res.ok) setMensajes(json.mensajes ?? []);
+      if (res.ok && seq === seqRef.current) setMensajes(json.mensajes ?? []);
     } catch {
       // panel best-effort: la mesa sigue funcionando sin el hilo
     }

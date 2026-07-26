@@ -71,12 +71,19 @@ export function MesaChat({
   const [error, setError] = useState<string | null>(null);
   const finRef = useRef<HTMLDivElement>(null);
   const ultimoMotorRef = useRef<string | null>(null);
+  // Ráfagas de INSERTs del puente disparan varios `cargar()` concurrentes
+  // (realtime + latido cada 30s pisándose); sin esto, si el fetch VIEJO
+  // responde último, pisa el estado con datos desactualizados y el mensaje
+  // más nuevo "desaparece" hasta el próximo refresh (fix ronda 3, finding 2).
+  const seqRef = useRef(0);
 
   const cargar = useCallback(async () => {
+    const seq = ++seqRef.current;
     try {
       const res = await fetch(`/api/cotizaciones/${cotizacionId}/mensajes`, { cache: "no-store" });
       const json = await res.json();
       if (!res.ok) return;
+      if (seq !== seqRef.current) return; // ya arrancó/llegó una carga más nueva
       setMensajes(json.mensajes ?? []);
       setMotorConectado(Boolean(json.motor_conectado));
       // Si llegó un mensaje nuevo de un motor, la mesa refresca datos.
