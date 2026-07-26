@@ -29,6 +29,8 @@ const CSS = `
 .doc-p2-text { font-size:8.5pt; font-weight:300; color:rgba(242,239,232,0.75); line-height:1.68; }
 .doc-p2-text p { margin-bottom:2mm; }
 .doc-footer { margin-top:auto; padding-top:6mm; border-top:0.3pt solid var(--line); display:flex; justify-content:space-between; align-items:flex-end; font-size:8pt; font-weight:300; color:rgba(242,239,232,0.7); }
+.doc-fotos-grid { flex:1; display:grid; grid-template-columns:1fr 1fr; gap:4mm; align-content:start; }
+.doc-fotos-grid img { width:100%; aspect-ratio:4/3; object-fit:cover; }
 .doc-aviso { max-width:210mm; margin:0 auto 4mm; font-size:11px; color:rgba(242,239,232,0.6); text-align:center; }
 @media print {
   @page { size: A4; margin: 0; }
@@ -38,6 +40,10 @@ const CSS = `
   .doc-aviso { display:none; }
 }
 `;
+
+// Mismo bucket privado que /api/cotizaciones/[id]/archivos.
+const BUCKET = "obra-archivos";
+const EXPIRA_S = 3600;
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -76,6 +82,32 @@ export default async function DocumentoPage({ params }: Params) {
   const fecha = new Date(
     revision.aprobacion?.fecha ? `${revision.aprobacion.fecha}T12:00:00` : cot.creado_at
   ).toLocaleDateString("es-AR", { day: "numeric", month: "long", year: "numeric" });
+
+  // Fotos marcadas "en propuesta" (spec 2026-07-25): mismo patrón de firma
+  // batch que /api/cotizaciones/[id]/archivos. Si no hay ninguna, el
+  // documento queda idéntico al de antes de esta feature.
+  const { data: filasFotos } = await sb
+    .from("cotizacion_archivos")
+    .select("id, storage_path")
+    .eq("cotizacion_id", id)
+    .eq("en_propuesta", true)
+    .order("creado_at", { ascending: true });
+  const filasFotosConPath = (filasFotos ?? []) as Array<{ id: string; storage_path: string | null }>;
+  const pathsFotos = filasFotosConPath
+    .map((f) => f.storage_path)
+    .filter((p): p is string => typeof p === "string" && p.length > 0);
+  const urlPorPathFoto = new Map<string, string>();
+  if (pathsFotos.length > 0) {
+    const { data: firmadas } = await sb.storage.from(BUCKET).createSignedUrls(pathsFotos, EXPIRA_S);
+    if (firmadas) {
+      for (const f of firmadas) {
+        if (f.signedUrl && f.path) urlPorPathFoto.set(f.path, f.signedUrl);
+      }
+    }
+  }
+  const fotos = filasFotosConPath
+    .map((f) => ({ id: f.id, url: f.storage_path ? urlPorPathFoto.get(f.storage_path) ?? null : null }))
+    .filter((f): f is { id: string; url: string } => f.url != null);
 
   // Agrupar ítems por etapa, preservando el orden del desglose.
   const etapas: Array<{ nombre: string; items: ItemDesglose[] }> = [];
@@ -196,6 +228,29 @@ export default async function DocumentoPage({ params }: Params) {
           </span>
         </div>
       </div>
+
+      {/* ── PÁGINA 3 (solo si hay fotos marcadas "en propuesta") ── */}
+      {fotos.length > 0 && (
+        <div className="doc-page">
+          <div className="doc-header">
+            <span className="doc-brand">R&nbsp;A&nbsp;V&nbsp;N&nbsp;.</span>
+          </div>
+          <div className="doc-section-title">Fotos</div>
+          <div className="doc-rule" />
+          <div className="doc-fotos-grid">
+            {fotos.map((f) => (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img key={f.id} src={f.url} alt="" />
+            ))}
+          </div>
+          <div className="doc-footer">
+            <span>contacto@ravnconstrucciones.com.ar</span>
+            <span className="doc-brand" style={{ fontSize: "11pt" }}>
+              R&nbsp;A&nbsp;V&nbsp;N&nbsp;.
+            </span>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

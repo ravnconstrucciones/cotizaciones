@@ -30,6 +30,7 @@ type Fila = {
   titulo: string | null;
   storage_path: string | null;
   creado_at: string;
+  en_propuesta: boolean;
 };
 
 export async function GET(_req: Request, ctx: Params) {
@@ -71,6 +72,8 @@ export async function GET(_req: Request, ctx: Params) {
     tipo: f.tipo,
     titulo: f.titulo,
     creado_at: f.creado_at,
+    storage_path: f.storage_path,
+    en_propuesta: f.en_propuesta,
     url: f.storage_path ? urlPorPath.get(f.storage_path) ?? null : null,
   }));
 
@@ -117,8 +120,9 @@ export async function POST(req: Request, ctx: Params) {
     }
 
     const ext = (file.name.split(".").pop() || "pdf").toLowerCase().replace(/[^a-z0-9]/g, "");
-    // Carpeta por tipo (propuestas/diagnosticos) para mantener ordenado el bucket.
-    const carpeta = tipo === "diagnostico" ? "diagnosticos" : "propuestas";
+    // Carpeta por tipo (propuestas/diagnosticos/fotos) para mantener ordenado el bucket.
+    const carpeta =
+      tipo === "diagnostico" ? "diagnosticos" : tipo === "foto" ? "fotos" : "propuestas";
     const path = `${carpeta}/${cotizacionId}/${Date.now()}.${ext || "pdf"}`;
 
     const buffer = Buffer.from(await file.arrayBuffer());
