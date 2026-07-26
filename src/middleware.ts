@@ -2,6 +2,18 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
 export async function middleware(request: NextRequest) {
+  // Agentes locales (puente-cotizador): secret compartido SOLO para /api/*.
+  // Sin secret configurado en el entorno, el bypass no existe.
+  const claveAgente = request.headers.get("x-ravn-agente");
+  if (
+    request.nextUrl.pathname.startsWith("/api/") &&
+    claveAgente &&
+    process.env.RAVN_AGENTE_SECRET &&
+    claveAgente === process.env.RAVN_AGENTE_SECRET
+  ) {
+    return NextResponse.next({ request });
+  }
+
   let supabaseResponse = NextResponse.next({ request });
 
   const supabase = createServerClient(
