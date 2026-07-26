@@ -209,12 +209,24 @@ async function barrido() {
   }
 }
 
+async function latir() {
+  // `void` acá NO alcanza: PostgrestBuilder es lazy (recién dispara el fetch
+  // en su `.then()`), así que sin `await` el upsert nunca sale a la red y el
+  // chip de la mesa queda "motor desconectado" para siempre (fix ronda final
+  // finding 1). Con `error` logueado si Supabase lo rechaza.
+  const { error } = await sb
+    .from("puente_latidos")
+    .upsert({ id: "puente-cotizador", visto_at: new Date().toISOString() });
+  if (error) console.error("[puente] latido:", error.message);
+}
+
 async function main() {
   await cargarEstadoLocal();
 
-  setInterval(() => {
-    void sb.from("puente_latidos").upsert({ id: "puente-cotizador", visto_at: new Date().toISOString() });
-  }, LATIDO_MS);
+  // Latido inicial ANTES del setInterval: si no, los primeros 30s el chip
+  // miente (motor arrancado pero todavía sin ninguna fila escrita).
+  await latir();
+  setInterval(() => void latir(), LATIDO_MS);
 
   sb.channel("puente-cotizador")
     .on(
