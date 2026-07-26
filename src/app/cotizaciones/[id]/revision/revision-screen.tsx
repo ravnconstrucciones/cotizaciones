@@ -9,6 +9,7 @@ import type {
   FuenteReceta,
   Revision,
 } from "@/lib/cotizador/tipos";
+import { compatDesglose } from "@/lib/cotizador/desglose-compat";
 import { formatMoneyInt } from "@/lib/format-currency";
 import { esUuid } from "@/lib/uuid";
 import { createClient } from "@/lib/supabase/client";
@@ -348,8 +349,12 @@ export function RevisionScreen({ id }: { id: string }) {
     );
   }
 
-  const desglose =
-    detalle.desglose && "items" in detalle.desglose ? (detalle.desglose as Desglose) : null;
+  // El chequeo estructural vive en compatDesglose: distingue el Desglose del
+  // motor del shape viejo de consola ({item, costo}) y convierte este último
+  // en vez de castearlo a ciegas (antes reventaba en rubroDeItem).
+  const compat = compatDesglose(detalle.desglose);
+  const desglose = compat?.desglose ?? null;
+  const desgloseLegacy = compat?.legacy ?? false;
   const revision = (detalle.revision ?? null) as Revision | null;
   const receta = detalle.receta;
   // Mismo predicado en los dos lugares que gatean edición de mesa (Rubros y
@@ -449,10 +454,16 @@ export function RevisionScreen({ id }: { id: string }) {
               {pestana === "rubros" &&
                 (desglose ? (
                   <div className="p-4">
+                    {desgloseLegacy && (
+                      <p className="mb-3 text-[11px] text-cdm-muted">
+                        Desglose cargado por consola — solo lectura acá (editarlo lo pisaría con el
+                        motor de recetas).
+                      </p>
+                    )}
                     <HojaViva
                       cotizacionId={id}
                       desglose={desglose}
-                      editable={editableMesa}
+                      editable={editableMesa && !desgloseLegacy}
                       onRefresh={actividadMotor}
                     />
                   </div>
