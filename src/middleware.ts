@@ -1,15 +1,39 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
+/**
+ * Rutas de la mesa de cotización que el bypass x-ravn-agente puede tocar
+ * (fix ronda final finding 3). La ley "el chat jamás emite/aprueba" vivía
+ * SOLO en el prompt-sistema de Fable (daemon/puente-cotizador/prompt-sistema.md)
+ * — acá queda reforzada en el server: aprobar/rechazar/emitir/estado y todo
+ * el resto de /api/* (dinero, retiros, papelera…) NUNCA entran por acá,
+ * tenga el secret que tenga la request.
+ */
+const RUTAS_BYPASS_AGENTE: Array<{ patron: RegExp; metodos: string[] }> = [
+  { patron: /^\/api\/cotizaciones$/, metodos: ["GET"] },
+  { patron: /^\/api\/cotizaciones\/[^/]+$/, metodos: ["GET"] },
+  { patron: /^\/api\/cotizaciones\/[^/]+\/mensajes$/, metodos: ["GET", "POST"] },
+  { patron: /^\/api\/cotizaciones\/[^/]+\/desglose$/, metodos: ["PATCH"] },
+  { patron: /^\/api\/cotizaciones\/[^/]+\/documento-borrador$/, metodos: ["PATCH"] },
+  { patron: /^\/api\/cotizaciones\/[^/]+\/archivos$/, metodos: ["GET", "POST"] },
+  { patron: /^\/api\/cotizaciones\/[^/]+\/archivos\/[^/]+$/, metodos: ["PATCH"] },
+];
+
+/** true si `metodo` sobre `pathname` está en la allowlist de arriba. */
+export function bypassAgentePermitido(pathname: string, metodo: string): boolean {
+  return RUTAS_BYPASS_AGENTE.some((r) => r.patron.test(pathname) && r.metodos.includes(metodo));
+}
+
 export async function middleware(request: NextRequest) {
-  // Agentes locales (puente-cotizador): secret compartido SOLO para /api/*.
+  // Agentes locales (puente-cotizador): secret compartido SOLO para la
+  // allowlist de la mesa de cotización — no para /api/* entero.
   // Sin secret configurado en el entorno, el bypass no existe.
   const claveAgente = request.headers.get("x-ravn-agente");
   if (
-    request.nextUrl.pathname.startsWith("/api/") &&
     claveAgente &&
     process.env.RAVN_AGENTE_SECRET &&
-    claveAgente === process.env.RAVN_AGENTE_SECRET
+    claveAgente === process.env.RAVN_AGENTE_SECRET &&
+    bypassAgentePermitido(request.nextUrl.pathname, request.method)
   ) {
     return NextResponse.next({ request });
   }
