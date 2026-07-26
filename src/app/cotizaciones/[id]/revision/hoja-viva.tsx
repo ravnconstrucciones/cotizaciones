@@ -10,7 +10,7 @@
  * Cada edición pega a PATCH /api/cotizaciones/[id]/desglose, que re-corre el
  * motor SERVER-SIDE y persiste — acá no se suma nada, solo se muestra.
  */
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import type { Desglose, ItemDesglose, PrecioFechado, Unidad } from "@/lib/cotizador/tipos";
 import { RUBRO_POR_ID, RUBROS, rubroDeItem, type RubroDef, type RubroId } from "@/lib/cotizador/rubros";
@@ -541,12 +541,30 @@ export function HojaViva({ cotizacionId, desglose, editable, onRefresh }: Props)
   const sinTabs = tabs.length === 0;
 
   // Al montar: el primer rubro con ítems abierto (orden canónico de RUBROS),
-  // el resto cerrado. Se pueden abrir varios a la vez después — este estado
-  // no se vuelve a inicializar aunque cambien los rubros con ítems.
+  // el resto cerrado. Se pueden abrir varios a la vez después.
   const [abiertos, setAbiertos] = useState<Set<RubroId>>(() => (tabs[0] ? new Set([tabs[0].id]) : new Set()));
   const reducirMovimiento = useReducedMotion();
 
+  // Una cotización nueva nace sin ítems (sinTabs=true) y Fable los va cargando
+  // por chat mientras RevisionScreen refresca `desglose` SIN desmontar esta
+  // pantalla — el useState de arriba solo corre una vez al montar, así que sin
+  // esto ningún rubro se abría solo cuando el primer ítem llegaba por chat.
+  // Este efecto detecta específicamente la transición "no había tabs → hay
+  // tabs" y abre el primer rubro con ítems — PERO nunca si Eze ya tocó el
+  // acordeón a mano (usuarioTocoRef), para no pisarle lo que abrió o cerró.
+  const teniaTabsRef = useRef(tabs.length > 0);
+  const usuarioTocoRef = useRef(false);
+  useEffect(() => {
+    const hayTabsAhora = tabs.length > 0;
+    if (!teniaTabsRef.current && hayTabsAhora && !usuarioTocoRef.current && tabs[0]) {
+      setAbiertos(new Set([tabs[0].id]));
+    }
+    teniaTabsRef.current = hayTabsAhora;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tabs.length]);
+
   function toggleRubro(id: RubroId) {
+    usuarioTocoRef.current = true;
     setAbiertos((prev) => {
       const siguiente = new Set(prev);
       if (siguiente.has(id)) siguiente.delete(id);
