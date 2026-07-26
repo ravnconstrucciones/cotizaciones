@@ -23,6 +23,12 @@ import { PropuestaViva } from "./propuesta-viva";
 import { FotosPanel } from "./fotos-panel";
 import { ESTADO_COLOR, ESTADO_LABEL } from "../../cotizaciones-screen";
 
+// Mismo techo que MAX_BYTES en /api/cotizaciones/[id]/archivos/route.ts:
+// Vercel Serverless rechaza request bodies de más de ~4.5 MB antes de que
+// lleguen al handler, así que validar acá (antes del POST) evita el error
+// genérico de plataforma y le da a Eze el mensaje real (fix ronda 3, finding 3).
+const MAX_ARCHIVO_BYTES = 4 * 1024 * 1024;
+
 type RecetaJoin = {
   id: string;
   nombre: string;
@@ -218,10 +224,15 @@ export function RevisionScreen({ id }: { id: string }) {
     e.preventDefault();
     setArrastrando(false);
     setError(null);
-    const files = Array.from(e.dataTransfer?.files ?? []).filter((f) =>
+    const sueltas = Array.from(e.dataTransfer?.files ?? []).filter((f) =>
       f.type.startsWith("image/")
     );
-    if (files.length === 0) return;
+    if (sueltas.length === 0) return;
+    // Filtro ANTES del POST: Vercel corta el body en ~4.5 MB con un error
+    // genérico de plataforma, sin llegar nunca al mensaje prolijo del server
+    // (fix ronda 3, finding 3) — mejor avisar acá que intentarlo y fallar feo.
+    const pesadas = sueltas.filter((f) => f.size > MAX_ARCHIVO_BYTES);
+    const files = sueltas.filter((f) => f.size <= MAX_ARCHIVO_BYTES);
     const adjuntos: Array<{ archivo_id: string; storage_path: string; titulo?: string }> = [];
     for (const file of files) {
       try {
@@ -240,13 +251,22 @@ export function RevisionScreen({ id }: { id: string }) {
       }
     }
     const fallidas = files.length - adjuntos.length;
+    const avisos: string[] = [];
+    if (pesadas.length > 0) {
+      avisos.push(
+        `Máximo 4 MB por archivo — comprimí la foto o subila por el bot (${
+          pesadas.length === 1 ? "1 foto pesada" : `${pesadas.length} fotos pesadas`
+        } sin subir).`
+      );
+    }
     if (fallidas > 0) {
-      setError(
+      avisos.push(
         adjuntos.length === 0
           ? `No se pudo subir ${files.length === 1 ? "la foto" : "ninguna de las fotos"}.`
           : `No se pudieron subir ${fallidas} de ${files.length} fotos.`
       );
     }
+    if (avisos.length > 0) setError(avisos.join(" "));
     if (adjuntos.length === 0) return;
     // Aviso al puente por el mismo canal (autor sistema, meta adjuntos).
     await fetch(`/api/cotizaciones/${id}/mensajes`, {

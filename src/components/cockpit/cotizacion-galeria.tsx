@@ -14,6 +14,11 @@ import { formatMoneyInt } from "@/lib/format-currency";
  * Estética calcada de ProyectoFotoCard.
  */
 
+// Mismo techo que MAX_BYTES en /api/cotizaciones/[id]/archivos/route.ts —
+// Vercel Serverless rechaza request bodies de más de ~4.5 MB antes de que
+// lleguen al handler (fix ronda 3, finding 3).
+const MAX_ARCHIVO_BYTES = 4 * 1024 * 1024;
+
 type TipoDoc = "diagnostico" | "propuesta";
 
 const TIPO_LABEL: Record<TipoDoc, string> = {
@@ -235,8 +240,16 @@ function CotizacionFotoCard({
   }
 
   async function adjuntarDoc(file: File, tipo: TipoDoc) {
-    setSubiendo(true);
     setError(null);
+    // Filtro ANTES del POST: Vercel corta el body en ~4.5 MB con un error
+    // genérico de plataforma, sin llegar nunca al mensaje prolijo del server
+    // (mismo techo que MAX_BYTES en /api/cotizaciones/[id]/archivos/route.ts,
+    // fix ronda 3, finding 3).
+    if (file.size > MAX_ARCHIVO_BYTES) {
+      setError("Máximo 4 MB por archivo — comprimí la foto o subila por el bot.");
+      return;
+    }
+    setSubiendo(true);
     try {
       const fd = new FormData();
       fd.append("file", file);
