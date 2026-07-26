@@ -10,7 +10,11 @@ set -a
 source /Users/ezeotero/.ravn-puente/env
 set +a
 cd /Users/ezeotero/Documents/ravn
-# tsx local del repo directo, sin npx: bajo launchd `npx` se colgaba resolviendo
-# contra el cache de npm (E2E 2026-07-26) — el binario de node_modules es
-# determinístico y arranca al toque.
-exec ./node_modules/.bin/tsx daemon/puente-cotizador/puente.ts
+# node directo con el loader de tsx, sin npx ni shims (E2E 2026-07-26):
+# bajo launchd, `npx` se colgaba contra el cache de npm y el shim
+# node_modules/.bin/tsx moría con "Operation not permitted" (TCC de macOS
+# sobre ~/Documents — mismo patrón que com.ravn.jobs, que ejecuta el binario
+# de Python directo). El permiso de Documents se le da al binario `node` una
+# sola vez y listo.
+exec /opt/homebrew/bin/node --import ./node_modules/tsx/dist/loader.mjs \
+  daemon/puente-cotizador/puente.ts
