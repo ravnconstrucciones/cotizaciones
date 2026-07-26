@@ -68,12 +68,22 @@ export async function PATCH(req: Request, ctx: Params) {
     notas: listaDeStrings(doc.notas) ?? previo.notas,
   };
 
-  const { error: eUpd } = await sb
+  // Guard de carrera: el UPDATE solo pega si el estado sigue siendo de mesa.
+  // 0 filas = cambió entre el SELECT y acá (otra pestaña, el bot) → 409, nunca
+  // éxito fantasma.
+  const { data: upd, error: eUpd } = await sb
     .from("cotizaciones")
     .update({ revision: { ...revision, documento_borrador: nuevo } })
     .eq("id", id)
-    .in("estado", ["borrador", "en_revision"]); // guard de carrera
+    .in("estado", ["borrador", "en_revision"])
+    .select("id");
   if (eUpd) return NextResponse.json({ error: eUpd.message }, { status: 500 });
+  if (!upd || upd.length === 0) {
+    return NextResponse.json(
+      { error: "La cotización cambió de estado — recargá la mesa." },
+      { status: 409 }
+    );
+  }
 
   return NextResponse.json({ ok: true, documento_borrador: nuevo });
 }
