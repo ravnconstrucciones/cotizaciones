@@ -159,6 +159,12 @@ export function RevisionScreen({ id }: { id: string }) {
     void cargar();
   }, [cargar]);
 
+  // Estable para MesaChat: si fuera un arrow inline en el JSX, cada setState
+  // de esta pantalla (tipear en docCliente, importeFinal, etc.) recrearía la
+  // prop y reiniciaría los efectos de MesaChat (re-fetch, resuscripción del
+  // canal Realtime y el setInterval del latido de 30s).
+  const actividadMotor = useCallback(() => void cargar(true), [cargar]);
+
   async function accion(path: string, body: Record<string, unknown>) {
     setEnviando(true);
     setError(null);
@@ -634,7 +640,7 @@ export function RevisionScreen({ id }: { id: string }) {
           {/* Provisorio (Task 7): mesa a tres voces montada junto al panel
               legacy para probarla. El reemplazo definitivo es la Task 9. */}
           <div className="mt-6">
-            <MesaChat cotizacionId={id} onActividadMotor={() => void cargar(true)} />
+            <MesaChat cotizacionId={id} onActividadMotor={actividadMotor} />
           </div>
         </div>
       </div>
