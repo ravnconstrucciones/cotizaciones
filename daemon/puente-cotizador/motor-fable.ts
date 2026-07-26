@@ -7,6 +7,18 @@ const CLAUDE_BIN = `${process.env.HOME}/.local/bin/claude`;
 const MODELO = process.env.PUENTE_MODELO ?? "sonnet";
 const TIMEOUT_MS = 10 * 60 * 1000;
 
+/**
+ * Env allowlist (fix ronda final finding 2): Fable corre con
+ * --dangerously-skip-permissions y navega internet — NUNCA debe recibir
+ * SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY (ni el resto del entorno del
+ * daemon). Solo lo mínimo para que el binario de Claude Code arranque y
+ * pueda pegarle a la API de la app.
+ */
+function envPermitido(): NodeJS.ProcessEnv {
+  const { NODE_ENV, PATH, HOME, TERM, USER, SHELL, RAVN_APP_URL, RAVN_AGENTE_SECRET } = process.env;
+  return { NODE_ENV, PATH, HOME, TERM, USER, SHELL, RAVN_APP_URL, RAVN_AGENTE_SECRET };
+}
+
 export type RespuestaFable = { texto: string; sessionId: string | null };
 
 /**
@@ -32,7 +44,7 @@ export async function correrFable(args: {
     timeout: TIMEOUT_MS,
     maxBuffer: 32 * 1024 * 1024,
     cwd: process.env.HOME,
-    env: process.env,
+    env: envPermitido(),
   });
   const salida = JSON.parse(stdout) as { result?: string; session_id?: string };
   return { texto: salida.result ?? "", sessionId: salida.session_id ?? null };
