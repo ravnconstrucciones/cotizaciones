@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import type { EstadoCotizacion } from "@/lib/cotizador/tipos";
 import { SkeletonGlass } from "@/components/cockpit/skeleton-glass";
 import {
@@ -66,11 +67,39 @@ function aFoto(c: CotizacionListada): CotizacionFoto {
 }
 
 export function CotizacionesScreen() {
+  const router = useRouter();
   const [cotizaciones, setCotizaciones] = useState<CotizacionFoto[]>([]);
   const [filtro, setFiltro] = useState<EstadoCotizacion | "todas">("en_revision");
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [eliminando, setEliminando] = useState<string | null>(null);
+
+  // Botón "Nueva cotización" (spec 2026-07-25): abre el mini form inline;
+  // el borrador se crea con solo `titulo` — la mesa completa el resto.
+  const [nuevaAbierta, setNuevaAbierta] = useState(false);
+  const [nuevoTitulo, setNuevoTitulo] = useState("");
+  const [creando, setCreando] = useState(false);
+
+  async function crearNueva(e: React.FormEvent) {
+    e.preventDefault();
+    const titulo = nuevoTitulo.trim();
+    if (!titulo || creando) return;
+    setCreando(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/cotizaciones", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ titulo }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error ?? "Error al crear");
+      router.push(`/cotizaciones/${json.id}/revision`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Error al crear");
+      setCreando(false);
+    }
+  }
 
   const eliminar = useCallback(async (c: CotizacionFoto) => {
     if (!window.confirm(`¿Borrar la cotización "${c.titulo}"? No se puede deshacer.`)) {
@@ -131,7 +160,7 @@ export function CotizacionesScreen() {
   return (
     <div className="font-geist relative min-h-screen bg-cdm-bg text-cdm-fg">
       {/* Header — mismo lenguaje que obras-screen */}
-      <header className="relative z-10 flex items-baseline justify-between px-6 pt-8 md:px-10">
+      <header className="relative z-10 flex flex-wrap items-baseline justify-between gap-4 px-6 pt-8 md:px-10">
         <div>
           <h1 className="font-geist text-3xl font-semibold tracking-tight text-cdm-fg">
             Cotizaciones
@@ -140,6 +169,44 @@ export function CotizacionesScreen() {
             Mesa de revisión · Cotizador 2.0
           </p>
         </div>
+
+        {!nuevaAbierta ? (
+          <button
+            onClick={() => setNuevaAbierta(true)}
+            className="font-mono-hud inline-flex items-center gap-1.5 rounded-full border border-cdm-accent/50 px-3.5 py-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-cdm-accent transition-colors hover:bg-cdm-accent/10"
+          >
+            + Nueva cotización
+          </button>
+        ) : (
+          <form onSubmit={crearNueva} className="flex items-center gap-2">
+            <input
+              autoFocus
+              value={nuevoTitulo}
+              onChange={(e) => setNuevoTitulo(e.target.value)}
+              placeholder="Título del trabajo"
+              disabled={creando}
+              className="w-56 border-0 border-b border-cdm-line bg-transparent px-1 py-1.5 text-xs text-cdm-fg placeholder:text-cdm-muted/50 focus-visible:border-cdm-accent focus-visible:outline-none disabled:opacity-50"
+            />
+            <button
+              type="submit"
+              disabled={creando || !nuevoTitulo.trim()}
+              className="font-mono-hud inline-flex items-center rounded-full border border-cdm-accent/50 px-3.5 py-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-cdm-accent transition-colors hover:bg-cdm-accent/10 disabled:opacity-40"
+            >
+              {creando ? "Creando…" : "Crear"}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setNuevaAbierta(false);
+                setNuevoTitulo("");
+              }}
+              disabled={creando}
+              className="cursor-pointer text-[10px] uppercase tracking-[0.14em] text-cdm-muted transition-colors hover:text-cdm-fg disabled:opacity-40"
+            >
+              Cancelar
+            </button>
+          </form>
+        )}
       </header>
 
       {/* Chips de filtro — mismo lenguaje pill mono que obras-screen */}

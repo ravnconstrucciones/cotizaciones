@@ -158,6 +158,7 @@ export async function POST(req: Request, ctx: Params) {
         tipo: fila.tipo,
         titulo: fila.titulo,
         creado_at: fila.creado_at,
+        storage_path: path,
         url: signed?.signedUrl ?? null,
       },
     });

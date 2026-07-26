@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, type DragEvent } from "react";
+import { motion } from "framer-motion";
 import type {
   CotizacionRow,
   Desglose,
@@ -11,13 +12,15 @@ import type {
 import { formatMoneyInt } from "@/lib/format-currency";
 import { esUuid } from "@/lib/uuid";
 import { createClient } from "@/lib/supabase/client";
+import { useRealtimeTable } from "@/hooks/use-realtime-table";
 import { VolverAlInicio } from "@/components/volver-al-inicio";
 import { SkeletonGlass } from "@/components/cockpit/skeleton-glass";
 import { WavesBackdrop } from "@/components/cockpit/waves-backdrop";
 import { CifraHeroica } from "@/components/cockpit/cifra-heroica";
-import { ConversacionPanel } from "./conversacion-panel";
 import { MesaChat } from "./mesa-chat";
 import { HojaViva } from "./hoja-viva";
+import { PropuestaViva } from "./propuesta-viva";
+import { FotosPanel } from "./fotos-panel";
 import { ESTADO_COLOR, ESTADO_LABEL } from "../../cotizaciones-screen";
 
 type RecetaJoin = {
@@ -88,6 +91,12 @@ export function RevisionScreen({ id }: { id: string }) {
   const [importeFinal, setImporteFinal] = useState("");
   const [motivo, setMotivo] = useState("");
   const [mostrarRechazo, setMostrarRechazo] = useState(false);
+
+  // Layout B (spec 2026-07-25): pestaña activa del panel derecho + versión de
+  // fotos (se bumpea tras un drop para que Propuesta/Fotos re-fetcheen).
+  const [pestana, setPestana] = useState<"rubros" | "propuesta" | "fotos">("rubros");
+  const [versionFotos, setVersionFotos] = useState(0);
+  const [arrastrando, setArrastrando] = useState(false);
 
   const [docCliente, setDocCliente] = useState("");
   const [docLugar, setDocLugar] = useState("");
@@ -164,6 +173,44 @@ export function RevisionScreen({ id }: { id: string }) {
   // prop y reiniciaría los efectos de MesaChat (re-fetch, resuscripción del
   // canal Realtime y el setInterval del latido de 30s).
   const actividadMotor = useCallback(() => void cargar(true), [cargar]);
+
+  // Realtime de la cotización (Fable/Codex editan desde afuera de la mesa):
+  // mismo callback estable que usa MesaChat, no hace falta duplicar lógica.
+  useRealtimeTable("cotizaciones", actividadMotor);
+
+  // Drop global de fotos (patrón de command-bar.tsx): sube cada imagen suelta
+  // como "foto", avisa al hilo con un mensaje de sistema (adjuntos) y salta a
+  // la pestaña Fotos para que Eze vea el resultado.
+  async function soltarFotos(e: DragEvent<HTMLElement>) {
+    e.preventDefault();
+    setArrastrando(false);
+    const files = Array.from(e.dataTransfer?.files ?? []).filter((f) =>
+      f.type.startsWith("image/")
+    );
+    if (files.length === 0) return;
+    const adjuntos: Array<{ archivo_id: string; storage_path: string; titulo?: string }> = [];
+    for (const file of files) {
+      const fd = new FormData();
+      fd.set("file", file);
+      fd.set("tipo", "foto");
+      fd.set("titulo", file.name);
+      const res = await fetch(`/api/cotizaciones/${id}/archivos`, { method: "POST", body: fd });
+      const json = await res.json().catch(() => null);
+      if (res.ok && json?.archivo?.id) {
+        adjuntos.push({ archivo_id: json.archivo.id, storage_path: json.archivo.storage_path ?? "", titulo: file.name });
+      }
+    }
+    if (adjuntos.length > 0) {
+      // Aviso al puente por el mismo canal (autor sistema, meta adjuntos).
+      await fetch(`/api/cotizaciones/${id}/mensajes`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ adjuntos }),
+      });
+      setVersionFotos((v) => v + 1);
+      setPestana("fotos");
+    }
+  }
 
   async function accion(path: string, body: Record<string, unknown>) {
     setEnviando(true);
@@ -247,8 +294,29 @@ export function RevisionScreen({ id }: { id: string }) {
   const receta = detalle.receta;
 
   return (
-    <main className="font-grotesk relative min-h-screen bg-cdm-bg px-4 pb-24 pt-10 text-cdm-fg sm:px-6">
+    <main
+      className="font-grotesk relative min-h-screen bg-cdm-bg px-4 pb-24 pt-10 text-cdm-fg sm:px-6"
+      onDragOver={(e) => {
+        e.preventDefault();
+        setArrastrando(true);
+      }}
+      onDragLeave={(e) => {
+        if (e.currentTarget === e.target) setArrastrando(false);
+      }}
+      onDrop={(e) => void soltarFotos(e)}
+    >
       <WavesBackdrop />
+      {arrastrando && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          className="pointer-events-none fixed inset-0 z-50 flex items-center justify-center border-2 border-dashed border-cdm-accent/60 bg-cdm-bg/70 backdrop-blur-sm"
+        >
+          <p className="text-xs uppercase tracking-[0.25em] text-cdm-accent">
+            Soltá las fotos del proyecto
+          </p>
+        </motion.div>
+      )}
       <div className="relative z-10 mx-auto w-full max-w-6xl">
         <VolverAlInicio />
 
@@ -283,6 +351,59 @@ export function RevisionScreen({ id }: { id: string }) {
 
         {error && <p className="mb-4 text-sm text-red-400">{error}</p>}
 
+        {/* Layout B (spec 2026-07-25): mesa a la izquierda, pestañas a la
+            derecha. En mobile (<lg) se apila: chat arriba, panel abajo. */}
+        <div className="mb-6 grid gap-6 lg:grid-cols-[1.2fr_1fr]">
+          <MesaChat cotizacionId={id} onActividadMotor={actividadMotor} />
+
+          <div className="cdm-glass flex min-h-0 flex-col">
+            <div className="-mx-1 flex gap-2 overflow-x-auto border-b border-cdm-line px-4 pb-3 pt-4">
+              {(
+                [
+                  { id: "rubros" as const, label: "Rubros" },
+                  { id: "propuesta" as const, label: "Propuesta" },
+                  { id: "fotos" as const, label: "Fotos" },
+                ]
+              ).map((p) => {
+                const activa = pestana === p.id;
+                return (
+                  <button
+                    key={p.id}
+                    onClick={() => setPestana(p.id)}
+                    className={`cdm-chip flex min-h-11 shrink-0 cursor-pointer items-center border px-3 text-[10px] uppercase tracking-[0.14em] transition-colors ${
+                      activa
+                        ? "border-cdm-accent/60 bg-white/[0.04] text-cdm-accent"
+                        : "border-cdm-line text-cdm-muted hover:border-cdm-muted/60 hover:text-cdm-fg"
+                    }`}
+                  >
+                    {p.label}
+                  </button>
+                );
+              })}
+            </div>
+
+            <div className="min-h-0 flex-1 overflow-y-auto">
+              {pestana === "rubros" &&
+                (desglose ? (
+                  <div className="p-4">
+                    <HojaViva
+                      cotizacionId={id}
+                      desglose={desglose}
+                      editable={detalle.estado === "en_revision" || detalle.estado === "borrador"}
+                      onRefresh={actividadMotor}
+                    />
+                  </div>
+                ) : (
+                  <p className="p-6 text-[11px] text-cdm-muted">
+                    Sin rubros todavía — contale a Fable qué hay que cotizar.
+                  </p>
+                ))}
+              {pestana === "propuesta" && <PropuestaViva cotizacion={detalle} version={versionFotos} />}
+              {pestana === "fotos" && <FotosPanel cotizacionId={id} version={versionFotos} />}
+            </div>
+          </div>
+        </div>
+
         <div>
           <div className="min-w-0">
             {receta && (
@@ -313,17 +434,6 @@ export function RevisionScreen({ id }: { id: string }) {
                     ))}
                   </ul>
                 )}
-              </Seccion>
-            )}
-
-            {desglose && (
-              <Seccion titulo="Hoja viva — ítems por rubro, editable">
-                <HojaViva
-                  cotizacionId={id}
-                  desglose={desglose}
-                  editable={detalle.estado === "en_revision"}
-                  onRefresh={() => cargar(true)}
-                />
               </Seccion>
             )}
 
@@ -626,21 +736,6 @@ export function RevisionScreen({ id }: { id: string }) {
                 </p>
               </Seccion>
             )}
-          </div>
-
-          {/* Al fondo, ancho completo: el hilo de ESTA cotización. */}
-          <div>
-            <ConversacionPanel
-              cotizacionId={id}
-              estado={detalle.estado}
-              onCambioEstado={() => void cargar()}
-            />
-          </div>
-
-          {/* Provisorio (Task 7): mesa a tres voces montada junto al panel
-              legacy para probarla. El reemplazo definitivo es la Task 9. */}
-          <div className="mt-6">
-            <MesaChat cotizacionId={id} onActividadMotor={actividadMotor} />
           </div>
         </div>
       </div>
