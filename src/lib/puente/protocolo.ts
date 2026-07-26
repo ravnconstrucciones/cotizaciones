@@ -26,6 +26,12 @@ export function parsearDirectiva(salida: string): DirectivaFable {
           ? busquedaCruda.trim()
           : null;
       if (mensaje) return { mensaje, busqueda };
+      // JSON válido pero sin mensaje (o solo espacios): si trae búsqueda, no
+      // la perdemos ni mostramos el JSON crudo en el hilo — mensaje
+      // presentable y la búsqueda sigue disparando la doble búsqueda (fix
+      // ronda 3, finding 1). Sin mensaje NI búsqueda, recién ahí cae al
+      // fallback de abajo.
+      if (busqueda) return { mensaje: `Voy a buscar: ${busqueda}`, busqueda };
     } catch {
       // JSON roto: cae al fallback.
     }

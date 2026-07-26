@@ -28,4 +28,20 @@ describe("parsearDirectiva", () => {
   it("JSON roto cae a mensaje plano", () => {
     expect(parsearDirectiva('{"mensaje": "sin cerrar').mensaje).toContain("sin cerrar");
   });
+  it("JSON válido sin mensaje pero con búsqueda: no se pierde la búsqueda ni se filtra el JSON crudo", () => {
+    expect(parsearDirectiva('{"busqueda":"precio microcemento m2"}')).toEqual({
+      mensaje: "Voy a buscar: precio microcemento m2",
+      busqueda: "precio microcemento m2",
+    });
+  });
+  it("mensaje solo espacios + búsqueda: misma salvada que sin mensaje", () => {
+    expect(parsearDirectiva('{"mensaje":"   ","busqueda":"precio revoque fino"}')).toEqual({
+      mensaje: "Voy a buscar: precio revoque fino",
+      busqueda: "precio revoque fino",
+    });
+  });
+  it("JSON válido sin mensaje NI búsqueda: recién ahí el fallback (JSON crudo como mensaje)", () => {
+    const s = '{"otracosa":1}';
+    expect(parsearDirectiva(s)).toEqual({ mensaje: s, busqueda: null });
+  });
 });
