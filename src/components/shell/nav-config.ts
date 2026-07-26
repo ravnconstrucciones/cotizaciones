@@ -18,7 +18,11 @@ export const NAV_COCKPIT: NavItem[] = [
   { href: "/", label: "Inicio" },
   { href: "/obras", label: "Proyectos" },
   { href: "/cotizaciones", label: "Cotizaciones" },
-  { href: "/cotizar", label: "Cotizar" },
+  // "/cotizar" es un redirect a "/cotizaciones" (26/07): apuntar el nav ahí
+  // duplicaba el destino. El panel viejo (recetas + take-off, Capítulo 1)
+  // sigue vivo en /cotizar/explorar pero se había quedado sin ningún link en
+  // la UI — este es el único acceso.
+  { href: "/cotizar/explorar", label: "Explorar recetas" },
   { href: "/proveedores", label: "Proveedores" },
   { href: "/mano-obra", label: "Mano de obra" },
   { href: "/pendientes", label: "Pendientes" },
