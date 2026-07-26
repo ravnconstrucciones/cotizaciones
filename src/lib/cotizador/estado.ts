@@ -15,16 +15,19 @@ const REVISION_VACIA: Revision = {
   dudas: [],
 };
 
+/** La mesa (spec 2026-07-25) opera en borrador Y en_revision. */
+const ESTADOS_MESA: ReadonlyArray<EstadoCotizacion> = ["borrador", "en_revision"];
+
 /**
  * Gate del spec §6.4: el OK es explícito y solo desde la mesa (en_revision).
- * Estados: borrador → en_revision → aprobada → documento_emitido | rechazada.
+ * Estados: borrador | en_revision → aprobada → documento_emitido | rechazada.
  */
 export function aprobar(
   estado: EstadoCotizacion,
   revision: Revision | null,
   importeFinal?: number
 ): { estado: "aprobada"; revision: Revision } {
-  if (estado !== "en_revision") throw new TransicionInvalida(estado, "aprobar");
+  if (!ESTADOS_MESA.includes(estado)) throw new TransicionInvalida(estado, "aprobar");
   const base = revision ?? REVISION_VACIA;
   return {
     estado: "aprobada",
@@ -44,7 +47,7 @@ export function rechazar(
   estado: EstadoCotizacion,
   motivo: string
 ): { estado: "rechazada"; motivo_rechazo: string } {
-  if (estado !== "en_revision") throw new TransicionInvalida(estado, "rechazar");
+  if (!ESTADOS_MESA.includes(estado)) throw new TransicionInvalida(estado, "rechazar");
   const limpio = motivo.trim();
   if (!limpio) {
     throw new Error("El rechazo necesita motivo: alimenta cotizador_lecciones (spec §6.4).");

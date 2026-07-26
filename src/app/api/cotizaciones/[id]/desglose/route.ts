@@ -61,7 +61,7 @@ function esNumeroPositivo(v: unknown): v is number {
  * (cotizar.ts — el código suma, no la IA ni el browser) y persiste desglose,
  * revisión y totales frescos. Regla de oro: un precio corregido por Eze se
  * escribe además a precios_items (origen 'eze') — la mesa calibra al cotizador.
- * Solo en estado en_revision.
+ * Solo en estado borrador o en_revision.
  */
 export async function PATCH(req: Request, ctx: Params) {
   const { id } = await ctx.params;
@@ -86,9 +86,9 @@ export async function PATCH(req: Request, ctx: Params) {
   if (!cot) return NextResponse.json({ error: "Cotización no encontrada" }, { status: 404 });
 
   const cotizacion = cot as CotizacionRow;
-  if (cotizacion.estado !== "en_revision") {
+  if (cotizacion.estado !== "en_revision" && cotizacion.estado !== "borrador") {
     return NextResponse.json(
-      { error: `La hoja solo se edita en revisión (estado actual: ${cotizacion.estado})` },
+      { error: "La hoja viva solo edita en borrador o en revisión" },
       { status: 409 }
     );
   }
@@ -256,7 +256,7 @@ export async function PATCH(req: Request, ctx: Params) {
       total_max: calculada.total_max,
     })
     .eq("id", id)
-    .eq("estado", "en_revision") // guard de carrera: si se aprobó en el medio, no pisar
+    .in("estado", ["borrador", "en_revision"]) // guard de carrera: si se aprobó en el medio, no pisar
     .select("id");
   if (errUpd) return NextResponse.json({ error: errUpd.message }, { status: 500 });
   if (!actualizada || actualizada.length === 0) {

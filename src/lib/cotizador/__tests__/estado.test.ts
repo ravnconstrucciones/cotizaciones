@@ -31,8 +31,7 @@ describe("aprobar", () => {
     expect(r.revision.aprobacion!.importe_final).toBe(1500000);
   });
 
-  it("rechaza la transición desde cualquier otro estado", () => {
-    expect(() => aprobar("borrador", REVISION)).toThrow(TransicionInvalida);
+  it("rechaza la transición desde cualquier otro estado (borrador SÍ vale, spec 2026-07-25)", () => {
     expect(() => aprobar("aprobada", REVISION)).toThrow(TransicionInvalida);
     expect(() => aprobar("rechazada", REVISION)).toThrow(TransicionInvalida);
   });

@@ -28,7 +28,7 @@ export async function POST(req: Request, ctx: Params) {
       .from("cotizaciones")
       .update(cambio)
       .eq("id", id)
-      .eq("estado", "en_revision")
+      .in("estado", ["borrador", "en_revision"])
       .select("id");
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
     if (!upd || upd.length === 0) {
