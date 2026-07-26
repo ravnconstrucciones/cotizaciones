@@ -184,32 +184,45 @@ export function RevisionScreen({ id }: { id: string }) {
   async function soltarFotos(e: DragEvent<HTMLElement>) {
     e.preventDefault();
     setArrastrando(false);
+    setError(null);
     const files = Array.from(e.dataTransfer?.files ?? []).filter((f) =>
       f.type.startsWith("image/")
     );
     if (files.length === 0) return;
     const adjuntos: Array<{ archivo_id: string; storage_path: string; titulo?: string }> = [];
     for (const file of files) {
-      const fd = new FormData();
-      fd.set("file", file);
-      fd.set("tipo", "foto");
-      fd.set("titulo", file.name);
-      const res = await fetch(`/api/cotizaciones/${id}/archivos`, { method: "POST", body: fd });
-      const json = await res.json().catch(() => null);
-      if (res.ok && json?.archivo?.id) {
-        adjuntos.push({ archivo_id: json.archivo.id, storage_path: json.archivo.storage_path ?? "", titulo: file.name });
+      try {
+        const fd = new FormData();
+        fd.set("file", file);
+        fd.set("tipo", "foto");
+        fd.set("titulo", file.name);
+        const res = await fetch(`/api/cotizaciones/${id}/archivos`, { method: "POST", body: fd });
+        const json = await res.json().catch(() => null);
+        if (res.ok && json?.archivo?.id) {
+          adjuntos.push({ archivo_id: json.archivo.id, storage_path: json.archivo.storage_path ?? "", titulo: file.name });
+        }
+      } catch {
+        // Fallo de red en esta foto puntual: seguimos con el resto del lote,
+        // el aviso queda en el conteo de fallos de abajo.
       }
     }
-    if (adjuntos.length > 0) {
-      // Aviso al puente por el mismo canal (autor sistema, meta adjuntos).
-      await fetch(`/api/cotizaciones/${id}/mensajes`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ adjuntos }),
-      });
-      setVersionFotos((v) => v + 1);
-      setPestana("fotos");
+    const fallidas = files.length - adjuntos.length;
+    if (fallidas > 0) {
+      setError(
+        adjuntos.length === 0
+          ? `No se pudo subir ${files.length === 1 ? "la foto" : "ninguna de las fotos"}.`
+          : `No se pudieron subir ${fallidas} de ${files.length} fotos.`
+      );
     }
+    if (adjuntos.length === 0) return;
+    // Aviso al puente por el mismo canal (autor sistema, meta adjuntos).
+    await fetch(`/api/cotizaciones/${id}/mensajes`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ adjuntos }),
+    });
+    setVersionFotos((v) => v + 1);
+    setPestana("fotos");
   }
 
   async function accion(path: string, body: Record<string, unknown>) {
