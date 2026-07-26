@@ -13,6 +13,7 @@ type Foto = {
 /** Pestaña FOTOS: galería de cotizacion_archivos con toggle "va en la propuesta". */
 export function FotosPanel({ cotizacionId, version }: { cotizacionId: string; version: number }) {
   const [fotos, setFotos] = useState<Foto[] | null>(null);
+  const [errorMarcar, setErrorMarcar] = useState<string | null>(null);
 
   const cargar = useCallback(async () => {
     const res = await fetch(`/api/cotizaciones/${cotizacionId}/archivos`, { cache: "no-store" });
@@ -22,13 +23,24 @@ export function FotosPanel({ cotizacionId, version }: { cotizacionId: string; ve
 
   useEffect(() => { void cargar(); }, [cargar, version]);
 
+  // Optimista, pero si el PATCH no persiste (404/500/red caída) revertimos el
+  // toggle local — si no, la UI muestra "marcada" sin que haya pegado en la
+  // base, y esa foto sale (o no sale) del documento emitido sin avisar nada.
   async function marcar(f: Foto) {
-    setFotos((fs) => fs?.map((x) => (x.id === f.id ? { ...x, en_propuesta: !f.en_propuesta } : x)) ?? null);
-    await fetch(`/api/cotizaciones/${cotizacionId}/archivos/${f.id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ en_propuesta: !f.en_propuesta }),
-    });
+    const valorNuevo = !f.en_propuesta;
+    setErrorMarcar(null);
+    setFotos((fs) => fs?.map((x) => (x.id === f.id ? { ...x, en_propuesta: valorNuevo } : x)) ?? null);
+    try {
+      const res = await fetch(`/api/cotizaciones/${cotizacionId}/archivos/${f.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ en_propuesta: valorNuevo }),
+      });
+      if (!res.ok) throw new Error("No se pudo guardar el cambio.");
+    } catch {
+      setFotos((fs) => fs?.map((x) => (x.id === f.id ? { ...x, en_propuesta: f.en_propuesta } : x)) ?? null);
+      setErrorMarcar("No se pudo guardar — probá de nuevo.");
+    }
   }
 
   if (fotos === null) return null;
@@ -40,24 +52,29 @@ export function FotosPanel({ cotizacionId, version }: { cotizacionId: string; ve
     );
   }
   return (
-    <ul className="grid grid-cols-2 gap-3 p-4 sm:grid-cols-3">
-      {fotos.map((f) => (
-        <li key={f.id} className="group relative">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={f.url!} alt={f.titulo ?? f.tipo} className="aspect-[4/3] w-full object-cover" />
-          <button
-            type="button"
-            onClick={() => void marcar(f)}
-            className={`absolute bottom-1 left-1 border px-1.5 py-0.5 text-[8px] uppercase tracking-[0.12em] backdrop-blur before:absolute before:-inset-2 before:content-[''] ${
-              f.en_propuesta
-                ? "border-cdm-accent/60 bg-cdm-accent/20 text-cdm-accent"
-                : "border-cdm-line bg-black/40 text-cdm-muted"
-            }`}
-          >
-            {f.en_propuesta ? "En propuesta ✓" : "Sumar a propuesta"}
-          </button>
-        </li>
-      ))}
-    </ul>
+    <div>
+      {errorMarcar && (
+        <p className="px-4 pt-3 text-[11px] leading-relaxed text-red-400">{errorMarcar}</p>
+      )}
+      <ul className="grid grid-cols-2 gap-3 p-4 sm:grid-cols-3">
+        {fotos.map((f) => (
+          <li key={f.id} className="group relative">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={f.url!} alt={f.titulo ?? f.tipo} className="aspect-[4/3] w-full object-cover" />
+            <button
+              type="button"
+              onClick={() => void marcar(f)}
+              className={`absolute bottom-1 left-1 border px-1.5 py-0.5 text-[8px] uppercase tracking-[0.12em] backdrop-blur before:absolute before:-inset-2 before:content-[''] ${
+                f.en_propuesta
+                  ? "border-cdm-accent/60 bg-cdm-accent/20 text-cdm-accent"
+                  : "border-cdm-line bg-black/40 text-cdm-muted"
+              }`}
+            >
+              {f.en_propuesta ? "En propuesta ✓" : "Sumar a propuesta"}
+            </button>
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }
