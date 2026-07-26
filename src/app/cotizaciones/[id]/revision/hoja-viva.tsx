@@ -9,7 +9,7 @@
  */
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { Desglose, ItemDesglose, PrecioFechado, Unidad } from "@/lib/cotizador/tipos";
-import { RUBROS, rubroDeItem, type RubroId } from "@/lib/cotizador/rubros";
+import { RUBRO_POR_ID, RUBROS, rubroDeItem, type RubroId } from "@/lib/cotizador/rubros";
 import { parseLiteral } from "@/lib/cotizador/parse-literal";
 import { formatMoneyInt } from "@/lib/format-currency";
 import { RecorteItemModal } from "./recorte-item";
@@ -94,6 +94,11 @@ type Props = {
 
 export function HojaViva({ cotizacionId, desglose, editable, onRefresh }: Props) {
   const [tab, setTab] = useState<RubroId | null>(null);
+  // Rubro elegido a mano cuando todavía no hay NINGÚN ítem (fix ronda final
+  // finding 5): sin esto, `rubroActivo` da null y el alta manual (gateada por
+  // rubroActivo, ver más abajo) nunca puede renderizar — el puente caído deja
+  // la mesa muerta en vez de "viva con el puente caído" (ADR).
+  const [rubroVacio, setRubroVacio] = useState<RubroId>(RUBROS[0].id);
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // Borradores de inputs en curso, por "campo:nombre". Se limpian al confirmar.
@@ -135,9 +140,15 @@ export function HojaViva({ cotizacionId, desglose, editable, onRefresh }: Props)
 
   const hayExtras = desglose.extras.length > 0;
   const tabs = RUBROS.filter((r) => grupos.has(r.id) || (r.id === "extras" && hayExtras));
-  const tabActiva = tab && tabs.some((t) => t.id === tab) ? tab : (tabs[0]?.id ?? null);
-  const rubroActivo = tabs.find((t) => t.id === tabActiva) ?? null;
-  const itemsActivos = tabActiva ? (grupos.get(tabActiva) ?? []) : [];
+  // Sin ítems todavía (cotización nueva, puente caído o recién arrancando):
+  // no hay tabs de dónde elegir, pero si es editable igual necesitamos un
+  // rubro activo para que el alta manual tenga dónde caer.
+  const sinTabs = tabs.length === 0;
+  const tabActiva = sinTabs
+    ? rubroVacio
+    : (tab && tabs.some((t) => t.id === tab) ? tab : (tabs[0]?.id ?? null));
+  const rubroActivo = sinTabs ? (RUBRO_POR_ID[rubroVacio] ?? null) : (tabs.find((t) => t.id === tabActiva) ?? null);
+  const itemsActivos = !sinTabs && tabActiva ? (grupos.get(tabActiva) ?? []) : [];
 
   function totalRubro(id: RubroId): { min: number; max: number } {
     let min = 0;
@@ -220,40 +231,60 @@ export function HojaViva({ cotizacionId, desglose, editable, onRefresh }: Props)
     });
   }
 
-  if (tabs.length === 0) return null;
+  // Sin ítems y de solo lectura: no hay nada que mostrar ni que editar.
+  if (sinTabs && !editable) return null;
 
   return (
     <div>
-      {/* ── Botonera de rubros: acento fino + total por rubro ─────────────── */}
-      <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-3">
-        {tabs.map((r) => {
-          const activa = r.id === tabActiva;
-          const t = totalRubro(r.id);
-          const cuenta = (grupos.get(r.id) ?? []).length + (r.id === "extras" ? desglose.extras.length : 0);
-          return (
-            <button
-              key={r.id}
-              onClick={() => setTab(r.id)}
-              className={`cdm-chip shrink-0 cursor-pointer border px-3 py-2 text-left transition-colors ${
-                activa ? `${r.acento.borde} bg-white/[0.04]` : "border-cdm-line hover:border-cdm-muted/60"
-              }`}
-            >
-              <span className="flex items-center gap-1.5 text-[10px] uppercase tracking-[0.14em] text-cdm-muted">
-                <span aria-hidden className={`h-1.5 w-1.5 ${r.acento.punto} ${activa ? "" : "opacity-40"}`} />
+      {/* ── Botonera de rubros, o selector de rubro si todavía no hay ningún
+          ítem (mesa viva con el puente caído — fix ronda final finding 5) ── */}
+      {sinTabs ? (
+        <div className="mb-3 flex items-center gap-2 text-[10px] uppercase tracking-[0.14em] text-cdm-muted">
+          <span>Rubro del primer ítem</span>
+          <select
+            value={rubroVacio}
+            onChange={(e) => setRubroVacio(e.target.value as RubroId)}
+            className="border border-cdm-line bg-cdm-panel/60 px-2 py-1 text-[10px] normal-case tracking-normal text-cdm-fg focus:border-cdm-accent focus:outline-none"
+          >
+            {RUBROS.filter((r) => r.id !== "extras").map((r) => (
+              <option key={r.id} value={r.id}>
                 {r.label}
-                <span className="opacity-60">· {cuenta}</span>
-              </span>
-              <span className={`mt-0.5 block text-sm tabular-nums ${activa ? r.acento.texto : "text-cdm-fg"}`}>
-                {t.min === 0 && t.max === 0 ? "—" : compactoRango(t.min, t.max)}
-              </span>
-            </button>
-          );
-        })}
-      </div>
+              </option>
+            ))}
+          </select>
+        </div>
+      ) : (
+        <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-3">
+          {tabs.map((r) => {
+            const activa = r.id === tabActiva;
+            const t = totalRubro(r.id);
+            const cuenta = (grupos.get(r.id) ?? []).length + (r.id === "extras" ? desglose.extras.length : 0);
+            return (
+              <button
+                key={r.id}
+                onClick={() => setTab(r.id)}
+                className={`cdm-chip shrink-0 cursor-pointer border px-3 py-2 text-left transition-colors ${
+                  activa ? `${r.acento.borde} bg-white/[0.04]` : "border-cdm-line hover:border-cdm-muted/60"
+                }`}
+              >
+                <span className="flex items-center gap-1.5 text-[10px] uppercase tracking-[0.14em] text-cdm-muted">
+                  <span aria-hidden className={`h-1.5 w-1.5 ${r.acento.punto} ${activa ? "" : "opacity-40"}`} />
+                  {r.label}
+                  <span className="opacity-60">· {cuenta}</span>
+                </span>
+                <span className={`mt-0.5 block text-sm tabular-nums ${activa ? r.acento.texto : "text-cdm-fg"}`}>
+                  {t.min === 0 && t.max === 0 ? "—" : compactoRango(t.min, t.max)}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      )}
 
       {error && <p className="mb-2 text-xs text-red-400">{error}</p>}
 
-      {/* ── Tabla del rubro activo ────────────────────────────────────────── */}
+      {/* ── Tabla del rubro activo (sin ítems todavía: nada que tabular) ──── */}
+      {!sinTabs && (
       <div className="overflow-x-auto">
         <table className="w-full text-left text-xs">
           <thead>
@@ -449,6 +480,7 @@ export function HojaViva({ cotizacionId, desglose, editable, onRefresh }: Props)
           </tbody>
         </table>
       </div>
+      )}
 
       {/* ── Alta de ítem manual en el rubro activo ────────────────────────── */}
       {editable && rubroActivo && (

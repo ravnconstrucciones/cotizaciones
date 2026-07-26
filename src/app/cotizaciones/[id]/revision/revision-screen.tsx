@@ -68,6 +68,39 @@ const CHECK_ICONO: Record<string, string> = {
   sin_datos: "?",
 };
 
+/**
+ * Desglose vacío (fix ronda final finding 5): una cotización nueva nace con
+ * `desglose: {}` — sin esto, la pestaña Rubros solo muestra el placeholder y
+ * el alta manual del primer ítem nunca puede arrancar mientras el puente
+ * está caído (contradice el ADR "la mesa sigue viva con el puente caído").
+ * Se monta HojaViva igual, con totales en cero — el motor los recalcula en
+ * cuanto entra el primer ítem.
+ */
+const DESGLOSE_VACIO: Desglose = {
+  receta_nombre: "",
+  receta_version: 0,
+  parametros: {},
+  items: [],
+  extras: [],
+  totales: {
+    materiales_min: 0,
+    materiales_max: 0,
+    mano_de_obra_min: 0,
+    mano_de_obra_max: 0,
+    extras_min: 0,
+    extras_max: 0,
+    subtotal_min: 0,
+    subtotal_max: 0,
+    imprevistos_pct: 0,
+    factor_zona_min: 1,
+    factor_zona_max: 1,
+    total_min: 0,
+    total_max: 0,
+  },
+  tiempo: { dias_min: 0, dias_max: 0, cuadrilla_max: 0 },
+  generado_at: new Date(0).toISOString(),
+};
+
 const INPUT_CLS =
   "mt-1 block w-full border-0 border-b border-cdm-line bg-transparent px-1 py-2 text-sm text-cdm-fg placeholder:text-cdm-muted/50 transition-[border-color,box-shadow] duration-200 focus-visible:border-cdm-accent focus-visible:outline-none focus-visible:shadow-[0_12px_24px_-16px_rgba(34,211,238,0.6)]";
 
@@ -305,6 +338,9 @@ export function RevisionScreen({ id }: { id: string }) {
     detalle.desglose && "items" in detalle.desglose ? (detalle.desglose as Desglose) : null;
   const revision = (detalle.revision ?? null) as Revision | null;
   const receta = detalle.receta;
+  // Mismo predicado en los dos lugares que gatean edición de mesa (Rubros y
+  // Decisión): borrador o en_revision — el resto de estados es de solo lectura.
+  const editableMesa = detalle.estado === "en_revision" || detalle.estado === "borrador";
 
   return (
     <main
@@ -402,7 +438,20 @@ export function RevisionScreen({ id }: { id: string }) {
                     <HojaViva
                       cotizacionId={id}
                       desglose={desglose}
-                      editable={detalle.estado === "en_revision" || detalle.estado === "borrador"}
+                      editable={editableMesa}
+                      onRefresh={actividadMotor}
+                    />
+                  </div>
+                ) : editableMesa ? (
+                  <div className="p-4">
+                    <p className="mb-3 text-[11px] text-cdm-muted">
+                      Sin rubros todavía — contale a Fable qué hay que cotizar, o cargá el primer
+                      ítem a mano (sirve aunque el puente esté caído).
+                    </p>
+                    <HojaViva
+                      cotizacionId={id}
+                      desglose={DESGLOSE_VACIO}
+                      editable
                       onRefresh={actividadMotor}
                     />
                   </div>
@@ -605,7 +654,7 @@ export function RevisionScreen({ id }: { id: string }) {
               )}
             </Seccion>
 
-            {detalle.estado === "en_revision" && (
+            {editableMesa && (
               <Seccion titulo="Decisión">
                 <div className="flex flex-wrap items-end gap-3">
                   <label className="text-xs text-cdm-muted">
