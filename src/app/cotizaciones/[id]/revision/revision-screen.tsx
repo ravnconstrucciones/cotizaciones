@@ -22,12 +22,10 @@ import { HojaViva } from "./hoja-viva";
 import { PropuestaViva } from "./propuesta-viva";
 import { FotosPanel } from "./fotos-panel";
 import { ESTADO_COLOR, ESTADO_LABEL } from "../../cotizaciones-screen";
+import { MAX_SUBIDA_BYTES } from "@/lib/cotizador/subida-directa";
+import { subirDirecto } from "@/lib/subida-directa-cliente";
 
-// Mismo techo que MAX_BYTES en /api/cotizaciones/[id]/archivos/route.ts:
-// Vercel Serverless rechaza request bodies de más de ~4.5 MB antes de que
-// lleguen al handler, así que validar acá (antes del POST) evita el error
-// genérico de plataforma y le da a Eze el mensaje real (fix ronda 3, finding 3).
-const MAX_ARCHIVO_BYTES = 4 * 1024 * 1024;
+const MAX_SUBIDA_MB = Math.round(MAX_SUBIDA_BYTES / 1024 / 1024);
 
 type RecetaJoin = {
   id: string;
@@ -228,33 +226,29 @@ export function RevisionScreen({ id }: { id: string }) {
       f.type.startsWith("image/")
     );
     if (sueltas.length === 0) return;
-    // Filtro ANTES del POST: Vercel corta el body en ~4.5 MB con un error
-    // genérico de plataforma, sin llegar nunca al mensaje prolijo del server
-    // (fix ronda 3, finding 3) — mejor avisar acá que intentarlo y fallar feo.
-    const pesadas = sueltas.filter((f) => f.size > MAX_ARCHIVO_BYTES);
-    const files = sueltas.filter((f) => f.size <= MAX_ARCHIVO_BYTES);
+    // Subida DIRECTA a Supabase Storage (firmar → bucket → confirmar): ya no
+    // pasa por el body de la función de Vercel, así que el techo es el del
+    // bucket (25 MB acá) y no los ~4,5 MB de plataforma.
+    const pesadas = sueltas.filter((f) => f.size > MAX_SUBIDA_BYTES);
+    const files = sueltas.filter((f) => f.size <= MAX_SUBIDA_BYTES);
     const adjuntos: Array<{ archivo_id: string; storage_path: string; titulo?: string }> = [];
     for (const file of files) {
-      try {
-        const fd = new FormData();
-        fd.set("file", file);
-        fd.set("tipo", "foto");
-        fd.set("titulo", file.name);
-        const res = await fetch(`/api/cotizaciones/${id}/archivos`, { method: "POST", body: fd });
-        const json = await res.json().catch(() => null);
-        if (res.ok && json?.archivo?.id) {
-          adjuntos.push({ archivo_id: json.archivo.id, storage_path: json.archivo.storage_path ?? "", titulo: file.name });
-        }
-      } catch {
-        // Fallo de red en esta foto puntual: seguimos con el resto del lote,
-        // el aviso queda en el conteo de fallos de abajo.
+      // Fallo en esta foto puntual: seguimos con el resto del lote, el aviso
+      // queda en el conteo de fallos de abajo.
+      const r = await subirDirecto({ cotizacionId: id, file, tipo: "foto", titulo: file.name });
+      if (r.ok && r.archivo?.id) {
+        adjuntos.push({
+          archivo_id: r.archivo.id,
+          storage_path: r.archivo.storage_path ?? "",
+          titulo: file.name,
+        });
       }
     }
     const fallidas = files.length - adjuntos.length;
     const avisos: string[] = [];
     if (pesadas.length > 0) {
       avisos.push(
-        `Máximo 4 MB por archivo — comprimí la foto o subila por el bot (${
+        `Máximo ${MAX_SUBIDA_MB} MB por archivo (${
           pesadas.length === 1 ? "1 foto pesada" : `${pesadas.length} fotos pesadas`
         } sin subir).`
       );

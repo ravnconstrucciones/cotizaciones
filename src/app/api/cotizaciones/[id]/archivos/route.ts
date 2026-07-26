@@ -20,12 +20,9 @@ import { createSupabaseAdminClient } from "@/lib/supabase/server";
 const BUCKET = "obra-archivos";
 const EXPIRA_S = 3600;
 // 4 MB: Vercel Serverless rechaza request bodies de más de ~4.5 MB ANTES de
-// que lleguen acá — con 25 MB, una foto de celu grande moría con un error
-// genérico de plataforma en vez de este mensaje prolijo (fix ronda 3, finding
-// 3). El client valida lo mismo antes de intentar el POST (revision-screen.tsx
-// `soltarFotos`, cotizacion-galeria.tsx `adjuntarDoc`) — este chequeo queda de
-// defensa, no como primera línea. El fix de fondo (subida directa a Supabase
-// Storage con URL firmada, sin pasar por la función) queda para decidir con Eze.
+// que lleguen acá. Este POST multipart quedó como fallback chico (curl del
+// motor, scripts): la UI sube por el flujo DIRECTO a Supabase Storage
+// (archivos/firmar + archivos/confirmar, techo 25 MB) y no pasa por acá.
 const MAX_BYTES = 4 * 1024 * 1024;
 
 type Params = { params: Promise<{ id: string }> };

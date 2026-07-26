@@ -15,6 +15,7 @@ import {
   slugItem,
   type RectCrop,
 } from "@/lib/cotizador/crops";
+import { subirDirecto } from "@/lib/subida-directa-cliente";
 
 type Props = {
   cotizacionId: string;
@@ -196,16 +197,10 @@ export function RecorteItemModal({
     setSubiendoRender(true);
     setError(null);
     try {
-      const form = new FormData();
-      form.append("file", file);
-      const res = await fetch(`/api/cotizaciones/${cotizacionId}/portada`, {
-        method: "POST",
-        body: form,
-      });
-      const json = (await res.json().catch(() => null)) as
-        | { error?: string; url?: string | null }
-        | null;
-      if (!res.ok) throw new Error(json?.error ?? "Error al subir el render.");
+      // Subida directa (firmar → bucket → confirmar), sortea el límite de
+      // ~4,5 MB del body en Vercel — un render puede pesar más que eso.
+      const r = await subirDirecto({ cotizacionId, file, tipo: "portada" });
+      if (!r.ok) throw new Error(r.error);
       // El padre refresca render_url; mientras tanto lo mostramos ya.
       setImgLocal(URL.createObjectURL(file));
       await onCambio();

@@ -5,6 +5,8 @@ import { useEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import type { CotizacionArchivo, EstadoCotizacion } from "@/lib/cotizador/tipos";
 import { formatMoneyInt } from "@/lib/format-currency";
+import { MAX_SUBIDA_BYTES } from "@/lib/cotizador/subida-directa";
+import { subirDirecto } from "@/lib/subida-directa-cliente";
 
 /**
  * GALERÍA DE COTIZACIONES (cara de tarjeta, espejo de /obras). Cada tarjeta
@@ -14,10 +16,7 @@ import { formatMoneyInt } from "@/lib/format-currency";
  * Estética calcada de ProyectoFotoCard.
  */
 
-// Mismo techo que MAX_BYTES en /api/cotizaciones/[id]/archivos/route.ts —
-// Vercel Serverless rechaza request bodies de más de ~4.5 MB antes de que
-// lleguen al handler (fix ronda 3, finding 3).
-const MAX_ARCHIVO_BYTES = 4 * 1024 * 1024;
+const MAX_SUBIDA_MB = Math.round(MAX_SUBIDA_BYTES / 1024 / 1024);
 
 type TipoDoc = "diagnostico" | "propuesta";
 
@@ -172,18 +171,14 @@ function CotizacionFotoCard({
     setSubiendo(true);
     setError(null);
     try {
-      const fd = new FormData();
-      fd.append("file", file);
-      const res = await fetch(`/api/cotizaciones/${c.id}/portada`, {
-        method: "POST",
-        body: fd,
-      });
-      const j = (await res.json().catch(() => ({}))) as { url?: string; error?: string };
-      if (!res.ok || !j.url) {
-        setError(j.error ?? "No se pudo subir.");
+      // Subida directa (firmar → bucket → confirmar): sortea el límite de
+      // ~4,5 MB del body en Vercel; el techo de portada (8 MB) lo pone el server.
+      const r = await subirDirecto({ cotizacionId: c.id, file, tipo: "portada" });
+      if (!r.ok || !r.url) {
+        setError(!r.ok ? r.error : "No se pudo subir.");
         return;
       }
-      onFoto(c.id, j.url);
+      onFoto(c.id, r.url);
     } catch {
       setError("Error de red.");
     } finally {
@@ -241,33 +236,22 @@ function CotizacionFotoCard({
 
   async function adjuntarDoc(file: File, tipo: TipoDoc) {
     setError(null);
-    // Filtro ANTES del POST: Vercel corta el body en ~4.5 MB con un error
-    // genérico de plataforma, sin llegar nunca al mensaje prolijo del server
-    // (mismo techo que MAX_BYTES en /api/cotizaciones/[id]/archivos/route.ts,
-    // fix ronda 3, finding 3).
-    if (file.size > MAX_ARCHIVO_BYTES) {
-      setError("Máximo 4 MB por archivo — comprimí la foto o subila por el bot.");
+    // Subida directa (firmar → bucket → confirmar): el archivo ya no viaja
+    // por la función de Vercel, así que el techo es 25 MB y no 4.
+    if (file.size > MAX_SUBIDA_BYTES) {
+      setError(`Máximo ${MAX_SUBIDA_MB} MB por archivo.`);
       return;
     }
     setSubiendo(true);
     try {
-      const fd = new FormData();
-      fd.append("file", file);
-      fd.append("tipo", tipo);
-      const res = await fetch(`/api/cotizaciones/${c.id}/archivos`, {
-        method: "POST",
-        body: fd,
-      });
-      const j = (await res.json().catch(() => ({}))) as {
-        archivo?: CotizacionArchivo;
-        error?: string;
-      };
-      if (!res.ok || !j.archivo) {
-        setError(j.error ?? "No se pudo adjuntar.");
+      const r = await subirDirecto({ cotizacionId: c.id, file, tipo });
+      if (!r.ok || !r.archivo) {
+        setError(!r.ok ? r.error : "No se pudo adjuntar.");
         return;
       }
-      setArchivos((prev) => [j.archivo as CotizacionArchivo, ...(prev ?? [])]);
-      if (j.archivo.url) window.open(j.archivo.url, "_blank", "noopener");
+      const archivo = r.archivo as CotizacionArchivo;
+      setArchivos((prev) => [archivo, ...(prev ?? [])]);
+      if (archivo.url) window.open(archivo.url, "_blank", "noopener");
     } catch {
       setError("Error de red.");
     } finally {
