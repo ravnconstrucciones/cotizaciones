@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
-import { cotizar } from "@/lib/cotizador/cotizar";
+import { cotizar, IMPREVISTOS_DEFAULT_PCT } from "@/lib/cotizador/cotizar";
 import { RUBRO_POR_ID } from "@/lib/cotizador/rubros";
 import type {
   AjusteItem,
@@ -56,6 +56,58 @@ function esNumeroPositivo(v: unknown): v is number {
 }
 
 /**
+ * Desglose SINTÉTICO en memoria (fix ronda final finding 5, ampliación):
+ * "Nueva cotización" nace con `desglose: {}` (POST /api/cotizaciones solo
+ * manda `titulo`) — sin este fallback, el PATCH cortaba acá con 409 ANTES
+ * de llegar siquiera al chequeo de receta_id, y ni Fable ni el alta manual
+ * podían cargar el primer ítem (el E2E de la spec — Nueva cotización →
+ * "cotizame pintura…" → Rubros con ítems — quedaba roto). Nunca se persiste
+ * tal cual: cotizar() la recalcula con los ítems reales apenas entra el
+ * primer PATCH.
+ */
+const DESGLOSE_VACIO: Desglose = {
+  receta_nombre: "",
+  receta_version: 0,
+  parametros: {},
+  items: [],
+  extras: [],
+  totales: {
+    materiales_min: 0,
+    materiales_max: 0,
+    mano_de_obra_min: 0,
+    mano_de_obra_max: 0,
+    extras_min: 0,
+    extras_max: 0,
+    subtotal_min: 0,
+    subtotal_max: 0,
+    imprevistos_pct: IMPREVISTOS_DEFAULT_PCT,
+    factor_zona_min: 1,
+    factor_zona_max: 1,
+    total_min: 0,
+    total_max: 0,
+  },
+  tiempo: { dias_min: 0, dias_max: 0, cuadrilla_max: 0 },
+  generado_at: new Date(0).toISOString(),
+};
+
+/**
+ * Receta SINTÉTICA vacía en memoria (mismo fix): sin receta_id, el motor
+ * corre igual con cero etapas — el desglose lo arman los ítems manuales.
+ * Ley 2 intacta (el código suma, no la IA): NUNCA se escribe una fila a
+ * `recetas` para esto, es puro in-memory.
+ */
+const RECETA_VACIA: Receta = {
+  nombre: "sin-receta",
+  titulo: "Sin receta vinculada — solo ítems manuales",
+  estado: "candidata",
+  parametros: [],
+  etapas: [],
+  checklist: [],
+  fuentes: [],
+  version: 0,
+};
+
+/**
  * PATCH /api/cotizaciones/[id]/desglose — la hoja viva (Tramo B).
  * Funde la edición con desglose.ajustes, re-corre el motor server-side
  * (cotizar.ts — el código suma, no la IA ni el browser) y persiste desglose,
@@ -92,28 +144,26 @@ export async function PATCH(req: Request, ctx: Params) {
       { status: 409 }
     );
   }
-  const desglose =
+  // Sin desglose todavía (cotización nueva) → arranca del scaffold vacío en
+  // memoria; el motor lo llena con lo que traiga esta operación.
+  const desglose: Desglose =
     cotizacion.desglose && "items" in cotizacion.desglose
       ? (cotizacion.desglose as Desglose)
-      : null;
-  if (!desglose) {
-    return NextResponse.json({ error: "La cotización no tiene desglose" }, { status: 409 });
-  }
-  if (!cotizacion.receta_id) {
-    return NextResponse.json(
-      { error: "Sin receta vinculada no se puede re-correr el motor" },
-      { status: 409 }
-    );
-  }
+      : DESGLOSE_VACIO;
 
-  const { data: recetaRow, error: errReceta } = await sb
-    .from("recetas")
-    .select("*")
-    .eq("id", cotizacion.receta_id)
-    .maybeSingle();
-  if (errReceta) return NextResponse.json({ error: errReceta.message }, { status: 500 });
-  if (!recetaRow) return NextResponse.json({ error: "Receta no encontrada" }, { status: 404 });
-  const receta = recetaRow as Receta;
+  // Sin receta_id todavía → receta sintética vacía (ver comentario arriba).
+  // Solo se consulta `recetas` cuando la cotización ya tiene una vinculada.
+  let receta: Receta = RECETA_VACIA;
+  if (cotizacion.receta_id) {
+    const { data: recetaRow, error: errReceta } = await sb
+      .from("recetas")
+      .select("*")
+      .eq("id", cotizacion.receta_id)
+      .maybeSingle();
+    if (errReceta) return NextResponse.json({ error: errReceta.message }, { status: 500 });
+    if (!recetaRow) return NextResponse.json({ error: "Receta no encontrada" }, { status: 404 });
+    receta = recetaRow as Receta;
+  }
 
   // ── Fundir la operación con los ajustes persistidos ────────────────────────
   const ajustes: AjustesMesa = {

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { cotizar, FaltanParametrosError } from "../cotizar";
+import { cotizar, FaltanParametrosError, IMPREVISTOS_DEFAULT_PCT } from "../cotizar";
 import type { ExtraDesglose, PrecioItem, Receta } from "../tipos";
 
 const RECETA: Receta = {
@@ -169,5 +169,76 @@ describe("cotizar (orquestador)", () => {
     } catch (e) {
       expect((e as FaltanParametrosError).faltan).toEqual(["superficie_m2"]);
     }
+  });
+});
+
+/**
+ * Fix ronda final finding 5 (ampliación): una cotización nueva nace SIN
+ * receta_id — `PATCH /desglose` corre el motor con una receta sintética
+ * vacía (0 etapas) en vez de 409, para que el alta manual del primer ítem
+ * no dependa de que exista una receta de verdad. Este bloque prueba esa
+ * receta vacía directo contra `cotizar()` (sin pasar por la ruta HTTP, que
+ * no tiene convención de test en el repo — se prueba el motor que la ruta
+ * invoca con los mismos inputs que arma el server).
+ */
+describe("cotizar — receta vacía (mesa nueva sin receta, solo ítems manuales)", () => {
+  const RECETA_VACIA: Receta = {
+    nombre: "sin-receta",
+    titulo: "Sin receta vinculada — solo ítems manuales",
+    estado: "candidata",
+    parametros: [],
+    etapas: [],
+    checklist: [],
+    fuentes: [],
+    version: 0,
+  };
+
+  it("no explota sin ítems ni ajustes: todo en cero", () => {
+    const r = cotizar({
+      receta: RECETA_VACIA,
+      parametros: {},
+      precios: {},
+      imprevistos_pct: IMPREVISTOS_DEFAULT_PCT,
+    });
+    expect(r.desglose.items).toEqual([]);
+    expect(r.desglose.tiempo).toEqual({ dias_min: 0, dias_max: 0, cuadrilla_max: 0 });
+    expect(r.total_min).toBe(0);
+    expect(r.total_max).toBe(0);
+  });
+
+  it("suma bien un ítem manual solo, sin ninguna receta detrás", () => {
+    const r = cotizar({
+      receta: RECETA_VACIA,
+      parametros: {},
+      precios: {},
+      imprevistos_pct: IMPREVISTOS_DEFAULT_PCT,
+      ajustes: {
+        manuales: [
+          {
+            nombre: "Pintor (jornal)",
+            rubro: "mano_de_obra",
+            tipo: "mano_de_obra",
+            unidad: "dia",
+            cantidad: 3,
+            precio: { valor: 40000, fuente: "Eze — mesa de revisión", fecha: "2026-07-25" },
+          },
+        ],
+      },
+    });
+    expect(r.desglose.items).toHaveLength(1);
+    expect(r.desglose.items[0].manual).toBe(true);
+    // 3 × 40.000 = 120.000, × 1.10 imprevistos = 132.000 (sin factor zona)
+    expect(r.total_min).toBe(132000);
+    expect(r.total_max).toBe(132000);
+  });
+
+  it("un ajuste sobre un ítem que no existe (sin receta) falla por su propio camino, no por la receta vacía", () => {
+    // La receta vacía no rompe nada por sí sola: si algo intentara "ajustar"
+    // un ítem de receta inexistente, el fallo es de la ruta HTTP (ítem
+    // desconocido), no de cotizar() — acá solo confirmamos que cotizar()
+    // en sí no distingue ni necesita distinguir ese caso.
+    expect(() =>
+      cotizar({ receta: RECETA_VACIA, parametros: {}, precios: {} })
+    ).not.toThrow();
   });
 });
