@@ -132,7 +132,8 @@ export function RevisionScreen({ id }: { id: string }) {
 
   // Layout B (spec 2026-07-25): pestaña activa del panel derecho + versión de
   // fotos (se bumpea tras un drop para que Propuesta/Fotos re-fetcheen).
-  const [pestana, setPestana] = useState<"rubros" | "propuesta" | "fotos">("rubros");
+  // 26/07: "Rubros" salió del panel — la hoja vive full-width abajo del chat.
+  const [pestana, setPestana] = useState<"propuesta" | "fotos">("propuesta");
   const [versionFotos, setVersionFotos] = useState(0);
   const [arrastrando, setArrastrando] = useState(false);
 
@@ -428,7 +429,6 @@ export function RevisionScreen({ id }: { id: string }) {
             <div className="-mx-1 flex gap-2 overflow-x-auto border-b border-cdm-line px-4 pb-3 pt-4">
               {(
                 [
-                  { id: "rubros" as const, label: "Rubros" },
                   { id: "propuesta" as const, label: "Propuesta" },
                   { id: "fotos" as const, label: "Fotos" },
                 ]
@@ -451,45 +451,50 @@ export function RevisionScreen({ id }: { id: string }) {
             </div>
 
             <div className="min-h-0 flex-1 overflow-y-auto">
-              {pestana === "rubros" &&
-                (desglose ? (
-                  <div className="p-4">
-                    {desgloseLegacy && (
-                      <p className="mb-3 text-[11px] text-cdm-muted">
-                        Desglose cargado por consola — solo lectura acá (editarlo lo pisaría con el
-                        motor de recetas).
-                      </p>
-                    )}
-                    <HojaViva
-                      cotizacionId={id}
-                      desglose={desglose}
-                      editable={editableMesa && !desgloseLegacy}
-                      onRefresh={actividadMotor}
-                    />
-                  </div>
-                ) : editableMesa ? (
-                  <div className="p-4">
-                    <p className="mb-3 text-[11px] text-cdm-muted">
-                      Sin rubros todavía — contale a Fable qué hay que cotizar, o cargá el primer
-                      ítem a mano (sirve aunque el puente esté caído).
-                    </p>
-                    <HojaViva
-                      cotizacionId={id}
-                      desglose={DESGLOSE_VACIO}
-                      editable
-                      onRefresh={actividadMotor}
-                    />
-                  </div>
-                ) : (
-                  <p className="p-6 text-[11px] text-cdm-muted">
-                    Sin rubros todavía — contale a Fable qué hay que cotizar.
-                  </p>
-                ))}
               {pestana === "propuesta" && <PropuestaViva cotizacion={detalle} version={versionFotos} />}
               {pestana === "fotos" && <FotosPanel cotizacionId={id} version={versionFotos} />}
             </div>
           </div>
         </div>
+
+        {/* Hoja de cotización (pedido de Eze 26/07): la grilla + solapas salen
+            del panel derecho y ocupan el ancho completo abajo del chat — con
+            10 columnas apretadas en media pantalla no se leía nada. */}
+        <Seccion titulo="Hoja de cotización">
+          {desglose ? (
+            <>
+              {desgloseLegacy && (
+                <p className="mb-3 text-[11px] text-cdm-muted">
+                  Desglose cargado por consola — solo lectura acá (editarlo lo pisaría con el
+                  motor de recetas).
+                </p>
+              )}
+              <HojaViva
+                cotizacionId={id}
+                desglose={desglose}
+                editable={editableMesa && !desgloseLegacy}
+                onRefresh={actividadMotor}
+              />
+            </>
+          ) : editableMesa ? (
+            <>
+              <p className="mb-3 text-[11px] text-cdm-muted">
+                Sin rubros todavía — contale a Fable qué hay que cotizar, o cargá el primer ítem a
+                mano (sirve aunque el puente esté caído).
+              </p>
+              <HojaViva
+                cotizacionId={id}
+                desglose={DESGLOSE_VACIO}
+                editable
+                onRefresh={actividadMotor}
+              />
+            </>
+          ) : (
+            <p className="text-[11px] text-cdm-muted">
+              Sin rubros todavía — contale a Fable qué hay que cotizar.
+            </p>
+          )}
+        </Seccion>
 
         <div>
           <div className="min-w-0">
