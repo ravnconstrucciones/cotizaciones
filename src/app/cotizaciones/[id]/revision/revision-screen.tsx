@@ -16,6 +16,7 @@ import { SkeletonGlass } from "@/components/cockpit/skeleton-glass";
 import { WavesBackdrop } from "@/components/cockpit/waves-backdrop";
 import { CifraHeroica } from "@/components/cockpit/cifra-heroica";
 import { ConversacionPanel } from "./conversacion-panel";
+import { MesaChat } from "./mesa-chat";
 import { HojaViva } from "./hoja-viva";
 import { ESTADO_COLOR, ESTADO_LABEL } from "../../cotizaciones-screen";
 
@@ -628,6 +629,12 @@ export function RevisionScreen({ id }: { id: string }) {
               estado={detalle.estado}
               onCambioEstado={() => void cargar()}
             />
+          </div>
+
+          {/* Provisorio (Task 7): mesa a tres voces montada junto al panel
+              legacy para probarla. El reemplazo definitivo es la Task 9. */}
+          <div className="mt-6">
+            <MesaChat cotizacionId={id} onActividadMotor={() => void cargar(true)} />
           </div>
         </div>
       </div>
