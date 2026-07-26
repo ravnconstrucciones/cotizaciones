@@ -1,10 +1,12 @@
 > **Naturaleza:** HECHOS
-> **Última verificación:** 2026-07-23
+> **Última verificación:** 2026-07-25
 > **Fuente:** Supabase MCP list_tables + list_migrations, supabase/
 
 # Modelo de datos — App RAVN (schema `public`)
 
-**49 tablas** en `public` (conteo exacto de `list_tables`, verificado 2026-07-23).
+**51 tablas** en `public` (49 verificadas 2026-07-23 + `cotizacion_mensajes` y
+`puente_latidos`, migración `20260725120000_mesa_conversacional.sql`,
+verificado 2026-07-25 sobre archivo — no re-corrido `list_tables`).
 Convención general: PK `id` (uuid en lo nuevo, bigint en lo legacy), timestamps `created_at`/`creado_at`.
 Nota de identidad: en casi toda la app **la obra se identifica por `presupuesto_id` (uuid de `presupuestos`)**, no por `obras.id`. La tabla `obras` es una extensión 1:1 del presupuesto aprobado.
 
@@ -38,7 +40,8 @@ Nota de identidad: en casi toda la app **la obra se identifica por `presupuesto_
 | `recetas` | Recetas paramétricas del cotizador nuevo (etapas, checklist, fuentes en jsonb, versionadas). | `nombre`, `estado`, `parametros`/`etapas`/`checklist`/`fuentes` (jsonb), `version`, `preguntas_abiertas` |
 | `cotizaciones` | Cotizaciones del cotizador maestro (mesa de revisión): ficha, desglose, rango, y link al presupuesto emitido. | `trabajo_id → trabajos_cola`, `receta_id → recetas`, `presupuesto_id → presupuestos`, `ficha`/`desglose`/`revision` (jsonb), `total_min/max`, `foto_portada_path` |
 | `cotizaciones_cola` | Cola de pedidos de cotización que entran por el bot (Tramo C). | `pedido`, `estado`, `respuesta`, `session_id`, `origen` |
-| `cotizacion_archivos` | Archivos/renders por cotización (galería, crops por ítem). | `cotizacion_id → cotizaciones`, `storage_path`, `item_nombre` |
+| `cotizacion_archivos` | Archivos/renders por cotización (galería, crops por ítem, fotos de la mesa). Columna `en_propuesta` (bool, default false, 2026-07-25): marca la foto para salir en el documento emitido — página extra, cero regresión sin fotos marcadas. | `cotizacion_id → cotizaciones`, `storage_path`, `item_nombre`, `en_propuesta` |
+| `cotizacion_mensajes` | **Nueva 2026-07-25 (mesa conversacional).** Hilo a tres voces de la mesa de revisión: Eze, Fable (Claude Code local) y Codex, más avisos de `sistema`. Realtime ON; RLS: select `authenticated`, insert/update siempre por service role (API routes o el puente). | `cotizacion_id → cotizaciones` (on delete cascade), `autor` (check eze\|fable\|codex\|sistema), `texto`, `adjuntos` (jsonb `[{archivo_id, storage_path, titulo}]`), `meta` (jsonb `{tipo, respuesta_a, fuentes}`); índices por `(cotizacion_id, creado_at)` y por `meta->>'respuesta_a'` (dedup del puente) |
 | `cotizador_lecciones` | Lecciones aprendidas post-obra que ajustan recetas futuras. | `cotizacion_id → cotizaciones`, `obra_presupuesto_id → presupuestos`, `leccion`, `ajuste` (jsonb) |
 | `trabajos_cola` | Cola genérica de trabajos para el daemon de la Mac (prompt + contexto + resultado jsonb). | `tipo`, `estado`, `prompt`, `contexto`/`resultado` (jsonb) |
 
@@ -83,6 +86,7 @@ Además del ledger existe la vista **`dinero_huerfanos`** (no es tabla, no cuent
 | `cerebro_preguntas` | Pregunta del día del ciclo cerebro autónomo. | `fecha`, `tipo`, `pregunta`, `estado` |
 | `cerebro_sinapsis` | Conexiones propuestas entre notas del vault (UNIR/DESCARTAR por WhatsApp). | `nota_a`, `nota_b`, `razon`, `estado` |
 | `sistema_estado` | Latido del daemon de la Mac (singleton). | `ultimo_latido`, `daemon_version` |
+| `puente_latidos` | **Nueva 2026-07-25.** Latido del `daemon/puente-cotizador/` (motor local de la mesa conversacional) — una fila por proceso, upsert cada 30 s. La ruta `/api/cotizaciones/[id]/mensajes` la lee para el chip "motor conectado" (umbral 90 s). RLS: select `authenticated`, escritura service role. | `id` (text, PK = nombre del proceso), `visto_at` |
 | `seguridad_config` | Config de seguridad: email del bot (singleton). | `bot_email` |
 | `inmobiliario_zonas` | Zonas para el radar inmobiliario. **0 filas** (módulo sin datos aún). | `nombre`, `ml_match`, `lat`/`lng` |
 | `inmobiliario_avisos_snapshot` | Snapshots de avisos por zona. **0 filas.** | `zona_id → inmobiliario_zonas`, `precio_usd`, `usd_por_m2` |
@@ -113,10 +117,11 @@ Además del ledger existe la vista **`dinero_huerfanos`** (no es tabla, no cuent
 
 `movimientos_plata` es LA verdad de toda la plata. Los saldos de `cuentas` se DERIVAN del ledger (saldo inicial + patas), nunca se guardan. Toda escritura que toque plata por SQL directo (fuera de los write-points de la app) debe asentar sus patas en `movimientos_plata` en la misma operación, o llamar `POST /api/dinero/espejo {tabla, id}` — no existe ningún sync automático al abrir la app. Antes de cerrar cualquier sesión que tocó plata: `select * from dinero_huerfanos;` debe devolver 0 filas. (Detalle completo en `/Users/ezeotero/Documents/ravn/CLAUDE.md`, regla dura del 18/07/2026.)
 
-### Estado REAL de RLS (verificado 2026-07-23 contra `pg_policies`)
+### Estado REAL de RLS (verificado 2026-07-23 contra `pg_policies`; recuento de tablas re-verificado 2026-07-25 con `list_tables`)
 
-- **Las 49 tablas tienen RLS habilitado** (`rls_enabled = true` en todas, según `list_tables`).
-- **47 tablas tienen políticas.** La mayoría con 4 (select/insert/update/delete para `authenticated`); algunas con 3.
+- **Las 51 tablas tienen RLS habilitado** (`rls_enabled = true` en todas, incl. `cotizacion_mensajes` y `puente_latidos`, según `list_tables` del 2026-07-25).
+- `cotizacion_mensajes` y `puente_latidos` (nuevas 2026-07-25) siguen el patrón de las 8 de abajo: **UNA política de select para `authenticated`, escritura solo por service role** (API routes y el `daemon/puente-cotizador/`, nunca RLS de insert/update).
+- **47 tablas tienen políticas** (de las 49 verificadas en jun/jul previo a esta tanda). La mayoría con 4 (select/insert/update/delete para `authenticated`); algunas con 3.
 - **8 tablas tienen UNA sola política** (lectura para la app; escritura solo por service role, típicamente el daemon/bot): `inmobiliario_zonas`, `inmobiliario_avisos_snapshot`, `inmobiliario_precios_zona_periodo`, `inmobiliario_noticias`, `noticias`, `precios_items`, `recetas`, `retiros_socio`.
 - **2 tablas tienen RLS habilitado pero CERO políticas:** `negocio_config` y `seguridad_config`. Eso las deja en deny-all para `anon`/`authenticated` — solo el service role las lee/escribe. Si la app las consulta con la key pública, esas queries devuelven vacío. Puede ser intencional (son singletons de config), pero no está documentado: **pendiente ADR de seguridad** en `decisions/` que confirme si es deliberado o falta la política de lectura.
 - Endurecimientos ya aplicados por migración: `base_seguridad`, `*_rls` (jun-2026), `function_search_path` + `pin_search_path_trigger_functions`, `harden_gastos_obra_storage_and_es_bot`.

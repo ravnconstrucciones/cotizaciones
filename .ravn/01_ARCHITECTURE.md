@@ -1,7 +1,7 @@
 # Arquitectura real — App RAVN
 
 > **Naturaleza:** HECHOS
-> **Última verificación:** 2026-07-23
+> **Última verificación:** 2026-07-25 (agrega `daemon/puente-cotizador/`; resto verificado 2026-07-23)
 > **Fuente:** src/, daemon/, scripts/, supabase/, ~/Documents/ravn-bots/
 
 Todo lo afirmado acá sale de archivos leídos en esa fecha. Cada bloque cita su fuente. Lo no verificable está marcado "a verificar".
@@ -78,6 +78,14 @@ Segundo launchd existente en la Mac (no en este repo): **`com.ravn.homereno-gote
 
 **A verificar:** el consumidor de `trabajos_cola` que late `sistema_estado.ultimo_latido` "~45s" (citado en `ravn-bots/src/supabaseService.js:356` y `src/lib/terminal-hilo.ts`) no está ni en `daemon/` ni en `ravn-bots/` — es un proceso Claude Code de la Mac cuyo código no encontré en estos dos repos.
 
+### 3.1. Puente-cotizador (`daemon/puente-cotizador/` en este repo, nuevo 2026-07-25)
+
+Motor local de la **mesa de cotización conversacional** (spec 2026-07-25, ver ADR `0005`). Componente propio, distinto de `com.ravn.jobs`: no corre-y-muere cada 30 min, queda escuchando — launchd **`com.ravn.puente-cotizador`** con `KeepAlive` (`daemon/launchd/com.ravn.puente-cotizador.plist`), instalado por `daemon/puente-cotizador/install.sh`, wrapper `run-puente.sh`. Estado local en `~/.ravn-puente/` (`env`, `sesiones.json` — session id de Claude por cotización para `--resume` —, `procesados.json` para dedup, `logs/`).
+
+Archivos: `puente.ts` (loop principal: Realtime sobre `cotizacion_mensajes`, serialización por cotización, dedup crash-safe con guard en memoria + persistencia post-turno + fallback por `meta->>respuesta_a`, latido a `puente_latidos` cada 30 s, barrido cada 60 s para mensajes que llegaron con el proceso caído), `motor-fable.ts` (Claude Code local, sesión `--resume` por cotización), `motor-codex.ts` (Codex para búsqueda de precios, flag global `--search` **antes** de `exec`; corre en paralelo a Fable y se consolida), `prompt-sistema.md` (prompt del rol Fable en la mesa). Parseo tolerante de directivas JSON de Fable en `src/lib/puente/protocolo.ts` (compartido con la app, no vive en `daemon/`).
+
+Habla con la app **como un agente**, no como el bot ni como el daemon de jobs: usa el bypass `x-ravn-agente` de `src/middleware.ts` (ver 04_APIS.md) para pegarle a `/api/cotizaciones/[id]/mensajes`, `/documento-borrador` y `/archivos/[archivoId]` sin sesión de usuario. Motores locales por suscripción (Fable/Codex ya pagos), no API paga por token — decisión completa en `.ravn/decisions/0005-mesa-cotizacion-conversacional.md`.
+
 ### 4. Supabase (base única)
 
 Un solo proyecto Supabase para todo: 65 migraciones en `supabase/migrations/` + `config.toml`. Tablas/dominios visibles en migraciones: `presupuestos*` (+gastos, rentabilidad_inputs, propuesta), `cashflow_*`, `obras` (+`obra_plan_items`, `obra_archivos` vía storage), `maestro_precios` (+SISMAT), `inmobiliario`, `gastos_personales`/`finanzas_personales`, `tareas`, `eventos`, `trabajos_cola`, `recetas`/`cotizaciones`/`cotizador_lecciones`/`referencias`, `calendario_eventos`, `sistema_estado`, `dinero_movimientos_plata` + `dinero_financiamientos` + RPC `asentar`, `precios_items`, `mo_acuerdos`, `papelera_registros`, RLS por dominio (`*_rls.sql`, `base_seguridad.sql`) y Realtime (`realtime_centro_mando.sql`, `obra_plan_items_realtime_delete.sql`).
@@ -87,6 +95,7 @@ Un solo proyecto Supabase para todo: 65 migraciones en `supabase/migrations/` + 
 - App → Vercel (framework Next.js; el repo no contiene config de Vercel — nombre de proyecto `ravn-app-one` a verificar en el dashboard).
 - Bot → Railway (doc `ravn-bots/RAILWAY-SETUP.md`; URL de producción en `index.js`).
 - Daemon → launchd local en la Mac (`daemon/install.sh`).
+- Puente-cotizador → launchd local en la Mac, propio (`daemon/puente-cotizador/install.sh`, `com.ravn.puente-cotizador`, `KeepAlive`).
 
 ---
 
@@ -101,7 +110,8 @@ Un solo proyecto Supabase para todo: 65 migraciones en `supabase/migrations/` + 
 - **Daemon → Supabase**: REST con auth propia (`jobslib.supabase_auth`) — escribe `calendario_eventos`, `precios_items`, sinapsis, estado de sistema; lee snapshot del negocio.
 - **Daemon → vault**: git pull/push local del vault (Obsidian/iCloud) — p. ej. `job_dolar` "pushea el vault".
 - **Daemon → WhatsApp**: `job_resumen` envía al OWNER_PHONE (vía el bot/Cloud API según config del job).
-- **launchd**: `com.ravn.jobs` cada 30 min dispara el runner; `com.ravn.homereno-goteo` cada 3h el goteo HomeRenoVision. Nada corre constante en la Mac.
+- **launchd**: `com.ravn.jobs` cada 30 min dispara el runner; `com.ravn.homereno-goteo` cada 3h el goteo HomeRenoVision. Nada corre constante en la Mac — **excepción deliberada**: `com.ravn.puente-cotizador` (2026-07-25) queda escuchando con `KeepAlive`, porque la mesa conversacional necesita respuesta en segundos, no en el próximo tick de 30 min.
+- **Puente-cotizador ↔ App**: Realtime sobre `cotizacion_mensajes` (escucha) + REST con el bypass `x-ravn-agente` (escribe `/mensajes`, `/documento-borrador`, `/archivos/[archivoId]`) + latido propio en `puente_latidos` (no comparte `sistema_estado` con el daemon de jobs).
 
 ---
 
@@ -110,6 +120,7 @@ Un solo proyecto Supabase para todo: 65 migraciones en `supabase/migrations/` + 
 - **App Next.js**: toda la UI y los write-points de datos (obras, cotizaciones, dinero, cashflow, MO, finanzas). NO corre jobs programados, NO scrapea precios, NO escribe al vault (solo lee).
 - **Bot ravn-bots**: interfaz WhatsApp 24/7 — captura (audios, fotos, gastos de bolsillo), asesor liviano, preguntas del cerebro, mensajes a proveedores. NO hace trabajo pesado (lo encola en `trabajos_cola`), NO tiene los jobs del cerebro (solo los reparte por chat).
 - **Daemon (com.ravn.jobs)**: todos los jobs programados — precios/scraping retail, dólar, SISMAT, cerebro/grafo/FODA/sinapsis, inbox, resumen, salud, auditoría. NO sirve UI, NO atiende requests: corre cada 30 min y muere (regla "nada constante en la Mac", batería).
+- **Puente-cotizador (com.ravn.puente-cotizador)**: el ÚNICO proceso que queda vivo permanentemente en la Mac — motor conversacional de la mesa de cotización (Fable + Codex). NO reemplaza al cotizador maestro ni decide margen/emisión (eso sigue siendo de Eze, ADR 0003); NO es fuente de verdad — si está caído, la mesa sigue operable a mano y el barrido resuelve lo perdido al reconectar.
 - **Supabase**: base única de datos + auth + storage + Realtime. Toda comunicación asíncrona entre componentes pasa por acá (cola, estado, latido).
 - **Vault (repo GitHub `boveda` / Obsidian)**: conocimiento y cerebro, NO datos operativos — los datos operativos viven en Supabase.
 - **Vercel / Railway / launchd**: hosting de app, bot y jobs respectivamente.

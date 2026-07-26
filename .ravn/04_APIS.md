@@ -1,12 +1,14 @@
 # 04 — Inventario de APIs (App RAVN)
 
 > **Naturaleza:** HECHOS
-> **Última verificación:** 2026-07-23
-> **Fuente:** src/app/api/**/route.ts
+> **Última verificación:** 2026-07-25
+> **Fuente:** src/app/api/**/route.ts, src/middleware.ts
 
-**54 rutas** (`find src/app/api -name "route.ts"` = 54; todas leídas y documentadas).
+**57 rutas** (`find src/app/api -name "route.ts"` = 57: las 54 de 2026-07-23 + `cotizaciones/[id]/mensajes`, `cotizaciones/[id]/documento-borrador`, `cotizaciones/[id]/archivos/[archivoId]`, mesa conversacional 2026-07-25).
 
 **Auth global:** `src/middleware.ts` exige sesión Supabase para TODO (incluye `/api/*`); única excepción del matcher: `/api/auto-login` (que tiene su propia doble guardia: `PREVIEW_AUTO_LOGIN=true` + `VERCEL_ENV !== "production"`, si no → 404). Todos los handlers usan `createSupabaseAdminClient()` (service_role, bypass RLS) detrás de ese middleware.
+
+**Bypass de agente local (2026-07-25, spec mesa conversacional):** antes de la guardia de sesión, el middleware chequea el header `x-ravn-agente`. Si coincide con `process.env.RAVN_AGENTE_SECRET` **y el path empieza con `/api/`**, deja pasar sin exigir cookie de sesión — es el mecanismo que usa `daemon/puente-cotizador/` (Fable/Codex corriendo local en la Mac de Eze) para leer/escribir la mesa como si fuera un usuario logueado. Sin `RAVN_AGENTE_SECRET` configurado en el entorno, el bypass no existe (no hay fallback ni valor default). Acotado a `/api/*`: nunca abre páginas ni el resto del matcher.
 
 ---
 
@@ -48,8 +50,11 @@
 | `/api/cotizaciones/[id]/emitir` | POST | Aprobada → documento_emitido con datos del documento |
 | `/api/cotizaciones/[id]/estado` | PATCH | Reclasificación libre entre pestañas (con efectos reales) |
 | `/api/cotizaciones/[id]/desglose` | PATCH | Hoja viva: editar ítem/manual y re-correr el motor server-side |
-| `/api/cotizaciones/[id]/conversacion` | GET, POST | Hilo cronológico / mensaje de Eze (CORREGIR o consulta) |
-| `/api/cotizaciones/[id]/archivos` | GET, POST | Propuestas adjuntas (listar firmadas / subir) |
+| `/api/cotizaciones/[id]/conversacion` | GET, POST | Hilo cronológico / mensaje de Eze (CORREGIR o consulta) — flujo daemon legacy, intacto |
+| `/api/cotizaciones/[id]/mensajes` | GET, POST | **Nueva 2026-07-25.** Hilo de la mesa conversacional: mezcla legacy (trabajos_cola+eventos) con `cotizacion_mensajes` (Eze/Fable/Codex/sistema) + `motor_conectado` por latido |
+| `/api/cotizaciones/[id]/documento-borrador` | PATCH | **Nueva 2026-07-25.** Merge del borrador vivo de propuesta sobre `revision.documento_borrador`; solo estados de mesa |
+| `/api/cotizaciones/[id]/archivos` | GET, POST | Propuestas/fotos adjuntas (listar firmadas / subir; `tipo=foto` → carpeta `fotos/`) |
+| `/api/cotizaciones/[id]/archivos/[archivoId]` | PATCH | **Nueva 2026-07-25.** Toggle `en_propuesta` de una foto (pestaña Fotos de la mesa) |
 | `/api/cotizaciones/[id]/crops` | GET, POST, DELETE | Recortes del render por ítem |
 | `/api/cotizaciones/[id]/portada` | POST | Foto de portada de la cotización |
 
@@ -160,19 +165,25 @@ Todas leen/escriben `cotizaciones`; los cambios de estado usan guard de carrera 
 
 **GET /api/cotizaciones/[id]** — `SELECT *` + joins `recetas` y `presupuestos`. **PATCH** — body `{ presupuesto_id: uuid | null }` vincula/desvincula obra (cualquier estado). **DELETE** — nulea `cotizador_lecciones.cotizacion_id` (preserva lecciones) y borra la fila. 404 si no existe.
 
-**POST /api/cotizaciones/[id]/aprobar** — body `{ importe_final? }`. `aprobar()` valida transición desde en_revision; si no tiene `presupuesto_id`, `crearObraDesdeCotizacion()` crea presupuesto + obra (loop de oro, post-estado, no bloquea el OK). Devuelve `{ ok, estado, presupuesto_id, obra_id }`. 409 transición/carrera.
+**POST /api/cotizaciones/[id]/aprobar** — body `{ importe_final? }`. `aprobar()` valida transición **desde `borrador` o `en_revision`** (2026-07-25: la mesa conversacional también opera en borrador, `ESTADOS_MESA` en `src/lib/cotizador/estado.ts`); si no tiene `presupuesto_id`, `crearObraDesdeCotizacion()` crea presupuesto + obra (loop de oro, post-estado, no bloquea el OK). Devuelve `{ ok, estado, presupuesto_id, obra_id }`. 409 transición/carrera.
 
-**POST /api/cotizaciones/[id]/rechazar** — body `{ motivo? }`. Estado → rechazada + inserta lección tipo `rechazo` en `cotizador_lecciones` (best-effort).
+**POST /api/cotizaciones/[id]/rechazar** — body `{ motivo? }`. Válido desde `borrador` o `en_revision` (mismo `ESTADOS_MESA`, 2026-07-25). Estado → rechazada + inserta lección tipo `rechazo` en `cotizador_lecciones` (best-effort).
 
 **POST /api/cotizaciones/[id]/emitir** — body `{ cliente, lugar, forma_pago, plazo, notas }` (strings o arrays de líneas). Solo desde aprobada → documento_emitido.
 
 **PATCH /api/cotizaciones/[id]/estado** — body `{ estado (en_revision|aprobada|rechazada), motivo?, importe_final? }`. Reclasificación libre; aprobada dispara loop de oro si no hay obra, rechazada con motivo inserta lección. documento_emitido queda fuera.
 
-**PATCH /api/cotizaciones/[id]/desglose** — body con EXACTAMENTE una operación: `ajuste {nombre, precio?, cantidad?, activo?}` | `manual {nombre, rubro, tipo, unidad, cantidad, precio?, notas?}` | `quitar_manual`. Funde con `desglose.ajustes`, re-corre `cotizar()` server-side, persiste desglose/revision/totales. Precio corregido por Eze → upsert a `precios_items` (origen `eze`); precio limpiado → delete. Solo en_revision (409). Tablas: cotizaciones, recetas, precios_items.
+**PATCH /api/cotizaciones/[id]/desglose** — body con EXACTAMENTE una operación: `ajuste {nombre, precio?, cantidad?, activo?}` | `manual {nombre, rubro, tipo, unidad, cantidad, precio?, notas?}` | `quitar_manual`. Funde con `desglose.ajustes`, re-corre `cotizar()` server-side, persiste desglose/revision/totales. Precio corregido por Eze → upsert a `precios_items` (origen `eze`); precio limpiado → delete. Solo `borrador`/`en_revision` (2026-07-25, `ESTADOS_MESA`; antes solo en_revision) — 409 fuera de la mesa. Tablas: cotizaciones, recetas, precios_items.
 
-**GET /api/cotizaciones/[id]/conversacion** — hilo cronológico desde `trabajos_cola` (origen + derivados por contexto) y `eventos` (destino/contenido → id). **POST** body `{ mensaje }` (máx 4000): en_revision → mecanismo CORREGIR (rechaza + lección + re-encola trabajo `cotizar` con `contexto.correccion`); otro estado → encola trabajo `consulta`. Siempre registra evento. Tablas: cotizaciones, trabajos_cola, eventos, cotizador_lecciones.
+**GET /api/cotizaciones/[id]/conversacion** — hilo cronológico desde `trabajos_cola` (origen + derivados por contexto) y `eventos` (destino/contenido → id). **POST** body `{ mensaje }` (máx 4000): en_revision → mecanismo CORREGIR (rechaza + lección + re-encola trabajo `cotizar` con `contexto.correccion`); otro estado → encola trabajo `consulta`. Siempre registra evento. Tablas: cotizaciones, trabajos_cola, eventos, cotizador_lecciones. **Ruta hermana de `/mensajes`, queda intacta para el flujo daemon** (`trabajos_cola`); no la reemplaza.
 
-**GET /api/cotizaciones/[id]/archivos** — lista `cotizacion_archivos` con signed URLs (1 h). **POST** multipart `file` (máx 25 MB) + `tipo?` (propuesta|diagnostico) + `titulo?`; sube a `propuestas/…` o `diagnosticos/…` del bucket `obra-archivos` con rollback si falla el insert.
+**GET /api/cotizaciones/[id]/mensajes** — hilo de la MESA CONVERSACIONAL (spec 2026-07-25): mezcla el hilo legacy (`construirHilo` sobre trabajos_cola+eventos filtrados por `contexto->>cotizacion_id`/`cotizacion_anterior` o `trabajo_id`) con `cotizacion_mensajes` (`mensajesDeTabla`), intercalados por fecha (`mezclarHilos`, `src/lib/cotizador/conversacion.ts`). Devuelve además `motor_conectado`: `true` si `puente_latidos` (id `puente-cotizador`) late hace menos de 90 s. **POST** body `{ texto?, adjuntos? }` (`adjuntos: [{archivo_id, storage_path, titulo?}]`; al menos uno de los dos, texto máx 4000): con texto inserta autor `eze` (meta `tipo: charla`, lo responde el puente); solo adjuntos inserta autor `sistema` (meta `tipo: adjuntos`, avisa al puente por el mismo canal Realtime). 404 si la cotización no existe.
+
+**PATCH /api/cotizaciones/[id]/documento-borrador** — body `{ documento: Partial<DatosDocumento> }` (`cliente`, `lugar`, `forma_pago[]`, `plazo[]`, `notas[]`). Mergea campo a campo sobre `revision.documento_borrador` (lo no enviado se conserva). Solo estados `borrador`/`en_revision` (409 fuera de la mesa). Guard de carrera: el UPDATE lleva `.in("estado", ["borrador","en_revision"])` — 0 filas ⇒ 409 "recargá la mesa" en vez de éxito fantasma. Es donde Fable va redactando la propuesta viva turno a turno; emitir sigue siendo acción explícita de Eze (`/emitir`).
+
+**GET /api/cotizaciones/[id]/archivos** — lista `cotizacion_archivos` (incl. `en_propuesta`, `storage_path`) con signed URLs (1 h). **POST** multipart `file` (máx 25 MB) + `tipo?` (propuesta|diagnostico|**foto**) + `titulo?`; sube a `propuestas/…`, `diagnosticos/…` o **`fotos/…`** (tipo `foto`, drag&drop de la mesa) del bucket `obra-archivos` con rollback si falla el insert; devuelve `storage_path` en la respuesta.
+
+**PATCH /api/cotizaciones/[id]/archivos/[archivoId]** — body `{ en_propuesta: boolean }` (requerido). Toggle sobre `cotizacion_archivos.en_propuesta`, filtrado por `id`+`cotizacion_id`. 404 si no matchea. Sin guard de carrera (el front deshabilita el toggle mientras el PATCH está en vuelo y lo revierte si no persiste).
 
 **GET /api/cotizaciones/[id]/crops** — `{ render_url (portada firmada), crops: {item→url} }` de filas tipo `crop_item`. **POST** multipart `file` (máx 8 MB, JPG/PNG/WEBP) + `item_nombre`: reemplaza el recorte previo del ítem. **DELETE** body `{ item_nombre }`: borra fila + archivo.
 
