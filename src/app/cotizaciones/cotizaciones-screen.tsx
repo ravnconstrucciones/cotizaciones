@@ -242,7 +242,7 @@ export function CotizacionesScreen() {
         ) : cotizaciones.length === 0 ? (
           <div className="flex min-h-[40vh] items-center justify-center">
             <p className="px-6 text-center text-[12px] uppercase tracking-[0.2em] text-cdm-muted">
-              Sin cotizaciones. Llegan desde WhatsApp o la barra de comando.
+              Sin cotizaciones acá. Abrí "+ Nueva cotización" y arrancá la mesa con Fable.
             </p>
           </div>
         ) : (
