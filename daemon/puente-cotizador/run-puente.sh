@@ -10,4 +10,7 @@ set -a
 source /Users/ezeotero/.ravn-puente/env
 set +a
 cd /Users/ezeotero/Documents/ravn
-exec npx tsx daemon/puente-cotizador/puente.ts
+# tsx local del repo directo, sin npx: bajo launchd `npx` se colgaba resolviendo
+# contra el cache de npm (E2E 2026-07-26) — el binario de node_modules es
+# determinístico y arranca al toque.
+exec ./node_modules/.bin/tsx daemon/puente-cotizador/puente.ts
