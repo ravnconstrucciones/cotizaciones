@@ -2,14 +2,18 @@
 
 /**
  * Hoja viva (Tramo B) — el desglose como "hojas de Excel sin ser Excel":
- * botonera de rubros arriba (acento fino por rubro + total), tabla editable
- * inline (precio Eze pisa el rango, cantidad, toggle sí/no, ítems manuales).
+ * rubros apilados como botones desplegables (acento fino por rubro + total
+ * compacto + chevron), cada uno abre su propia tabla editable inline (precio
+ * Eze pisa el rango, cantidad, toggle sí/no, ítems manuales). Antes era una
+ * botonera de tabs con UNA tabla a la vez (pedido de Eze 26/07: volver al
+ * patrón de acordeón, varios rubros abiertos en simultáneo).
  * Cada edición pega a PATCH /api/cotizaciones/[id]/desglose, que re-corre el
  * motor SERVER-SIDE y persiste — acá no se suma nada, solo se muestra.
  */
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import type { Desglose, ItemDesglose, PrecioFechado, Unidad } from "@/lib/cotizador/tipos";
-import { RUBRO_POR_ID, RUBROS, rubroDeItem, type RubroId } from "@/lib/cotizador/rubros";
+import { RUBRO_POR_ID, RUBROS, rubroDeItem, type RubroDef, type RubroId } from "@/lib/cotizador/rubros";
 import { parseLiteral } from "@/lib/cotizador/parse-literal";
 import { formatMoneyInt } from "@/lib/format-currency";
 import { RecorteItemModal } from "./recorte-item";
@@ -19,7 +23,7 @@ const UNIDADES: Unidad[] = ["u", "m2", "ml", "kg", "l", "bolsa", "caja", "m3", "
 const INPUT_NUM =
   "w-24 border-0 border-b border-cdm-line bg-transparent px-1 py-1 text-right text-xs tabular-nums text-cdm-fg placeholder:text-cdm-muted/50 focus-visible:border-cdm-accent focus-visible:outline-none disabled:opacity-40";
 
-/** "$9,3M" / "$740k" / "$980" — total del rubro en el tab, corto. */
+/** "$9,3M" / "$740k" / "$980" — total del rubro en la fila del acordeón, corto. */
 function compacto(v: number): string {
   if (v >= 1_000_000) return `$${(v / 1_000_000).toFixed(1).replace(".", ",").replace(",0", "")}M`;
   if (v >= 1_000) return `$${Math.round(v / 1_000)}k`;
@@ -85,6 +89,398 @@ type OpPatch =
   | { manual: { nombre: string; rubro: string; tipo: "material" | "mano_de_obra"; unidad: Unidad; cantidad: number; precio?: number } }
   | { quitar_manual: string };
 
+type FotosCrops = { render_url: string | null; crops: Record<string, string> };
+type FormAlta = { nombre: string; cantidad: string; unidad: Unidad; precio: string };
+
+/**
+ * Tabla editable de UN rubro — antes era la única tabla visible (la del tab
+ * activo); ahora vive adentro del cuerpo desplegable de cada fila-rubro, así
+ * que puede haber varias montadas a la vez si Eze abrió más de un rubro.
+ */
+function TablaRubro({
+  items,
+  extras,
+  editable,
+  guardando,
+  borradores,
+  onBorrador,
+  onConfirmar,
+  onPatch,
+  fotos,
+  onRecorte,
+}: {
+  items: ItemDesglose[];
+  /** Solo el rubro "extras" manda su lista acá (readonly v1). */
+  extras: Desglose["extras"] | null;
+  editable: boolean;
+  guardando: boolean;
+  borradores: Record<string, string>;
+  onBorrador: (clave: string, valor: string) => void;
+  onConfirmar: (campo: "precio" | "cantidad", item: ItemDesglose) => void;
+  onPatch: (op: OpPatch) => Promise<boolean>;
+  fotos: FotosCrops;
+  onRecorte: (nombre: string) => void;
+}) {
+  if (items.length === 0 && (!extras || extras.length === 0)) return null;
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full text-left text-xs">
+        <thead>
+          <tr className="text-[10px] uppercase tracking-[0.14em] text-cdm-muted">
+            {editable && <th className="w-8 py-2 pr-2" title="En alcance">✓</th>}
+            <th className="py-2 pr-3">Ítem</th>
+            <th className="py-2 pr-3 text-right">Cant.</th>
+            <th className="py-2 pr-3 text-right">Precio</th>
+            <th className="py-2 pr-3">Fuentes</th>
+            <th className="py-2 text-right">Subtotal</th>
+            {editable && <th className="w-8 py-2" />}
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-cdm-line">
+          {items.map((it) => {
+            const apagado = it.activo === false;
+            const eze = it.precios.eze;
+            const claveP = `precio:${it.nombre}`;
+            const claveC = `cantidad:${it.nombre}`;
+            const divergente = it.divergencia_pct != null && it.divergencia_pct > 25;
+            return (
+              <tr key={it.nombre} className={apagado ? "opacity-45" : undefined}>
+                {editable && (
+                  <td className="py-2 pr-2 align-top">
+                    {/* Un manual no admite toggle (el endpoint solo ajusta ítems
+                        de receta): se saca del alcance borrándolo con ×. */}
+                    {!it.manual && (
+                      <input
+                        type="checkbox"
+                        checked={!apagado}
+                        disabled={guardando}
+                        onChange={(e) => void onPatch({ ajuste: { nombre: it.nombre, activo: e.target.checked } })}
+                        className="h-3.5 w-3.5 cursor-pointer accent-cdm-accent"
+                        title={apagado ? "Volver al alcance" : "Sacar del alcance (no suma)"}
+                      />
+                    )}
+                  </td>
+                )}
+                <td className="py-2 pr-3 align-top">
+                  <span className="flex items-start gap-2.5">
+                    {/* Thumbnail de tamaño FIJO (nada se corre de margen). */}
+                    <MiniCrop
+                      url={fotos.crops[it.nombre] ?? null}
+                      editable={editable}
+                      onAbrir={() => onRecorte(it.nombre)}
+                    />
+                    <span className="min-w-0">
+                      <span className={apagado ? "line-through" : undefined}>{it.nombre}</span>
+                      {it.sin_precio && (
+                        <span className="ml-1.5 text-[10px] font-semibold text-amber-300">SIN PRECIO</span>
+                      )}
+                      {it.manual && (
+                        <span className="ml-1.5 cdm-chip border border-cdm-line px-1 text-[9px] uppercase tracking-[0.1em] text-cdm-muted">
+                          manual
+                        </span>
+                      )}
+                      <span className="mt-0.5 block font-mono text-[10px] text-cdm-muted">
+                        {it.etapa} · {it.formula}
+                        {it.desperdicio_pct > 0 ? ` +${it.desperdicio_pct}% desp.` : ""}
+                      </span>
+                    </span>
+                  </span>
+                </td>
+                <td className="py-2 pr-3 text-right align-top">
+                  {editable && !it.manual ? (
+                    <span className="inline-flex items-center gap-1">
+                      {it.cantidad_editada && (
+                        <button
+                          disabled={guardando}
+                          onClick={() => void onPatch({ ajuste: { nombre: it.nombre, cantidad: null } })}
+                          className="cursor-pointer text-[10px] text-cdm-muted hover:text-cdm-accent"
+                          title="Volver a la cantidad de la fórmula"
+                        >
+                          ↺
+                        </button>
+                      )}
+                      <input
+                        value={borradores[claveC] ?? String(it.cantidad)}
+                        disabled={guardando || apagado}
+                        inputMode="decimal"
+                        onChange={(e) => onBorrador(claveC, e.target.value)}
+                        onBlur={() => onConfirmar("cantidad", it)}
+                        onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()}
+                        className={`${INPUT_NUM} w-16 ${it.cantidad_editada ? "text-cdm-accent" : ""}`}
+                      />
+                    </span>
+                  ) : (
+                    <span className="tabular-nums">{it.cantidad}</span>
+                  )}
+                  <span className="ml-1 text-cdm-muted">{it.unidad}</span>
+                </td>
+                <td className="py-2 pr-3 text-right align-top">
+                  {editable ? (
+                    <span className="inline-flex items-center gap-1">
+                      {eze && !it.manual && (
+                        <button
+                          disabled={guardando}
+                          onClick={() => void onPatch({ ajuste: { nombre: it.nombre, precio: null } })}
+                          className="cursor-pointer text-[10px] text-cdm-muted hover:text-cdm-accent"
+                          title="Quitar corrección — volver al rango de fuentes"
+                        >
+                          ↺
+                        </button>
+                      )}
+                      <input
+                        value={borradores[claveP] ?? (eze ? String(eze.valor) : "")}
+                        disabled={guardando || apagado || it.manual}
+                        inputMode="numeric"
+                        placeholder={
+                          it.sin_precio
+                            ? "sin precio"
+                            : it.precio_min === it.precio_max
+                              ? String(it.precio_min ?? "")
+                              : `${it.precio_min}–${it.precio_max}`
+                        }
+                        onChange={(e) => onBorrador(claveP, e.target.value)}
+                        onBlur={() => onConfirmar("precio", it)}
+                        onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()}
+                        className={`${INPUT_NUM} ${eze ? "text-cdm-accent" : ""}`}
+                        title={it.manual ? "El precio de un ítem manual se fija al crearlo (borralo y volvé a cargarlo)" : "Tu precio pisa el rango (queda con sello Eze)"}
+                      />
+                    </span>
+                  ) : (
+                    <span className="tabular-nums">
+                      {it.sin_precio
+                        ? "—"
+                        : it.precio_min === it.precio_max
+                          ? formatMoneyInt(it.precio_min!)
+                          : `${formatMoneyInt(it.precio_min!)} – ${formatMoneyInt(it.precio_max!)}`}
+                    </span>
+                  )}
+                  {eze && (
+                    <span className="mt-0.5 block text-[9px] font-semibold uppercase tracking-[0.14em] text-cdm-accent">
+                      Eze · {eze.fecha}
+                    </span>
+                  )}
+                </td>
+                <td className="py-2 pr-3 align-top text-[10px] leading-4 text-cdm-muted">
+                  <FuenteMini etiqueta="SIS" precio={it.precios.sismat} />
+                  <FuenteMini etiqueta="NET" precio={it.precios.internet} />
+                  <FuenteMini etiqueta="RET" precio={it.precios.retail} />
+                  {divergente && (
+                    <span className="font-semibold text-red-400">Δ {it.divergencia_pct}%</span>
+                  )}
+                </td>
+                <td className="py-2 text-right align-top tabular-nums">
+                  {it.sin_precio
+                    ? "—"
+                    : it.subtotal_min === it.subtotal_max
+                      ? formatMoneyInt(it.subtotal_min)
+                      : `${formatMoneyInt(it.subtotal_min)} – ${formatMoneyInt(it.subtotal_max)}`}
+                </td>
+                {editable && (
+                  <td className="py-2 text-right align-top">
+                    {it.manual && (
+                      <button
+                        disabled={guardando}
+                        onClick={() => void onPatch({ quitar_manual: it.nombre })}
+                        className="cursor-pointer text-cdm-muted hover:text-red-400"
+                        title="Quitar ítem manual"
+                      >
+                        ×
+                      </button>
+                    )}
+                  </td>
+                )}
+              </tr>
+            );
+          })}
+
+          {/* Extras (flete, volquete…): solo lectura v1. */}
+          {extras?.map((ex) => (
+            <tr key={`extra:${ex.nombre}`}>
+              {editable && <td className="py-2 pr-2" />}
+              <td className="py-2 pr-3">
+                {ex.nombre}
+                <span className="mt-0.5 block font-mono text-[10px] text-cdm-muted">
+                  extra fuera de receta
+                </span>
+              </td>
+              <td className="py-2 pr-3 text-right text-cdm-muted">—</td>
+              <td className="py-2 pr-3 text-right text-cdm-muted">—</td>
+              <td className="py-2 pr-3 text-[10px] text-cdm-muted">
+                {ex.fuente} · {ex.fecha}
+              </td>
+              <td className="py-2 text-right tabular-nums">
+                {formatMoneyInt(ex.monto_min)} – {formatMoneyInt(ex.monto_max)}
+              </td>
+              {editable && <td className="py-2" />}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+/** Formulario de alta manual — vive adentro del rubro al que cae el ítem. */
+function AltaManual({
+  rubroLabel,
+  abierta,
+  guardando,
+  alta,
+  onCambiar,
+  onAbrir,
+  onAgregar,
+  onCancelar,
+}: {
+  rubroLabel: string;
+  abierta: boolean;
+  guardando: boolean;
+  alta: FormAlta;
+  onCambiar: (siguiente: FormAlta) => void;
+  onAbrir: () => void;
+  onAgregar: () => void;
+  onCancelar: () => void;
+}) {
+  if (!abierta) {
+    return (
+      <button
+        onClick={onAbrir}
+        className="cdm-chip cursor-pointer border border-cdm-line px-3 py-1.5 text-[10px] uppercase tracking-[0.14em] text-cdm-muted transition-colors hover:border-cdm-accent/60 hover:text-cdm-accent"
+      >
+        + Agregar ítem en {rubroLabel}
+      </button>
+    );
+  }
+  return (
+    <div className="flex flex-wrap items-end gap-3 text-xs">
+      <label className="min-w-56 flex-1 text-[10px] uppercase tracking-[0.14em] text-cdm-muted">
+        Ítem
+        <input
+          value={alta.nombre}
+          autoFocus
+          onChange={(e) => onCambiar({ ...alta, nombre: e.target.value })}
+          placeholder="Nombre del ítem"
+          className="mt-1 block w-full border-0 border-b border-cdm-line bg-transparent px-1 py-1.5 text-xs normal-case tracking-normal text-cdm-fg placeholder:text-cdm-muted/50 focus-visible:border-cdm-accent focus-visible:outline-none"
+        />
+      </label>
+      <label className="text-[10px] uppercase tracking-[0.14em] text-cdm-muted">
+        Cant.
+        <input
+          value={alta.cantidad}
+          inputMode="decimal"
+          onChange={(e) => onCambiar({ ...alta, cantidad: e.target.value })}
+          className={`${INPUT_NUM} mt-1 block w-16`}
+        />
+      </label>
+      <label className="text-[10px] uppercase tracking-[0.14em] text-cdm-muted">
+        Unidad
+        <select
+          value={alta.unidad}
+          onChange={(e) => onCambiar({ ...alta, unidad: e.target.value as Unidad })}
+          className="mt-1 block border border-cdm-line bg-cdm-panel/60 px-2 py-1 text-xs text-cdm-fg focus:border-cdm-accent focus:outline-none"
+        >
+          {UNIDADES.map((u) => (
+            <option key={u} value={u}>
+              {u}
+            </option>
+          ))}
+        </select>
+      </label>
+      <label className="text-[10px] uppercase tracking-[0.14em] text-cdm-muted">
+        Precio (opcional)
+        <input
+          value={alta.precio}
+          inputMode="numeric"
+          onChange={(e) => onCambiar({ ...alta, precio: e.target.value })}
+          placeholder="sin precio"
+          className={`${INPUT_NUM} mt-1 block`}
+        />
+      </label>
+      <button
+        disabled={guardando}
+        onClick={onAgregar}
+        className="cdm-chip cursor-pointer border border-cdm-accent/60 px-3 py-1.5 text-[10px] uppercase tracking-[0.14em] text-cdm-accent hover:bg-cdm-accent/10 disabled:opacity-50"
+      >
+        Agregar
+      </button>
+      <button
+        onClick={onCancelar}
+        className="cursor-pointer text-[10px] uppercase tracking-[0.14em] text-cdm-muted hover:text-cdm-fg"
+      >
+        Cancelar
+      </button>
+    </div>
+  );
+}
+
+/**
+ * Fila-botón de un rubro: acento fino a la izquierda, chevron, nombre + conteo,
+ * total compacto a la derecha. Despliega `children` debajo (mismo patrón de
+ * expand/collapse que /dinero: height auto + opacity, respeta reduced motion).
+ */
+function RubroFila({
+  rubro,
+  abierto,
+  onToggle,
+  total,
+  cuenta,
+  reducir,
+  children,
+}: {
+  rubro: RubroDef;
+  abierto: boolean;
+  onToggle: () => void;
+  total: { min: number; max: number };
+  cuenta: number;
+  reducir: boolean | null;
+  children: ReactNode;
+}) {
+  return (
+    <div className="border-b border-cdm-line last:border-b-0">
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-expanded={abierto}
+        className="group flex w-full items-center gap-3 py-3 text-left"
+      >
+        <span aria-hidden className={`h-6 w-[3px] shrink-0 ${rubro.acento.punto}`} />
+        <motion.svg
+          aria-hidden
+          viewBox="0 0 16 16"
+          className="h-3 w-3 shrink-0 text-cdm-muted"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.5"
+          animate={reducir ? undefined : { rotate: abierto ? 90 : 0 }}
+          transition={{ duration: 0.2, ease: "easeOut" }}
+        >
+          <path d="M6 4l4 4-4 4" strokeLinecap="round" strokeLinejoin="round" />
+        </motion.svg>
+        <span className="min-w-0 flex-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-cdm-fg">
+          {rubro.label}
+          <span className="ml-2 font-normal normal-case tracking-normal text-cdm-muted">· {cuenta}</span>
+        </span>
+        <span className={`shrink-0 text-sm tabular-nums ${rubro.acento.texto}`}>
+          {total.min === 0 && total.max === 0 ? "—" : compactoRango(total.min, total.max)}
+        </span>
+      </button>
+      <AnimatePresence initial={false}>
+        {abierto && (
+          <motion.div
+            key="cuerpo"
+            initial={reducir ? false : { height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={reducir ? undefined : { height: 0, opacity: 0 }}
+            transition={{ duration: 0.24, ease: [0.22, 1, 0.36, 1] }}
+            className="overflow-hidden"
+          >
+            <div className="pb-4 pl-[15px]">{children}</div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
 type Props = {
   cotizacionId: string;
   desglose: Desglose;
@@ -93,7 +489,6 @@ type Props = {
 };
 
 export function HojaViva({ cotizacionId, desglose, editable, onRefresh }: Props) {
-  const [tab, setTab] = useState<RubroId | null>(null);
   // Rubro elegido a mano cuando todavía no hay NINGÚN ítem (fix ronda final
   // finding 5): sin esto, `rubroActivo` da null y el alta manual (gateada por
   // rubroActivo, ver más abajo) nunca puede renderizar — el puente caído deja
@@ -103,13 +498,13 @@ export function HojaViva({ cotizacionId, desglose, editable, onRefresh }: Props)
   const [error, setError] = useState<string | null>(null);
   // Borradores de inputs en curso, por "campo:nombre". Se limpian al confirmar.
   const [borradores, setBorradores] = useState<Record<string, string>>({});
-  const [altaAbierta, setAltaAbierta] = useState(false);
-  const [alta, setAlta] = useState({ nombre: "", cantidad: "1", unidad: "u" as Unidad, precio: "" });
+  // Qué rubro tiene el form de alta manual abierto (reemplaza el booleano
+  // global: el alta ahora vive adentro del desplegable de CADA rubro, no
+  // depende de una "tab activa" única — pedido de Eze 26/07).
+  const [altaEnRubro, setAltaEnRubro] = useState<RubroId | null>(null);
+  const [alta, setAlta] = useState<FormAlta>({ nombre: "", cantidad: "1", unidad: "u", precio: "" });
   // Recortes del render por ítem (thumbnail fijo por fila) + render base.
-  const [fotos, setFotos] = useState<{ render_url: string | null; crops: Record<string, string> }>({
-    render_url: null,
-    crops: {},
-  });
+  const [fotos, setFotos] = useState<FotosCrops>({ render_url: null, crops: {} });
   const [recorteDe, setRecorteDe] = useState<string | null>(null);
 
   const cargarCrops = useCallback(async () => {
@@ -141,14 +536,24 @@ export function HojaViva({ cotizacionId, desglose, editable, onRefresh }: Props)
   const hayExtras = desglose.extras.length > 0;
   const tabs = RUBROS.filter((r) => grupos.has(r.id) || (r.id === "extras" && hayExtras));
   // Sin ítems todavía (cotización nueva, puente caído o recién arrancando):
-  // no hay tabs de dónde elegir, pero si es editable igual necesitamos un
+  // no hay rubros de dónde elegir, pero si es editable igual necesitamos un
   // rubro activo para que el alta manual tenga dónde caer.
   const sinTabs = tabs.length === 0;
-  const tabActiva = sinTabs
-    ? rubroVacio
-    : (tab && tabs.some((t) => t.id === tab) ? tab : (tabs[0]?.id ?? null));
-  const rubroActivo = sinTabs ? (RUBRO_POR_ID[rubroVacio] ?? null) : (tabs.find((t) => t.id === tabActiva) ?? null);
-  const itemsActivos = !sinTabs && tabActiva ? (grupos.get(tabActiva) ?? []) : [];
+
+  // Al montar: el primer rubro con ítems abierto (orden canónico de RUBROS),
+  // el resto cerrado. Se pueden abrir varios a la vez después — este estado
+  // no se vuelve a inicializar aunque cambien los rubros con ítems.
+  const [abiertos, setAbiertos] = useState<Set<RubroId>>(() => (tabs[0] ? new Set([tabs[0].id]) : new Set()));
+  const reducirMovimiento = useReducedMotion();
+
+  function toggleRubro(id: RubroId) {
+    setAbiertos((prev) => {
+      const siguiente = new Set(prev);
+      if (siguiente.has(id)) siguiente.delete(id);
+      else siguiente.add(id);
+      return siguiente;
+    });
+  }
 
   function totalRubro(id: RubroId): { min: number; max: number } {
     let min = 0;
@@ -207,8 +612,7 @@ export function HojaViva({ cotizacionId, desglose, editable, onRefresh }: Props)
     void patch({ ajuste: { nombre: item.nombre, [campo]: valor } });
   }
 
-  function agregarManual() {
-    if (!tabActiva) return;
+  function agregarManual(rubro: RubroId) {
     const cantidad = parseLiteral(alta.cantidad);
     if (!alta.nombre.trim() || cantidad == null) {
       setError("El ítem nuevo necesita nombre y cantidad (> 0).");
@@ -218,8 +622,8 @@ export function HojaViva({ cotizacionId, desglose, editable, onRefresh }: Props)
     void patch({
       manual: {
         nombre: alta.nombre.trim(),
-        rubro: tabActiva,
-        tipo: tabActiva === "mano_de_obra" ? "mano_de_obra" : "material",
+        rubro,
+        tipo: rubro === "mano_de_obra" ? "mano_de_obra" : "material",
         unidad: alta.unidad,
         cantidad,
         ...(precio != null ? { precio } : {}),
@@ -227,7 +631,7 @@ export function HojaViva({ cotizacionId, desglose, editable, onRefresh }: Props)
     }).then((ok) => {
       if (!ok) return; // el error quedó visible; no se pierde lo tipeado
       setAlta({ nombre: "", cantidad: "1", unidad: "u", precio: "" });
-      setAltaAbierta(false);
+      setAltaEnRubro(null);
     });
   }
 
@@ -236,323 +640,87 @@ export function HojaViva({ cotizacionId, desglose, editable, onRefresh }: Props)
 
   return (
     <div>
-      {/* ── Botonera de rubros, o selector de rubro si todavía no hay ningún
-          ítem (mesa viva con el puente caído — fix ronda final finding 5) ── */}
       {sinTabs ? (
-        <div className="mb-3 flex items-center gap-2 text-[10px] uppercase tracking-[0.14em] text-cdm-muted">
-          <span>Rubro del primer ítem</span>
-          <select
-            value={rubroVacio}
-            onChange={(e) => setRubroVacio(e.target.value as RubroId)}
-            className="border border-cdm-line bg-cdm-panel/60 px-2 py-1 text-[10px] normal-case tracking-normal text-cdm-fg focus:border-cdm-accent focus:outline-none"
-          >
-            {RUBROS.filter((r) => r.id !== "extras").map((r) => (
-              <option key={r.id} value={r.id}>
-                {r.label}
-              </option>
-            ))}
-          </select>
-        </div>
-      ) : (
-        <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-3">
-          {tabs.map((r) => {
-            const activa = r.id === tabActiva;
-            const t = totalRubro(r.id);
-            const cuenta = (grupos.get(r.id) ?? []).length + (r.id === "extras" ? desglose.extras.length : 0);
-            return (
-              <button
-                key={r.id}
-                onClick={() => setTab(r.id)}
-                className={`cdm-chip shrink-0 cursor-pointer border px-3 py-2 text-left transition-colors ${
-                  activa ? `${r.acento.borde} bg-white/[0.04]` : "border-cdm-line hover:border-cdm-muted/60"
-                }`}
-              >
-                <span className="flex items-center gap-1.5 text-[10px] uppercase tracking-[0.14em] text-cdm-muted">
-                  <span aria-hidden className={`h-1.5 w-1.5 ${r.acento.punto} ${activa ? "" : "opacity-40"}`} />
-                  {r.label}
-                  <span className="opacity-60">· {cuenta}</span>
-                </span>
-                <span className={`mt-0.5 block text-sm tabular-nums ${activa ? r.acento.texto : "text-cdm-fg"}`}>
-                  {t.min === 0 && t.max === 0 ? "—" : compactoRango(t.min, t.max)}
-                </span>
-              </button>
-            );
-          })}
-        </div>
-      )}
-
-      {error && <p className="mb-2 text-xs text-red-400">{error}</p>}
-
-      {/* ── Tabla del rubro activo (sin ítems todavía: nada que tabular) ──── */}
-      {!sinTabs && (
-      <div className="overflow-x-auto">
-        <table className="w-full text-left text-xs">
-          <thead>
-            <tr className="text-[10px] uppercase tracking-[0.14em] text-cdm-muted">
-              {editable && <th className="w-8 py-2 pr-2" title="En alcance">✓</th>}
-              <th className="py-2 pr-3">Ítem</th>
-              <th className="py-2 pr-3 text-right">Cant.</th>
-              <th className="py-2 pr-3 text-right">Precio</th>
-              <th className="py-2 pr-3">Fuentes</th>
-              <th className="py-2 text-right">Subtotal</th>
-              {editable && <th className="w-8 py-2" />}
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-cdm-line">
-            {itemsActivos.map((it) => {
-              const apagado = it.activo === false;
-              const eze = it.precios.eze;
-              const claveP = `precio:${it.nombre}`;
-              const claveC = `cantidad:${it.nombre}`;
-              const divergente = it.divergencia_pct != null && it.divergencia_pct > 25;
-              return (
-                <tr key={it.nombre} className={apagado ? "opacity-45" : undefined}>
-                  {editable && (
-                    <td className="py-2 pr-2 align-top">
-                      {/* Un manual no admite toggle (el endpoint solo ajusta ítems
-                          de receta): se saca del alcance borrándolo con ×. */}
-                      {!it.manual && (
-                        <input
-                          type="checkbox"
-                          checked={!apagado}
-                          disabled={guardando}
-                          onChange={(e) => void patch({ ajuste: { nombre: it.nombre, activo: e.target.checked } })}
-                          className="h-3.5 w-3.5 cursor-pointer accent-cdm-accent"
-                          title={apagado ? "Volver al alcance" : "Sacar del alcance (no suma)"}
-                        />
-                      )}
-                    </td>
-                  )}
-                  <td className="py-2 pr-3 align-top">
-                    <span className="flex items-start gap-2.5">
-                      {/* Thumbnail de tamaño FIJO (nada se corre de margen). */}
-                      <MiniCrop
-                        url={fotos.crops[it.nombre] ?? null}
-                        editable={editable}
-                        onAbrir={() => setRecorteDe(it.nombre)}
-                      />
-                      <span className="min-w-0">
-                        <span className={apagado ? "line-through" : undefined}>{it.nombre}</span>
-                        {it.sin_precio && (
-                          <span className="ml-1.5 text-[10px] font-semibold text-amber-300">SIN PRECIO</span>
-                        )}
-                        {it.manual && (
-                          <span className="ml-1.5 cdm-chip border border-cdm-line px-1 text-[9px] uppercase tracking-[0.1em] text-cdm-muted">
-                            manual
-                          </span>
-                        )}
-                        <span className="mt-0.5 block font-mono text-[10px] text-cdm-muted">
-                          {it.etapa} · {it.formula}
-                          {it.desperdicio_pct > 0 ? ` +${it.desperdicio_pct}% desp.` : ""}
-                        </span>
-                      </span>
-                    </span>
-                  </td>
-                  <td className="py-2 pr-3 text-right align-top">
-                    {editable && !it.manual ? (
-                      <span className="inline-flex items-center gap-1">
-                        {it.cantidad_editada && (
-                          <button
-                            disabled={guardando}
-                            onClick={() => void patch({ ajuste: { nombre: it.nombre, cantidad: null } })}
-                            className="cursor-pointer text-[10px] text-cdm-muted hover:text-cdm-accent"
-                            title="Volver a la cantidad de la fórmula"
-                          >
-                            ↺
-                          </button>
-                        )}
-                        <input
-                          value={borradores[claveC] ?? String(it.cantidad)}
-                          disabled={guardando || apagado}
-                          inputMode="decimal"
-                          onChange={(e) => setBorradores((b) => ({ ...b, [claveC]: e.target.value }))}
-                          onBlur={() => confirmar("cantidad", it)}
-                          onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()}
-                          className={`${INPUT_NUM} w-16 ${it.cantidad_editada ? "text-cdm-accent" : ""}`}
-                        />
-                      </span>
-                    ) : (
-                      <span className="tabular-nums">{it.cantidad}</span>
-                    )}
-                    <span className="ml-1 text-cdm-muted">{it.unidad}</span>
-                  </td>
-                  <td className="py-2 pr-3 text-right align-top">
-                    {editable ? (
-                      <span className="inline-flex items-center gap-1">
-                        {eze && !it.manual && (
-                          <button
-                            disabled={guardando}
-                            onClick={() => void patch({ ajuste: { nombre: it.nombre, precio: null } })}
-                            className="cursor-pointer text-[10px] text-cdm-muted hover:text-cdm-accent"
-                            title="Quitar corrección — volver al rango de fuentes"
-                          >
-                            ↺
-                          </button>
-                        )}
-                        <input
-                          value={borradores[claveP] ?? (eze ? String(eze.valor) : "")}
-                          disabled={guardando || apagado || it.manual}
-                          inputMode="numeric"
-                          placeholder={
-                            it.sin_precio
-                              ? "sin precio"
-                              : it.precio_min === it.precio_max
-                                ? String(it.precio_min ?? "")
-                                : `${it.precio_min}–${it.precio_max}`
-                          }
-                          onChange={(e) => setBorradores((b) => ({ ...b, [claveP]: e.target.value }))}
-                          onBlur={() => confirmar("precio", it)}
-                          onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()}
-                          className={`${INPUT_NUM} ${eze ? "text-cdm-accent" : ""}`}
-                          title={it.manual ? "El precio de un ítem manual se fija al crearlo (borralo y volvé a cargarlo)" : "Tu precio pisa el rango (queda con sello Eze)"}
-                        />
-                      </span>
-                    ) : (
-                      <span className="tabular-nums">
-                        {it.sin_precio
-                          ? "—"
-                          : it.precio_min === it.precio_max
-                            ? formatMoneyInt(it.precio_min!)
-                            : `${formatMoneyInt(it.precio_min!)} – ${formatMoneyInt(it.precio_max!)}`}
-                      </span>
-                    )}
-                    {eze && (
-                      <span className="mt-0.5 block text-[9px] font-semibold uppercase tracking-[0.14em] text-cdm-accent">
-                        Eze · {eze.fecha}
-                      </span>
-                    )}
-                  </td>
-                  <td className="py-2 pr-3 align-top text-[10px] leading-4 text-cdm-muted">
-                    <FuenteMini etiqueta="SIS" precio={it.precios.sismat} />
-                    <FuenteMini etiqueta="NET" precio={it.precios.internet} />
-                    <FuenteMini etiqueta="RET" precio={it.precios.retail} />
-                    {divergente && (
-                      <span className="font-semibold text-red-400">Δ {it.divergencia_pct}%</span>
-                    )}
-                  </td>
-                  <td className="py-2 text-right align-top tabular-nums">
-                    {it.sin_precio
-                      ? "—"
-                      : it.subtotal_min === it.subtotal_max
-                        ? formatMoneyInt(it.subtotal_min)
-                        : `${formatMoneyInt(it.subtotal_min)} – ${formatMoneyInt(it.subtotal_max)}`}
-                  </td>
-                  {editable && (
-                    <td className="py-2 text-right align-top">
-                      {it.manual && (
-                        <button
-                          disabled={guardando}
-                          onClick={() => void patch({ quitar_manual: it.nombre })}
-                          className="cursor-pointer text-cdm-muted hover:text-red-400"
-                          title="Quitar ítem manual"
-                        >
-                          ×
-                        </button>
-                      )}
-                    </td>
-                  )}
-                </tr>
-              );
-            })}
-
-            {/* Extras (flete, volquete…) viven en su pestaña, solo lectura v1. */}
-            {tabActiva === "extras" &&
-              desglose.extras.map((ex) => (
-                <tr key={`extra:${ex.nombre}`}>
-                  {editable && <td className="py-2 pr-2" />}
-                  <td className="py-2 pr-3">
-                    {ex.nombre}
-                    <span className="mt-0.5 block font-mono text-[10px] text-cdm-muted">
-                      extra fuera de receta
-                    </span>
-                  </td>
-                  <td className="py-2 pr-3 text-right text-cdm-muted">—</td>
-                  <td className="py-2 pr-3 text-right text-cdm-muted">—</td>
-                  <td className="py-2 pr-3 text-[10px] text-cdm-muted">
-                    {ex.fuente} · {ex.fecha}
-                  </td>
-                  <td className="py-2 text-right tabular-nums">
-                    {formatMoneyInt(ex.monto_min)} – {formatMoneyInt(ex.monto_max)}
-                  </td>
-                  {editable && <td className="py-2" />}
-                </tr>
-              ))}
-          </tbody>
-        </table>
-      </div>
-      )}
-
-      {/* ── Alta de ítem manual en el rubro activo ────────────────────────── */}
-      {editable && rubroActivo && (
-        <div className="mt-3 border-t border-cdm-line pt-3">
-          {!altaAbierta ? (
-            <button
-              onClick={() => setAltaAbierta(true)}
-              className="cdm-chip cursor-pointer border border-cdm-line px-3 py-1.5 text-[10px] uppercase tracking-[0.14em] text-cdm-muted transition-colors hover:border-cdm-accent/60 hover:text-cdm-accent"
+        <div>
+          {/* Sin ningún ítem todavía (mesa viva con el puente caído — fix ronda
+              final finding 5): selector de rubro para que el alta manual sepa
+              dónde caer, ya que no hay ningún desplegable para abrir. */}
+          <div className="mb-3 flex items-center gap-2 text-[10px] uppercase tracking-[0.14em] text-cdm-muted">
+            <span>Rubro del primer ítem</span>
+            <select
+              value={rubroVacio}
+              onChange={(e) => setRubroVacio(e.target.value as RubroId)}
+              className="border border-cdm-line bg-cdm-panel/60 px-2 py-1 text-[10px] normal-case tracking-normal text-cdm-fg focus:border-cdm-accent focus:outline-none"
             >
-              + Agregar ítem en {rubroActivo.label}
-            </button>
-          ) : (
-            <div className="flex flex-wrap items-end gap-3 text-xs">
-              <label className="min-w-56 flex-1 text-[10px] uppercase tracking-[0.14em] text-cdm-muted">
-                Ítem
-                <input
-                  value={alta.nombre}
-                  autoFocus
-                  onChange={(e) => setAlta((a) => ({ ...a, nombre: e.target.value }))}
-                  placeholder="Nombre del ítem"
-                  className="mt-1 block w-full border-0 border-b border-cdm-line bg-transparent px-1 py-1.5 text-xs normal-case tracking-normal text-cdm-fg placeholder:text-cdm-muted/50 focus-visible:border-cdm-accent focus-visible:outline-none"
-                />
-              </label>
-              <label className="text-[10px] uppercase tracking-[0.14em] text-cdm-muted">
-                Cant.
-                <input
-                  value={alta.cantidad}
-                  inputMode="decimal"
-                  onChange={(e) => setAlta((a) => ({ ...a, cantidad: e.target.value }))}
-                  className={`${INPUT_NUM} mt-1 block w-16`}
-                />
-              </label>
-              <label className="text-[10px] uppercase tracking-[0.14em] text-cdm-muted">
-                Unidad
-                <select
-                  value={alta.unidad}
-                  onChange={(e) => setAlta((a) => ({ ...a, unidad: e.target.value as Unidad }))}
-                  className="mt-1 block border border-cdm-line bg-cdm-panel/60 px-2 py-1 text-xs text-cdm-fg focus:border-cdm-accent focus:outline-none"
-                >
-                  {UNIDADES.map((u) => (
-                    <option key={u} value={u}>
-                      {u}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="text-[10px] uppercase tracking-[0.14em] text-cdm-muted">
-                Precio (opcional)
-                <input
-                  value={alta.precio}
-                  inputMode="numeric"
-                  onChange={(e) => setAlta((a) => ({ ...a, precio: e.target.value }))}
-                  placeholder="sin precio"
-                  className={`${INPUT_NUM} mt-1 block`}
-                />
-              </label>
-              <button
-                disabled={guardando}
-                onClick={agregarManual}
-                className="cdm-chip cursor-pointer border border-cdm-accent/60 px-3 py-1.5 text-[10px] uppercase tracking-[0.14em] text-cdm-accent hover:bg-cdm-accent/10 disabled:opacity-50"
-              >
-                Agregar
-              </button>
-              <button
-                onClick={() => setAltaAbierta(false)}
-                className="cursor-pointer text-[10px] uppercase tracking-[0.14em] text-cdm-muted hover:text-cdm-fg"
-              >
-                Cancelar
-              </button>
-            </div>
+              {RUBROS.filter((r) => r.id !== "extras").map((r) => (
+                <option key={r.id} value={r.id}>
+                  {r.label}
+                </option>
+              ))}
+            </select>
+          </div>
+          {error && <p className="mb-2 text-xs text-red-400">{error}</p>}
+          {editable && (
+            <AltaManual
+              rubroLabel={RUBRO_POR_ID[rubroVacio]?.label ?? rubroVacio}
+              abierta={altaEnRubro === rubroVacio}
+              guardando={guardando}
+              alta={alta}
+              onCambiar={setAlta}
+              onAbrir={() => setAltaEnRubro(rubroVacio)}
+              onAgregar={() => agregarManual(rubroVacio)}
+              onCancelar={() => setAltaEnRubro(null)}
+            />
           )}
         </div>
+      ) : (
+        <>
+          {error && <p className="mb-2 text-xs text-red-400">{error}</p>}
+          <div className="border-t border-cdm-line">
+            {tabs.map((r) => {
+              const items = grupos.get(r.id) ?? [];
+              const cuenta = items.length + (r.id === "extras" ? desglose.extras.length : 0);
+              return (
+                <RubroFila
+                  key={r.id}
+                  rubro={r}
+                  abierto={abiertos.has(r.id)}
+                  onToggle={() => toggleRubro(r.id)}
+                  total={totalRubro(r.id)}
+                  cuenta={cuenta}
+                  reducir={reducirMovimiento}
+                >
+                  <TablaRubro
+                    items={items}
+                    extras={r.id === "extras" ? desglose.extras : null}
+                    editable={editable}
+                    guardando={guardando}
+                    borradores={borradores}
+                    onBorrador={(clave, valor) => setBorradores((b) => ({ ...b, [clave]: valor }))}
+                    onConfirmar={confirmar}
+                    onPatch={patch}
+                    fotos={fotos}
+                    onRecorte={setRecorteDe}
+                  />
+                  {editable && (
+                    <div className="mt-3 border-t border-cdm-line pt-3">
+                      <AltaManual
+                        rubroLabel={r.label}
+                        abierta={altaEnRubro === r.id}
+                        guardando={guardando}
+                        alta={alta}
+                        onCambiar={setAlta}
+                        onAbrir={() => setAltaEnRubro(r.id)}
+                        onAgregar={() => agregarManual(r.id)}
+                        onCancelar={() => setAltaEnRubro(null)}
+                      />
+                    </div>
+                  )}
+                </RubroFila>
+              );
+            })}
+          </div>
+        </>
       )}
 
       {/* ── Totales (los suma el motor, no esta pantalla) ─────────────────── */}
