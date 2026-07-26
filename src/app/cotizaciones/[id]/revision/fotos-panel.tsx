@@ -21,7 +21,9 @@ export function FotosPanel({ cotizacionId, version }: { cotizacionId: string; ve
   const cargar = useCallback(async () => {
     const res = await fetch(`/api/cotizaciones/${cotizacionId}/archivos`, { cache: "no-store" });
     const json = await res.json().catch(() => null);
-    if (res.ok) setFotos((json?.archivos ?? []).filter((a: Foto) => a.url));
+    // Por tipo, no por `url`: un PDF adjunto también tiene `url` (firmada) y
+    // rompía la galería como imagen rota (fix ronda 1, finding 2).
+    if (res.ok) setFotos((json?.archivos ?? []).filter((a: Foto) => a.tipo === "foto" && a.url));
   }, [cotizacionId]);
 
   useEffect(() => { void cargar(); }, [cargar, version]);

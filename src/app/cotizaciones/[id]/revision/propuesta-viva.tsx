@@ -29,9 +29,12 @@ export function PropuestaViva({
       .then((r) => r.json())
       .then((j) => {
         if (!vivo) return;
+        // Por tipo, no por `url`: un PDF marcado "en propuesta" también tiene
+        // `url` y rompía el documento como imagen rota (fix ronda 1, finding 2).
         setFotos(
           (j?.archivos ?? []).filter(
-            (a: { en_propuesta?: boolean; url?: string | null }) => a.en_propuesta && a.url
+            (a: { tipo?: string; en_propuesta?: boolean; url?: string | null }) =>
+              a.tipo === "foto" && a.en_propuesta && a.url
           )
         );
       })
