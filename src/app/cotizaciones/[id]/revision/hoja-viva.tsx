@@ -2,18 +2,19 @@
 
 /**
  * Hoja viva (Tramo B) — el desglose como "hojas de Excel sin ser Excel":
- * rubros apilados como botones desplegables (acento fino por rubro + total
- * compacto + chevron), cada uno abre su propia tabla editable inline (precio
- * Eze pisa el rango, cantidad, toggle sí/no, ítems manuales). Antes era una
- * botonera de tabs con UNA tabla a la vez (pedido de Eze 26/07: volver al
- * patrón de acordeón, varios rubros abiertos en simultáneo).
+ * UNA grilla a la vez con líneas de filas y columnas marcadas, y la botonera
+ * de rubros ABAJO de la grilla como las solapas de hoja de un Excel (pedido
+ * de Eze 26/07: el acordeón lateral quedaba "al costado"; las solapas van
+ * apareciendo solas a medida que se agregan rubros). Abajo de las solapas,
+ * los totales como barra de estado. La grilla es editable inline (precio Eze
+ * pisa el rango, cantidad, toggle sí/no, ítems manuales).
  * Cada edición pega a PATCH /api/cotizaciones/[id]/desglose, que re-corre el
  * motor SERVER-SIDE y persiste — acá no se suma nada, solo se muestra.
  */
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import type { Desglose, ItemDesglose, PrecioFechado, Unidad } from "@/lib/cotizador/tipos";
-import { RUBRO_POR_ID, RUBROS, rubroDeItem, type RubroDef, type RubroId } from "@/lib/cotizador/rubros";
+import { RUBRO_POR_ID, RUBROS, rubroDeItem, type RubroId } from "@/lib/cotizador/rubros";
 import { parseLiteral } from "@/lib/cotizador/parse-literal";
 import { formatMoneyInt } from "@/lib/format-currency";
 import { RecorteItemModal } from "./recorte-item";
@@ -23,7 +24,7 @@ const UNIDADES: Unidad[] = ["u", "m2", "ml", "kg", "l", "bolsa", "caja", "m3", "
 const INPUT_NUM =
   "w-24 border-0 border-b border-cdm-line bg-transparent px-1 py-1 text-right text-xs tabular-nums text-cdm-fg placeholder:text-cdm-muted/50 focus-visible:border-cdm-accent focus-visible:outline-none disabled:opacity-40";
 
-/** "$9,3M" / "$740k" / "$980" — total del rubro en la fila del acordeón, corto. */
+/** "$9,3M" / "$740k" / "$980" — total del rubro en la solapa, corto. */
 function compacto(v: number): string {
   if (v >= 1_000_000) return `$${(v / 1_000_000).toFixed(1).replace(".", ",").replace(",0", "")}M`;
   if (v >= 1_000) return `$${Math.round(v / 1_000)}k`;
@@ -93,9 +94,8 @@ type FotosCrops = { render_url: string | null; crops: Record<string, string> };
 type FormAlta = { nombre: string; cantidad: string; unidad: Unidad; precio: string };
 
 /**
- * Tabla editable de UN rubro — antes era la única tabla visible (la del tab
- * activo); ahora vive adentro del cuerpo desplegable de cada fila-rubro, así
- * que puede haber varias montadas a la vez si Eze abrió más de un rubro.
+ * Grilla editable de UN rubro (la "hoja" de la solapa activa) — filas Y
+ * columnas con línea marcada, tipo Excel (pedido de Eze 26/07).
  */
 function TablaRubro({
   items,
@@ -126,14 +126,14 @@ function TablaRubro({
     <div className="overflow-x-auto">
       <table className="w-full text-left text-xs">
         <thead>
-          <tr className="text-[10px] uppercase tracking-[0.14em] text-cdm-muted">
-            {editable && <th className="w-8 py-2 pr-2" title="En alcance">✓</th>}
-            <th className="py-2 pr-3">Ítem</th>
-            <th className="py-2 pr-3 text-right">Cant.</th>
-            <th className="py-2 pr-3 text-right">Precio</th>
-            <th className="py-2 pr-3">Fuentes</th>
-            <th className="py-2 text-right">Subtotal</th>
-            {editable && <th className="w-8 py-2" />}
+          <tr className="divide-x divide-cdm-line border-b border-cdm-line bg-cdm-fg/[0.03] text-[10px] uppercase tracking-[0.14em] text-cdm-muted">
+            {editable && <th className="w-8 px-2 py-2" title="En alcance">✓</th>}
+            <th className="px-2 py-2">Ítem</th>
+            <th className="px-2 py-2 text-right">Cant.</th>
+            <th className="px-2 py-2 text-right">Precio</th>
+            <th className="px-2 py-2">Fuentes</th>
+            <th className="px-2 py-2 text-right">Subtotal</th>
+            {editable && <th className="w-8 px-2 py-2" />}
           </tr>
         </thead>
         <tbody className="divide-y divide-cdm-line">
@@ -144,9 +144,9 @@ function TablaRubro({
             const claveC = `cantidad:${it.nombre}`;
             const divergente = it.divergencia_pct != null && it.divergencia_pct > 25;
             return (
-              <tr key={it.nombre} className={apagado ? "opacity-45" : undefined}>
+              <tr key={it.nombre} className={`divide-x divide-cdm-line ${apagado ? "opacity-45" : ""}`}>
                 {editable && (
-                  <td className="py-2 pr-2 align-top">
+                  <td className="px-2 py-2 align-top">
                     {/* Un manual no admite toggle (el endpoint solo ajusta ítems
                         de receta): se saca del alcance borrándolo con ×. */}
                     {!it.manual && (
@@ -161,7 +161,7 @@ function TablaRubro({
                     )}
                   </td>
                 )}
-                <td className="py-2 pr-3 align-top">
+                <td className="px-2 py-2 align-top">
                   <span className="flex items-start gap-2.5">
                     {/* Thumbnail de tamaño FIJO (nada se corre de margen). */}
                     <MiniCrop
@@ -186,7 +186,7 @@ function TablaRubro({
                     </span>
                   </span>
                 </td>
-                <td className="py-2 pr-3 text-right align-top">
+                <td className="px-2 py-2 text-right align-top">
                   {editable && !it.manual ? (
                     <span className="inline-flex items-center gap-1">
                       {it.cantidad_editada && (
@@ -214,7 +214,7 @@ function TablaRubro({
                   )}
                   <span className="ml-1 text-cdm-muted">{it.unidad}</span>
                 </td>
-                <td className="py-2 pr-3 text-right align-top">
+                <td className="px-2 py-2 text-right align-top">
                   {editable ? (
                     <span className="inline-flex items-center gap-1">
                       {eze && !it.manual && (
@@ -260,7 +260,7 @@ function TablaRubro({
                     </span>
                   )}
                 </td>
-                <td className="py-2 pr-3 align-top text-[10px] leading-4 text-cdm-muted">
+                <td className="px-2 py-2 align-top text-[10px] leading-4 text-cdm-muted">
                   <FuenteMini etiqueta="SIS" precio={it.precios.sismat} />
                   <FuenteMini etiqueta="NET" precio={it.precios.internet} />
                   <FuenteMini etiqueta="RET" precio={it.precios.retail} />
@@ -268,7 +268,7 @@ function TablaRubro({
                     <span className="font-semibold text-red-400">Δ {it.divergencia_pct}%</span>
                   )}
                 </td>
-                <td className="py-2 text-right align-top tabular-nums">
+                <td className="px-2 py-2 text-right align-top tabular-nums">
                   {it.sin_precio
                     ? "—"
                     : it.subtotal_min === it.subtotal_max
@@ -276,7 +276,7 @@ function TablaRubro({
                       : `${formatMoneyInt(it.subtotal_min)} – ${formatMoneyInt(it.subtotal_max)}`}
                 </td>
                 {editable && (
-                  <td className="py-2 text-right align-top">
+                  <td className="px-2 py-2 text-right align-top">
                     {it.manual && (
                       <button
                         disabled={guardando}
@@ -295,23 +295,23 @@ function TablaRubro({
 
           {/* Extras (flete, volquete…): solo lectura v1. */}
           {extras?.map((ex) => (
-            <tr key={`extra:${ex.nombre}`}>
-              {editable && <td className="py-2 pr-2" />}
-              <td className="py-2 pr-3">
+            <tr key={`extra:${ex.nombre}`} className="divide-x divide-cdm-line">
+              {editable && <td className="px-2 py-2" />}
+              <td className="px-2 py-2">
                 {ex.nombre}
                 <span className="mt-0.5 block font-mono text-[10px] text-cdm-muted">
                   extra fuera de receta
                 </span>
               </td>
-              <td className="py-2 pr-3 text-right text-cdm-muted">—</td>
-              <td className="py-2 pr-3 text-right text-cdm-muted">—</td>
-              <td className="py-2 pr-3 text-[10px] text-cdm-muted">
+              <td className="px-2 py-2 text-right text-cdm-muted">—</td>
+              <td className="px-2 py-2 text-right text-cdm-muted">—</td>
+              <td className="px-2 py-2 text-[10px] text-cdm-muted">
                 {ex.fuente} · {ex.fecha}
               </td>
-              <td className="py-2 text-right tabular-nums">
+              <td className="px-2 py-2 text-right tabular-nums">
                 {formatMoneyInt(ex.monto_min)} – {formatMoneyInt(ex.monto_max)}
               </td>
-              {editable && <td className="py-2" />}
+              {editable && <td className="px-2 py-2" />}
             </tr>
           ))}
         </tbody>
@@ -320,7 +320,7 @@ function TablaRubro({
   );
 }
 
-/** Formulario de alta manual — vive adentro del rubro al que cae el ítem. */
+/** Formulario de alta manual — vive en la hoja del rubro (solapa) activo. */
 function AltaManual({
   rubroLabel,
   abierta,
@@ -412,75 +412,6 @@ function AltaManual({
   );
 }
 
-/**
- * Fila-botón de un rubro: acento fino a la izquierda, chevron, nombre + conteo,
- * total compacto a la derecha. Despliega `children` debajo (mismo patrón de
- * expand/collapse que /dinero: height auto + opacity, respeta reduced motion).
- */
-function RubroFila({
-  rubro,
-  abierto,
-  onToggle,
-  total,
-  cuenta,
-  reducir,
-  children,
-}: {
-  rubro: RubroDef;
-  abierto: boolean;
-  onToggle: () => void;
-  total: { min: number; max: number };
-  cuenta: number;
-  reducir: boolean | null;
-  children: ReactNode;
-}) {
-  return (
-    <div className="border-b border-cdm-line last:border-b-0">
-      <button
-        type="button"
-        onClick={onToggle}
-        aria-expanded={abierto}
-        className="group flex w-full items-center gap-3 py-3 text-left"
-      >
-        <span aria-hidden className={`h-6 w-[3px] shrink-0 ${rubro.acento.punto}`} />
-        <motion.svg
-          aria-hidden
-          viewBox="0 0 16 16"
-          className="h-3 w-3 shrink-0 text-cdm-muted"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="1.5"
-          animate={reducir ? undefined : { rotate: abierto ? 90 : 0 }}
-          transition={{ duration: 0.2, ease: "easeOut" }}
-        >
-          <path d="M6 4l4 4-4 4" strokeLinecap="round" strokeLinejoin="round" />
-        </motion.svg>
-        <span className="min-w-0 flex-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-cdm-fg">
-          {rubro.label}
-          <span className="ml-2 font-normal normal-case tracking-normal text-cdm-muted">· {cuenta}</span>
-        </span>
-        <span className={`shrink-0 text-sm tabular-nums ${rubro.acento.texto}`}>
-          {total.min === 0 && total.max === 0 ? "—" : compactoRango(total.min, total.max)}
-        </span>
-      </button>
-      <AnimatePresence initial={false}>
-        {abierto && (
-          <motion.div
-            key="cuerpo"
-            initial={reducir ? false : { height: 0, opacity: 0 }}
-            animate={{ height: "auto", opacity: 1 }}
-            exit={reducir ? undefined : { height: 0, opacity: 0 }}
-            transition={{ duration: 0.24, ease: [0.22, 1, 0.36, 1] }}
-            className="overflow-hidden"
-          >
-            <div className="pb-4 pl-[15px]">{children}</div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </div>
-  );
-}
-
 type Props = {
   cotizacionId: string;
   desglose: Desglose;
@@ -489,6 +420,10 @@ type Props = {
 };
 
 export function HojaViva({ cotizacionId, desglose, editable, onRefresh }: Props) {
+  // Solapa elegida a mano. Si es null (o su rubro ya no existe), cae sola a la
+  // primera solapa disponible — así, cuando Fable carga el primer ítem por
+  // chat, la primera hoja aparece seleccionada sin ningún efecto extra.
+  const [tab, setTab] = useState<RubroId | null>(null);
   // Rubro elegido a mano cuando todavía no hay NINGÚN ítem (fix ronda final
   // finding 5): sin esto, `rubroActivo` da null y el alta manual (gateada por
   // rubroActivo, ver más abajo) nunca puede renderizar — el puente caído deja
@@ -498,14 +433,12 @@ export function HojaViva({ cotizacionId, desglose, editable, onRefresh }: Props)
   const [error, setError] = useState<string | null>(null);
   // Borradores de inputs en curso, por "campo:nombre". Se limpian al confirmar.
   const [borradores, setBorradores] = useState<Record<string, string>>({});
-  // Qué rubro tiene el form de alta manual abierto (reemplaza el booleano
-  // global: el alta ahora vive adentro del desplegable de CADA rubro, no
-  // depende de una "tab activa" única — pedido de Eze 26/07).
-  const [altaEnRubro, setAltaEnRubro] = useState<RubroId | null>(null);
+  const [altaAbierta, setAltaAbierta] = useState(false);
   const [alta, setAlta] = useState<FormAlta>({ nombre: "", cantidad: "1", unidad: "u", precio: "" });
   // Recortes del render por ítem (thumbnail fijo por fila) + render base.
   const [fotos, setFotos] = useState<FotosCrops>({ render_url: null, crops: {} });
   const [recorteDe, setRecorteDe] = useState<string | null>(null);
+  const reducirMovimiento = useReducedMotion();
 
   const cargarCrops = useCallback(async () => {
     try {
@@ -534,44 +467,18 @@ export function HojaViva({ cotizacionId, desglose, editable, onRefresh }: Props)
   }, [desglose.items]);
 
   const hayExtras = desglose.extras.length > 0;
+  // Las solapas van apareciendo solas a medida que llegan ítems de un rubro
+  // nuevo (por Fable o a mano) — orden canónico de RUBROS.
   const tabs = RUBROS.filter((r) => grupos.has(r.id) || (r.id === "extras" && hayExtras));
   // Sin ítems todavía (cotización nueva, puente caído o recién arrancando):
-  // no hay rubros de dónde elegir, pero si es editable igual necesitamos un
+  // no hay solapas de dónde elegir, pero si es editable igual necesitamos un
   // rubro activo para que el alta manual tenga dónde caer.
   const sinTabs = tabs.length === 0;
-
-  // Al montar: el primer rubro con ítems abierto (orden canónico de RUBROS),
-  // el resto cerrado. Se pueden abrir varios a la vez después.
-  const [abiertos, setAbiertos] = useState<Set<RubroId>>(() => (tabs[0] ? new Set([tabs[0].id]) : new Set()));
-  const reducirMovimiento = useReducedMotion();
-
-  // Una cotización nueva nace sin ítems (sinTabs=true) y Fable los va cargando
-  // por chat mientras RevisionScreen refresca `desglose` SIN desmontar esta
-  // pantalla — el useState de arriba solo corre una vez al montar, así que sin
-  // esto ningún rubro se abría solo cuando el primer ítem llegaba por chat.
-  // Este efecto detecta específicamente la transición "no había tabs → hay
-  // tabs" y abre el primer rubro con ítems — PERO nunca si Eze ya tocó el
-  // acordeón a mano (usuarioTocoRef), para no pisarle lo que abrió o cerró.
-  const teniaTabsRef = useRef(tabs.length > 0);
-  const usuarioTocoRef = useRef(false);
-  useEffect(() => {
-    const hayTabsAhora = tabs.length > 0;
-    if (!teniaTabsRef.current && hayTabsAhora && !usuarioTocoRef.current && tabs[0]) {
-      setAbiertos(new Set([tabs[0].id]));
-    }
-    teniaTabsRef.current = hayTabsAhora;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tabs.length]);
-
-  function toggleRubro(id: RubroId) {
-    usuarioTocoRef.current = true;
-    setAbiertos((prev) => {
-      const siguiente = new Set(prev);
-      if (siguiente.has(id)) siguiente.delete(id);
-      else siguiente.add(id);
-      return siguiente;
-    });
-  }
+  const tabActiva = sinTabs
+    ? rubroVacio
+    : (tab && tabs.some((t) => t.id === tab) ? tab : (tabs[0]?.id ?? null));
+  const rubroActivo = sinTabs ? (RUBRO_POR_ID[rubroVacio] ?? null) : (tabs.find((t) => t.id === tabActiva) ?? null);
+  const itemsActivos = !sinTabs && tabActiva ? (grupos.get(tabActiva) ?? []) : [];
 
   function totalRubro(id: RubroId): { min: number; max: number } {
     let min = 0;
@@ -630,7 +537,8 @@ export function HojaViva({ cotizacionId, desglose, editable, onRefresh }: Props)
     void patch({ ajuste: { nombre: item.nombre, [campo]: valor } });
   }
 
-  function agregarManual(rubro: RubroId) {
+  function agregarManual() {
+    if (!tabActiva) return;
     const cantidad = parseLiteral(alta.cantidad);
     if (!alta.nombre.trim() || cantidad == null) {
       setError("El ítem nuevo necesita nombre y cantidad (> 0).");
@@ -640,8 +548,8 @@ export function HojaViva({ cotizacionId, desglose, editable, onRefresh }: Props)
     void patch({
       manual: {
         nombre: alta.nombre.trim(),
-        rubro,
-        tipo: rubro === "mano_de_obra" ? "mano_de_obra" : "material",
+        rubro: tabActiva,
+        tipo: tabActiva === "mano_de_obra" ? "mano_de_obra" : "material",
         unidad: alta.unidad,
         cantidad,
         ...(precio != null ? { precio } : {}),
@@ -649,7 +557,7 @@ export function HojaViva({ cotizacionId, desglose, editable, onRefresh }: Props)
     }).then((ok) => {
       if (!ok) return; // el error quedó visible; no se pierde lo tipeado
       setAlta({ nombre: "", cantidad: "1", unidad: "u", precio: "" });
-      setAltaEnRubro(null);
+      setAltaAbierta(false);
     });
   }
 
@@ -658,11 +566,13 @@ export function HojaViva({ cotizacionId, desglose, editable, onRefresh }: Props)
 
   return (
     <div>
+      {error && <p className="mb-2 text-xs text-red-400">{error}</p>}
+
       {sinTabs ? (
         <div>
           {/* Sin ningún ítem todavía (mesa viva con el puente caído — fix ronda
               final finding 5): selector de rubro para que el alta manual sepa
-              dónde caer, ya que no hay ningún desplegable para abrir. */}
+              dónde caer, ya que no hay ninguna solapa para elegir. */}
           <div className="mb-3 flex items-center gap-2 text-[10px] uppercase tracking-[0.14em] text-cdm-muted">
             <span>Rubro del primer ítem</span>
             <select
@@ -677,71 +587,101 @@ export function HojaViva({ cotizacionId, desglose, editable, onRefresh }: Props)
               ))}
             </select>
           </div>
-          {error && <p className="mb-2 text-xs text-red-400">{error}</p>}
           {editable && (
             <AltaManual
-              rubroLabel={RUBRO_POR_ID[rubroVacio]?.label ?? rubroVacio}
-              abierta={altaEnRubro === rubroVacio}
+              rubroLabel={rubroActivo?.label ?? rubroVacio}
+              abierta={altaAbierta}
               guardando={guardando}
               alta={alta}
               onCambiar={setAlta}
-              onAbrir={() => setAltaEnRubro(rubroVacio)}
-              onAgregar={() => agregarManual(rubroVacio)}
-              onCancelar={() => setAltaEnRubro(null)}
+              onAbrir={() => setAltaAbierta(true)}
+              onAgregar={agregarManual}
+              onCancelar={() => setAltaAbierta(false)}
             />
           )}
         </div>
       ) : (
         <>
-          {error && <p className="mb-2 text-xs text-red-400">{error}</p>}
-          <div className="border-t border-cdm-line">
+          {/* ── La hoja: grilla del rubro activo, en caja cerrada ─────────── */}
+          <div className="border border-cdm-line" role="tabpanel">
+            <AnimatePresence mode="wait" initial={false}>
+              <motion.div
+                key={tabActiva}
+                initial={reducirMovimiento ? false : { opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={reducirMovimiento ? undefined : { opacity: 0 }}
+                transition={{ duration: 0.12, ease: "easeOut" }}
+              >
+                <TablaRubro
+                  items={itemsActivos}
+                  extras={tabActiva === "extras" ? desglose.extras : null}
+                  editable={editable}
+                  guardando={guardando}
+                  borradores={borradores}
+                  onBorrador={(clave, valor) => setBorradores((b) => ({ ...b, [clave]: valor }))}
+                  onConfirmar={confirmar}
+                  onPatch={patch}
+                  fotos={fotos}
+                  onRecorte={setRecorteDe}
+                />
+                {editable && rubroActivo && (
+                  <div className="border-t border-cdm-line p-2">
+                    <AltaManual
+                      rubroLabel={rubroActivo.label}
+                      abierta={altaAbierta}
+                      guardando={guardando}
+                      alta={alta}
+                      onCambiar={setAlta}
+                      onAbrir={() => setAltaAbierta(true)}
+                      onAgregar={agregarManual}
+                      onCancelar={() => setAltaAbierta(false)}
+                    />
+                  </div>
+                )}
+              </motion.div>
+            </AnimatePresence>
+          </div>
+
+          {/* ── Botonera de solapas ABAJO, como hojas de un Excel ─────────── */}
+          <div
+            role="tablist"
+            aria-label="Rubros"
+            className="-mt-px flex overflow-x-auto border-x border-b border-cdm-line"
+          >
             {tabs.map((r) => {
-              const items = grupos.get(r.id) ?? [];
-              const cuenta = items.length + (r.id === "extras" ? desglose.extras.length : 0);
+              const activa = r.id === tabActiva;
+              const t = totalRubro(r.id);
+              const cuenta = (grupos.get(r.id) ?? []).length + (r.id === "extras" ? desglose.extras.length : 0);
               return (
-                <RubroFila
+                <button
                   key={r.id}
-                  rubro={r}
-                  abierto={abiertos.has(r.id)}
-                  onToggle={() => toggleRubro(r.id)}
-                  total={totalRubro(r.id)}
-                  cuenta={cuenta}
-                  reducir={reducirMovimiento}
+                  role="tab"
+                  aria-selected={activa}
+                  onClick={() => setTab(r.id)}
+                  className={`shrink-0 cursor-pointer border-r border-cdm-line px-3 py-2 text-left transition-colors last:border-r-0 ${
+                    activa ? "bg-cdm-fg/[0.05]" : "hover:bg-cdm-fg/[0.03]"
+                  }`}
                 >
-                  <TablaRubro
-                    items={items}
-                    extras={r.id === "extras" ? desglose.extras : null}
-                    editable={editable}
-                    guardando={guardando}
-                    borradores={borradores}
-                    onBorrador={(clave, valor) => setBorradores((b) => ({ ...b, [clave]: valor }))}
-                    onConfirmar={confirmar}
-                    onPatch={patch}
-                    fotos={fotos}
-                    onRecorte={setRecorteDe}
-                  />
-                  {editable && (
-                    <div className="mt-3 border-t border-cdm-line pt-3">
-                      <AltaManual
-                        rubroLabel={r.label}
-                        abierta={altaEnRubro === r.id}
-                        guardando={guardando}
-                        alta={alta}
-                        onCambiar={setAlta}
-                        onAbrir={() => setAltaEnRubro(r.id)}
-                        onAgregar={() => agregarManual(r.id)}
-                        onCancelar={() => setAltaEnRubro(null)}
-                      />
-                    </div>
-                  )}
-                </RubroFila>
+                  <span
+                    className={`flex items-center gap-1.5 font-mono-hud text-[10px] uppercase tracking-[0.14em] ${
+                      activa ? "text-cdm-fg" : "text-cdm-muted"
+                    }`}
+                  >
+                    <span aria-hidden className={`h-1.5 w-1.5 ${r.acento.punto} ${activa ? "" : "opacity-40"}`} />
+                    {r.label}
+                    <span className="opacity-60">· {cuenta}</span>
+                  </span>
+                  <span className={`mt-0.5 block text-xs tabular-nums ${activa ? r.acento.texto : "text-cdm-muted"}`}>
+                    {t.min === 0 && t.max === 0 ? "—" : compactoRango(t.min, t.max)}
+                  </span>
+                </button>
               );
             })}
           </div>
         </>
       )}
 
-      {/* ── Totales (los suma el motor, no esta pantalla) ─────────────────── */}
+      {/* ── Totales, barra de estado (los suma el motor, no esta pantalla) ── */}
       <dl className="mt-4 space-y-1 border-t border-cdm-line pt-3 text-xs">
         <div className="flex justify-between">
           <dt className="text-cdm-muted">Materiales</dt>
