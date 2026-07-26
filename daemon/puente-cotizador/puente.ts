@@ -195,16 +195,22 @@ function encolar(m: MensajeRow) {
 }
 
 async function barrido() {
+  // Descendente + límite 200 + revert: con >200 mensajes en la ventana de 7
+  // días, `ascending: true` siempre agarraba los 200 MÁS VIEJOS y perdía los
+  // nuevos (fix ronda 1, finding 1) — el barrido nunca los alcanzaba. Pidiendo
+  // los últimos 200 y revirtiéndolos acá garantizamos que ningún mensaje
+  // reciente se pierda; el dedup de `procesados` + `yaRespondido` hace que
+  // reprocesar el mismo rango en cada corrida sea inofensivo.
   const desde = new Date(Date.now() - 7 * 24 * 3600 * 1000).toISOString();
   const { data, error } = await sb
     .from("cotizacion_mensajes")
     .select("*")
     .in("autor", ["eze", "sistema"])
     .gte("creado_at", desde)
-    .order("creado_at", { ascending: true })
+    .order("creado_at", { ascending: false })
     .limit(200);
   if (error) return console.error("[puente] barrido:", error.message);
-  for (const m of (data ?? []) as MensajeRow[]) {
+  for (const m of ((data ?? []) as MensajeRow[]).reverse()) {
     if (!procesados.has(m.id)) encolar(m);
   }
 }
