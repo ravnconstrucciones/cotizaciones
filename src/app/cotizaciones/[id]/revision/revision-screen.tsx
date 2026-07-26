@@ -94,6 +94,19 @@ export function RevisionScreen({ id }: { id: string }) {
   const [docPlazo, setDocPlazo] = useState("");
   const [docNotas, setDocNotas] = useState("VALIDEZ DE OFERTA: 10 DÍAS CORRIDOS");
 
+  // Precarga de la emisión desde el borrador vivo de la mesa (spec 2026-07-25).
+  const [docPrecargado, setDocPrecargado] = useState(false);
+  useEffect(() => {
+    const b = detalle?.revision?.documento_borrador;
+    if (!b || docPrecargado) return;
+    setDocPrecargado(true);
+    if (b.cliente) setDocCliente((v) => v || b.cliente);
+    if (b.lugar) setDocLugar((v) => v || b.lugar);
+    if (b.forma_pago.length) setDocFormaPago((v) => v || b.forma_pago.join("\n"));
+    if (b.plazo.length) setDocPlazo((v) => v || b.plazo.join("\n"));
+    if (b.notas.length) setDocNotas((v) => (v === "VALIDEZ DE OFERTA: 10 DÍAS CORRIDOS" || !v ? b.notas.join("\n") : v));
+  }, [detalle, docPrecargado]);
+
   // Selector de obra (loop de oro §6.2.5): opciones desde `presupuestos`.
   const [presupuestos, setPresupuestos] = useState<PresupuestoOpcion[]>([]);
   const [vinculando, setVinculando] = useState(false);

@@ -289,6 +289,10 @@ export type Revision = {
   dudas: string[]; // preguntas abiertas de la IA para Eze
   aprobacion?: { fecha: string; importe_final?: number };
   documento?: DatosDocumento;
+  /** Borrador vivo de la propuesta (mesa conversacional): lo redacta Fable,
+   *  la pestaña Propuesta lo muestra y precarga la emisión. El relato son
+   *  las notas (párrafos). Nunca emite solo. */
+  documento_borrador?: DatosDocumento;
 };
 
 /** cotizaciones.ficha — los datos que mueven el precio (§6.2.6). */
