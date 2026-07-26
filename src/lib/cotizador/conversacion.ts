@@ -7,7 +7,7 @@
  * La ruta /api/cotizaciones/[id]/conversacion hace las queries y delega acá.
  */
 
-export type AutorMensaje = "eze" | "sistema";
+export type AutorMensaje = "eze" | "sistema" | "fable" | "codex";
 
 export type MensajeHilo = {
   id: string;
@@ -155,4 +155,44 @@ export function construirHilo(args: {
   }
 
   return out.sort((a, b) => a.fecha.localeCompare(b.fecha));
+}
+
+/** Fila de cotizacion_mensajes tal como la lee la API (hilo nuevo, mesa conversacional). */
+export type MensajeNuevoRow = {
+  id: string;
+  autor: string;
+  texto: string;
+  adjuntos: unknown;
+  meta: Record<string, unknown> | null;
+  creado_at: string;
+};
+
+const AUTORES_VALIDOS: ReadonlyArray<AutorMensaje> = ["eze", "sistema", "fable", "codex"];
+
+/** Mapea filas de cotizacion_mensajes al formato del hilo. Autor raro cae a sistema. */
+export function mensajesDeTabla(filas: MensajeNuevoRow[]): MensajeHilo[] {
+  const out: MensajeHilo[] = [];
+  for (const f of filas) {
+    const adjuntos = Array.isArray(f.adjuntos) ? f.adjuntos.length : 0;
+    if (!esTexto(f.texto) && adjuntos === 0) continue;
+    const autor = (AUTORES_VALIDOS as readonly string[]).includes(f.autor)
+      ? (f.autor as AutorMensaje)
+      : "sistema";
+    const tipo = f.meta?.["tipo"];
+    out.push({
+      id: `m-${f.id}`,
+      fecha: f.creado_at,
+      autor,
+      texto: esTexto(f.texto)
+        ? f.texto
+        : `${adjuntos} foto${adjuntos === 1 ? "" : "s"} del proyecto`,
+      etiqueta: esTexto(tipo) ? tipo : "charla",
+    });
+  }
+  return out;
+}
+
+/** Mezcla el hilo legacy (trabajos+eventos) con el nuevo (tabla) en una línea de tiempo. */
+export function mezclarHilos(...hilos: MensajeHilo[][]): MensajeHilo[] {
+  return hilos.flat().sort((a, b) => a.fecha.localeCompare(b.fecha));
 }
