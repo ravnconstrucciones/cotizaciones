@@ -282,7 +282,7 @@ export function MenuOverlay({
           {/* Cabecera: marca + cerrar */}
           <div className="relative flex items-center justify-between px-6 py-6 sm:px-10 sm:py-8">
             <Link href="/" onClick={onClose} aria-label="Inicio">
-              <RavnLogo align="start" showTagline={false} shimmer sizeClassName="text-xl" />
+              <RavnLogo align="start" showTagline={false} shimmer iso="side" sizeClassName="text-xl" />
             </Link>
             <button
               type="button"

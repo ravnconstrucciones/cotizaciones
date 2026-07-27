@@ -923,7 +923,7 @@ export function GastosScreen({
     <header className="border-b border-cdm-line px-6 py-5 sm:px-10">
       <div className="mx-auto flex max-w-5xl flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <Link href="/" className="inline-block w-fit" aria-label="Inicio">
-          <RavnLogo sizeClassName="text-xl sm:text-2xl" showTagline={false} />
+          <RavnLogo sizeClassName="text-xl sm:text-2xl" showTagline={false} iso="side" align="start" />
         </Link>
         {/* Nav del flujo viejo (Propuesta / Rentabilidad / Cashflow) eliminado
             (pedido de Eze 03/07): esas pantallas murieron o se llega desde el

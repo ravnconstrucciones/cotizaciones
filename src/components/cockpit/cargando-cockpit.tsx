@@ -39,7 +39,7 @@ export function CargandoCockpit({
       <div className="relative z-10 flex flex-col items-center gap-5">
         {/* La marca emana luz y respira: bloom + pulso (solo opacity). */}
         <div className="cdm-pulso-carga drop-shadow-[0_0_28px_rgba(34,211,238,0.35)]">
-          <RavnLogo showTagline={false} shimmer sizeClassName="text-3xl" />
+          <RavnLogo showTagline={false} shimmer iso="top" isoScale={0.55} sizeClassName="text-3xl" />
         </div>
         <p className="font-mono-hud text-[10px] uppercase tracking-[0.3em] text-cdm-muted">
           <span aria-hidden className="mr-2 text-cdm-accent/50">

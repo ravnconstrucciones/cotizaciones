@@ -80,6 +80,8 @@ export default function LoginPage() {
         >
           {/* Marca en off-white plano — sin shimmer cian. */}
           <RavnLogo
+            iso="top"
+            isoScale={0.72}
             sizeClassName="text-4xl sm:text-5xl"
             className="text-white drop-shadow-[0_2px_24px_rgba(0,0,0,0.85)]"
           />

@@ -376,7 +376,7 @@ export default function LandingClient() {
         <div ref={heroRef} style={{ position: "absolute", inset: 0, opacity: 0.28 }} />
         <div style={{ position: "relative", zIndex: 2, display: "flex", flexDirection: "column", alignItems: "center", gap: "1.6rem", textAlign: "center", padding: "0 2rem" }}>
           <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 1, ease: EASE }}>
-            <RavnLogo sizeClassName="text-2xl sm:text-3xl" showTagline />
+            <RavnLogo sizeClassName="text-2xl sm:text-3xl" showTagline iso="top" isoScale={0.85} />
           </motion.div>
           <motion.div
             style={{ display: "flex", flexDirection: "column" }}
