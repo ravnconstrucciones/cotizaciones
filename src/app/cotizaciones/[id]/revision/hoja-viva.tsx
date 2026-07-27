@@ -412,6 +412,24 @@ function AltaManual({
   );
 }
 
+/**
+ * Solapa virtual "General" (pedido de Eze 26/07): al final de la botonera,
+ * una hoja con TODOS los rubros juntos. No es un rubro — no se le pueden
+ * cargar ítems (no sabría dónde caen), solo mira y edita los que ya están.
+ */
+const TAB_GENERAL = "general" as const;
+type TabId = RubroId | typeof TAB_GENERAL;
+
+const DEF_GENERAL = {
+  id: TAB_GENERAL,
+  label: "General",
+  acento: {
+    texto: "text-cdm-accent",
+    borde: "border-cdm-accent/60",
+    punto: "bg-cdm-accent",
+  },
+};
+
 type Props = {
   cotizacionId: string;
   desglose: Desglose;
@@ -423,7 +441,7 @@ export function HojaViva({ cotizacionId, desglose, editable, onRefresh }: Props)
   // Solapa elegida a mano. Si es null (o su rubro ya no existe), cae sola a la
   // primera solapa disponible — así, cuando Fable carga el primer ítem por
   // chat, la primera hoja aparece seleccionada sin ningún efecto extra.
-  const [tab, setTab] = useState<RubroId | null>(null);
+  const [tab, setTab] = useState<TabId | null>(null);
   // Rubro elegido a mano cuando todavía no hay NINGÚN ítem (fix ronda final
   // finding 5): sin esto, `rubroActivo` da null y el alta manual (gateada por
   // rubroActivo, ver más abajo) nunca puede renderizar — el puente caído deja
@@ -469,16 +487,29 @@ export function HojaViva({ cotizacionId, desglose, editable, onRefresh }: Props)
   const hayExtras = desglose.extras.length > 0;
   // Las solapas van apareciendo solas a medida que llegan ítems de un rubro
   // nuevo (por Fable o a mano) — orden canónico de RUBROS.
-  const tabs = RUBROS.filter((r) => grupos.has(r.id) || (r.id === "extras" && hayExtras));
+  const tabsRubro = RUBROS.filter((r) => grupos.has(r.id) || (r.id === "extras" && hayExtras));
+  // "General" recién tiene sentido con dos rubros o más: con uno solo mostraría
+  // exactamente la misma hoja que la solapa de al lado.
+  const tabs = tabsRubro.length > 1 ? [...tabsRubro, DEF_GENERAL] : tabsRubro;
   // Sin ítems todavía (cotización nueva, puente caído o recién arrancando):
   // no hay solapas de dónde elegir, pero si es editable igual necesitamos un
   // rubro activo para que el alta manual tenga dónde caer.
   const sinTabs = tabs.length === 0;
-  const tabActiva = sinTabs
+  const tabActiva: TabId | null = sinTabs
     ? rubroVacio
     : (tab && tabs.some((t) => t.id === tab) ? tab : (tabs[0]?.id ?? null));
-  const rubroActivo = sinTabs ? (RUBRO_POR_ID[rubroVacio] ?? null) : (tabs.find((t) => t.id === tabActiva) ?? null);
-  const itemsActivos = !sinTabs && tabActiva ? (grupos.get(tabActiva) ?? []) : [];
+  const esGeneral = tabActiva === TAB_GENERAL;
+  // rubroActivo gatea el alta manual: en General queda null a propósito.
+  const rubroActivo = sinTabs
+    ? (RUBRO_POR_ID[rubroVacio] ?? null)
+    : (tabsRubro.find((t) => t.id === tabActiva) ?? null);
+  const itemsActivos = esGeneral
+    ? desglose.items
+    : !sinTabs && tabActiva
+      ? (grupos.get(tabActiva as RubroId) ?? [])
+      : [];
+  // Los extras se muestran en su propia solapa y también dentro de General.
+  const extrasActivos = esGeneral || tabActiva === "extras" ? desglose.extras : null;
 
   function totalRubro(id: RubroId): { min: number; max: number } {
     let min = 0;
@@ -495,6 +526,25 @@ export function HojaViva({ cotizacionId, desglose, editable, onRefresh }: Props)
       }
     }
     return { min, max };
+  }
+
+  /** Total de una solapa. General = la suma de todas las demás. */
+  function totalTab(id: TabId): { min: number; max: number } {
+    if (id !== TAB_GENERAL) return totalRubro(id);
+    let min = 0;
+    let max = 0;
+    for (const r of tabsRubro) {
+      const t = totalRubro(r.id);
+      min += t.min;
+      max += t.max;
+    }
+    return { min, max };
+  }
+
+  /** Cuántos ítems cuelgan de una solapa (el número que va en la etiqueta). */
+  function cuentaTab(id: TabId): number {
+    if (id === TAB_GENERAL) return desglose.items.length + desglose.extras.length;
+    return (grupos.get(id) ?? []).length + (id === "extras" ? desglose.extras.length : 0);
   }
 
   async function patch(op: OpPatch): Promise<boolean> {
@@ -571,21 +621,33 @@ export function HojaViva({ cotizacionId, desglose, editable, onRefresh }: Props)
       {sinTabs ? (
         <div>
           {/* Sin ningún ítem todavía (mesa viva con el puente caído — fix ronda
-              final finding 5): selector de rubro para que el alta manual sepa
-              dónde caer, ya que no hay ninguna solapa para elegir. */}
-          <div className="mb-3 flex items-center gap-2 text-[10px] uppercase tracking-[0.14em] text-cdm-muted">
-            <span>Rubro del primer ítem</span>
-            <select
-              value={rubroVacio}
-              onChange={(e) => setRubroVacio(e.target.value as RubroId)}
-              className="border border-cdm-line bg-cdm-panel/60 px-2 py-1 text-[10px] normal-case tracking-normal text-cdm-fg focus:border-cdm-accent focus:outline-none"
-            >
-              {RUBROS.filter((r) => r.id !== "extras").map((r) => (
-                <option key={r.id} value={r.id}>
+              final finding 5): el rubro del primer ítem se elige con la misma
+              BOTONERA que después arma las solapas, no con un desplegable
+              (pedido de Eze 26/07: "no lo quiero ver como desplegable"). Las
+              solapas de verdad aparecen solas a medida que entran los ítems. */}
+          <p className="mb-2 text-[10px] uppercase tracking-[0.14em] text-cdm-muted">
+            Rubro del primer ítem
+          </p>
+          <div className="mb-3 flex flex-wrap gap-1.5">
+            {RUBROS.filter((r) => r.id !== "extras").map((r) => {
+              const activa = r.id === rubroVacio;
+              return (
+                <button
+                  key={r.id}
+                  type="button"
+                  aria-pressed={activa}
+                  onClick={() => setRubroVacio(r.id)}
+                  className={`cdm-chip flex cursor-pointer items-center gap-1.5 border px-2.5 py-1.5 font-mono-hud text-[10px] uppercase tracking-[0.14em] transition-colors ${
+                    activa
+                      ? `${r.acento.borde} bg-cdm-fg/[0.05] ${r.acento.texto}`
+                      : "border-cdm-line text-cdm-muted hover:border-cdm-muted/60 hover:text-cdm-fg"
+                  }`}
+                >
+                  <span aria-hidden className={`h-1.5 w-1.5 ${r.acento.punto} ${activa ? "" : "opacity-40"}`} />
                   {r.label}
-                </option>
-              ))}
-            </select>
+                </button>
+              );
+            })}
           </div>
           {editable && (
             <AltaManual
@@ -614,7 +676,7 @@ export function HojaViva({ cotizacionId, desglose, editable, onRefresh }: Props)
               >
                 <TablaRubro
                   items={itemsActivos}
-                  extras={tabActiva === "extras" ? desglose.extras : null}
+                  extras={extrasActivos}
                   editable={editable}
                   guardando={guardando}
                   borradores={borradores}
@@ -646,12 +708,15 @@ export function HojaViva({ cotizacionId, desglose, editable, onRefresh }: Props)
           <div
             role="tablist"
             aria-label="Rubros"
-            className="-mt-px flex overflow-x-auto border-x border-b border-cdm-line"
+            // Envuelven en vez de scrollear: con la hoja a lo ancho entran casi
+            // todas en una fila, y ninguna solapa (menos que menos General, que
+            // va última) queda escondida detrás de un scroll horizontal.
+            className="-mt-px flex flex-wrap border-x border-b border-cdm-line"
           >
             {tabs.map((r) => {
               const activa = r.id === tabActiva;
-              const t = totalRubro(r.id);
-              const cuenta = (grupos.get(r.id) ?? []).length + (r.id === "extras" ? desglose.extras.length : 0);
+              const t = totalTab(r.id);
+              const cuenta = cuentaTab(r.id);
               return (
                 <button
                   key={r.id}
@@ -659,8 +724,8 @@ export function HojaViva({ cotizacionId, desglose, editable, onRefresh }: Props)
                   aria-selected={activa}
                   onClick={() => setTab(r.id)}
                   className={`shrink-0 cursor-pointer border-r border-cdm-line px-3 py-2 text-left transition-colors last:border-r-0 ${
-                    activa ? "bg-cdm-fg/[0.05]" : "hover:bg-cdm-fg/[0.03]"
-                  }`}
+                    r.id === TAB_GENERAL ? "border-l border-l-cdm-line" : ""
+                  } ${activa ? "bg-cdm-fg/[0.05]" : "hover:bg-cdm-fg/[0.03]"}`}
                 >
                   <span
                     className={`flex items-center gap-1.5 font-mono-hud text-[10px] uppercase tracking-[0.14em] ${
