@@ -27,6 +27,8 @@ const AREA_COLOR: Record<string, string> = {
   CONTENIDO: "#f472b6", // fucsia
   PUBLICIDAD: "#fb923c", // naranja
   INMOBILIARIO: "#2dd4bf", // teal
+  // Gris pizarra apagado a propósito: es la bandeja de lo que NO es urgente.
+  "REVISIÓN DE OBRAS TERMINADAS": "#64748b",
   OTROS: "#94a3b8", // gris
 };
 
@@ -41,12 +43,18 @@ const AREA_ORDEN = [
   "CONTENIDO",
   "SALUD",
   "PERSONAL",
+  // Última antes de OTROS: cabos sueltos de obras ya cerradas, se tocan cuando
+  // sobra tiempo. No deben competir visualmente con la obra en curso.
+  "REVISIÓN DE OBRAS TERMINADAS",
   "OTROS",
 ];
 
 /** Normaliza la categoría libre de la tarea a un área conocida. */
 function areaDe(cat: string | null): string {
   const c = (cat ?? "").toUpperCase();
+  // Antes que OBRA: si la categoría menciona obras terminadas va a la bandeja
+  // de lo no urgente, aunque el texto empiece con "Obra".
+  if (c.includes("TERMINAD")) return "REVISIÓN DE OBRAS TERMINADAS";
   if (c.startsWith("OBRA")) return "OBRA";
   if (c.startsWith("FINANZAS")) return "FINANZAS";
   if (c.startsWith("COMPRA")) return "COMPRAS";
@@ -148,7 +156,7 @@ export function ModuloPendientes({ className, tactil = false }: { className?: st
           {!tactil && (
             <Link
               href="/pendientes"
-              className="text-[11px] font-medium text-zinc-500 transition-colors hover:text-cyan-700 dark:text-zinc-400 dark:hover:text-cyan-300"
+              className="text-[11px] font-medium text-zinc-500 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-50"
             >
               Pantalla completa →
             </Link>

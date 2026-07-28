@@ -70,7 +70,7 @@ export function ModuloFinanzas({ className }: { className?: string }) {
       accion={
         <Link
           href="/finanzas"
-          className="text-[11px] font-medium text-zinc-500 transition-colors hover:text-cyan-700 dark:text-zinc-400 dark:hover:text-cyan-300"
+          className="text-[11px] font-medium text-zinc-500 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-50"
         >
           Mi libreta →
         </Link>

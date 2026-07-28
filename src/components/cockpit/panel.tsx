@@ -56,8 +56,8 @@ export function PanelVariantProvider({
  * backdrop-blur + borde gradiente 1px + esquinas cian, radius 0 — ADN RAVN).
  * Header con label terminal `////// TITULO` (IBM Plex Mono — lenguaje IGLOO).
  *
- * CARD (home nueva): tarjeta HeroUI limpia y legible — esquinas redondeadas,
- * sombra suave, título prolijo + acción a la derecha. Pensada para leerse
+ * CARD (home nueva): tarjeta de acero limpia y legible — borde recto,
+ * jerarquía editorial + acción a la derecha. Pensada para leerse
  * bien claro en un bento que scrollea, no para el HUD denso.
  *
  * Anima como hijo del stagger de la home (variants hidden/visible).
@@ -179,7 +179,7 @@ function PanelCard({
   setAbierto: React.Dispatch<React.SetStateAction<boolean>>;
 }) {
   const titulo_el = (
-    <h2 className="font-grotesk min-w-0 truncate text-[15px] font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">
+    <h2 className="font-raleway min-w-0 truncate text-[11px] font-bold uppercase tracking-[0.18em] text-cdm-fg">
       {titulo}
     </h2>
   );
@@ -198,9 +198,9 @@ function PanelCard({
     >
       <Card
         interactive
-        className="font-grotesk flex h-full min-h-0 flex-col"
+        className="font-raleway flex h-full min-h-0 flex-col"
       >
-        <header className="flex items-center justify-between gap-3 border-b border-zinc-950/[0.06] px-6 py-4 dark:border-white/[0.06]">
+        <header className="flex items-center justify-between gap-3 border-b border-cdm-line px-6 py-4">
           {colapsable ? (
             <button
               type="button"
@@ -213,7 +213,7 @@ function PanelCard({
           ) : (
             titulo_el
           )}
-          <span className="flex shrink-0 items-center gap-3 text-zinc-500 dark:text-zinc-400">
+          <span className="flex shrink-0 items-center gap-3 text-cdm-muted">
             {accion}
             {colapsable && (
               <button
@@ -221,7 +221,7 @@ function PanelCard({
                 onClick={() => setAbierto((v) => !v)}
                 aria-expanded={abierto}
                 aria-label={abierto ? `Colapsar ${titulo}` : `Expandir ${titulo}`}
-                className="flex h-6 w-6 items-center justify-center rounded-full text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-zinc-700 dark:text-zinc-500 dark:hover:bg-white/[0.06] dark:hover:text-zinc-200"
+                className="flex h-6 w-6 items-center justify-center rounded-none border border-cdm-line text-cdm-muted"
               >
                 <motion.span
                   aria-hidden

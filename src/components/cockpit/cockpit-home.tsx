@@ -18,10 +18,8 @@ const stagger = {
 };
 
 /**
- * HOME nueva — CARDS que scrollean (pedido de Eze 14/06): la estética HeroUI
- * que pasó, "que se lean bien claro". Reemplaza el HUD denso de una pantalla
- * por un BENTO vertical de tarjetas limpias (redondeadas, sombra suave) sobre
- * un fondo calmo y neutro — SaaS premium (Linear / HeroUI), no la cabina.
+ * HOME nueva — el comando abre la pantalla como una pieza editorial y las
+ * tarjetas quedan contenidas en una retícula monocroma de acero RAVN.
  *
  * Reusa TODA la lógica y los datos de los módulos existentes: solo cambia la
  * carcasa, vía <PanelVariantProvider value="card"> (los Panel internos pasan
@@ -38,12 +36,11 @@ export function CockpitHome() {
 
   return (
     <PanelVariantProvider value="card">
-      <div className="font-geist relative min-h-screen bg-zinc-50 text-zinc-900 dark:bg-[#0a0a0c] dark:text-zinc-100">
-        {/* Fondo calmo: un wash neutro muy sutil, sin shader ni líneas que
-            compitan con las cards. Theme-aware por dark:. */}
+      <div className="font-raleway relative min-h-screen bg-cdm-bg text-cdm-fg">
+        {/* Velo monocromo: profundidad sin color ni ruido de cabina. */}
         <div
           aria-hidden
-          className="pointer-events-none fixed inset-0 -z-0 bg-[radial-gradient(120%_90%_at_50%_-10%,rgba(8,145,178,0.05),transparent_55%)] dark:bg-[radial-gradient(120%_90%_at_50%_-10%,rgba(34,211,238,0.06),transparent_55%)]"
+          className="pointer-events-none fixed inset-0 -z-0 bg-[radial-gradient(100%_78%_at_50%_-12%,rgba(7,7,7,0.06),transparent_56%)] dark:bg-[radial-gradient(100%_78%_at_50%_-12%,rgba(242,239,232,0.045),transparent_56%)]"
         />
 
         <div className="relative z-10 mx-auto w-full max-w-[1180px] px-4 pb-20 pt-8 sm:px-6 lg:px-8 lg:pt-12">
@@ -61,12 +58,12 @@ export function CockpitHome() {
             initial={animar ? { opacity: 0, y: 8 } : false}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.4, delay: 0.08, ease: "easeOut" }}
-            className="mb-9 mt-6 flex flex-wrap items-baseline justify-between gap-2 px-1"
+            className="mb-9 mt-6 flex flex-wrap items-baseline justify-between gap-2 border-b border-cdm-line px-1 pb-4"
           >
-            <h1 className="text-[22px] font-semibold tracking-tight text-zinc-900 sm:text-[26px] dark:text-zinc-50">
+            <h1 className="text-[22px] font-semibold uppercase tracking-[0.08em] text-cdm-fg sm:text-[26px]">
               Buen día, Ezequiel
             </h1>
-            <span className="text-[13px] capitalize text-zinc-500 dark:text-zinc-400">
+            <span className="font-mono-hud text-[11px] uppercase tracking-[0.12em] text-cdm-muted">
               {hoy}
             </span>
           </motion.div>

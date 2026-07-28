@@ -335,7 +335,7 @@ export function CommandBar() {
       transition={{ type: "spring", stiffness: 260, damping: 26 }}
       className="relative z-10"
     >
-      <LiquidGlass className="cdm-prompt rounded-[26px]" blur={14} tint={0.06}>
+      <LiquidGlass className="cdm-prompt rounded-none" blur={14} tint={0.06}>
         <form
           onSubmit={(e) => {
             e.preventDefault();
@@ -364,7 +364,7 @@ export function CommandBar() {
           className="relative"
         >
           {arrastrando && (
-            <div className="pointer-events-none absolute inset-1 z-40 flex items-center justify-center rounded-[22px] border border-dashed border-cdm-accent/60 bg-cdm-bg/70">
+            <div className="pointer-events-none absolute inset-1 z-40 flex items-center justify-center rounded-none border border-dashed border-cdm-accent/60 bg-cdm-bg/70">
               <p className="text-[11px] uppercase tracking-[0.2em] text-cdm-accent">
                 Soltá la imagen
               </p>
@@ -385,7 +385,7 @@ export function CommandBar() {
                     <button
                       type="button"
                       onClick={() => setVerImagen(true)}
-                      className="h-14 w-14 cursor-pointer overflow-hidden rounded-xl border border-cdm-line transition-transform hover:scale-[1.04]"
+                      className="h-14 w-14 cursor-pointer overflow-hidden rounded-none border border-cdm-line"
                       aria-label="Ver imagen adjunta"
                       title="Ver imagen"
                     >
@@ -401,7 +401,7 @@ export function CommandBar() {
                       onClick={quitarImagen}
                       aria-label="Quitar imagen adjunta"
                       title="Quitar imagen"
-                      className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full border border-cdm-line bg-cdm-bg text-cdm-muted shadow-md transition-colors hover:text-cdm-fg"
+                      className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-none border border-cdm-line bg-cdm-bg text-cdm-muted"
                     >
                       <X className="h-3 w-3" />
                     </button>
@@ -488,14 +488,14 @@ export function CommandBar() {
               onClick={() => fileRef.current?.click()}
               title="Adjuntar imagen (también podés pegarla o arrastrarla)"
               aria-label="Adjuntar imagen"
-              className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-full text-cdm-muted transition-colors hover:bg-cdm-fg/5 hover:text-cdm-fg"
+              className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-none text-cdm-muted hover:bg-cdm-fg/5 hover:text-cdm-fg"
             >
               <Paperclip className="h-4 w-4" />
             </button>
             <span aria-hidden className="h-4 w-px bg-cdm-line" />
 
-            {/* Chips de tipo: segmentado liquid glass + píldora cian spring. */}
-            <LiquidGlass className="rounded-full" blur={4} tint={0.05}>
+            {/* Segmentador de tipo: un selector técnico de bordes rectos. */}
+            <LiquidGlass className="rounded-none border border-cdm-line" blur={4} tint={0.05}>
               <div className="flex items-center gap-0.5 p-0.5">
                 {TIPOS_TRABAJO.map((t) => {
                   const activo = tipo === t;
@@ -507,7 +507,7 @@ export function CommandBar() {
                       onClick={() => setTipo(t)}
                       whileTap={{ scale: 0.95 }}
                       aria-pressed={activo}
-                      className={`relative flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[10px] uppercase tracking-[0.18em] transition-colors ${
+                      className={`relative flex items-center gap-1.5 rounded-none px-3 py-1.5 text-[10px] uppercase tracking-[0.18em] ${
                         activo
                           ? "text-cdm-bg"
                           : "text-cdm-muted hover:text-cdm-fg"
@@ -517,7 +517,7 @@ export function CommandBar() {
                         <motion.span
                           layoutId="cdm-chip-activo"
                           aria-hidden
-                          className="absolute inset-0 rounded-full bg-cdm-accent shadow-[0_0_14px_rgba(34,211,238,0.35)]"
+                          className="absolute inset-0 rounded-none bg-cdm-accent"
                           transition={{
                             type: "spring",
                             stiffness: 400,
@@ -552,7 +552,7 @@ export function CommandBar() {
                   onClick={alternarDictado}
                   title="Dictar más texto"
                   aria-label="Dictar comando por voz"
-                  className="flex h-8 w-8 items-center justify-center rounded-full text-cdm-muted transition-colors hover:bg-cdm-fg/5 hover:text-cdm-fg"
+                  className="flex h-8 w-8 items-center justify-center rounded-none text-cdm-muted hover:bg-cdm-fg/5 hover:text-cdm-fg"
                 >
                   <Mic className="h-4 w-4" />
                 </button>
@@ -565,13 +565,13 @@ export function CommandBar() {
                   onClick={alternarDictado}
                   title="Detener dictado"
                   aria-label="Detener dictado"
-                  className="relative flex h-8 w-8 items-center justify-center rounded-full bg-cdm-fg/10 text-red-400 transition-colors hover:bg-cdm-fg/15"
+                  className="relative flex h-8 w-8 items-center justify-center rounded-none bg-cdm-fg/10 text-red-400 hover:bg-cdm-fg/15"
                 >
                   <motion.span
                     aria-hidden
                     animate={{ opacity: [0.8, 0.2, 0.8] }}
                     transition={{ repeat: Infinity, duration: 1.4 }}
-                    className="absolute inset-0 rounded-full border border-red-400/60"
+                    className="absolute inset-0 rounded-none border border-red-400/60"
                   />
                   <Square className="h-3.5 w-3.5 fill-current" />
                 </button>
@@ -581,9 +581,9 @@ export function CommandBar() {
                   disabled={enviando || !hayContenido}
                   title="Ejecutar comando"
                   aria-label="Ejecutar comando"
-                  className={`flex h-8 w-8 items-center justify-center rounded-full transition-all disabled:cursor-not-allowed ${
+                  className={`flex h-8 w-8 items-center justify-center rounded-none disabled:cursor-not-allowed ${
                     hayContenido
-                      ? "bg-cdm-accent text-cdm-bg shadow-[0_0_16px_rgba(34,211,238,0.35)] hover:opacity-90"
+                      ? "bg-cdm-accent text-cdm-bg hover:opacity-90"
                       : "bg-cdm-fg/10 text-cdm-muted"
                   } ${enviando ? "opacity-50" : ""}`}
                 >
@@ -613,7 +613,7 @@ export function CommandBar() {
                       : "Dictado no disponible en este navegador"
                   }
                   aria-label="Dictar comando por voz"
-                  className={`flex h-8 w-8 items-center justify-center rounded-full bg-cdm-fg/10 text-cdm-muted transition-colors hover:bg-cdm-fg/15 hover:text-cdm-fg ${
+                  className={`flex h-8 w-8 items-center justify-center rounded-none bg-cdm-fg/10 text-cdm-muted hover:bg-cdm-fg/15 hover:text-cdm-fg ${
                     micDisponible ? "" : "cursor-not-allowed opacity-40"
                   }`}
                 >
@@ -699,7 +699,7 @@ export function CommandBar() {
                 type="button"
                 onClick={() => setVerImagen(false)}
                 aria-label="Cerrar vista de imagen"
-                className="absolute -right-3 -top-3 flex h-8 w-8 items-center justify-center rounded-full border border-cdm-line bg-cdm-bg text-cdm-fg shadow-lg transition-colors hover:bg-cdm-panel"
+                className="absolute -right-3 -top-3 flex h-8 w-8 items-center justify-center rounded-none border border-cdm-line bg-cdm-bg text-cdm-fg hover:bg-cdm-panel"
               >
                 <X className="h-4 w-4" />
               </button>
