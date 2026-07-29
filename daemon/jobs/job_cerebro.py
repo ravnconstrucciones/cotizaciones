@@ -4,14 +4,16 @@
 Corre después de job_inbox (que ya procesó el Inbox y escribió la Orientación):
 1. Pull del vault (el bot pudo haber escrito por GitHub).
 2. `graphify update` — re-extracción determinística, SIN LLM, costo cero.
-3. exportar-app.py + subir-a-app.sh → el grafo fresco llega a App RAVN.
-4. Copia graph.json al ORGANISMO y corre cerebro.py: recalcula recientes,
+   El grafo se mira en Obsidian y se consulta con `graphify query` — la vista
+   del grafo en App RAVN se borró el 28/07 (no servía).
+3. Copia graph.json al ORGANISMO y corre cerebro.py: recalcula recientes,
    marchitas (ley organos_eternos) y diagnóstico, y elige LA pregunta del día.
-5. Inserta la pregunta en `cerebro_preguntas` (Supabase). El bot de Railway la
+4. Inserta la pregunta en `cerebro_preguntas` (Supabase). El bot de Railway la
    manda por WhatsApp a la mañana; la respuesta de Eze entra por el asesor y
    vuelve al vault — el ciclo queda cerrado.
 """
 import json
+import os
 import shutil
 import subprocess
 import sys
@@ -22,14 +24,14 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from jobslib import GIT_VAULT, VAULT, log, push_vault, registrar_evento, rest
 
 GRAPHIFY = "/Users/ezeotero/.local/bin/graphify"
-PYTHON_GRAPHIFY = "/Users/ezeotero/.local/pipx/venvs/graphifyy/bin/python"
 GRAPHIFY_OUT = Path(VAULT) / "graphify-out"
 ORGANISMO = Path.home() / "Documents" / "organismo"
 
 
-def _run(cmd, timeout, paso):
+def _run(cmd, timeout, paso, env=None):
     # cwd=VAULT: graphify escribe artefactos (manifest) relativo al cwd
-    r = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout, cwd=VAULT)
+    r = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout, cwd=VAULT,
+                       env={**os.environ, **env} if env else None)
     if r.returncode != 0:
         raise RuntimeError(f"{paso}: {(r.stderr or r.stdout)[:300]}")
     return r.stdout
@@ -43,9 +45,11 @@ def correr(cfg, token):
     # 2. re-extracción determinística del grafo (sin LLM)
     _run([GRAPHIFY, "update", VAULT], 900, "graphify update")
 
-    # 3. export slim + subida al bucket de App RAVN
-    _run([PYTHON_GRAPHIFY, str(GRAPHIFY_OUT / "exportar-app.py")], 300, "exportar-app")
-    _run(["bash", str(GRAPHIFY_OUT / "subir-a-app.sh")], 120, "subir-a-app")
+    # 3. graph.html a nodo-por-nodo (el dibujo con las diagonales, pedido 28/07).
+    #    Sin el cap subido graphify cae solo a la vista agregada por comunidades
+    #    (burbujas sin interconexión) porque graph.json pasó los 4,6 MB.
+    _run([GRAPHIFY, "export", "html", "--node-limit", "20000"], 600, "export html",
+         env={"GRAPHIFY_MAX_GRAPH_BYTES": "200000000"})
 
     # 4. el ORGANISMO come el grafo nuevo y se autodiagnostica
     shutil.copy2(GRAPHIFY_OUT / "graph.json", ORGANISMO / "graph.json")

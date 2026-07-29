@@ -12,7 +12,6 @@ export default function Home() {
           "/api/finanzas",
           "/api/dinero",
           "/api/referencias?limit=20",
-          "/api/grafo",
         ]}
       />
       <CockpitHome />
