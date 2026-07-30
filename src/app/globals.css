@@ -38,29 +38,22 @@ html.light {
   --ravn-subtle: rgba(24, 24, 23, 0.08);
 }
 
-/* ── Centro de Mando (cockpit Jarvis) — paleta fija, siempre oscura ──
-   Iteración 5 (IGLOO): la luz sigue siendo CIAN HOLOGRAMA, pero deja de
-   vivir sobre negro plano — el fondo pasa a azul-gris volumétrico con
-   niebla (ver .cdm-niebla). El contenido flota EN una atmósfera, no
-   sobre un fondo. El semáforo financiero (emerald/red) y los warnings
-   ámbar NO cambian. Los documentos A4 (propuesta/remito/documento)
-   siguen con la identidad RAVN clásica — nunca usan estos tokens. */
+/* ── Centro de Mando — acero monocromo RAVN ──
+   El cockpit deja el cian holográfico: marca y superficies viven en negro,
+   blanco cálido y grises de acero. Verde, rojo y ámbar quedan reservados
+   exclusivamente para estados financieros y alertas. */
 :root {
-  --cdm-bg: #05080f;
-  --cdm-panel: #0a111c;
-  --cdm-fg: #eaf6fb;
-  --cdm-muted: rgba(234, 246, 251, 0.45);
-  --cdm-line: rgba(234, 246, 251, 0.14);
-  /* acento holograma + azul hielo secundario */
-  --cdm-accent: #22d3ee;
-  --cdm-accent-2: #7dd3fc;
-  /* cian profundo: corrientes del shader y arranque de gradientes */
-  --cdm-deep: #0e7490;
-  --cdm-glow: rgba(34, 211, 238, 0.35);
-  /* acero de la niebla: el azul-gris frío de la atmósfera */
-  --cdm-steel: #243a55;
-  /* malla Waves (el JS pinta con esta var — theme-aware sin leer el tema) */
-  --cdm-waves-stroke: rgba(34, 211, 238, 0.18);
+  --cdm-bg: #070707;
+  --cdm-panel: #101010;
+  --cdm-fg: #f2efe8;
+  --cdm-muted: rgba(242, 239, 232, 0.48);
+  --cdm-line: rgba(242, 239, 232, 0.16);
+  --cdm-accent: #f2efe8;
+  --cdm-accent-2: #a8a6a1;
+  --cdm-deep: #1b1b1b;
+  --cdm-glow: rgba(242, 239, 232, 0.26);
+  --cdm-steel: #2a2a2a;
+  --cdm-waves-stroke: rgba(242, 239, 232, 0.12);
   /* Semáforo financiero como TOKENS (no solo clases): para los displays que
      pintan por inline-style (CifraHeroica) el remap global de clases no llega,
      así que la cifra heroica lee estos. Mismos matices que las clases
@@ -70,14 +63,14 @@ html.light {
   --cdm-alerta: #fcd34d; /* alerta (amber-300) */
   /* Reflejo (gleam) que barre la CifraHeroica: en oscuro es luz casi blanca;
      en claro se invierte a una veta clara para no lavar el número oscuro. */
-  --cdm-gleam: rgba(255, 255, 255, 0.95);
+  --cdm-gleam: rgba(242, 239, 232, 0.95);
   /* hairline divisoria (línea de luz off-white en oscuro / tinta en claro) */
-  --cdm-hairline: rgba(234, 246, 251, 0.18);
+  --cdm-hairline: rgba(242, 239, 232, 0.18);
   /* LiquidGlass (capas inline del componente): tinte + highlights por tema */
-  --cdm-lg-tint-rgb: 234 246 251;
+  --cdm-lg-tint-rgb: 242 239 232;
   --cdm-lg-alpha-boost: 1;
-  --cdm-lg-hi-1: rgba(234, 246, 251, 0.13);
-  --cdm-lg-hi-2: rgba(234, 246, 251, 0.1);
+  --cdm-lg-hi-1: rgba(242, 239, 232, 0.12);
+  --cdm-lg-hi-2: rgba(242, 239, 232, 0.08);
 }
 
 /* ── MODO CLARO (pedido Eze 12/06): el MISMO cockpit con otra luz.
@@ -86,18 +79,18 @@ html.light {
    igual, cian recalibrado a #0891b2/#0e7490 para contraste AA. El bloom
    sobre claro casi no existe: la luz pasa a ser sombra cian tenue. */
 html.light {
-  --cdm-bg: #f5f7fa;
-  --cdm-panel: #ffffff;
-  --cdm-fg: #0f172a;
-  --cdm-muted: rgba(15, 23, 42, 0.55);
-  --cdm-line: rgba(15, 23, 42, 0.12);
-  --cdm-accent: #0891b2;
-  --cdm-accent-2: #0e7490;
-  --cdm-deep: #0e7490;
-  --cdm-glow: rgba(8, 145, 178, 0.4);
-  --cdm-steel: #dde5ee;
-  --cdm-waves-stroke: rgba(100, 116, 139, 0.14);
-  --cdm-hairline: rgba(15, 23, 42, 0.16);
+  --cdm-bg: #f2efe8;
+  --cdm-panel: #faf9f5;
+  --cdm-fg: #070707;
+  --cdm-muted: rgba(7, 7, 7, 0.56);
+  --cdm-line: rgba(7, 7, 7, 0.16);
+  --cdm-accent: #070707;
+  --cdm-accent-2: #4d4c49;
+  --cdm-deep: #d9d6cf;
+  --cdm-glow: rgba(7, 7, 7, 0.2);
+  --cdm-steel: #dedbd4;
+  --cdm-waves-stroke: rgba(7, 7, 7, 0.12);
+  --cdm-hairline: rgba(7, 7, 7, 0.16);
   /* Semáforo profundo para AA sobre blanco (espeja el remap de clases). */
   --cdm-positivo: #047857; /* emerald-700 */
   --cdm-negativo: #dc2626; /* red-600 */
@@ -107,7 +100,7 @@ html.light {
   --cdm-lg-tint-rgb: 255 255 255;
   --cdm-lg-alpha-boost: 6;
   --cdm-lg-hi-1: rgba(255, 255, 255, 0.95);
-  --cdm-lg-hi-2: rgba(148, 163, 184, 0.25);
+  --cdm-lg-hi-2: rgba(7, 7, 7, 0.12);
 }
 
 @theme {
@@ -276,25 +269,22 @@ html.light {
    * sistema rígido. Borde luminoso sutil + glow cian al focus.
    */
   .cdm-prompt {
-    border: 1px solid rgba(34, 211, 238, 0.28);
+    border: 1px solid color-mix(in srgb, var(--cdm-fg) 26%, transparent);
     /* Superficie liquid glass (LiquidGlass pone blur + tinte + highlights);
        acá queda el velo base bajo para que la malla Waves respire a través,
        más borde y glow holográfico de foco. */
     background: color-mix(in srgb, var(--cdm-panel) 45%, transparent);
     box-shadow:
       0 12px 48px rgba(0, 0, 0, 0.55),
-      0 0 24px -12px rgba(34, 211, 238, 0.3),
-      inset 0 1px 0 rgba(234, 246, 251, 0.08);
-    transition:
-      border-color 0.3s ease,
-      box-shadow 0.3s ease;
+      0 0 24px -12px color-mix(in srgb, var(--cdm-fg) 18%, transparent),
+      inset 0 1px 0 color-mix(in srgb, var(--cdm-fg) 8%, transparent);
   }
   .cdm-prompt:focus-within {
-    border-color: rgba(34, 211, 238, 0.65);
+    border-color: color-mix(in srgb, var(--cdm-fg) 62%, transparent);
     box-shadow:
       0 12px 48px rgba(0, 0, 0, 0.55),
-      0 0 44px rgba(34, 211, 238, 0.22),
-      inset 0 1px 0 rgba(234, 246, 251, 0.1);
+      0 0 36px color-mix(in srgb, var(--cdm-fg) 14%, transparent),
+      inset 0 1px 0 color-mix(in srgb, var(--cdm-fg) 10%, transparent);
   }
 
   /**

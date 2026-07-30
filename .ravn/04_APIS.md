@@ -1,10 +1,10 @@
 # 04 — Inventario de APIs (App RAVN)
 
 > **Naturaleza:** HECHOS
-> **Última verificación:** 2026-07-25
+> **Última verificación:** 2026-07-29 (borra `/api/trabajos`; `/api/diagnosticos*` 2026-07-28; resto 2026-07-25)
 > **Fuente:** src/app/api/**/route.ts, src/middleware.ts
 
-**57 rutas** (`find src/app/api -name "route.ts"` = 57: las 54 de 2026-07-23 + `cotizaciones/[id]/mensajes`, `cotizaciones/[id]/documento-borrador`, `cotizaciones/[id]/archivos/[archivoId]`, mesa conversacional 2026-07-25).
+**60 rutas** (las 57 de 2026-07-25 + `diagnosticos`, `diagnosticos/[id]`, `diagnosticos/[id]/cotizar`, módulo Diagnósticos 2026-07-28).
 
 **Auth global:** `src/middleware.ts` exige sesión Supabase para TODO (incluye `/api/*`); única excepción del matcher: `/api/auto-login` (que tiene su propia doble guardia: `PREVIEW_AUTO_LOGIN=true` + `VERCEL_ENV !== "production"`, si no → 404). Todos los handlers usan `createSupabaseAdminClient()` (service_role, bypass RLS) detrás de ese middleware.
 
@@ -43,6 +43,9 @@
 
 | Ruta | Métodos | Propósito |
 |---|---|---|
+| `/api/diagnosticos` | GET, POST | **Nueva 2026-07-28.** Lista de diagnósticos (portadas firmadas, filtro `?estado=`) / crear |
+| `/api/diagnosticos/[id]` | GET, PATCH | **Nueva 2026-07-28.** Detalle con fotos firmadas / editar contenido y estado |
+| `/api/diagnosticos/[id]/cotizar` | POST | **Nueva 2026-07-28.** "Enviar a cotizar": crea la cotización en `borrador`, siembra el relevamiento como mensaje `sistema` en la mesa y marca el diagnóstico `cotizado`. Idempotente |
 | `/api/cotizaciones` | GET, POST | Galería de tarjetas (con portadas firmadas) / crear cotización |
 | `/api/cotizaciones/[id]` | GET, PATCH, DELETE | Detalle joineado / vincular presupuesto / borrado físico |
 | `/api/cotizaciones/[id]/aprobar` | POST | OK de Eze → estado aprobada + loop de oro (crea proyecto) |
@@ -108,7 +111,6 @@
 
 | Ruta | Métodos | Propósito |
 |---|---|---|
-| `/api/trabajos` | GET, POST | Barra de comando → trabajos_cola + evento espejo / últimos 10 |
 | `/api/adn/sin-clasificar` | GET | Imágenes de WhatsApp archivadas sin destino (vista ADN) |
 | `/api/archivados/resolver` | POST | Resuelve evento archivado: insert de destino + marca resuelto |
 | `/api/referencias` | GET | Tabla referencias con imágenes firmadas |
@@ -243,7 +245,10 @@ Todas leen/escriben `cotizaciones`; los cambios de estado usan guard de carrera 
 
 ### Trabajos / eventos / varios
 
-**POST /api/trabajos** — body validado por `validarNuevoTrabajo()` → insert en `trabajos_cola` (origen tablero) + evento espejo en `eventos` (best-effort). **GET** — últimos 10 trabajos.
+**`/api/trabajos` — BORRADA el 29/07/2026** junto con la barra de comando del
+cockpit (aprobación explícita de Eze). La app ya no encola desde el tablero. La
+tabla `trabajos_cola` sigue viva: escriben el bot de WhatsApp
+(`ravn-bots/src/supabaseService.js`) y `/api/obras/[id]/diagnostico`.
 
 **GET /api/adn/sin-clasificar** — `eventos` estado=archivado con media o imagen_path (máx 60) + signed URLs del bucket `referencias` (1 h, tolera fallas parciales).
 

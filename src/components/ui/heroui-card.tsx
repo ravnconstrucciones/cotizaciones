@@ -15,8 +15,8 @@ function cn(...inputs: ClassValue[]) {
 }
 
 /**
- * Card estilo HeroUI — la estética que pasó Eze: tarjeta redondeada
- * (rounded-[32px]), sombra suave, superficie limpia que se LEE bien claro,
+ * Card base del Centro de Mando: acero monocromo, borde preciso y superficies
+ * planas que se leen claro sin abandonar el lenguaje geométrico de RAVN.
  * con soporte dark: (atado a la clase .dark vía el @custom-variant de
  * globals.css → responde al toggle [MODO CLARO]/[MODO OSCURO] de la app).
  *
@@ -34,9 +34,9 @@ const VARIANT: Record<Variant, string> = {
   // Un punto más apagada, para tarjetas secundarias.
   muted:
     "bg-zinc-50 text-zinc-900 ring-1 ring-zinc-950/[0.05] dark:bg-zinc-900/40 dark:text-zinc-100 dark:ring-white/[0.06]",
-  // Con un baño de acento cian (la marca) muy sutil para tarjetas hero.
+  // La tarjeta protagonista sube apenas el contraste, sin introducir color.
   accent:
-    "bg-white text-zinc-900 ring-1 ring-cyan-500/20 dark:bg-zinc-900/70 dark:text-zinc-50 dark:ring-cyan-400/20",
+    "bg-white text-zinc-900 ring-1 ring-zinc-900/[0.16] dark:bg-zinc-900/70 dark:text-zinc-50 dark:ring-white/[0.18]",
 };
 
 export interface CardProps extends React.HTMLAttributes<HTMLDivElement> {
@@ -50,11 +50,9 @@ export const Card = React.forwardRef<HTMLDivElement, CardProps>(
     <div
       ref={ref}
       className={cn(
-        "rounded-[32px] shadow-[0_1px_2px_rgba(16,24,40,0.04),0_12px_32px_-12px_rgba(16,24,40,0.12)]",
-        "transition-shadow duration-300 dark:shadow-[0_1px_2px_rgba(0,0,0,0.4),0_18px_44px_-18px_rgba(0,0,0,0.6)]",
+        "rounded-none border border-zinc-900/[0.14] bg-white shadow-none dark:border-white/[0.14] dark:bg-zinc-900/70",
         VARIANT[variant],
-        interactive &&
-          "hover:shadow-[0_2px_4px_rgba(16,24,40,0.05),0_24px_56px_-16px_rgba(16,24,40,0.2)] dark:hover:shadow-[0_2px_4px_rgba(0,0,0,0.5),0_28px_64px_-18px_rgba(0,0,0,0.7)]",
+        interactive && "hover:bg-zinc-50 dark:hover:bg-zinc-900/90",
         className
       )}
       {...props}

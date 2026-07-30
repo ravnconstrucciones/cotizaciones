@@ -1,0 +1,17 @@
+# El bootstrap copia este archivo a .codex/config.toml en la Mac.
+# Codex lo carga únicamente cuando la carpeta está marcada como confiable.
+
+approval_policy = "on-request"
+sandbox_mode = "workspace-write"
+web_search = "cached"
+
+[sandbox_workspace_write]
+network_access = true
+
+[features]
+apps = true
+goals = true
+hooks = true
+remote_plugin = true
+shell_snapshot = true
+shell_tool = true

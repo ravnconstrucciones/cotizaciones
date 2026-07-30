@@ -4,11 +4,10 @@ export const GASTOS_OBRA_BUCKET = "gastos-obra";
 
 export type GastoAdjuntoKind = "foto" | "audio";
 
-export function publicUrlGastoAdjunto(path: string): string {
-  const sb = createClient();
-  const { data } = sb.storage.from(GASTOS_OBRA_BUCKET).getPublicUrl(path.trim());
-  return data.publicUrl;
-}
+// `publicUrlGastoAdjunto` se borró el 2026-07-28: no la llamaba nadie y el
+// bucket pasó a PRIVADO (era el único público del proyecto). Si algún día hay
+// que mostrar el adjunto, va con `createSignedUrl` desde una API route, como
+// obra-archivos y referencias.
 
 function extensionForKind(kind: GastoAdjuntoKind, file: File): string {
   const fromName = file.name.split(".").pop()?.toLowerCase();

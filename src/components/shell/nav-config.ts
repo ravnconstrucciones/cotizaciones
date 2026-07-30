@@ -17,6 +17,9 @@ export type NavItem = { href: string; label: string };
 export const NAV_COCKPIT: NavItem[] = [
   { href: "/", label: "Inicio" },
   { href: "/obras", label: "Proyectos" },
+  // Diagnósticos va ANTES de Cotizaciones: es el orden real del circuito
+  // (relevamiento → diagnóstico → "Enviar a cotizar" → mesa).
+  { href: "/diagnosticos", label: "Diagnósticos" },
   { href: "/cotizaciones", label: "Cotizaciones" },
   // "/cotizar" es un redirect a "/cotizaciones" (26/07): apuntar el nav ahí
   // duplicaba el destino. El panel viejo (recetas + take-off, Capítulo 1)

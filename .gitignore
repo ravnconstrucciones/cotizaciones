@@ -23,3 +23,9 @@ src/fonts/canva-extracted/
 # Artefactos de build / caches (no versionar)
 *.tsbuildinfo
 __pycache__/
+
+# Config local de la Mac (rutas y comandos, generado por scripts/ravn-bootstrap-mac.sh)
+.ravn/local.env
+
+# Config de Codex: contiene claves de MCP. La plantilla versionada es config/codex-config.toml
+.codex/

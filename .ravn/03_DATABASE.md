@@ -1,12 +1,13 @@
 > **Naturaleza:** HECHOS
-> **Última verificación:** 2026-07-25
+> **Última verificación:** 2026-07-28 (agrega `diagnosticos`; resto 2026-07-25)
 > **Fuente:** Supabase MCP list_tables + list_migrations, supabase/
 
 # Modelo de datos — App RAVN (schema `public`)
 
-**51 tablas** en `public` (49 verificadas 2026-07-23 + `cotizacion_mensajes` y
-`puente_latidos`, migración `20260725120000_mesa_conversacional.sql`,
-verificado 2026-07-25 sobre archivo — no re-corrido `list_tables`).
+**52 tablas** en `public` (49 verificadas 2026-07-23 + `cotizacion_mensajes` y
+`puente_latidos`, migración `20260725120000_mesa_conversacional.sql` +
+`diagnosticos`, migración `20260728120000_diagnosticos.sql`, aplicada y
+verificada con `list_tables` el 2026-07-28).
 Convención general: PK `id` (uuid en lo nuevo, bigint en lo legacy), timestamps `created_at`/`creado_at`.
 Nota de identidad: en casi toda la app **la obra se identifica por `presupuesto_id` (uuid de `presupuestos`)**, no por `obras.id`. La tabla `obras` es una extensión 1:1 del presupuesto aprobado.
 
@@ -42,8 +43,9 @@ Nota de identidad: en casi toda la app **la obra se identifica por `presupuesto_
 | `cotizaciones_cola` | Cola de pedidos de cotización que entran por el bot (Tramo C). | `pedido`, `estado`, `respuesta`, `session_id`, `origen` |
 | `cotizacion_archivos` | Archivos/renders por cotización (galería, crops por ítem, fotos de la mesa). Columna `en_propuesta` (bool, default false, 2026-07-25): marca la foto para salir en el documento emitido — página extra, cero regresión sin fotos marcadas. | `cotizacion_id → cotizaciones`, `storage_path`, `item_nombre`, `en_propuesta` |
 | `cotizacion_mensajes` | **Nueva 2026-07-25 (mesa conversacional).** Hilo a tres voces de la mesa de revisión: Eze, Fable (Claude Code local) y Codex, más avisos de `sistema`. Realtime ON; RLS: select `authenticated`, insert/update siempre por service role (API routes o el puente). | `cotizacion_id → cotizaciones` (on delete cascade), `autor` (check eze\|fable\|codex\|sistema), `texto`, `adjuntos` (jsonb `[{archivo_id, storage_path, titulo}]`), `meta` (jsonb `{tipo, respuesta_a, fuentes}`); índices por `(cotizacion_id, creado_at)` y por `meta->>'respuesta_a'` (dedup del puente) |
+| `diagnosticos` | **Nueva 2026-07-28 (módulo /diagnosticos, ADR 0006).** Diagnóstico técnico de obra: nace del relevamiento de campo y se convierte en cotización con "Enviar a cotizar". El documento al cliente lo renderiza la app con `src/lib/doc-a4-css.ts`, el modelo sólo aporta contenido. RLS: select `authenticated`, escritura por API route con service role. | `titulo`, `direccion`, `cliente`, `estado` (check borrador\|listo\|enviado\|cotizado), `presupuesto_id → presupuestos`, `trabajo_id → trabajos_cola`, `cotizacion_id → cotizaciones`, `relevamiento` (text crudo del checklist de visita), `contenido` (jsonb `{resumen, secciones:[{titulo,cuerpo,fotos}], alcance, recomendaciones, faltantes}`), `foto_portada_path` |
 | `cotizador_lecciones` | Lecciones aprendidas post-obra que ajustan recetas futuras. | `cotizacion_id → cotizaciones`, `obra_presupuesto_id → presupuestos`, `leccion`, `ajuste` (jsonb) |
-| `trabajos_cola` | Cola genérica de trabajos para el daemon de la Mac (prompt + contexto + resultado jsonb). | `tipo`, `estado`, `prompt`, `contexto`/`resultado` (jsonb) |
+| `trabajos_cola` | Cola genérica de trabajos para el daemon de la Mac (prompt + contexto + resultado jsonb). **29/07:** la home ya no escribe acá (se borró la barra de comando y `/api/trabajos`); quedan como productores el bot de WhatsApp y `/api/obras/[id]/diagnostico`. El único consumidor verificado es `com.ravn.puente-cotizador`. | `tipo`, `estado`, `prompt`, `contexto`/`resultado` (jsonb) |
 
 ### Dominio: Dinero (14)
 

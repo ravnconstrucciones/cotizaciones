@@ -5,13 +5,9 @@ export const CAJA_ADJUNTO_BUCKET = "gastos-obra";
 
 export type CajaAdjuntoKind = "foto" | "audio";
 
-export function publicUrlCajaAdjunto(path: string): string {
-  const sb = createClient();
-  const { data } = sb.storage
-    .from(CAJA_ADJUNTO_BUCKET)
-    .getPublicUrl(path.trim());
-  return data.publicUrl;
-}
+// `publicUrlCajaAdjunto` se borró el 2026-07-28 junto con su gemela de
+// gastos-storage: sin usar, y el bucket pasó a privado. Para mostrar el
+// adjunto: signed URL desde una API route.
 
 function extensionForKind(kind: CajaAdjuntoKind, file: File): string {
   const fromName = file.name.split(".").pop()?.toLowerCase();
