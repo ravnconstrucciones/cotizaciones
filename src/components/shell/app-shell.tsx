@@ -101,7 +101,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             align="start"
             showTagline={false}
             shimmer
-            iso="side"
             sizeClassName="text-lg"
             className="drop-shadow-[0_0_18px_rgba(34,211,238,0.30)]"
           />
