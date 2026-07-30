@@ -1,7 +1,7 @@
 # 05 — Inventario de prompts de IA del sistema RAVN
 
 > **Naturaleza:** HECHOS + INTENCIÓN
-> **Última verificación:** 2026-07-23
+> **Última verificación:** 2026-07-29 (borra `api/trabajos`; verifica consumidores de `trabajos_cola`; resto 2026-07-23)
 > **Fuente:** ravn-bots/, daemon/, scripts/, src/, ~/.claude/skills/
 
 Este doc es un ÍNDICE: dice qué prompt existe, dónde vive y para qué está. El texto del prompt vive en el código fuente — acá no se copia (la copia se desactualiza).
@@ -116,8 +116,9 @@ Acá el "prompt" no es un string en código: son **skills** que gobiernan a Clau
 - **Salida:** respuesta en chat + guardado en `~/Obsidian/RAVN/Cotizaciones/consultas/`.
 
 ### 3.3 Cola `trabajos_cola` (prompts dinámicos, sin texto fijo)
-- **Productores:** el bot (`/Users/ezeotero/Documents/ravn-bots/src/portero.js` — `encolar()` L25; re-cotización con corrección L288) y la app (`/Users/ezeotero/Documents/ravn/src/app/api/trabajos/route.ts`; `/Users/ezeotero/Documents/ravn/src/app/api/obras/[id]/diagnostico/route.ts` L31 arma un prompt completo de orden: generar diagnóstico HTML + adjuntarlo a `obra_archivos`).
+- **Productores:** el bot (`/Users/ezeotero/Documents/ravn-bots/src/portero.js` — `encolar()` L25; re-cotización con corrección L288) y la app (`/Users/ezeotero/Documents/ravn/src/app/api/obras/[id]/diagnostico/route.ts` L31 arma un prompt completo de orden: generar diagnóstico HTML + adjuntarlo a `obra_archivos`). `api/trabajos/route.ts` **ya no existe** (borrado 29/07 con la barra de comando).
 - **Consumidor:** Claude Code en la Mac (sesión con los skills de arriba). No hay un system prompt fijo en código: el prompt viaja en la fila (`prompt` + `contexto`).
+- **Verificado 29/07/2026 — hueco real:** el único launchd vivo que consume la cola es `com.ravn.puente-cotizador`. `com.ravn.jobs` no la toca. O sea: lo que encole `/api/obras/[id]/diagnostico` o el portero fuera del circuito de cotización queda `pendiente` sin ejecutarse. Verificar antes de apoyar una fase nueva sobre esta cola.
 
 **Sin prompts:** `scripts/cotizador/*.ts` (instanciar/sembrar/refrescar precios) y `scripts/gastos-obra.ts`, `scripts/dinero-foto.ts` son CLIs determinísticos que Claude Code invoca — no llaman a ninguna IA.
 

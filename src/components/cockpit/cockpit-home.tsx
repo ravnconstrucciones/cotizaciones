@@ -2,7 +2,6 @@
 
 import { motion } from "framer-motion";
 import { useEntradaAnimada } from "@/hooks/use-entrada-animada";
-import { CommandBar } from "./command-bar";
 import { PanelVariantProvider } from "./panel";
 import { ModuloSaludNegocio } from "./modulo-salud-negocio";
 import { ModuloFinanzas } from "./modulo-finanzas";
@@ -43,21 +42,18 @@ export function CockpitHome() {
         />
 
         <div className="relative z-10 mx-auto w-full max-w-[1180px] px-4 pb-20 pt-8 sm:px-6 lg:px-8 lg:pt-12">
-          {/* ── HERO: la barra de comando, prominente ── */}
+          {/* La barra de comando salió de la home (pedido 29/07): escribía a
+              `trabajos_cola` y ningún daemon la levantaba — última orden
+              ejecutada 17/06, 12 pendientes colgadas. La tabla sigue viva
+              porque el bot de WhatsApp escribe ahí. Si vuelve, vuelve con
+              motor. */}
+
+          {/* Saludo + fecha: ahora abre la pantalla */}
           <motion.div
             initial={animar ? { opacity: 0, y: -12 } : false}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.4, ease: "easeOut" }}
-          >
-            <CommandBar />
-          </motion.div>
-
-          {/* Saludo + fecha, debajo del hero */}
-          <motion.div
-            initial={animar ? { opacity: 0, y: 8 } : false}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.4, delay: 0.08, ease: "easeOut" }}
-            className="mb-9 mt-6 flex flex-wrap items-baseline justify-between gap-2 border-b border-cdm-line px-1 pb-4"
+            className="mb-9 flex flex-wrap items-baseline justify-between gap-2 border-b border-cdm-line px-1 pb-4"
           >
             <h1 className="text-[22px] font-semibold uppercase tracking-[0.08em] text-cdm-fg sm:text-[26px]">
               Buen día, Ezequiel

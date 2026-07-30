@@ -1,7 +1,7 @@
 # Arquitectura real — App RAVN
 
 > **Naturaleza:** HECHOS
-> **Última verificación:** 2026-07-25 (agrega `daemon/puente-cotizador/`; resto verificado 2026-07-23)
+> **Última verificación:** 2026-07-29 (borra la command bar del cockpit y `/api/trabajos`; `daemon/puente-cotizador/` 2026-07-25; resto 2026-07-23)
 > **Fuente:** src/, daemon/, scripts/, supabase/, ~/Documents/ravn-bots/
 
 Todo lo afirmado acá sale de archivos leídos en esa fecha. Cada bloque cita su fuente. Lo no verificable está marcado "a verificar".
@@ -18,7 +18,7 @@ Next.js 15.5 + React 19 + Tailwind 4 + Supabase (`@supabase/ssr` + `supabase-js`
 
 | Ruta | Propósito (según código de la página / API asociada) |
 |---|---|
-| `/` (`src/app/page.tsx`) | Home / cockpit (tablero central; componentes en `src/components/cockpit/`, incl. `command-bar.tsx` que inserta en `trabajos_cola`). |
+| `/` (`src/app/page.tsx`) | Home / cockpit (tablero central; componentes en `src/components/cockpit/`). La `command-bar.tsx` se borró el 29/07: encolaba en `trabajos_cola` y ningún daemon la levantaba. |
 | `/obras`, `/obras/[id]` | Obras y su detalle; subrutas `[id]/gastos`, `[id]/mano-obra`, `[id]/plan` (plan de compra). |
 | `/cotizar` | Mesa del cotizador (APIs `api/cotizar/recetas`, `takeoff`, `precios/refresh`). |
 | `/cotizaciones`, `/cotizaciones/[id]/revision`, `/cotizaciones/[id]/documento` | Galería de cotizaciones, mesa de revisión (con panel de conversación vía `trabajos_cola`) y documento emitible. |
@@ -33,7 +33,7 @@ Next.js 15.5 + React 19 + Tailwind 4 + Supabase (`@supabase/ssr` + `supabase-js`
 | `/grafo` | Visualización del grafo del cerebro (`src/lib/grafo.ts`, `grafo-dibujo.ts`, API `api/grafo`). |
 | `/adn` | Clasificación ADN (API `api/adn/sin-clasificar`). |
 | `/archivados` | Bandeja de archivados + resolver (`api/archivados/resolver`). |
-| `/actividad` | Feed de eventos (tabla `eventos`, ver `api/trabajos/route.ts` que espeja ahí). |
+| `/actividad` | Feed de eventos (tabla `eventos`). |
 | `/pendientes` | Pendientes de cuenta (API `api/pendientes-cuenta`). |
 | `/proveedores` | Proveedores (`src/lib/proveedores-whatsapp.ts`, API `api/proveedores`). |
 | `/catalogo` | Catálogo de recetas/ítems (modales `crear-item-catalogo-modal.tsx`, `nuevo-receta-modal.tsx`). |
@@ -106,7 +106,8 @@ Un solo proyecto Supabase para todo: 65 migraciones en `supabase/migrations/` + 
 - **Bot ↔ WhatsApp**: WhatsApp Cloud API (webhook entrante en `/webhook`, salida vía Graph API con `PHONE_NUMBER_ID` + `ACCESS_TOKEN`, `index.js`).
 - **Bot ↔ Supabase**: `supabaseService.js` — lee/escribe gastos, cuentas, tareas, preguntas, sinapsis, eventos y `trabajos_cola`; chequea `sistema_estado.ultimo_latido` para saber si la Mac está viva antes de prometer proceso inmediato (`portero.js` → `ackCola`).
 - **Bot → vault (GitHub)**: ESCRITURA vía GitHub Contents API, un commit por PUT (`githubVault.js`) — así el bot escribe el Inbox del vault sin tener la Mac prendida.
-- **Bot ↔ Mac (trabajo pesado)**: asíncrono por Supabase. El portero encola en `trabajos_cola` (estado `pendiente`); la Mac procesa y marca `completado` con `resultado.texto`; la app también encola desde la command bar del cockpit (`api/trabajos/route.ts`) y arma el hilo del Terminal proyectando esos trabajos (`src/lib/terminal-hilo.ts`). No hay conexión directa bot↔Mac ni bot↔app.
+- **Bot ↔ Mac (trabajo pesado)**: asíncrono por Supabase. El portero encola en `trabajos_cola` (estado `pendiente`); la Mac procesa y marca `completado` con `resultado.texto`. No hay conexión directa bot↔Mac ni bot↔app.
+  - **Verificado 29/07/2026:** el único daemon vivo que consume la cola es `com.ravn.puente-cotizador` (mesa de cotización). `com.ravn.jobs` (`~/.ravn-jobs/run-jobs.sh`) NO menciona `trabajos_cola`. Por eso la command bar del cockpit y `api/trabajos/route.ts` se borraron (última orden completada 17/06, 12 pendientes colgadas del 01/07), junto con `src/lib/terminal-hilo.ts`, que ya no tenía ningún consumidor. **Cuidado:** `/api/obras/[id]/diagnostico` sigue encolando tipo `orden` ahí — depende de un consumidor que hoy no está verificado.
 - **Daemon → Supabase**: REST con auth propia (`jobslib.supabase_auth`) — escribe `calendario_eventos`, `precios_items`, sinapsis, estado de sistema; lee snapshot del negocio.
 - **Daemon → vault**: git pull/push local del vault (Obsidian/iCloud) — p. ej. `job_dolar` "pushea el vault".
 - **Daemon → WhatsApp**: `job_resumen` envía al OWNER_PHONE (vía el bot/Cloud API según config del job).

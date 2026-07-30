@@ -3,30 +3,10 @@
  * (migraciones de Frente A). No renombrar campos ni estados.
  */
 
-export const TIPOS_TRABAJO = ["cotizar", "redactar", "consulta", "orden"] as const;
-export type TipoTrabajo = (typeof TIPOS_TRABAJO)[number];
-
-export type EstadoTrabajo =
-  | "pendiente"
-  | "esperando_datos"
-  | "procesando"
-  | "en_revision"
-  | "completado"
-  | "error"
-  | "cancelado";
-
-export type TrabajoCola = {
-  id: string;
-  creado_at: string;
-  actualizado_at: string;
-  tipo: TipoTrabajo;
-  origen: "whatsapp" | "tablero";
-  estado: EstadoTrabajo;
-  prompt: string;
-  contexto: Record<string, unknown>;
-  resultado: Record<string, unknown> | null;
-  error: string | null;
-};
+/* Los tipos de `trabajos_cola` (TIPOS_TRABAJO, TrabajoCola, EstadoTrabajo)
+   salieron el 29/07 junto con la barra de comando: la app ya no lee ni escribe
+   esa tabla. La tabla y sus migraciones siguen intactas — el bot de WhatsApp
+   inserta ahí desde ravn-bots/src/supabaseService.js. */
 
 export type OrigenEvento = "whatsapp" | "tablero" | "daemon" | "bot" | "sistema";
 export type EstadoEvento = "procesado" | "pendiente_pregunta" | "archivado" | "resuelto";
