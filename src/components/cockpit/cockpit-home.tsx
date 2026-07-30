@@ -5,6 +5,7 @@ import { useEntradaAnimada } from "@/hooks/use-entrada-animada";
 import { PanelVariantProvider } from "./panel";
 import { ModuloSaludNegocio } from "./modulo-salud-negocio";
 import { ModuloFinanzas } from "./modulo-finanzas";
+import { ModuloIa } from "./modulo-ia";
 import { ModuloObras } from "./modulo-obras";
 import { ModuloPlata } from "./modulo-plata";
 import { ModuloPendientes } from "./modulo-pendientes";
@@ -75,6 +76,11 @@ export function CockpitHome() {
 
             {/* Fila 0b — FINANZAS PERSONALES: la libreta personal, hermana de Salud */}
             <ModuloFinanzas className="lg:col-span-12" />
+
+            {/* Fila 0c — IA DE RAVN (pedido 29/07): suscripciones (fijas, en
+                dólares) contra API por uso (variable, centavos). Van juntas
+                porque el punto es que dejen de confundirse en un solo número. */}
+            <ModuloIa className="lg:col-span-12" />
 
             {/* Fila 1 — Obras (grande) + Plata */}
             <ModuloObras className="lg:col-span-7" />
