@@ -16,6 +16,9 @@ export type NavItem = { href: string; label: string };
 
 export const NAV_COCKPIT: NavItem[] = [
   { href: "/", label: "Inicio" },
+  // Captura rápida de gastos (obra/empresa/personal) — la misma pantalla que
+  // abre el atajo "Gasto" del iPhone (/gasto, standalone).
+  { href: "/gasto", label: "Cargar gasto" },
   { href: "/obras", label: "Proyectos" },
   // Diagnósticos va ANTES de Cotizaciones: es el orden real del circuito
   // (relevamiento → diagnóstico → "Enviar a cotizar" → mesa).

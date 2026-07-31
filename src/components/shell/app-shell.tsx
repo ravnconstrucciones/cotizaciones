@@ -9,8 +9,10 @@ import { createClient } from "@/lib/supabase/client";
 import { useRealtimeTable } from "@/hooks/use-realtime-table";
 import { MenuOverlay } from "./menu-overlay";
 
-/** Rutas SIN carcasa (login, vistas de impresión/PDF y landing pública). */
-const SIN_CARCASA = ["/login", "/remito", "/landing"];
+/** Rutas SIN carcasa (login, vistas de impresión/PDF, landing pública y la
+ * captura rápida /gasto — que abre standalone desde el atajo del iPhone).
+ * Match por SEGMENTO (no startsWith pelado): "/gasto" no debe comerse "/gastos". */
+const SIN_CARCASA = ["/login", "/remito", "/landing", "/gasto"];
 /** Sufijos de ruta que también omiten carcasa (documentos A4 de cotizaciones). */
 const SIN_CARCASA_SUFIJO = ["/documento"];
 
@@ -79,7 +81,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   useRealtimeTable("eventos", cargarBadge);
 
   if (
-    SIN_CARCASA.some((p) => pathname.startsWith(p)) ||
+    SIN_CARCASA.some((p) => pathname === p || pathname.startsWith(`${p}/`)) ||
     SIN_CARCASA_SUFIJO.some((s) => pathname.endsWith(s))
   )
     return <>{children}</>;

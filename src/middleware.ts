@@ -68,6 +68,18 @@ export async function middleware(request: NextRequest) {
   const isLoginPage = request.nextUrl.pathname.startsWith("/login");
 
   if (!user && !isLoginPage) {
+    // Fetch de API sin sesión: 401 JSON, nunca redirect a /login (revisión
+    // 31/07). Un POST redirigido a la page de login termina en 405/HTML y el
+    // cliente solo puede mostrar un error genérico; con 401 el cliente
+    // (p.ej. /gasto, PWA cacheada días en iOS) muestra "sesión vencida" con
+    // salida real. El bypass x-ravn-agente ya se resolvió arriba.
+    if (request.nextUrl.pathname.startsWith("/api/")) {
+      return NextResponse.json(
+        { ok: false, error: "Sesión vencida" },
+        { status: 401 }
+      );
+    }
+
     const isPreviewAutoLogin =
       process.env.PREVIEW_AUTO_LOGIN === "true" &&
       process.env.VERCEL_ENV !== "production";
@@ -81,6 +93,12 @@ export async function middleware(request: NextRequest) {
 
     const url = request.nextUrl.clone();
     url.pathname = "/login";
+    // Volver a donde iba después de loguearse (clave para el atajo /gasto del
+    // iPhone: sesión vencida no puede tirar a la home y perder el gasto).
+    url.search =
+      request.nextUrl.pathname !== "/"
+        ? `?next=${encodeURIComponent(request.nextUrl.pathname)}`
+        : "";
     return NextResponse.redirect(url);
   }
 
@@ -95,6 +113,6 @@ export async function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|api/auto-login|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+    "/((?!_next/static|_next/image|favicon.ico|api/auto-login|.*\\.(?:svg|png|jpg|jpeg|gif|webp|webmanifest)$).*)",
   ],
 };

@@ -1,10 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import dynamic from "next/dynamic";
 import { motion, useReducedMotion } from "framer-motion";
 import { createClient } from "@/lib/supabase/client";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { RavnLogo } from "@/components/ravn-logo";
 
 /**
@@ -32,14 +32,23 @@ const fieldCls =
 const labelCls =
   "text-[10px] font-medium uppercase tracking-[0.24em] text-white/55";
 
-export default function LoginPage() {
+function LoginForm() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const router = useRouter();
+  const searchParams = useSearchParams();
   const supabase = createClient();
   const reducirMovimiento = useReducedMotion();
+
+  // ?next=<pathname>: adónde volver post-login (lo setea el middleware; clave
+  // para el atajo /gasto). Sanitizado: solo paths internos ("/" y no "//").
+  const nextRaw = searchParams.get("next");
+  const next =
+    nextRaw && nextRaw.startsWith("/") && !nextRaw.startsWith("//")
+      ? nextRaw
+      : "/";
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
@@ -57,7 +66,7 @@ export default function LoginPage() {
       return;
     }
 
-    router.push("/");
+    router.push(next);
     router.refresh();
   }
 
@@ -154,5 +163,14 @@ export default function LoginPage() {
         </motion.form>
       </div>
     </main>
+  );
+}
+
+/** useSearchParams exige Suspense en Next 15 (CSR bailout del prerender). */
+export default function LoginPage() {
+  return (
+    <Suspense fallback={null}>
+      <LoginForm />
+    </Suspense>
   );
 }
