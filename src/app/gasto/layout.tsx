@@ -15,7 +15,9 @@ export const metadata: Metadata = {
   // Ícono propio del atajo: isotipo R blanco cemento sobre verde inglés
   // para distinguirlo del ícono negro de la app en la pantalla de inicio.
   icons: {
-    apple: "/apple-touch-icon-gasto.png",
+    // ?v= vence el caché de íconos de iOS (guarda por URL); subirlo si se
+    // vuelve a cambiar el diseño del ícono.
+    apple: "/apple-touch-icon-gasto.png?v=verde",
   },
   appleWebApp: {
     capable: true,
