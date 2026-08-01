@@ -42,10 +42,8 @@ export type ObraRapida = {
   casaDolarLabel: string | null;
 };
 
-export type RubroRapido = { id: string; nombre: string };
-
 type Tipo = "obra" | "empresa" | "personal";
-type SheetId = "fecha" | "obra" | "rubro" | "categoria" | null;
+type SheetId = "fecha" | "obra" | "categoria" | null;
 
 type EstadoLedger = "asentado" | "pendiente_cuenta" | "espejo_pendiente" | "sin_foto";
 
@@ -71,7 +69,6 @@ type LsShape = {
   tipo?: Tipo;
   obraId?: string;
   cuentaPorTipo?: Partial<Record<Tipo, string>>;
-  rubroPorObra?: Record<string, string>;
 };
 
 function leerLs(): LsShape {
@@ -154,11 +151,9 @@ function Sheet({
 
 export function GastoScreen({
   obras,
-  rubros,
   hoy,
 }: {
   obras: ObraRapida[];
-  rubros: RubroRapido[];
   hoy: string;
 }) {
   const animar = useEntradaAnimada();
@@ -173,7 +168,6 @@ export function GastoScreen({
   const [concepto, setConcepto] = useState("");
   const [fecha, setFecha] = useState(hoy);
   const [obraId, setObraId] = useState<string | null>(null);
-  const [rubroId, setRubroId] = useState("");
   const [categoria, setCategoria] = useState("");
   const [cuentaId, setCuentaId] = useState<string | null>(null);
   const [sheet, setSheet] = useState<SheetId>(null);
@@ -190,9 +184,6 @@ export function GastoScreen({
 
   const montoRef = useRef<HTMLInputElement>(null);
   const lsRef = useRef<LsShape>({});
-  /** Rubro elegido por la IA: el efecto rubro-por-obra lo respeta una vez en
-   * lugar de pisarlo con el último rubro usado de localStorage. */
-  const rubroDeIa = useRef<string | null>(null);
   const cuentaTocada = useRef(false);
   const reservaOfrecida = useRef<string | null>(null);
   /** Hubo un intento de guardado que falló (respuesta perdida incluida):
@@ -204,31 +195,46 @@ export function GastoScreen({
    * dedupea el request). Acá se usan para conocer la MONEDA de la cuenta
    * elegida (trampa USD) y para pintar las cajas como botones en "Salió de". */
   const [cuentas, setCuentas] = useState<SaldosCuentas["cuentas"] | null>(null);
-  useEffect(() => {
-    let cancel = false;
-    void (async () => {
-      // Con reintentos (revisión 31/07): si este fetch muere, la pantalla no
-      // conoce la MONEDA de la cuenta hidratada de localStorage y podría
-      // mandar un monto en pesos contra una cuenta USD (~1000x en el ledger).
-      // Mientras cuentas === null con cuenta elegida, [GUARDAR] queda
-      // bloqueado (ver `motivo`) — acá se insiste solo para destrabarlo.
-      for (let intento = 0; intento < 4 && !cancel; intento++) {
-        try {
-          const r = await fetchCompartido("/api/cuentas");
-          if (r.ok) {
-            if (!cancel) setCuentas((r.body as SaldosCuentas).cuentas ?? []);
-            return;
-          }
-        } catch {
-          /* red caída: se reintenta abajo */
+
+  /** Trae los saldos frescos. Con reintentos (revisión 31/07): si el fetch
+   * inicial muere, la pantalla no conoce la MONEDA de la cuenta hidratada de
+   * localStorage y podría mandar un monto en pesos contra una cuenta USD
+   * (~1000x en el ledger). Mientras cuentas === null con cuenta elegida,
+   * [GUARDAR] queda bloqueado (ver `motivo`) — acá se insiste para
+   * destrabarlo. fetchCompartido dedupea llamadas superpuestas en vuelo. */
+  const cargarCuentas = useCallback(async (reintentos: number) => {
+    for (let i = 0; i < reintentos; i++) {
+      try {
+        const r = await fetchCompartido("/api/cuentas");
+        if (r.ok) {
+          setCuentas((r.body as SaldosCuentas).cuentas ?? []);
+          return;
         }
-        await new Promise((res) => setTimeout(res, 1200 * (intento + 1)));
+      } catch {
+        /* red caída: se reintenta abajo */
       }
-    })();
-    return () => {
-      cancel = true;
-    };
+      await new Promise((res) => setTimeout(res, 1200 * (i + 1)));
+    }
   }, []);
+
+  useEffect(() => {
+    void cargarCuentas(4);
+  }, [cargarCuentas]);
+
+  // Saldos en tiempo real: la PWA de iOS queda viva días en background — al
+  // volver al frente se refrescan las cajas (visibilitychange) y también al
+  // restaurar desde bfcache (pageshow).
+  useEffect(() => {
+    const alVolver = () => {
+      if (document.visibilityState === "visible") void cargarCuentas(1);
+    };
+    document.addEventListener("visibilitychange", alVolver);
+    window.addEventListener("pageshow", alVolver);
+    return () => {
+      document.removeEventListener("visibilitychange", alVolver);
+      window.removeEventListener("pageshow", alVolver);
+    };
+  }, [cargarCuentas]);
 
   // Hidratación de defaults desde localStorage (post-mount: nunca en SSR).
   useEffect(() => {
@@ -258,22 +264,6 @@ export function GastoScreen({
     () => obras.find((o) => o.presupuestoId === obraId) ?? null,
     [obras, obraId]
   );
-
-  // Rubro por obra (último usado) desde localStorage — salvo que la IA acabe
-  // de elegir uno junto con la obra: ese manda, una sola vez.
-  useEffect(() => {
-    if (tipo !== "obra" || !obraId) return;
-    if (rubroDeIa.current) {
-      const r = rubroDeIa.current;
-      rubroDeIa.current = null;
-      if (rubros.some((x) => x.id === r)) {
-        setRubroId(r);
-        return;
-      }
-    }
-    const guardado = lsRef.current.rubroPorObra?.[obraId];
-    setRubroId(guardado && rubros.some((r) => r.id === guardado) ? guardado : "");
-  }, [tipo, obraId, rubros]);
 
   // Cambio de tipo: cargar la última cuenta usada para ESE tipo (si el usuario
   // no eligió una a mano en esta sesión).
@@ -406,10 +396,6 @@ export function GastoScreen({
         ...prev.cuentaPorTipo,
         ...(cuentaId ? { [tipo]: cuentaId } : {}),
       },
-      rubroPorObra: {
-        ...prev.rubroPorObra,
-        ...(tipo === "obra" && obraId && rubroId ? { [obraId]: rubroId } : {}),
-      },
     };
     lsRef.current = next;
     try {
@@ -417,7 +403,7 @@ export function GastoScreen({
     } catch {
       /* sin storage no pasa nada */
     }
-  }, [tipo, obraId, cuentaId, rubroId]);
+  }, [tipo, obraId, cuentaId]);
 
   const guardar = useCallback(async () => {
     setIntento(true);
@@ -436,7 +422,8 @@ export function GastoScreen({
       if (tipo === "obra") {
         payload.presupuesto_id = obraId;
         payload.descripcion = concepto.trim();
-        payload.rubro_id = rubroId || null;
+        // Rubro fuera de /gasto (01/08, pedido de Eze): siempre sin rubro.
+        payload.rubro_id = null;
         payload.importe = montoFinal;
         // Solo con cuenta USD real: modoUsd ya no sobrevive sin cuentaUsd.
         if (cot > 0 && cuentaUsd) {
@@ -498,6 +485,9 @@ export function GastoScreen({
           : formatMoney(montoFinal);
       falloPrevio.current = false;
       setResultado({ id: body.id, tabla, montoTexto, estado });
+      // El gasto ya descontó en el ledger (sincronizarEspejo corre en el
+      // POST): refrescar los saldos de las cajas para el próximo gasto.
+      void cargarCuentas(2);
     } catch (e) {
       falloPrevio.current = true;
       setErrorRed(
@@ -507,8 +497,8 @@ export function GastoScreen({
       setGuardando(false);
     }
   }, [
-    motivo, guardando, tipo, fecha, cuentaId, obraId, concepto, rubroId,
-    montoFinal, cot, cuentaUsd, casaDolar, categoria, persistirLs,
+    motivo, guardando, tipo, fecha, cuentaId, obraId, concepto,
+    montoFinal, cot, cuentaUsd, casaDolar, categoria, persistirLs, cargarCuentas,
   ]);
 
   /** El espejo falló al guardar: reintento manual contra el endpoint genérico. */
@@ -538,13 +528,14 @@ export function GastoScreen({
     }
   }, [resultado, reintentando]);
 
-  /** Contexto para la extracción por audio: el modelo elige de ESTA lista. */
+  /** Contexto para la extracción por audio: el modelo elige de ESTA lista.
+   * Sin rubros (rubro fuera de /gasto): el prompt omite esa línea. */
   const contextoIa = useMemo(
     () => ({
       obras: obras.map((o) => ({ id: o.presupuestoId, nombre: o.etiqueta })),
-      rubros: rubros.map((r) => ({ id: r.id, nombre: r.nombre })),
+      rubros: [],
     }),
-    [obras, rubros]
+    [obras]
   );
 
   /** Precarga desde foto/audio. SOLO llena el formulario: guardar sigue
@@ -554,10 +545,6 @@ export function GastoScreen({
       if (d.tipo_gasto && d.tipo_gasto !== tipo) cambiarTipo(d.tipo_gasto);
       if (d.obra_id && obras.some((o) => o.presupuestoId === d.obra_id)) {
         setObraId(d.obra_id);
-      }
-      if (d.rubro_id && rubros.some((r) => r.id === d.rubro_id)) {
-        rubroDeIa.current = d.rubro_id;
-        setRubroId(d.rubro_id);
       }
       if (typeof d.monto_ars === "number" && d.monto_ars > 0) {
         setModoUsd(false);
@@ -584,7 +571,7 @@ export function GastoScreen({
       setIaFlash(true);
       window.setTimeout(() => setIaFlash(false), 1800);
     },
-    [tipo, cambiarTipo, obras, rubros, hoy]
+    [tipo, cambiarTipo, obras, hoy]
   );
 
   const cargarOtro = useCallback(() => {
@@ -620,12 +607,6 @@ export function GastoScreen({
       etiqueta: "Obra",
       valor: obraSel ? obraSel.etiqueta : "Elegir",
       tono: obraSel ? "neutro" : "alerta",
-    });
-    chips.push({
-      id: "rubro",
-      etiqueta: "Rubro",
-      valor: rubros.find((r) => r.id === rubroId)?.nombre ?? "Sin rubro",
-      tono: "neutro",
     });
   } else {
     chips.push({
@@ -1109,38 +1090,6 @@ export function GastoScreen({
                   Elegida
                 </span>
               )}
-            </button>
-          ))}
-        </div>
-      </Sheet>
-
-      <Sheet open={sheet === "rubro"} titulo="Rubro" onClose={() => setSheet(null)}>
-        <div className="max-h-[50dvh] overflow-y-auto">
-          <button
-            type="button"
-            onClick={() => {
-              setRubroId("");
-              setSheet(null);
-            }}
-            className={`flex min-h-[48px] w-full items-center border-b border-cdm-line px-1 text-left text-sm transition-colors hover:text-cdm-fg ${
-              rubroId === "" ? "text-cdm-fg" : "text-cdm-muted"
-            }`}
-          >
-            Sin rubro
-          </button>
-          {rubros.map((r) => (
-            <button
-              key={r.id}
-              type="button"
-              onClick={() => {
-                setRubroId(r.id);
-                setSheet(null);
-              }}
-              className={`flex min-h-[48px] w-full items-center border-b border-cdm-line px-1 text-left text-sm transition-colors last:border-b-0 hover:text-cdm-fg ${
-                r.id === rubroId ? "text-cdm-fg" : "text-cdm-muted"
-              }`}
-            >
-              {r.nombre}
             </button>
           ))}
         </div>
