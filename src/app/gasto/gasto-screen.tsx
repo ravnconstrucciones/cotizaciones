@@ -11,12 +11,12 @@ import {
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { CapturaIa, type DatosExtraidos } from "./captura-ia";
 import { RavnLogo } from "@/components/ravn-logo";
-import { SelectorCuenta } from "@/components/selector-cuenta";
 import { useEntradaAnimada } from "@/hooks/use-entrada-animada";
 import { fetchCompartido } from "@/lib/fetch-compartido";
 import type { SaldosCuentas } from "@/lib/cuentas";
 import {
   formatMoney,
+  formatMoneyInt,
   formatNumber,
   parseFormattedNumber,
   roundArs2,
@@ -45,7 +45,7 @@ export type ObraRapida = {
 export type RubroRapido = { id: string; nombre: string };
 
 type Tipo = "obra" | "empresa" | "personal";
-type SheetId = "fecha" | "obra" | "rubro" | "categoria" | "cuenta" | null;
+type SheetId = "fecha" | "obra" | "rubro" | "categoria" | null;
 
 type EstadoLedger = "asentado" | "pendiente_cuenta" | "espejo_pendiente" | "sin_foto";
 
@@ -200,9 +200,9 @@ export function GastoScreen({
    * una fila idéntica ya comiteada (no restar la plata dos veces). */
   const falloPrevio = useRef(false);
 
-  /** Cuentas activas con saldo derivado (mismo /api/cuentas que SelectorCuenta;
-   * fetchCompartido dedupea el request). Acá se usan para conocer la MONEDA de
-   * la cuenta elegida (trampa USD) y el nombre para el chip. */
+  /** Cuentas activas con saldo derivado de /api/cuentas (fetchCompartido
+   * dedupea el request). Acá se usan para conocer la MONEDA de la cuenta
+   * elegida (trampa USD) y para pintar las cajas como botones en "Salió de". */
   const [cuentas, setCuentas] = useState<SaldosCuentas["cuentas"] | null>(null);
   useEffect(() => {
     let cancel = false;
@@ -291,6 +291,15 @@ export function GastoScreen({
   const cuentaSel = useMemo(
     () => (cuentas ?? []).find((c) => c.id === cuentaId) ?? null,
     [cuentas, cuentaId]
+  );
+
+  /** Cajas que se muestran como botones en "Salió de" (personal: solo ARS). */
+  const cuentasVisibles = useMemo(
+    () =>
+      (cuentas ?? []).filter(
+        (c) => c.activa && (tipo !== "personal" || c.moneda === "ARS")
+      ),
+    [cuentas, tipo]
   );
 
   // Personal solo cuentas ARS: si quedó una USD colada (LS viejo), se limpia.
@@ -627,17 +636,9 @@ export function GastoScreen({
       tono: "neutro",
     });
   }
-  chips.push({
-    id: "cuenta",
-    etiqueta: "Salió de",
-    valor: cuentaSel ? cuentaSel.nombre : "Pendiente",
-    tono: cuentaSel ? "neutro" : "pendiente",
-  });
-
   const tonoChipCls: Record<string, string> = {
     neutro: "ring-cdm-line text-cdm-muted hover:text-cdm-fg",
     alerta: "ring-amber-400/40 text-amber-300",
-    pendiente: "ring-red-400/40 text-red-400",
   };
 
   const entrada = (delay: number) => ({
@@ -941,6 +942,75 @@ export function GastoScreen({
                 </p>
               )}
 
+              {/* PASO 4b — Salió de: las cajas a la vista, elegir es UN tap */}
+              <motion.section {...entrada(0.16)}>
+                <span className={LABEL}>Salió de</span>
+                <div
+                  role="radiogroup"
+                  aria-label="Cuenta de la que salió la plata"
+                  className="mt-2 flex flex-wrap gap-2"
+                >
+                  {cuentas === null ? (
+                    <span className="py-2 text-xs text-cdm-muted">
+                      Cargando cuentas…
+                    </span>
+                  ) : (
+                    <>
+                      {cuentasVisibles.map((c) => {
+                        const activa = c.id === cuentaId;
+                        return (
+                          <button
+                            key={c.id}
+                            type="button"
+                            role="radio"
+                            aria-checked={activa}
+                            onClick={() => {
+                              cuentaTocada.current = true;
+                              setCuentaId(c.id);
+                            }}
+                            className={`${CHIP_BASE} focus-visible:outline focus-visible:outline-1 focus-visible:outline-cdm-fg ${
+                              activa
+                                ? "bg-cdm-fg/10 ring-cdm-fg/30 text-cdm-fg"
+                                : "ring-cdm-line text-cdm-muted hover:text-cdm-fg"
+                            }`}
+                          >
+                            <span className="max-w-[38vw] truncate normal-case tracking-normal">
+                              {c.nombre}
+                            </span>
+                            <span className="normal-case tracking-normal tabular-nums opacity-60">
+                              {c.moneda === "USD"
+                                ? `US$ ${new Intl.NumberFormat("es-AR").format(c.saldo)}`
+                                : formatMoneyInt(c.saldo)}
+                            </span>
+                          </button>
+                        );
+                      })}
+                      <button
+                        type="button"
+                        role="radio"
+                        aria-checked={cuentaId === null}
+                        onClick={() => {
+                          cuentaTocada.current = true;
+                          setCuentaId(null);
+                        }}
+                        className={`${CHIP_BASE} focus-visible:outline focus-visible:outline-1 focus-visible:outline-cdm-fg ${
+                          cuentaId === null
+                            ? "ring-red-400/40 text-red-400"
+                            : "ring-cdm-line text-cdm-muted hover:text-cdm-fg"
+                        }`}
+                      >
+                        Sin cuenta
+                      </button>
+                    </>
+                  )}
+                </div>
+                {cuentas !== null && cuentaId === null && (
+                  <p className="mt-2 text-xs text-cdm-muted">
+                    Sin cuenta se guarda igual y queda pendiente en Archivados.
+                  </p>
+                )}
+              </motion.section>
+
               {errorRed && (
                 <div
                   role="alert"
@@ -1099,36 +1169,6 @@ export function GastoScreen({
         </button>
       </Sheet>
 
-      <Sheet
-        open={sheet === "cuenta"}
-        titulo="¿De qué cuenta salió?"
-        onClose={() => setSheet(null)}
-      >
-        <SelectorCuenta
-          value={cuentaId}
-          onChange={(id) => {
-            cuentaTocada.current = true;
-            setCuentaId(id);
-          }}
-          monedas={tipo === "personal" ? ["ARS"] : ["ARS", "USD"]}
-          // Picker PURO: el default por reserva MP ya lo ofrece la pantalla
-          // una sola vez por obra (ref reservaOfrecida). Con preferirObraId
-          // acá, el selector se remonta en cada apertura del sheet y volvía a
-          // pisar la elección "sin cuenta" del usuario con la reserva.
-          preferirObraId={null}
-          className="w-full rounded-xl border border-cdm-line bg-cdm-bg px-3 py-3 text-base text-cdm-fg focus-visible:border-cdm-fg/50 focus-visible:outline-none"
-        />
-        <p className="mt-3 text-xs text-cdm-muted">
-          Sin cuenta se guarda igual y queda pendiente en Archivados.
-        </p>
-        <button
-          type="button"
-          onClick={() => setSheet(null)}
-          className="font-mono-hud mt-2 min-h-[44px] text-[10px] uppercase tracking-[0.14em] text-cdm-muted transition-colors hover:text-cdm-fg"
-        >
-          [LISTO]
-        </button>
-      </Sheet>
     </main>
   );
 }
