@@ -7,13 +7,7 @@ import {
   type ChangeEvent,
   type ReactNode,
 } from "react";
-import {
-  motion,
-  useReducedMotion,
-  useScroll,
-  useTransform,
-  type MotionValue,
-} from "framer-motion";
+import { useReducedMotion } from "framer-motion";
 import {
   Camera,
   CircleDollarSign,
@@ -31,13 +25,12 @@ import { formatMoneyInt } from "@/lib/format-currency";
 import type { FotoNodo, NodoArtefacto, TipoArtefacto } from "@/lib/obra-orbital";
 
 /**
- * Carpeta de obra v3: stacked glass cards (reemplaza al orbital v2 — Eze
- * quería acceso directo a cada sección y poder cargar fotos/docs desde el
- * celu). Cada artefacto es una card apilada (sticky + scale al scrollear,
- * ref. stacking glass cards de 21st.dev pero con framer-motion — sin GSAP,
- * regla de no sumar dependencias) con su contenido completo adentro:
- * Fotos sube desde cámara/galería, Bitácora carga avances, Diagnóstico
- * pide el doc a la Mac. ADN RAVN: radius 0, tokens cdm, cero color.
+ * Carpeta de obra v3: glass cards en flujo normal (reemplaza al orbital v2 —
+ * Eze quería acceso directo a cada sección y poder cargar fotos/docs desde el
+ * celu; el apilado sticky+scale se descartó porque superpuestas se leían mal).
+ * Cada artefacto es una card con su contenido completo adentro: Fotos sube
+ * desde cámara/galería, Bitácora carga avances, Diagnóstico pide el doc a la
+ * Mac. ADN RAVN: radius 0, tokens cdm, cero color.
  */
 
 const ICONO: Record<TipoArtefacto, React.ElementType> = {
@@ -59,9 +52,8 @@ const ORDEN: TipoArtefacto[] = [
   "resumen",
 ];
 
-/** Alto de la fila de chips sticky — las cards se apilan debajo de ella. */
+/** Alto de la fila de chips sticky. */
 const TOPE_CHIPS = 44;
-const PASO_APILADO = 14;
 
 function fechaCorta(iso: string): string {
   const d = new Date(iso);
@@ -181,48 +173,30 @@ function Lightbox({
   );
 }
 
-/** Card glass apilada: sticky bajo los chips + scale sutil al ser tapada. */
-function CardApilada({
+/** Card glass en flujo normal; scroll-margin para que los chips no la tapen. */
+function CardObra({
   nodo,
-  index,
-  total,
-  progreso,
-  animar,
   children,
   accion,
 }: {
   nodo: NodoArtefacto;
-  index: number;
-  total: number;
-  progreso: MotionValue<number>;
-  /** false con prefers-reduced-motion: la card apila sin scale. */
-  animar: boolean;
   children: ReactNode;
   /** Acción propia de la card, a la derecha del título (ej. subir foto). */
   accion?: ReactNode;
 }) {
   const Icono = ICONO[nodo.tipo];
-  // Al avanzar el scroll de la lista, la card ya apilada se achica apenas
-  // (mismo gesto que las stacking cards de referencia, sin GSAP).
-  const scale = useTransform(
-    progreso,
-    [index / total, 1],
-    [1, 1 - (total - index) * 0.015]
-  );
   return (
-    <motion.section
+    <section
       id={`card-${nodo.tipo}`}
       style={{
-        top: TOPE_CHIPS + index * PASO_APILADO,
-        ...(animar ? { scale } : null),
-        transformOrigin: "center top",
+        scrollMarginTop: TOPE_CHIPS,
         background:
           "linear-gradient(150deg, var(--cdm-lg-hi-1), var(--cdm-lg-hi-2) 55%, transparent)",
       }}
-      // Sin backdrop-filter: 6 capas de blur apiladas re-filtraban el fondo
-      // en cada frame de scroll y el celu moría. El vidrio lo hacen los
-      // gradientes + brillos (gratis) sobre fondo casi opaco.
-      className="sticky isolate mb-4 border border-cdm-line bg-cdm-bg/95 shadow-[0_18px_50px_-16px_rgba(0,0,0,0.65)]"
+      // Sin backdrop-filter: 6 capas de blur re-filtraban el fondo en cada
+      // frame de scroll y el celu moría. El vidrio lo hacen los gradientes +
+      // brillos (gratis) sobre fondo casi opaco.
+      className="relative isolate mb-4 border border-cdm-line bg-cdm-bg/95 shadow-[0_18px_50px_-16px_rgba(0,0,0,0.65)]"
     >
       {/* Brillo de vidrio: línea superior + reflejo lateral, tokens cdm. */}
       <div
@@ -259,7 +233,7 @@ function CardApilada({
       <div className="max-h-[52dvh] overflow-y-auto overscroll-contain px-4 py-3 text-[11px] text-cdm-fg/80">
         {children}
       </div>
-    </motion.section>
+    </section>
   );
 }
 
@@ -320,13 +294,6 @@ export function StackedObra({
   onPedirDiagnostico,
 }: StackedObraProps) {
   const reducirMovimiento = useReducedMotion();
-  const scrollRef = useRef<HTMLDivElement>(null);
-  const listaRef = useRef<HTMLDivElement>(null);
-  const { scrollYProgress } = useScroll({
-    container: scrollRef,
-    target: listaRef,
-    offset: ["start start", "end end"],
-  });
 
   const [lightbox, setLightbox] = useState<FotoNodo | null>(null);
   const [borrando, setBorrando] = useState(false);
@@ -344,7 +311,6 @@ export function StackedObra({
   const ordenados = ORDEN.map((t) => nodos.find((n) => n.tipo === t)).filter(
     (n): n is NodoArtefacto => Boolean(n)
   );
-  const total = ordenados.length;
 
   const subir = async (files: File[], tipo: "foto" | "documento") => {
     setErrorSubida(null);
@@ -403,11 +369,8 @@ export function StackedObra({
   };
 
   return (
-    <div
-      ref={scrollRef}
-      className="h-full overflow-y-auto overscroll-contain px-1 pb-6"
-    >
-      {/* Chips de acceso directo — siempre a mano arriba del apilado. */}
+    <div className="h-full overflow-y-auto overscroll-contain px-1 pb-6">
+      {/* Chips de acceso directo — siempre a mano arriba de las cards. */}
       <nav
         className="sticky top-0 z-[250] -mx-1 flex items-center gap-1.5 overflow-x-auto bg-cdm-bg/95 px-1 py-2 [scrollbar-width:none]"
         style={{ height: TOPE_CHIPS }}
@@ -451,15 +414,11 @@ export function StackedObra({
         </span>
       </div>
 
-      <div ref={listaRef}>
-        {ordenados.map((nodo, index) => (
-          <CardApilada
+      <div>
+        {ordenados.map((nodo) => (
+          <CardObra
             key={nodo.tipo}
             nodo={nodo}
-            index={index}
-            total={total}
-            progreso={scrollYProgress}
-            animar={!reducirMovimiento}
             accion={
               nodo.tipo === "fotos" ? (
                 <div className="flex shrink-0 items-center gap-1.5">
@@ -711,7 +670,7 @@ export function StackedObra({
                   La obra todavía no está en el resumen de caja.
                 </p>
               ))}
-          </CardApilada>
+          </CardObra>
         ))}
       </div>
 
