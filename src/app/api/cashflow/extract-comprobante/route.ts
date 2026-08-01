@@ -1,4 +1,11 @@
 import { NextResponse } from "next/server";
+import {
+  bloqueContextoPrompt,
+  parseContexto,
+  validarSeleccion,
+  type ContextoExtraccion,
+  type SeleccionContexto,
+} from "@/lib/extract-contexto";
 
 export const runtime = "nodejs";
 
@@ -277,16 +284,25 @@ async function extractFromImageGemini(
 
 async function extractFromAudioGemini(
   mime: string,
-  base64: string
-): Promise<ReturnType<typeof normalizarRespuesta> & { transcripcion?: string }> {
+  base64: string,
+  contexto: ContextoExtraccion | null
+): Promise<
+  ReturnType<typeof normalizarRespuesta> &
+    Partial<SeleccionContexto> & { transcripcion?: string }
+> {
   const hoy = hoyArgentinaIso();
+  const prompt = contexto
+    ? promptAudio(hoy) + bloqueContextoPrompt(contexto)
+    : promptAudio(hoy);
   const raw = await geminiGenerateJson([
-    { text: promptAudio(hoy) },
+    { text: prompt },
     { inlineData: { mimeType: mime, data: base64 } },
   ]);
   const base = normalizarRespuesta(raw);
   const fecha = base.fecha ?? hoy;
-  const withFecha = { ...base, fecha };
+  const withFecha = contexto
+    ? { ...base, fecha, ...validarSeleccion(raw, contexto) }
+    : { ...base, fecha };
   const tr =
     typeof raw.transcripcion === "string" ? raw.transcripcion.trim() : undefined;
   return tr ? { ...withFecha, transcripcion: tr } : withFecha;
@@ -421,7 +437,10 @@ export async function POST(req: Request) {
       }
       const buf = Buffer.from(await file.arrayBuffer());
       const base64 = buf.toString("base64");
-      const out = await extractFromAudioGemini(mime, base64);
+      // Contexto opcional (/gasto): obras y rubros para que el modelo elija
+      // de lista cerrada; los ids devueltos se validan contra esa lista.
+      const contexto = parseContexto(form.get("contexto"));
+      const out = await extractFromAudioGemini(mime, base64, contexto);
       const { transcripcion, ...rest } = out as typeof out & {
         transcripcion?: string;
       };

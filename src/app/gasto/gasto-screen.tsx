@@ -9,6 +9,7 @@ import {
   useState,
 } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
+import { CapturaIa, type DatosExtraidos } from "./captura-ia";
 import { RavnLogo } from "@/components/ravn-logo";
 import { SelectorCuenta } from "@/components/selector-cuenta";
 import { useEntradaAnimada } from "@/hooks/use-entrada-animada";
@@ -182,9 +183,16 @@ export function GastoScreen({
   const [sesionVencida, setSesionVencida] = useState(false);
   const [resultado, setResultado] = useState<Resultado | null>(null);
   const [reintentando, setReintentando] = useState(false);
+  /** Nota de lo que entendió la IA (transcripción / avisos) + flash visual
+   * breve sobre los campos que precargó. */
+  const [iaNota, setIaNota] = useState<string | null>(null);
+  const [iaFlash, setIaFlash] = useState(false);
 
   const montoRef = useRef<HTMLInputElement>(null);
   const lsRef = useRef<LsShape>({});
+  /** Rubro elegido por la IA: el efecto rubro-por-obra lo respeta una vez en
+   * lugar de pisarlo con el último rubro usado de localStorage. */
+  const rubroDeIa = useRef<string | null>(null);
   const cuentaTocada = useRef(false);
   const reservaOfrecida = useRef<string | null>(null);
   /** Hubo un intento de guardado que falló (respuesta perdida incluida):
@@ -251,9 +259,18 @@ export function GastoScreen({
     [obras, obraId]
   );
 
-  // Rubro por obra (último usado) desde localStorage.
+  // Rubro por obra (último usado) desde localStorage — salvo que la IA acabe
+  // de elegir uno junto con la obra: ese manda, una sola vez.
   useEffect(() => {
     if (tipo !== "obra" || !obraId) return;
+    if (rubroDeIa.current) {
+      const r = rubroDeIa.current;
+      rubroDeIa.current = null;
+      if (rubros.some((x) => x.id === r)) {
+        setRubroId(r);
+        return;
+      }
+    }
     const guardado = lsRef.current.rubroPorObra?.[obraId];
     setRubroId(guardado && rubros.some((r) => r.id === guardado) ? guardado : "");
   }, [tipo, obraId, rubros]);
@@ -512,6 +529,55 @@ export function GastoScreen({
     }
   }, [resultado, reintentando]);
 
+  /** Contexto para la extracción por audio: el modelo elige de ESTA lista. */
+  const contextoIa = useMemo(
+    () => ({
+      obras: obras.map((o) => ({ id: o.presupuestoId, nombre: o.etiqueta })),
+      rubros: rubros.map((r) => ({ id: r.id, nombre: r.nombre })),
+    }),
+    [obras, rubros]
+  );
+
+  /** Precarga desde foto/audio. SOLO llena el formulario: guardar sigue
+   * siendo un tap explícito de Eze (borrador hasta aprobación). */
+  const alExtraer = useCallback(
+    (d: DatosExtraidos, origen: "foto" | "audio") => {
+      if (d.tipo_gasto && d.tipo_gasto !== tipo) cambiarTipo(d.tipo_gasto);
+      if (d.obra_id && obras.some((o) => o.presupuestoId === d.obra_id)) {
+        setObraId(d.obra_id);
+      }
+      if (d.rubro_id && rubros.some((r) => r.id === d.rubro_id)) {
+        rubroDeIa.current = d.rubro_id;
+        setRubroId(d.rubro_id);
+      }
+      if (typeof d.monto_ars === "number" && d.monto_ars > 0) {
+        setModoUsd(false);
+        setMontoStr(
+          formatNumber(d.monto_ars, Number.isInteger(d.monto_ars) ? 0 : 2)
+        );
+      }
+      if (d.concepto) setConcepto(d.concepto);
+      if (d.fecha) setFecha(d.fecha <= hoy ? d.fecha : hoy);
+
+      const partes: string[] = [];
+      if (origen === "audio") {
+        partes.push(d.transcripcion ? `«${d.transcripcion}»` : "Audio leído");
+      } else {
+        partes.push("Ticket leído");
+      }
+      if (!(typeof d.monto_ars === "number" && d.monto_ars > 0)) {
+        partes.push("no encontré el monto, cargalo a mano");
+      }
+      if (d.tipo === "ingreso") {
+        partes.push("ojo: parece un COBRO, no un gasto");
+      }
+      setIaNota(partes.join(" — "));
+      setIaFlash(true);
+      window.setTimeout(() => setIaFlash(false), 1800);
+    },
+    [tipo, cambiarTipo, obras, rubros, hoy]
+  );
+
   const cargarOtro = useCallback(() => {
     setResultado(null);
     setMontoStr("");
@@ -520,6 +586,7 @@ export function GastoScreen({
     setIntento(false);
     setErrorRed(null);
     setSesionVencida(false);
+    setIaNota(null);
     falloPrevio.current = false;
     // tipo / obra / cuenta / fecha se conservan (los defaults ya persistieron).
     setTimeout(() => montoRef.current?.focus(), 60);
@@ -726,8 +793,27 @@ export function GastoScreen({
                 })}
               </motion.div>
 
+              {/* Captura por IA: foto de ticket o dictado — precarga y listo. */}
+              <motion.div {...entrada(0.025)}>
+                <CapturaIa
+                  contexto={contextoIa}
+                  deshabilitado={guardando}
+                  onExtraido={alExtraer}
+                />
+                {iaNota && (
+                  <p className="mt-2 text-xs text-cdm-muted" aria-live="polite">
+                    {iaNota}
+                  </p>
+                )}
+              </motion.div>
+
               {/* PASO 2 — monto protagonista */}
-              <motion.section className={CARD} {...entrada(0.045)}>
+              <motion.section
+                className={`${CARD} transition-shadow duration-500 ${
+                  iaFlash ? "!ring-emerald-400/50" : ""
+                }`}
+                {...entrada(0.045)}
+              >
                 <div className="flex items-center justify-between">
                   <label htmlFor="monto" className={LABEL}>
                     {etiquetaMonto}
@@ -806,7 +892,12 @@ export function GastoScreen({
               </motion.section>
 
               {/* PASO 3 — concepto */}
-              <motion.section className={CARD} {...entrada(0.09)}>
+              <motion.section
+                className={`${CARD} transition-shadow duration-500 ${
+                  iaFlash ? "!ring-emerald-400/50" : ""
+                }`}
+                {...entrada(0.09)}
+              >
                 <label htmlFor="concepto" className={LABEL}>
                   {tipo === "obra" ? "Descripción (opcional)" : "Concepto"}
                 </label>
