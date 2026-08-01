@@ -14,6 +14,15 @@ import { createSupabaseAdminClient } from "@/lib/supabase/server";
  * DELETE /api/obra-archivos  { id }
  *        Borra el archivo del bucket Y la fila (Eze: "yo puedo ir borrando").
  *
+ * POST   /api/obra-archivos
+ *        Subida desde el celu (cards de /obras/[id]) en dos pasos, porque el
+ *        límite de request de Vercel (~4,5 MB) no banca una foto de iPhone:
+ *        1. { paso: "firmar", presupuesto_id, tipo, filename }
+ *           → firma una subida directa al bucket → { path, token }
+ *           (el cliente sube con uploadToSignedUrl, sin pasar por Vercel).
+ *        2. { paso: "confirmar", presupuesto_id, tipo, titulo, storage_path }
+ *           → verifica que el objeto exista y asienta la fila en obra_archivos.
+ *
  * El middleware exige sesión en /api/*, por eso el admin client es seguro acá
  * (mismo patrón que /api/referencias).
  */
@@ -107,6 +116,102 @@ export async function GET(req: NextRequest) {
   const res = NextResponse.json({ archivos });
   res.headers.set("Cache-Control", "private, max-age=15, stale-while-revalidate=60");
   return res;
+}
+
+// Tipos que la app puede subir (el bot solo mete "foto" por WhatsApp).
+const TIPOS_SUBIDA = ["foto", "documento", "presupuesto", "diagnostico"];
+const EXTS_PERMITIDAS = new Set([
+  "jpg", "jpeg", "png", "webp", "heic", "heif",
+  "pdf", "doc", "docx", "xls", "xlsx", "txt", "html",
+]);
+
+function extDe(filename: string): string {
+  const ext = filename.split(".").pop()?.toLowerCase() ?? "";
+  return EXTS_PERMITIDAS.has(ext) ? ext : "bin";
+}
+
+export async function POST(req: NextRequest) {
+  const body = (await req.json().catch(() => null)) as {
+    paso?: unknown;
+    presupuesto_id?: unknown;
+    tipo?: unknown;
+    titulo?: unknown;
+    filename?: unknown;
+    storage_path?: unknown;
+  } | null;
+
+  const paso = typeof body?.paso === "string" ? body.paso : "";
+  const presupuestoId =
+    typeof body?.presupuesto_id === "string" ? body.presupuesto_id : "";
+  const tipo = typeof body?.tipo === "string" ? body.tipo : "";
+  if (!presupuestoId || !TIPOS_SUBIDA.includes(tipo)) {
+    return NextResponse.json(
+      { error: "presupuesto_id y tipo válido requeridos." },
+      { status: 400 }
+    );
+  }
+
+  const sb = createSupabaseAdminClient();
+
+  if (paso === "firmar") {
+    const filename = typeof body?.filename === "string" ? body.filename : "";
+    const { data: pres, error: presErr } = await sb
+      .from("presupuestos")
+      .select("id")
+      .eq("id", presupuestoId)
+      .maybeSingle();
+    if (presErr)
+      return NextResponse.json({ error: presErr.message }, { status: 500 });
+    if (!pres)
+      return NextResponse.json({ error: "obra no encontrada." }, { status: 404 });
+
+    const path = `app/${presupuestoId}/${Date.now()}-${Math.floor(
+      Math.random() * 100000
+    )}.${extDe(filename)}`;
+    const { data, error } = await sb.storage
+      .from(BUCKET)
+      .createSignedUploadUrl(path);
+    if (error)
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ path: data.path, token: data.token });
+  }
+
+  if (paso === "confirmar") {
+    const storagePath =
+      typeof body?.storage_path === "string" ? body.storage_path : "";
+    // Solo confirma paths firmados por este endpoint y de ESTA obra.
+    if (!storagePath.startsWith(`app/${presupuestoId}/`)) {
+      return NextResponse.json({ error: "storage_path inválido." }, { status: 400 });
+    }
+    const { error: firmaErr } = await sb.storage
+      .from(BUCKET)
+      .createSignedUrl(storagePath, 60);
+    if (firmaErr) {
+      return NextResponse.json(
+        { error: "el archivo no llegó al bucket — reintentá la subida." },
+        { status: 400 }
+      );
+    }
+    const titulo =
+      typeof body?.titulo === "string" && body.titulo.trim()
+        ? body.titulo.trim().slice(0, 200)
+        : null;
+    const { data: fila, error } = await sb
+      .from("obra_archivos")
+      .insert({
+        presupuesto_id: presupuestoId,
+        tipo,
+        titulo,
+        storage_path: storagePath,
+      })
+      .select("id")
+      .single();
+    if (error)
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ ok: true, id: fila.id });
+  }
+
+  return NextResponse.json({ error: "paso inválido." }, { status: 400 });
 }
 
 export async function DELETE(req: NextRequest) {

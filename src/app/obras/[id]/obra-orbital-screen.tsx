@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
-import { OrbitalObra } from "@/components/cockpit/orbital-obra";
+import { StackedObra } from "@/components/cockpit/stacked-obra";
 import { WavesBackdrop } from "@/components/cockpit/waves-backdrop";
 import { SkeletonGlass } from "@/components/cockpit/skeleton-glass";
 import { useRealtimeTable } from "@/hooks/use-realtime-table";
@@ -18,12 +18,13 @@ import type { ObraAvance } from "@/types/centro-mando";
 import { createClient } from "@/lib/supabase/client";
 
 /**
- * Carpeta orbital de la obra (/obras/[id], id = presupuesto_id — misma
- * convención que /obras/[id]/gastos): los ARTEFACTOS de la obra orbitan el
- * centro (la obra + margen al día). Presupuesto y Diagnóstico salen del mapeo
- * DOCUMENTOS_OBRA + obra_archivos; Fotos del bucket privado vía
- * /api/obra-archivos (las manda Eze por WhatsApp y el bot las encarpeta);
- * Resumen $ de /cashflow/resumen; Gastos linkea al detalle existente.
+ * Carpeta de la obra (/obras/[id], id = presupuesto_id — misma convención que
+ * /obras/[id]/gastos): stacked glass cards, una por artefacto (Fotos,
+ * Bitácora, Presupuesto, Diagnóstico, Gastos, Resumen $). Reemplaza al
+ * orbital v2: Eze quería acceso directo a cada sección y poder cargar fotos
+ * y documentos desde el celu. La subida va DIRECTO al bucket con URL firmada
+ * (dos pasos vía POST /api/obra-archivos) — el límite de request de Vercel
+ * no banca una foto de iPhone.
  */
 
 type GastoRow = { importe: unknown };
@@ -37,23 +38,50 @@ type ResumenObra = {
   finalizada?: boolean;
 };
 
+const BUCKET = "obra-archivos";
+/** Fotos: por encima de esto se re-encodea a JPEG achicado antes de subir. */
+const MAX_BYTES_SIN_COMPRIMIR = 1_500_000;
+const MAX_LADO_PX = 2048;
+
+/**
+ * Achica la foto en el cliente (canvas → JPEG). Si el navegador no puede
+ * decodificarla (p. ej. HEIC raro), devuelve el original y que suba igual.
+ */
+async function comprimirImagen(file: File): Promise<File> {
+  if (!file.type.startsWith("image/") || file.size <= MAX_BYTES_SIN_COMPRIMIR) {
+    return file;
+  }
+  try {
+    const bitmap = await createImageBitmap(file);
+    const escala = Math.min(1, MAX_LADO_PX / Math.max(bitmap.width, bitmap.height));
+    const w = Math.round(bitmap.width * escala);
+    const h = Math.round(bitmap.height * escala);
+    const canvas = document.createElement("canvas");
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return file;
+    ctx.drawImage(bitmap, 0, 0, w, h);
+    bitmap.close();
+    const blob = await new Promise<Blob | null>((res) =>
+      canvas.toBlob(res, "image/jpeg", 0.82)
+    );
+    if (!blob || blob.size >= file.size) return file;
+    const nombre = file.name.replace(/\.[^.]+$/, "") + ".jpg";
+    return new File([blob], nombre, { type: "image/jpeg" });
+  } catch {
+    return file;
+  }
+}
+
 export function ObraOrbitalScreen({ presupuestoId }: { presupuestoId: string }) {
   const [nombre, setNombre] = useState<string>("Obra");
   const [nodos, setNodos] = useState<NodoArtefacto[] | null>(null);
   const [margen, setMargen] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [finalizada, setFinalizada] = useState(false);
-  // Seguimiento (porté estas acciones desde la vieja /obras: la galería nueva
-  // es solo overview, el detalle vive acá).
-  const [avanceTexto, setAvanceTexto] = useState("");
-  const [enviando, setEnviando] = useState(false);
   const [cerrando, setCerrando] = useState(false);
   const [confirmCerrar, setConfirmCerrar] = useState(false);
-  // Generar diagnóstico: encola un trabajo y la Mac lo arma + adjunta a la obra.
-  const [diagAbierto, setDiagAbierto] = useState(false);
-  const [diagTexto, setDiagTexto] = useState("");
-  const [pidiendoDiag, setPidiendoDiag] = useState(false);
-  const [diagMsg, setDiagMsg] = useState<string | null>(null);
 
   const cargar = useCallback(async () => {
     try {
@@ -163,26 +191,99 @@ export function ObraOrbitalScreen({ presupuestoId }: { presupuestoId: string }) 
     [cargar]
   );
 
-  // Agregar avance (manual; el bot también mete avances por WhatsApp).
-  const agregarAvance = useCallback(async () => {
-    const texto = avanceTexto.trim();
-    if (!texto || enviando) return;
-    setEnviando(true);
-    try {
+  // Subida desde el celu: firmar → subir directo al bucket → confirmar fila.
+  const subirArchivo = useCallback(
+    async (file: File, tipo: "foto" | "documento"): Promise<string | null> => {
+      try {
+        const listo = tipo === "foto" ? await comprimirImagen(file) : file;
+        const rFirma = await fetch("/api/obra-archivos", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            paso: "firmar",
+            presupuesto_id: presupuestoId,
+            tipo,
+            filename: listo.name,
+          }),
+        });
+        const firma = (await rFirma.json().catch(() => ({}))) as {
+          path?: string;
+          token?: string;
+          error?: string;
+        };
+        if (!rFirma.ok || !firma.path || !firma.token) {
+          return firma.error ?? "No se pudo firmar la subida.";
+        }
+
+        const supabase = createClient();
+        const up = await supabase.storage
+          .from(BUCKET)
+          .uploadToSignedUrl(firma.path, firma.token, listo, {
+            contentType: listo.type || "application/octet-stream",
+          });
+        if (up.error) return up.error.message;
+
+        const rConf = await fetch("/api/obra-archivos", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            paso: "confirmar",
+            presupuesto_id: presupuestoId,
+            tipo,
+            titulo: file.name,
+            storage_path: firma.path,
+          }),
+        });
+        if (!rConf.ok) {
+          const j = (await rConf.json().catch(() => ({}))) as { error?: string };
+          return j.error ?? "Subió pero no se pudo asentar la fila.";
+        }
+        await cargar();
+        return null;
+      } catch {
+        return "Error de red al subir.";
+      }
+    },
+    [presupuestoId, cargar]
+  );
+
+  // Agregar avance (la card Bitácora maneja el input; el bot también mete
+  // avances por WhatsApp).
+  const agregarAvance = useCallback(
+    async (texto: string): Promise<boolean> => {
       const supabase = createClient();
       const { error } = await supabase
         .from("obra_avances")
         .insert({ presupuesto_id: presupuestoId, texto });
       if (error) {
         setError(error.message);
-        return;
+        return false;
       }
-      setAvanceTexto("");
       await cargar();
-    } finally {
-      setEnviando(false);
-    }
-  }, [avanceTexto, enviando, presupuestoId, cargar]);
+      return true;
+    },
+    [presupuestoId, cargar]
+  );
+
+  // Pedir diagnóstico: encola el trabajo; la Mac arma el HTML (formato
+  // oficial) y lo adjunta a la obra → aparece en la card Diagnóstico.
+  const pedirDiagnostico = useCallback(
+    async (detalle: string): Promise<string> => {
+      try {
+        const res = await fetch(`/api/obras/${presupuestoId}/diagnostico`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ detalle }),
+        });
+        const j = (await res.json().catch(() => ({}))) as { error?: string };
+        if (!res.ok) return `⚠ ${j.error ?? "No se pudo pedir el diagnóstico."}`;
+        return "🩺 Tomado. La Mac lo está armando — aparece acá cuando esté listo.";
+      } catch {
+        return "⚠ Error de red al pedir el diagnóstico.";
+      }
+    },
+    [presupuestoId]
+  );
 
   // Cerrar obra (finalizar): setea finalizada_at vía el endpoint existente.
   const cerrarObra = useCallback(async () => {
@@ -204,54 +305,27 @@ export function ObraOrbitalScreen({ presupuestoId }: { presupuestoId: string }) 
     }
   }, [cerrando, presupuestoId, cargar]);
 
-  // Pedir diagnóstico: encola el trabajo; la Mac arma el HTML (formato oficial)
-  // y lo adjunta a la obra (obra_archivos tipo=diagnostico) → aparece en el orbital.
-  const pedirDiagnostico = useCallback(async () => {
-    if (pidiendoDiag) return;
-    setPidiendoDiag(true);
-    setDiagMsg(null);
-    try {
-      const res = await fetch(`/api/obras/${presupuestoId}/diagnostico`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ detalle: diagTexto.trim() }),
-      });
-      const j = (await res.json().catch(() => ({}))) as { error?: string };
-      if (!res.ok) {
-        setDiagMsg(`⚠ ${j.error ?? "No se pudo pedir el diagnóstico."}`);
-        return;
-      }
-      setDiagMsg("🩺 Tomado. La Mac lo está armando — aparece en Diagnóstico de la obra cuando esté listo.");
-      setDiagTexto("");
-      setDiagAbierto(false);
-    } catch {
-      setDiagMsg("⚠ Error de red al pedir el diagnóstico.");
-    } finally {
-      setPidiendoDiag(false);
-    }
-  }, [pidiendoDiag, presupuestoId, diagTexto]);
-
   return (
     <div className="font-grotesk relative flex h-dvh flex-col bg-cdm-bg p-4 text-cdm-fg">
       <WavesBackdrop />
 
-      <header className="relative z-10 flex items-baseline justify-between gap-3 px-1">
-        <div className="flex items-baseline gap-4">
+      <header className="relative z-10 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-2 px-1 pb-2">
+        <div className="flex min-w-0 items-baseline gap-4">
           <Link
             href="/obras"
-            className="font-mono-hud text-[10px] uppercase tracking-[0.08em] text-cdm-muted transition-colors hover:text-cdm-accent"
+            className="font-mono-hud shrink-0 text-[10px] uppercase tracking-[0.08em] text-cdm-muted transition-colors hover:text-cdm-accent"
           >
             [← PROYECTOS]
           </Link>
-          <h1 className="font-mono-hud flex items-baseline gap-2 text-[11px] font-medium uppercase tracking-[0.22em] text-cdm-muted">
-            <span aria-hidden className="text-cdm-accent/60">{"//////"}</span>
-            {nombre}
+          <h1 className="font-mono-hud flex min-w-0 items-baseline gap-2 text-[11px] font-medium uppercase tracking-[0.22em] text-cdm-muted">
+            <span aria-hidden className="shrink-0 text-cdm-accent/60">{"//////"}</span>
+            <span className="truncate">{nombre}</span>
           </h1>
         </div>
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-3">
           <Link
             href={`/obras/${presupuestoId}/plan`}
-            className="font-mono-hud border border-cdm-accent/50 bg-cdm-accent/10 px-3 py-1.5 text-[12px] font-semibold uppercase tracking-[0.14em] text-cdm-accent shadow-[0_0_12px_-2px_rgba(34,211,238,0.45)] transition-colors hover:bg-cdm-accent hover:text-cdm-bg"
+            className="font-mono-hud border border-cdm-accent/50 bg-cdm-accent/10 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-cdm-accent transition-colors hover:bg-cdm-accent hover:text-cdm-bg"
           >
             PLAN Y CRUCE ↑
           </Link>
@@ -260,12 +334,6 @@ export function ObraOrbitalScreen({ presupuestoId }: { presupuestoId: string }) 
             className="font-mono-hud text-[10px] uppercase tracking-[0.08em] text-cdm-muted transition-colors hover:text-cdm-accent"
           >
             [MANO DE OBRA] ↑
-          </Link>
-          <Link
-            href={`/obras/${presupuestoId}/gastos`}
-            className="font-mono-hud text-[10px] uppercase tracking-[0.08em] text-cdm-muted transition-colors hover:text-cdm-accent"
-          >
-            [GASTOS] ↑
           </Link>
         </div>
       </header>
@@ -280,118 +348,51 @@ export function ObraOrbitalScreen({ presupuestoId }: { presupuestoId: string }) 
           </div>
         )}
         {nodos && (
-          <OrbitalObra
+          <StackedObra
             nodos={nodos}
-            obraNombre={nombre}
             margenAlDia={margen}
             onBorrarFoto={borrarFoto}
+            onSubirArchivo={subirArchivo}
+            onAgregarAvance={agregarAvance}
+            onPedirDiagnostico={pedirDiagnostico}
           />
         )}
       </div>
 
-      {/* Seguimiento: agregar avance + cerrar obra (porté desde la vieja /obras). */}
+      {/* Cierre de obra — lo único que queda fuera de las cards. */}
       {nodos && (
-        <footer className="relative z-10 mt-2 flex flex-col gap-2 border-t border-cdm-line px-1 pt-3">
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-            {finalizada ? (
-              <span className="font-mono-hud text-[10px] uppercase tracking-[0.18em] text-emerald-400">
-                ✓ Obra cerrada
-              </span>
-            ) : (
-              <>
-                <div className="flex flex-1 items-stretch">
-                  <input
-                    value={avanceTexto}
-                    onChange={(e) => setAvanceTexto(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") void agregarAvance();
-                    }}
-                    placeholder="+ avance…"
-                    className="font-grotesk w-full border border-cdm-line bg-transparent px-3 py-1.5 text-[12px] text-cdm-fg placeholder:text-cdm-muted/50 focus:border-emerald-400 focus:outline-none"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => void agregarAvance()}
-                    disabled={enviando || !avanceTexto.trim()}
-                    className="font-mono-hud shrink-0 border border-l-0 border-cdm-line px-3 text-[11px] uppercase tracking-widest text-emerald-400 transition-colors hover:bg-emerald-400 hover:text-cdm-bg disabled:opacity-30"
-                  >
-                    {enviando ? "…" : "+"}
-                  </button>
-                </div>
-                {confirmCerrar ? (
-                  <span className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => void cerrarObra()}
-                      disabled={cerrando}
-                      className="font-mono-hud border border-amber-300/60 bg-amber-300/10 px-3 py-1.5 text-[10px] uppercase tracking-[0.14em] text-amber-300 transition-colors hover:bg-amber-300 hover:text-cdm-bg disabled:opacity-40"
-                    >
-                      {cerrando ? "Cerrando…" : "Confirmar cierre"}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setConfirmCerrar(false)}
-                      className="font-mono-hud text-[10px] uppercase tracking-[0.14em] text-cdm-muted hover:text-cdm-fg"
-                    >
-                      Cancelar
-                    </button>
-                  </span>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => setConfirmCerrar(true)}
-                    className="font-mono-hud shrink-0 border border-cdm-line px-3 py-1.5 text-[10px] uppercase tracking-[0.14em] text-cdm-muted transition-colors hover:border-amber-300/60 hover:text-amber-300"
-                  >
-                    Cerrar obra
-                  </button>
-                )}
-              </>
-            )}
-          </div>
-
-          {/* Generar diagnóstico — disponible siempre; lo arma la Mac y lo adjunta a la obra */}
-          <div className="flex flex-col gap-2">
-            {!diagAbierto ? (
+        <footer className="relative z-10 mt-2 flex items-center gap-2 border-t border-cdm-line px-1 pt-3">
+          {finalizada ? (
+            <span className="font-mono-hud text-[10px] uppercase tracking-[0.18em] text-emerald-400">
+              ✓ Obra cerrada
+            </span>
+          ) : confirmCerrar ? (
+            <span className="flex items-center gap-2">
               <button
                 type="button"
-                onClick={() => setDiagAbierto(true)}
-                className="font-mono-hud self-start border border-cdm-line px-3 py-1.5 text-[10px] uppercase tracking-[0.14em] text-cdm-muted transition-colors hover:border-cdm-accent/60 hover:text-cdm-accent"
+                onClick={() => void cerrarObra()}
+                disabled={cerrando}
+                className="font-mono-hud border border-amber-300/60 bg-amber-300/10 px-3 py-1.5 text-[10px] uppercase tracking-[0.14em] text-amber-300 transition-colors hover:bg-amber-300 hover:text-cdm-bg disabled:opacity-40"
               >
-                🩺 Generar diagnóstico
+                {cerrando ? "Cerrando…" : "Confirmar cierre"}
               </button>
-            ) : (
-              <div className="flex flex-col gap-2">
-                <textarea
-                  value={diagTexto}
-                  onChange={(e) => setDiagTexto(e.target.value)}
-                  rows={2}
-                  placeholder="¿Qué hay que diagnosticar? (lo que observaste / el problema). Si lo dejás vacío, la Mac arma uno general."
-                  className="font-grotesk w-full resize-y border border-cdm-line bg-transparent px-3 py-1.5 text-[12px] text-cdm-fg placeholder:text-cdm-muted/50 focus:border-cdm-accent focus:outline-none"
-                />
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => void pedirDiagnostico()}
-                    disabled={pidiendoDiag}
-                    className="font-mono-hud border border-cdm-accent/60 bg-cdm-accent/10 px-3 py-1.5 text-[10px] uppercase tracking-[0.14em] text-cdm-accent transition-colors hover:bg-cdm-accent hover:text-cdm-bg disabled:opacity-40"
-                  >
-                    {pidiendoDiag ? "Pidiendo…" : "Pedir diagnóstico a la Mac"}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setDiagAbierto(false);
-                      setDiagTexto("");
-                    }}
-                    className="font-mono-hud text-[10px] uppercase tracking-[0.14em] text-cdm-muted hover:text-cdm-fg"
-                  >
-                    Cancelar
-                  </button>
-                </div>
-              </div>
-            )}
-            {diagMsg && <p className="text-[11px] text-cdm-accent-2">{diagMsg}</p>}
-          </div>
+              <button
+                type="button"
+                onClick={() => setConfirmCerrar(false)}
+                className="font-mono-hud text-[10px] uppercase tracking-[0.14em] text-cdm-muted hover:text-cdm-fg"
+              >
+                Cancelar
+              </button>
+            </span>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setConfirmCerrar(true)}
+              className="font-mono-hud border border-cdm-line px-3 py-1.5 text-[10px] uppercase tracking-[0.14em] text-cdm-muted transition-colors hover:border-amber-300/60 hover:text-amber-300"
+            >
+              Cerrar obra
+            </button>
+          )}
         </footer>
       )}
     </div>
