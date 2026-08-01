@@ -12,6 +12,11 @@ import type { Metadata, Viewport } from "next";
 export const metadata: Metadata = {
   title: "Cargar gasto — RAVN",
   manifest: "/manifest-gasto.webmanifest",
+  // Ícono propio del atajo: isotipo R INVERTIDO (negro sobre blanco cálido)
+  // para distinguirlo del ícono de la app en la pantalla de inicio del iPhone.
+  icons: {
+    apple: "/apple-touch-icon-gasto.png",
+  },
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
