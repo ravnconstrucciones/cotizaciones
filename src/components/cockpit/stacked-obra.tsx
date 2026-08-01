@@ -219,7 +219,10 @@ function CardApilada({
         background:
           "linear-gradient(150deg, var(--cdm-lg-hi-1), var(--cdm-lg-hi-2) 55%, transparent)",
       }}
-      className="sticky isolate mb-4 border border-cdm-line bg-cdm-bg/85 shadow-[0_18px_50px_-16px_rgba(0,0,0,0.65)] backdrop-blur-xl backdrop-saturate-150"
+      // Sin backdrop-filter: 6 capas de blur apiladas re-filtraban el fondo
+      // en cada frame de scroll y el celu moría. El vidrio lo hacen los
+      // gradientes + brillos (gratis) sobre fondo casi opaco.
+      className="sticky isolate mb-4 border border-cdm-line bg-cdm-bg/95 shadow-[0_18px_50px_-16px_rgba(0,0,0,0.65)]"
     >
       {/* Brillo de vidrio: línea superior + reflejo lateral, tokens cdm. */}
       <div
@@ -406,7 +409,7 @@ export function StackedObra({
     >
       {/* Chips de acceso directo — siempre a mano arriba del apilado. */}
       <nav
-        className="sticky top-0 z-[250] -mx-1 flex items-center gap-1.5 overflow-x-auto bg-cdm-bg/85 px-1 py-2 backdrop-blur-md [scrollbar-width:none]"
+        className="sticky top-0 z-[250] -mx-1 flex items-center gap-1.5 overflow-x-auto bg-cdm-bg/95 px-1 py-2 [scrollbar-width:none]"
         style={{ height: TOPE_CHIPS }}
         aria-label="Secciones de la obra"
       >
