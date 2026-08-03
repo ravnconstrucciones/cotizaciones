@@ -4,11 +4,11 @@ import { createSupabaseAdminClient } from "@/lib/supabase/server";
 export async function GET() {
   try {
     const db = createSupabaseAdminClient();
-    const { data: obras, error: obrasError } = await db.from("obras").select("id, finalizada, presupuestos!inner(nombre_obra, nombre_cliente, estado)");
+    const { data: obras, error: obrasError } = await db.from("obras").select("id, finalizada_at, presupuestos!inner(nombre_obra, nombre_cliente, estado)");
     if (obrasError) throw obrasError;
     for (const raw of obras ?? []) {
-      const o = raw as unknown as { id: string; finalizada: boolean; presupuestos: { nombre_obra: string | null; nombre_cliente: string | null; estado: string | null } };
-      const activa = !o.finalizada && o.presupuestos.estado !== "finalizado";
+      const o = raw as unknown as { id: string; finalizada_at: string | null; presupuestos: { nombre_obra: string | null; nombre_cliente: string | null; estado: string | null } };
+      const activa = !o.finalizada_at && o.presupuestos.estado !== "finalizado";
       const nombre = o.presupuestos.nombre_obra?.trim() || o.presupuestos.nombre_cliente?.trim() || "Obra sin nombre";
       await db.from("inventario_ubicaciones").upsert({ clave: `obra-${o.id}`, nombre, tipo: "obra", obra_id: o.id, activa }, { onConflict: "obra_id" });
     }
