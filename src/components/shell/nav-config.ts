@@ -38,6 +38,7 @@ export const NAV_COCKPIT: NavItem[] = [
 
 export const NAV_DATOS: NavItem[] = [
   { href: "/dinero", label: "Dinero" },
+  { href: "/inventario", label: "Depósito / Inventario" },
   { href: "/cashflow", label: "Cashflow" },
   { href: "/finanzas", label: "Finanzas personales" },
   { href: "/actividad", label: "Actividad" },

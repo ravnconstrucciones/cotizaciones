@@ -1,7 +1,10 @@
 "use client";
 
+import Link from "next/link";
 import { motion } from "framer-motion";
+import { ArrowUpRight, Boxes } from "lucide-react";
 import { useEntradaAnimada } from "@/hooks/use-entrada-animada";
+import { Card } from "@/components/ui/heroui-card";
 import { PanelVariantProvider } from "./panel";
 import { ModuloSaludNegocio } from "./modulo-salud-negocio";
 import { ModuloFinanzas } from "./modulo-finanzas";
@@ -102,9 +105,26 @@ export function CockpitHome() {
             {/* Actividad y Cotizaciones salieron de la home (pedido 02/07):
                 viven en /actividad y /cotizaciones.
                 ADN (teaser) salió de la home (pedido 09/07): vive en /adn. */}
+            <TarjetaInventario className="lg:col-span-12" />
           </motion.div>
         </div>
       </div>
     </PanelVariantProvider>
+  );
+}
+
+function TarjetaInventario({ className }: { className?: string }) {
+  return (
+    <motion.div variants={{ hidden: { opacity: 0, y: 14 }, visible: { opacity: 1, y: 0, transition: { duration: 0.4, ease: "easeOut" } } }} className={className}>
+      <Link href="/inventario" className="block h-full">
+        <Card interactive className="group flex h-full flex-col justify-between gap-4 rounded-none border-zinc-300 p-6 sm:p-7 dark:border-zinc-700">
+          <div className="flex items-start justify-between gap-3">
+            <span className="flex h-11 w-11 items-center justify-center border border-zinc-300 text-zinc-800 dark:border-zinc-700 dark:text-zinc-100"><Boxes className="h-5 w-5" /></span>
+            <ArrowUpRight className="h-5 w-5 text-zinc-400 transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
+          </div>
+          <div><h2 className="text-[15px] font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">Depósito / Inventario</h2><p className="mt-1 text-[13px] leading-relaxed text-zinc-500 dark:text-zinc-400">Ubicá herramientas y materiales. Movelos entre depósito, casa y obras activas.</p></div>
+        </Card>
+      </Link>
+    </motion.div>
   );
 }
