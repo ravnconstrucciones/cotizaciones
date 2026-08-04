@@ -369,6 +369,20 @@ def snapshot_negocio(cfg, token):
     except Exception as e:
         log(f"snapshot cotizaciones no disponible: {e}")
 
+    # --- SANIDAD DEL LOOP DEL COTIZADOR (vista cotizador_huerfanos, regla 04/08) ---
+    # Debe estar SIEMPRE vacía; si trae filas hay una fuga en el circuito
+    # (cotización sin receta, aprobada sin obra, u obra finalizada sin contraste).
+    try:
+        huerf = rest(cfg, token,
+            "cotizador_huerfanos?select=motivo,titulo,detalle") or []
+        if huerf:
+            lin = ["⚠ FUGAS EN EL LOOP DEL COTIZADOR (vista cotizador_huerfanos — debería estar vacía; "
+                   "cantale esto a Eze como pendiente concreto, no como idea nueva):"]
+            lin += [f"  - [{h.get('motivo')}] {h.get('titulo')}: {h.get('detalle')}" for h in huerf[:10]]
+            bloques.append("\n".join(lin))
+    except Exception as e:
+        log(f"snapshot cotizador_huerfanos no disponible: {e}")
+
     # --- PENDIENTES ABIERTOS (tareas) ---
     try:
         tareas = rest(cfg, token,

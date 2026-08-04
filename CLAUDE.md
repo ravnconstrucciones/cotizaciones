@@ -87,6 +87,12 @@ El tono en textos hacia clientes es **formal, técnico-comercial, directo**. Sin
 
 **Antes de cerrar cualquier sesión que tocó plata:** `select * from dinero_huerfanos;` — esa vista lista filas con cuenta sin pata en el ledger y debe estar SIEMPRE vacía. (Nació del caso 17/07: MO Pacheco $1.200.000 + seña mueble $570.000 quedaron sin espejo y la home mostró $1.770.000 de más.)
 
+## REGLA DURA — Loop del cotizador (04/08/2026)
+
+**Ninguna cotización activa existe sin receta.** El trigger `trg_cotizaciones_guard` rebota cualquier INSERT/UPDATE de `cotizaciones` con estado `en_revision`/`aprobada`/`documento_emitido` y `receta_id` null — "manual" no existe; la MO cerrada de cuadrilla es fuente tipo `obra` (verificada), no una excusa. `borrador` queda libre.
+
+**Antes de cerrar cualquier sesión que tocó cotizaciones u obras:** `select * from cotizador_huerfanos;` — debe estar SIEMPRE vacía. Lista tres familias: cotización activa sin receta, aprobada sin `presupuesto_id` (el contraste al cierre no puede correr), y obra finalizada sin lección `contraste_obra` (correr el cruce estimado vs real y promover la receta). (Nació del caso 04/08: Húsares ×3 + Lara cotizadas en consola quedaron con `receta_nombre: "manual"` y el cerebro no aprendió nada de la MO real de Fran.)
+
 ## Acuerdos de trabajo multiagente (v0.1 — 29/07/2026)
 
 Estos acuerdos **no reemplazan** `.ravn/02_AI_RULES.md`; lo extienden con el
