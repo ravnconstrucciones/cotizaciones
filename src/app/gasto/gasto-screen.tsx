@@ -23,7 +23,8 @@ import {
 } from "@/lib/format-currency";
 
 /**
- * /gasto — UNA pantalla, cero wizard: tipo (obra/empresa/personal) → monto
+ * /gasto — UNA pantalla, cero wizard: movimiento (gasto/ingreso) → tipo o
+ * obra → monto
  * protagonista → concepto → chips con defaults inteligentes → GUARDAR.
  * Pensada para el atajo del iPhone: el ciclo completo queda en ~5 taps.
  *
@@ -43,13 +44,14 @@ export type ObraRapida = {
 };
 
 type Tipo = "obra" | "empresa" | "personal";
+type Movimiento = "gasto" | "ingreso";
 type SheetId = "fecha" | "obra" | "categoria" | null;
 
 type EstadoLedger = "asentado" | "pendiente_cuenta" | "espejo_pendiente" | "sin_foto";
 
 type Resultado = {
   id: string;
-  tabla: "presupuestos_gastos" | "gastos_empresa" | "gastos_personales";
+  tabla: "presupuestos_gastos" | "gastos_empresa" | "gastos_personales" | "cashflow_items";
   montoTexto: string;
   estado: EstadoLedger;
 };
@@ -159,6 +161,7 @@ export function GastoScreen({
   const animar = useEntradaAnimada();
   const reducir = useReducedMotion();
 
+  const [movimiento, setMovimiento] = useState<Movimiento>("gasto");
   const [tipo, setTipo] = useState<Tipo>("obra");
   const [montoStr, setMontoStr] = useState("");
   const [modoUsd, setModoUsd] = useState(false);
@@ -321,6 +324,7 @@ export function GastoScreen({
   }, [tipo, cuentaId, obraSel, cuentas]);
 
   const cuentaUsd = cuentaSel?.moneda === "USD";
+  const esIngreso = movimiento === "ingreso";
 
   // La cuenta dejó de ser USD (se cambió a una en pesos o se sacó): el modo
   // "tipear en US$" no puede sobrevivir — el toggle y el campo de cotización
@@ -368,24 +372,25 @@ export function GastoScreen({
   /** Monto en la moneda que se persiste: obra siempre ARS (modo US$ convierte);
    * empresa en la moneda de la cuenta; personal siempre ARS. */
   const montoFinal = useMemo(() => {
-    if (tipo === "obra" && modoUsd) {
+    if ((tipo === "obra" || esIngreso) && modoUsd) {
       const usd = parseFormattedNumber(usdStr);
       return usd > 0 && cot > 0 ? roundArs2(usd * cot) : 0;
     }
     return roundArs2(parseFormattedNumber(montoStr));
-  }, [tipo, modoUsd, usdStr, cot, montoStr]);
+  }, [tipo, esIngreso, modoUsd, usdStr, cot, montoStr]);
 
   const motivo = useMemo(() => {
     if (!(montoFinal > 0)) return "Ingresá un monto mayor a cero.";
-    if (tipo === "obra" && !obraSel) return "Elegí la obra.";
+    if ((tipo === "obra" || esIngreso) && !obraSel) return "Elegí la obra.";
+    if (esIngreso && !cuentaId) return "Elegí dónde entró el dinero.";
     if (tipo !== "obra" && !concepto.trim()) return "Poné el concepto.";
     // Cuenta elegida (LS) pero /api/cuentas todavía no resolvió: sin conocer
     // la moneda real, guardar sería a ciegas (monto en moneda equivocada).
     if (cuentaId && !cuentaSel) return "Cargando cuentas…";
-    if (tipo === "obra" && cuentaUsd && !(cot > 0))
+    if ((tipo === "obra" || esIngreso) && cuentaUsd && !(cot > 0))
       return "La cuenta es en dólares: falta la cotización.";
     return null;
-  }, [montoFinal, tipo, obraSel, concepto, cuentaId, cuentaSel, cuentaUsd, cot]);
+  }, [montoFinal, tipo, esIngreso, obraSel, concepto, cuentaId, cuentaSel, cuentaUsd, cot]);
 
   const persistirLs = useCallback(() => {
     const prev = lsRef.current;
@@ -412,14 +417,23 @@ export function GastoScreen({
     setErrorRed(null);
     setSesionVencida(false);
     try {
-      const payload: Record<string, unknown> = { tipo, fecha, cuenta_id: cuentaId };
+      const payload: Record<string, unknown> = {
+        tipo: esIngreso ? "ingreso" : tipo,
+        fecha,
+        cuenta_id: cuentaId,
+      };
       // Candado server-side: la moneda de cuenta que VIO esta pantalla. Si
       // difiere de la real (desync de /api/cuentas), el route corta con 400.
       if (cuentaId) payload.moneda_cuenta_vista = cuentaUsd ? "USD" : "ARS";
       // Reintento tras fallo: el server dedupea una fila idéntica reciente
       // (el primer POST pudo haber comiteado aunque la respuesta se perdió).
       if (falloPrevio.current) payload.reintento = true;
-      if (tipo === "obra") {
+      if (esIngreso) {
+        payload.presupuesto_id = obraId;
+        payload.descripcion = concepto.trim();
+        payload.monto = montoFinal;
+        if (cot > 0 && cuentaUsd) payload.cotizacion_venta_ars_por_usd = cot;
+      } else if (tipo === "obra") {
         payload.presupuesto_id = obraId;
         payload.descripcion = concepto.trim();
         // Rubro fuera de /gasto (01/08, pedido de Eze): siempre sin rubro.
@@ -466,8 +480,9 @@ export function GastoScreen({
 
       persistirLs();
 
-      const tabla =
-        tipo === "obra"
+      const tabla = esIngreso
+        ? ("cashflow_items" as const)
+        : tipo === "obra"
           ? ("presupuestos_gastos" as const)
           : tipo === "empresa"
             ? ("gastos_empresa" as const)
@@ -480,7 +495,7 @@ export function GastoScreen({
             ? "sin_foto"
             : "espejo_pendiente";
       const montoTexto =
-        tipo === "empresa" && cuentaUsd
+        (esIngreso || tipo === "empresa") && cuentaUsd
           ? `US$ ${formatNumber(montoFinal, 2)}`
           : formatMoney(montoFinal);
       falloPrevio.current = false;
@@ -497,7 +512,7 @@ export function GastoScreen({
       setGuardando(false);
     }
   }, [
-    motivo, guardando, tipo, fecha, cuentaId, obraId, concepto,
+    motivo, guardando, tipo, esIngreso, fecha, cuentaId, obraId, concepto,
     montoFinal, cot, cuentaUsd, casaDolar, categoria, persistirLs, cargarCuentas,
   ]);
 
@@ -601,7 +616,7 @@ export function GastoScreen({
     valor: fecha === hoy ? "Hoy" : fechaCorta(fecha),
     tono: "neutro",
   });
-  if (tipo === "obra") {
+  if (tipo === "obra" || esIngreso) {
     chips.push({
       id: "obra",
       etiqueta: "Obra",
@@ -629,7 +644,7 @@ export function GastoScreen({
   });
 
   const etiquetaMonto =
-    tipo === "empresa" && cuentaUsd
+    (esIngreso || tipo === "empresa") && cuentaUsd
       ? "Monto (US$ — moneda de la cuenta)"
       : tipo === "obra" && modoUsd
         ? "Monto en US$"
@@ -740,6 +755,60 @@ export function GastoScreen({
               {/* PASO 1 — tipo */}
               <motion.div
                 role="radiogroup"
+                aria-label="Tipo de movimiento"
+                className="relative grid grid-cols-2 rounded-full p-1 ring-1 ring-cdm-line"
+                {...entrada(0)}
+              >
+                {(["gasto", "ingreso"] as const).map((opcion) => {
+                  const activo = movimiento === opcion;
+                  return (
+                    <button
+                      key={opcion}
+                      type="button"
+                      role="radio"
+                      aria-checked={activo}
+                      onClick={() => {
+                        setMovimiento(opcion);
+                        setIntento(false);
+                        setModoUsd(false);
+                        if (opcion === "ingreso") {
+                          setTipo("obra");
+                          // Un cobro nunca hereda silenciosamente la caja del
+                          // último gasto: Eze confirma explícitamente dónde
+                          // entró la plata.
+                          cuentaTocada.current = true;
+                          setCuentaId(null);
+                        } else {
+                          cuentaTocada.current = false;
+                          setCuentaId(lsRef.current.cuentaPorTipo?.[tipo] ?? null);
+                        }
+                      }}
+                      className={`relative min-h-[48px] rounded-full font-mono-hud text-[11px] uppercase tracking-[0.16em] transition-colors focus-visible:outline focus-visible:outline-1 focus-visible:outline-cdm-fg ${
+                        activo ? "text-cdm-fg" : "text-cdm-muted hover:text-cdm-fg"
+                      }`}
+                    >
+                      {activo && (
+                        <motion.span
+                          layoutId="movimientoPill"
+                          aria-hidden
+                          className={`absolute inset-0 rounded-full ring-1 ${
+                            opcion === "ingreso"
+                              ? "bg-emerald-400/10 ring-emerald-400/40"
+                              : "bg-cdm-fg/10 ring-cdm-fg/30"
+                          }`}
+                        />
+                      )}
+                      <span className="relative">
+                        {opcion === "gasto" ? "Salió dinero" : "Entró dinero"}
+                      </span>
+                    </button>
+                  );
+                })}
+              </motion.div>
+
+              {!esIngreso && (
+              <motion.div
+                role="radiogroup"
                 aria-label="Tipo de gasto"
                 className="relative grid grid-cols-3 rounded-full p-1 ring-1 ring-cdm-line"
                 {...entrada(0)}
@@ -774,8 +843,10 @@ export function GastoScreen({
                   );
                 })}
               </motion.div>
+              )}
 
               {/* Captura por IA: foto de ticket o dictado — precarga y listo. */}
+              {!esIngreso && (
               <motion.div {...entrada(0.025)}>
                 <CapturaIa
                   contexto={contextoIa}
@@ -788,6 +859,7 @@ export function GastoScreen({
                   </p>
                 )}
               </motion.div>
+              )}
 
               {/* PASO 2 — monto protagonista */}
               <motion.section
@@ -800,7 +872,7 @@ export function GastoScreen({
                   <label htmlFor="monto" className={LABEL}>
                     {etiquetaMonto}
                   </label>
-                  {tipo === "obra" && cuentaUsd && (
+                  {(tipo === "obra" || esIngreso) && cuentaUsd && (
                     <button
                       type="button"
                       onClick={() => setModoUsd((v) => !v)}
@@ -813,7 +885,7 @@ export function GastoScreen({
                 </div>
                 <div className="mt-3 flex items-baseline justify-center gap-2">
                   <span className="text-2xl text-cdm-muted" aria-hidden>
-                    {tipo === "obra" && modoUsd
+                    {(tipo === "obra" || esIngreso) && modoUsd
                       ? "US$"
                       : tipo === "empresa" && cuentaUsd
                         ? "US$"
@@ -828,9 +900,9 @@ export function GastoScreen({
                     autoComplete="off"
                     data-no-spinner
                     placeholder="0"
-                    value={tipo === "obra" && modoUsd ? usdStr : montoStr}
+                    value={(tipo === "obra" || esIngreso) && modoUsd ? usdStr : montoStr}
                     onChange={(e) =>
-                      tipo === "obra" && modoUsd
+                      (tipo === "obra" || esIngreso) && modoUsd
                         ? setUsdStr(e.target.value)
                         : setMontoStr(e.target.value)
                     }
@@ -844,7 +916,7 @@ export function GastoScreen({
                 )}
 
                 {/* Cotización: solo obra pagada desde cuenta USD (trampa 0-patas). */}
-                {tipo === "obra" && cuentaUsd && (
+                {(tipo === "obra" || esIngreso) && cuentaUsd && (
                   <div className="mt-4 border-t border-cdm-line pt-4">
                     <label htmlFor="cot" className={LABEL}>
                       Cotización venta ($ por US$ 1)
@@ -881,14 +953,16 @@ export function GastoScreen({
                 {...entrada(0.09)}
               >
                 <label htmlFor="concepto" className={LABEL}>
-                  {tipo === "obra" ? "Descripción (opcional)" : "Concepto"}
+                  {esIngreso ? "Concepto del cobro" : tipo === "obra" ? "Descripción (opcional)" : "Concepto"}
                 </label>
                 <input
                   id="concepto"
                   type="text"
                   autoComplete="off"
                   placeholder={
-                    tipo === "obra" ? "Qué se compró / pagó" : "En qué se fue"
+                    esIngreso
+                      ? "Ej. Pago recibido hoy"
+                      : tipo === "obra" ? "Qué se compró / pagó" : "En qué se fue"
                   }
                   value={concepto}
                   onChange={(e) => setConcepto(e.target.value)}
@@ -917,7 +991,7 @@ export function GastoScreen({
                   </button>
                 ))}
               </motion.div>
-              {intento && tipo === "obra" && !obraSel && (
+              {intento && (tipo === "obra" || esIngreso) && !obraSel && (
                 <p role="alert" className="-mt-3 text-xs text-amber-300">
                   Elegí la obra antes de guardar.
                 </p>
@@ -925,10 +999,10 @@ export function GastoScreen({
 
               {/* PASO 4b — Salió de: las cajas a la vista, elegir es UN tap */}
               <motion.section {...entrada(0.16)}>
-                <span className={LABEL}>Salió de</span>
+                <span className={LABEL}>{esIngreso ? "Entró en" : "Salió de"}</span>
                 <div
                   role="radiogroup"
-                  aria-label="Cuenta de la que salió la plata"
+                  aria-label={esIngreso ? "Cuenta en la que entró la plata" : "Cuenta de la que salió la plata"}
                   className="mt-2 flex flex-wrap gap-2"
                 >
                   {cuentas === null ? (
@@ -966,7 +1040,7 @@ export function GastoScreen({
                           </button>
                         );
                       })}
-                      <button
+                      {!esIngreso && <button
                         type="button"
                         role="radio"
                         aria-checked={cuentaId === null}
@@ -981,11 +1055,11 @@ export function GastoScreen({
                         }`}
                       >
                         Sin cuenta
-                      </button>
+                      </button>}
                     </>
                   )}
                 </div>
-                {cuentas !== null && cuentaId === null && (
+                {cuentas !== null && cuentaId === null && !esIngreso && (
                   <p className="mt-2 text-xs text-cdm-muted">
                     Sin cuenta se guarda igual y queda pendiente en Archivados.
                   </p>
@@ -1032,7 +1106,11 @@ export function GastoScreen({
               whileTap={reducir || guardando ? undefined : { scale: 0.985 }}
               className="font-mono-hud min-h-[56px] w-full rounded-full bg-cdm-fg text-[12px] uppercase tracking-[0.24em] text-cdm-bg transition-opacity hover:opacity-90 disabled:opacity-40"
             >
-              {guardando ? "[GUARDANDO…]" : "[GUARDAR]"}
+              {guardando
+                ? "[GUARDANDO…]"
+                : esIngreso
+                  ? "[REGISTRAR INGRESO]"
+                  : "[GUARDAR GASTO]"}
             </motion.button>
             {motivo && (
               <p className="mt-2 text-center text-xs text-cdm-muted">{motivo}</p>
@@ -1051,7 +1129,7 @@ export function GastoScreen({
             if (e.target.value) setFecha(e.target.value);
           }}
           className="w-full rounded-xl border border-cdm-line bg-cdm-bg px-3 py-3 text-base text-cdm-fg focus-visible:border-cdm-fg/50 focus-visible:outline-none"
-          aria-label="Fecha del gasto"
+          aria-label={esIngreso ? "Fecha del ingreso" : "Fecha del gasto"}
         />
         <button
           type="button"

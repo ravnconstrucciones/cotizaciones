@@ -1,7 +1,7 @@
 # 04 — Inventario de APIs (App RAVN)
 
 > **Naturaleza:** HECHOS
-> **Última verificación:** 2026-07-29 (borra `/api/trabajos`; `/api/diagnosticos*` 2026-07-28; resto 2026-07-25)
+> **Última verificación:** 2026-08-05 (`/api/gastos/rapido`; resto según detalle anterior)
 > **Fuente:** src/app/api/**/route.ts, src/middleware.ts
 
 **60 rutas** (las 57 de 2026-07-25 + `diagnosticos`, `diagnosticos/[id]`, `diagnosticos/[id]/cotizar`, módulo Diagnósticos 2026-07-28).
@@ -82,6 +82,7 @@
 | `/api/negocio/retiro` | POST | Registra retiro o aporte de socio |
 | `/api/papelera/[id]/restaurar` | POST | Restaura fila archivada de la papelera universal |
 | `/api/gastos-empresa` | GET | Calendario mensual de gastos de empresa |
+| `/api/gastos/rapido` | POST | Alta rápida de gasto o ingreso; persiste detalle y sincroniza el ledger |
 
 ### Finanzas personales
 
@@ -208,6 +209,8 @@ Todas leen/escriben `cotizaciones`; los cambios de estado usan guard de carrera 
 **GET /api/dinero** — vista `dinero_saldos_bolsillos`, `financiamientos` (filtra legacy dueño personal), `movimientos_plata` estado=borrador, vista `dinero_costos_obra`, `cuentas` (para marcar tarjetas), `cuenta_ajustes` (arqueos, máx 200), nombres desde `presupuestos`. Cache privado 15 s.
 
 **POST /api/dinero/espejo** — body `{ tabla (una de: presupuestos_gastos, cashflow_items, gastos_empresa, gastos_personales, retiros_socio, transferencias), id (uuid) }` → `sincronizarEspejo()`. Es el mecanismo manual de la REGLA DURA del ledger.
+
+**POST /api/gastos/rapido** — body `{ tipo: obra|empresa|personal|ingreso, fecha, cuenta_id, ... }`. Los gastos conservan sus tablas de detalle. `ingreso` exige `presupuesto_id` y cuenta activa, crea un `cashflow_items` real `tipo=ingreso`, `estado=cobrado` y sincroniza una pata positiva `origen_tipo=cobro` en `movimientos_plata`; `grupo_id` lo genera el sincronizador. En cuenta USD exige cotización y guarda `monto_usd` + equivalente ARS. El reintento deduplica una fila idéntica reciente.
 
 **GET /api/pendientes-cuenta** — junta movimientos con `cuenta_id null` posteriores a la foto (2026-07-02) de: presupuestos_gastos, cashflow_items (excluye espejados por gasto), gastos_personales, gastos_empresa, retiros_socio (excluye `ya_en_foto`). **POST** `{ origen, id, cuenta_id }` — valida cuenta activa y asigna (guard `.is("cuenta_id", null)`, 409 si ya tenía) + espejo. **DELETE** `{ origen, id }` — cashflow soft-delete (`deleted_at`); gasto_obra arrastra su espejo de libreta; resto delete físico; siempre solo si sigue sin cuenta.
 

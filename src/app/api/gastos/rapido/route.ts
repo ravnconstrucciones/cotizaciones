@@ -15,7 +15,7 @@ import { roundArs2 } from "@/lib/format-currency";
  * para poder devolver el estado real ("asentado" solo si hay patas — nunca
  * mentir).
  *
- * Body: { tipo: "obra" | "empresa" | "personal", ...campos }
+ * Body: { tipo: "obra" | "empresa" | "personal" | "ingreso", ...campos }
  *   obra     → presupuestos_gastos (contrato calcado de guardarDraft() de
  *              gastos-screen: cashflow_items espejo primero si la obra tiene
  *              libreta, rollback si falla el gasto).
@@ -73,8 +73,13 @@ export async function POST(req: NextRequest) {
     if (!body) return malo("Body inválido");
 
     const tipo = body.tipo;
-    if (tipo !== "obra" && tipo !== "empresa" && tipo !== "personal") {
-      return malo("tipo debe ser obra, empresa o personal");
+    if (
+      tipo !== "obra" &&
+      tipo !== "empresa" &&
+      tipo !== "personal" &&
+      tipo !== "ingreso"
+    ) {
+      return malo("tipo debe ser obra, empresa, personal o ingreso");
     }
 
     const fecha = str(body.fecha) || hoyBAIso();
@@ -157,6 +162,88 @@ export async function POST(req: NextRequest) {
         return { ok: false };
       }
     };
+
+    // ── INGRESO → cashflow_items (cobro real de una obra) ────────────────
+    // El ingreso no pasa por ninguna tabla de gastos: queda como cobro en la
+    // libreta de la obra y el sincronizador crea una pata POSITIVA en el
+    // bolsillo de esa obra, dentro de la cuenta elegida.
+    if (tipo === "ingreso") {
+      const presupuestoId = str(body.presupuesto_id);
+      if (!presupuestoId) return malo("presupuesto_id requerido");
+      if (!cuenta) return malo("Elegí la cuenta en la que entró el dinero");
+
+      const monto = roundArs2(num(body.monto));
+      if (!(monto > 0)) return malo("El monto debe ser mayor a cero");
+      const cot = roundArs2(num(body.cotizacion_venta_ars_por_usd));
+      if (cuenta.moneda === "USD" && !(cot > 0)) {
+        return malo(
+          "La cuenta elegida es en dólares: falta cotización venta (ARS por US$ 1)"
+        );
+      }
+
+      const { data: obra, error: eObra } = await sb
+        .from("obras")
+        .select("id")
+        .eq("presupuesto_id", presupuestoId)
+        .maybeSingle();
+      if (eObra) return malo(eObra.message, 500);
+      if (!obra) return malo("La obra no tiene libreta de caja", 404);
+
+      const obraId = String((obra as { id: unknown }).id);
+      const descripcion = str(body.descripcion) || "Cobro de cliente";
+      const montoReal =
+        cuenta.moneda === "USD" ? roundArs2(monto * cot) : monto;
+      const montoUsd = cuenta.moneda === "USD" ? monto : null;
+
+      if (body.reintento === true) {
+        const desde = new Date(Date.now() - 2 * 60 * 1000).toISOString();
+        let q = sb
+          .from("cashflow_items")
+          .select("id")
+          .eq("obra_id", obraId)
+          .eq("tipo", "ingreso")
+          .eq("descripcion", descripcion)
+          .eq("monto_real", montoReal)
+          .eq("fecha_real", fecha)
+          .eq("cuenta_id", cuenta.id)
+          .gte("created_at", desde);
+        q = montoUsd === null ? q.is("monto_usd", null) : q.eq("monto_usd", montoUsd);
+        const { data: duplicado, error: eDup } = await q
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        if (eDup) console.error("[gastos/rapido ingreso dedupe]", eDup.message);
+        if (duplicado) {
+          const id = String((duplicado as { id: unknown }).id);
+          const espejo = await espejar("cashflow_items", id);
+          return NextResponse.json({ ok: true, id, espejo, duplicado: true });
+        }
+      }
+
+      const { data, error } = await sb
+        .from("cashflow_items")
+        .insert({
+          obra_id: obraId,
+          tipo: "ingreso",
+          categoria: "otro",
+          descripcion,
+          monto_proyectado: montoReal,
+          fecha_proyectada: fecha,
+          monto_real: montoReal,
+          monto_usd: montoUsd,
+          moneda: cuenta.moneda,
+          fecha_real: fecha,
+          estado: estadoDesdeTipo("ingreso"),
+          cuenta_id: cuenta.id,
+          notas: "RAVN_INGRESO_RAPIDO",
+        })
+        .select("id")
+        .single();
+      if (error) return malo(error.message, 500);
+      const id = String((data as { id: unknown }).id);
+      const espejo = await espejar("cashflow_items", id);
+      return NextResponse.json({ ok: true, id, espejo });
+    }
 
     // ── OBRA → presupuestos_gastos ────────────────────────────────────────
     if (tipo === "obra") {
