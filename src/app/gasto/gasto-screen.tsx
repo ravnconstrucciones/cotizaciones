@@ -46,6 +46,7 @@ export type ObraRapida = {
 
 type Tipo = "obra" | "empresa" | "personal";
 type Movimiento = "gasto" | "ingreso";
+type MonedaCaptura = "ARS" | "USD";
 type SheetId = "fecha" | "obra" | "categoria" | null;
 
 type EstadoLedger = "asentado" | "pendiente_cuenta" | "espejo_pendiente" | "sin_foto";
@@ -164,6 +165,7 @@ export function GastoScreen({
 
   const [movimiento, setMovimiento] = useState<Movimiento>("gasto");
   const [tipo, setTipo] = useState<Tipo>("obra");
+  const [monedaEmpresa, setMonedaEmpresa] = useState<MonedaCaptura>("ARS");
   const [montoStr, setMontoStr] = useState("");
   const [modoUsd, setModoUsd] = useState(false);
   const [usdStr, setUsdStr] = useState("");
@@ -292,9 +294,14 @@ export function GastoScreen({
   const cuentasVisibles = useMemo(
     () =>
       (cuentas ?? []).filter(
-        (c) => c.activa && (tipo !== "personal" || c.moneda === "ARS")
+        (c) =>
+          c.activa &&
+          (tipo !== "personal" || c.moneda === "ARS") &&
+          (tipo !== "empresa" ||
+            movimiento === "ingreso" ||
+            c.moneda === monedaEmpresa)
       ),
-    [cuentas, tipo]
+    [cuentas, tipo, movimiento, monedaEmpresa]
   );
 
   // Personal solo cuentas ARS: si quedó una USD colada (LS viejo), se limpia.
@@ -327,6 +334,24 @@ export function GastoScreen({
 
   const cuentaUsd = cuentaSel?.moneda === "USD";
   const esIngreso = movimiento === "ingreso";
+
+  // En Empresa la moneda se elige de forma explícita. La cuenta sigue siendo
+  // la fuente de verdad contable: al cambiar ARS/USD se limpia una cuenta de
+  // la otra moneda para impedir patas cross-moneda en el ledger.
+  const cambiarMonedaEmpresa = useCallback(
+    (moneda: MonedaCaptura) => {
+      setMonedaEmpresa(moneda);
+      setIntento(false);
+      if (cuentaSel && cuentaSel.moneda !== moneda) setCuentaId(null);
+    },
+    [cuentaSel]
+  );
+
+  useEffect(() => {
+    if (tipo === "empresa" && !esIngreso && cuentaSel) {
+      setMonedaEmpresa(cuentaSel.moneda);
+    }
+  }, [tipo, esIngreso, cuentaSel]);
 
   // La cuenta dejó de ser USD (se cambió a una en pesos o se sacó): el modo
   // "tipear en US$" no puede sobrevivir — el toggle y el campo de cotización
@@ -386,13 +411,15 @@ export function GastoScreen({
     if ((tipo === "obra" || esIngreso) && !obraSel) return "Elegí la obra.";
     if (esIngreso && !cuentaId) return "Elegí dónde entró el dinero.";
     if (tipo !== "obra" && !concepto.trim()) return "Poné el concepto.";
+    if (tipo === "empresa" && !esIngreso && monedaEmpresa === "USD" && !cuentaId)
+      return "Elegí de qué cuenta en dólares salió el pago.";
     // Cuenta elegida (LS) pero /api/cuentas todavía no resolvió: sin conocer
     // la moneda real, guardar sería a ciegas (monto en moneda equivocada).
     if (cuentaId && !cuentaSel) return "Cargando cuentas…";
     if ((tipo === "obra" || esIngreso) && cuentaUsd && !(cot > 0))
       return "La cuenta es en dólares: falta la cotización.";
     return null;
-  }, [montoFinal, tipo, esIngreso, obraSel, concepto, cuentaId, cuentaSel, cuentaUsd, cot]);
+  }, [montoFinal, tipo, esIngreso, obraSel, concepto, monedaEmpresa, cuentaId, cuentaSel, cuentaUsd, cot]);
 
   const persistirLs = useCallback(() => {
     const prev = lsRef.current;
@@ -647,7 +674,9 @@ export function GastoScreen({
   });
 
   const etiquetaMonto =
-    (esIngreso || tipo === "empresa") && cuentaUsd
+    tipo === "empresa" && !esIngreso && monedaEmpresa === "USD"
+      ? "Monto en dólares"
+      : (esIngreso || tipo === "empresa") && cuentaUsd
       ? "Monto (US$ — moneda de la cuenta)"
       : tipo === "obra" && modoUsd
         ? "Monto en US$"
@@ -886,11 +915,38 @@ export function GastoScreen({
                     </button>
                   )}
                 </div>
+                {tipo === "empresa" && !esIngreso && (
+                  <div
+                    role="radiogroup"
+                    aria-label="Moneda del gasto"
+                    className="mt-3 grid grid-cols-2 gap-2"
+                  >
+                    {(["ARS", "USD"] as const).map((moneda) => {
+                      const activa = monedaEmpresa === moneda;
+                      return (
+                        <button
+                          key={moneda}
+                          type="button"
+                          role="radio"
+                          aria-checked={activa}
+                          onClick={() => cambiarMonedaEmpresa(moneda)}
+                          className={`${CHIP_BASE} justify-center focus-visible:outline focus-visible:outline-1 focus-visible:outline-cdm-fg ${
+                            activa
+                              ? "bg-cdm-fg/10 ring-cdm-fg/30 text-cdm-fg"
+                              : "ring-cdm-line text-cdm-muted hover:text-cdm-fg"
+                          }`}
+                        >
+                          {moneda === "USD" ? "US$ Dólares" : "$ Pesos"}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
                 <div className="mt-3 flex items-baseline justify-center gap-2">
                   <span className="text-2xl text-cdm-muted" aria-hidden>
                     {(tipo === "obra" || esIngreso) && modoUsd
                       ? "US$"
-                      : tipo === "empresa" && cuentaUsd
+                      : tipo === "empresa" && !esIngreso && monedaEmpresa === "USD"
                         ? "US$"
                         : "$"}
                   </span>
@@ -1064,7 +1120,9 @@ export function GastoScreen({
                 </div>
                 {cuentas !== null && cuentaId === null && !esIngreso && (
                   <p className="mt-2 text-xs text-cdm-muted">
-                    Sin cuenta se guarda igual y queda pendiente en Archivados.
+                    {tipo === "empresa" && monedaEmpresa === "USD"
+                      ? "Elegí una cuenta en dólares para registrar el pago."
+                      : "Sin cuenta se guarda igual y queda pendiente en Archivados."}
                   </p>
                 )}
               </motion.section>
