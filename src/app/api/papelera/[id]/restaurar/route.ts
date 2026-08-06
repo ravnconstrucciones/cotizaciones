@@ -24,7 +24,7 @@ export async function POST(_req: Request, ctx: Params) {
 
     const { data: p, error } = await supabase
       .from("papelera_registros")
-      .select("id, tabla, registro_id, registro")
+      .select("id, tabla, registro_id, registro, vinculos")
       .eq("id", id)
       .is("restaurado_at", null)
       .maybeSingle();
@@ -45,6 +45,26 @@ export async function POST(_req: Request, ctx: Params) {
     }
 
     const registro = p.registro as Record<string, unknown>;
+    if (registro.origen_carga === "gasto_rapido_v2") {
+      const { data: restaurado, error: eRpc } = await supabase.rpc(
+        "gasto_rapido_restaurar",
+        { p_papelera_id: p.id }
+      );
+      if (eRpc) {
+        return NextResponse.json({ error: eRpc.message }, { status: 500 });
+      }
+      const estado = (restaurado as { estado?: string } | null)?.estado;
+      if (estado === "restaurado") {
+        return NextResponse.json({ ok: true, tabla: p.tabla, id: p.registro_id });
+      }
+      if (estado === "ya_restaurado") {
+        return NextResponse.json({ error: "El gasto ya fue restaurado." }, { status: 409 });
+      }
+      return NextResponse.json(
+        { error: "Este registro no se puede restaurar desde acá." },
+        { status: estado === "no_encontrado" ? 404 : 409 }
+      );
+    }
     // upsert: si la fila ya volvió por otro camino, no duplica.
     const { error: eIns } = await supabase.from(p.tabla).upsert(registro);
     if (eIns) {

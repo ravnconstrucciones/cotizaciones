@@ -10,6 +10,7 @@ import {
 } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { CapturaIa, type DatosExtraidos } from "./captura-ia";
+import { UltimosGastos } from "./ultimos-gastos";
 import { RavnLogo } from "@/components/ravn-logo";
 import { useEntradaAnimada } from "@/hooks/use-entrada-animada";
 import { fetchCompartido } from "@/lib/fetch-compartido";
@@ -178,6 +179,7 @@ export function GastoScreen({
   const [intento, setIntento] = useState(false);
   const [errorRed, setErrorRed] = useState<string | null>(null);
   const [sesionVencida, setSesionVencida] = useState(false);
+  const [refreshUltimos, setRefreshUltimos] = useState(0);
   const [resultado, setResultado] = useState<Resultado | null>(null);
   const [reintentando, setReintentando] = useState(false);
   /** Nota de lo que entendió la IA (transcripción / avisos) + flash visual
@@ -500,6 +502,7 @@ export function GastoScreen({
           : formatMoney(montoFinal);
       falloPrevio.current = false;
       setResultado({ id: body.id, tabla, montoTexto, estado });
+      if (!esIngreso) setRefreshUltimos((actual) => actual + 1);
       // El gasto ya descontó en el ledger (sincronizarEspejo corre en el
       // POST): refrescar los saldos de las cajas para el próximo gasto.
       void cargarCuentas(2);
@@ -1093,6 +1096,11 @@ export function GastoScreen({
             </motion.div>
           )}
         </AnimatePresence>
+
+        <UltimosGastos
+          refreshKey={refreshUltimos}
+          onDeshecho={() => void cargarCuentas(2)}
+        />
       </div>
 
       {/* PASO 5 — guardar sticky (solo en modo formulario) */}

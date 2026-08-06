@@ -3,6 +3,7 @@ import { createSupabaseAdminClient } from "@/lib/supabase/server";
 import { sincronizarEspejo, type ResultadoSync } from "@/lib/dinero-sync";
 import { estadoDesdeTipo } from "@/lib/cashflow-matching";
 import { roundArs2 } from "@/lib/format-currency";
+import { ORIGEN_GASTO_RAPIDO } from "@/lib/gastos-rapidos";
 
 /**
  * CARGA RÁPIDA DE GASTOS — write-point único de la pantalla /gasto.
@@ -136,6 +137,7 @@ export async function POST(req: NextRequest) {
       if (!esReintento) return null;
       const desde = new Date(Date.now() - 2 * 60 * 1000).toISOString();
       let q = sb.from(tabla).select("id").gte("created_at", desde);
+      q = q.eq("origen_carga", ORIGEN_GASTO_RAPIDO);
       for (const [col, val] of Object.entries(filtros)) {
         q = val === null ? q.is(col, null) : q.eq(col, val);
       }
@@ -334,6 +336,7 @@ export async function POST(req: NextRequest) {
         descripcion,
         importe,
         cuenta_id: cuentaId,
+        origen_carga: ORIGEN_GASTO_RAPIDO,
       };
       if (cot > 0) {
         insertPayload.cotizacion_venta_ars_por_usd = cot;
@@ -397,6 +400,7 @@ export async function POST(req: NextRequest) {
           fecha,
           origen: "app",
           cuenta_id: cuentaId,
+          origen_carga: ORIGEN_GASTO_RAPIDO,
         })
         .select("id")
         .single();
@@ -437,6 +441,7 @@ export async function POST(req: NextRequest) {
         fecha,
         origen: "app",
         cuenta_id: cuentaId,
+        origen_carga: ORIGEN_GASTO_RAPIDO,
       })
       .select("id")
       .single();
