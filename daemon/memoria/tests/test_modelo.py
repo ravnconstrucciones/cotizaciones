@@ -117,7 +117,7 @@ class ModeloCanonicoTests(unittest.TestCase):
         texto = (
             "headers: {Authorization: Bearer token-a, "
             '"Proxy-Authorization": "Basic token-b", '
-            "Cookie: session=token-c, Set-Cookie: refresh=token-d, "
+            "Cookie: session=token-c,theme=dark, Set-Cookie: refresh=token-d, "
             "obra: Las Glorietas}"
         )
 
@@ -128,6 +128,60 @@ class ModeloCanonicoTests(unittest.TestCase):
             "Cookie: [REDACTADO], Set-Cookie: [REDACTADO], "
             "obra: Las Glorietas}",
         )
+
+    def test_redacta_los_cuatro_encabezados_en_flow_sequence_con_comas_internas(self):
+        texto = (
+            "headers: [Authorization: Basic token-a, "
+            'Proxy-Authorization: "Digest token-b", '
+            "Cookie: sid=token-c,theme=dark, "
+            "Set-Cookie: refresh=token-d,part=2, obra: Las Glorietas]"
+        )
+
+        self.assertEqual(
+            redactar_secretos(texto),
+            "headers: [Authorization: [REDACTADO], "
+            'Proxy-Authorization: "[REDACTADO]", '
+            "Cookie: [REDACTADO], "
+            "Set-Cookie: [REDACTADO], obra: Las Glorietas]",
+        )
+
+    def test_matriz_adversarial_de_encabezados_preserva_forma_y_vecinos(self):
+        casos = (
+            ("Authorization: Token a", "Authorization: [REDACTADO]"),
+            ('"Proxy-Authorization": "Basic b"', '"Proxy-Authorization": "[REDACTADO]"'),
+            ("Cookie: sid=a,b", "Cookie: [REDACTADO]"),
+            ("'Set-Cookie': 'sid=c,d'", "'Set-Cookie': '[REDACTADO]'"),
+            (
+                "- Authorization: Basic a\n- obra: Glorietas",
+                "- Authorization: [REDACTADO]\n- obra: Glorietas",
+            ),
+            (
+                '- "Cookie": "sid=a,b"\n- cliente: RAVN',
+                '- "Cookie": "[REDACTADO]"\n- cliente: RAVN',
+            ),
+            (
+                "{Set-Cookie: sid=a,b, documento: REM-0004}",
+                "{Set-Cookie: [REDACTADO], documento: REM-0004}",
+            ),
+            (
+                "['Authorization': 'Digest a,b', cotizacion: COT-0042]",
+                "['Authorization': '[REDACTADO]', cotizacion: COT-0042]",
+            ),
+        )
+
+        for original, esperado in casos:
+            with self.subTest(original=original):
+                self.assertEqual(redactar_secretos(original), esperado)
+
+    def test_redaccion_de_encabezados_flow_es_idempotente(self):
+        texto = (
+            "headers: [Authorization: Basic token-a, Cookie: sid=a,b, "
+            "obra: Las Glorietas]"
+        )
+
+        primera = redactar_secretos(texto)
+
+        self.assertEqual(redactar_secretos(primera), primera)
 
     def test_redacta_claves_genericas_sensibles_habituales(self):
         texto = (

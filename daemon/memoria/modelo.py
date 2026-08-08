@@ -25,17 +25,19 @@ SECRET_PATTERNS = (
     r"(?i)(SUPABASE_SERVICE_ROLE_KEY\s*=\s*)[^\s]+",
     r"(?i)(ANTHROPIC_API_KEY\s*=\s*)[^\s]+",
     r"(?i)(OPENAI_API_KEY\s*=\s*)[^\s]+",
-    r"(?i)(Authorization:\s*Bearer\s+)[^\s,}\]]+",
-    r"(?im)(^\s*(?:Set-)?Cookie\s*:\s*)[^\r\n]+",
+    r"(?i)(Authorization:\s*Bearer\s+)(?!\[REDACTADO\])[^\s,}\]]+",
     rf"(?i)((?:[\"']{_SENSITIVE_KEY}[\"']\s*:\s*)([\"']))(?:\\.|(?!\2)[^\r\n])*\2",
     rf"(?i)((?:\b{_SENSITIVE_KEY}\s*:\s*)([\"']))(?:\\.|(?!\2)[^\r\n])*\2",
     rf"(?i)(\b{_SENSITIVE_KEY}\s*[:=]\s*)(?![\"']\[REDACTADO\][\"'])(?:\"(?:\\.|[^\"\\\r\n])*\"|'(?:\\.|[^'\\\r\n])*'|[^\s\r\n]+)",
-    rf"(?i)((?:[\"']{_HEADER_KEY}[\"']\s*:\s*)([\"']))(?:\\.|(?!\2)[^\r\n])*\2",
-    rf"(?i)((?:(?:\{{|,)\s*(?:[\"']{_HEADER_KEY}[\"']|{_HEADER_KEY})\s*:\s*)([\"']))(?:\\.|(?!\2)[^\r\n])*\2",
-    rf"(?i)((?:\{{|,)\s*(?:[\"']{_HEADER_KEY}[\"']|{_HEADER_KEY})\s*:\s*)(?!\s*[\"']?\[REDACTADO\][\"']?\s*(?:,|\}}))[^,}}\r\n]+",
-    rf"(?im)^(\s*-\s*(?:[\"']{_HEADER_KEY}[\"']|{_HEADER_KEY})\s*:\s*)(?!\s*(?:[\"']?\[REDACTADO\][\"']?)\s*$)[^\r\n]+",
-    rf"(?im)^(\s*[\"']{_HEADER_KEY}[\"']\s*:\s*)(?!\s*(?:[\"']?\[REDACTADO\][\"']?)\s*$)[^\r\n]+",
-    r"(?im)(^\s*(?:Authorization|Proxy-Authorization)\s*:\s*)(?!\s*Bearer\s+\[REDACTADO\])[^\r\n]+",
+)
+
+_HEADER_FIELD = re.compile(
+    rf"(?im)(?P<delimiter>^|[{{\[,])(?P<indent>[ \t]*)(?P<item>-\s*)?"
+    rf"(?P<key>[\"']{_HEADER_KEY}[\"']|{_HEADER_KEY})(?P<separator>[ \t]*:[ \t]*)"
+)
+_NEXT_FLOW_FIELD = re.compile(
+    r"\s*(?:\"(?:\\.|[^\"\\])*\"|'(?:\\.|[^'\\])*'|"
+    r"[A-Za-z_][A-Za-z0-9_-]*)\s*:"
 )
 
 _CAMPO_TEXTO = (
@@ -116,9 +118,111 @@ class Cierre:
 
 def redactar_secretos(texto: str) -> str:
     """Reemplaza credenciales conocidas sin alterar el contexto restante."""
+    texto = _redactar_encabezados(texto)
     for patron in SECRET_PATTERNS:
         texto = re.sub(patron, _reemplazar_secreto, texto)
     return texto
+
+
+def _redactar_encabezados(texto: str) -> str:
+    """Redacta valores de headers en YAML/JSON sin cortar por comas internas."""
+    partes: list[str] = []
+    posicion = 0
+
+    while coincidencia := _HEADER_FIELD.search(texto, posicion):
+        inicio_valor = coincidencia.end()
+        partes.append(texto[posicion:inicio_valor])
+
+        if inicio_valor >= len(texto):
+            posicion = inicio_valor
+            continue
+
+        delimitador = coincidencia.group("delimiter")
+        es_flow = bool(delimitador) and delimitador in "{[,"
+        valor = texto[inicio_valor:]
+
+        if valor.startswith("[REDACTADO]"):
+            partes.append("[REDACTADO]")
+            posicion = inicio_valor + len("[REDACTADO]")
+            continue
+
+        if valor.startswith(("\"", "'")):
+            comilla = valor[0]
+            fin = _fin_valor_entre_comillas(texto, inicio_valor, comilla)
+            if fin is not None:
+                partes.extend((comilla, "[REDACTADO]", comilla))
+                posicion = fin + 1
+                continue
+
+        if (
+            not es_flow
+            and coincidencia.group("item") is None
+            and coincidencia.group("key").lower() == "authorization"
+            and valor.lower().startswith("bearer ")
+        ):
+            inicio_token = inicio_valor + len("Bearer ")
+            if texto.startswith("[REDACTADO]", inicio_token):
+                partes.append(texto[inicio_valor:inicio_token])
+                partes.append("[REDACTADO]")
+                posicion = inicio_token + len("[REDACTADO]")
+                continue
+            fin_token = inicio_token
+            while fin_token < len(texto) and texto[fin_token] not in " \t\r\n,}]":
+                fin_token += 1
+            partes.append(texto[inicio_valor:inicio_token])
+            partes.append("[REDACTADO]")
+            posicion = fin_token
+            continue
+
+        fin_valor = (
+            _fin_valor_flow(texto, inicio_valor)
+            if es_flow
+            else _fin_linea(texto, inicio_valor)
+        )
+        partes.append("[REDACTADO]")
+        posicion = fin_valor
+
+    partes.append(texto[posicion:])
+    return "".join(partes)
+
+
+def _fin_valor_entre_comillas(texto: str, inicio: int, comilla: str) -> int | None:
+    posicion = inicio + 1
+    while posicion < len(texto):
+        caracter = texto[posicion]
+        if caracter == "\\":
+            posicion += 2
+            continue
+        if caracter == comilla:
+            if comilla == "'" and posicion + 1 < len(texto) and texto[posicion + 1] == "'":
+                posicion += 2
+                continue
+            return posicion
+        if caracter in "\r\n":
+            return None
+        posicion += 1
+    return None
+
+
+def _fin_valor_flow(texto: str, inicio: int) -> int:
+    posicion = inicio
+    while posicion < len(texto):
+        caracter = texto[posicion]
+        if caracter in "\r\n}]":
+            return posicion
+        if caracter == "," and _NEXT_FLOW_FIELD.match(texto, posicion + 1):
+            return posicion
+        posicion += 1
+    return posicion
+
+
+def _fin_linea(texto: str, inicio: int) -> int:
+    finales = [
+        posicion
+        for posicion in (texto.find("\r", inicio), texto.find("\n", inicio))
+        if posicion >= 0
+    ]
+    return min(finales, default=len(texto))
 
 
 def _reemplazar_secreto(coincidencia: re.Match[str]) -> str:
