@@ -1,0 +1,2120 @@
+diff --git a/.superpowers/sdd/2026-08-08-memoria-compartida-codex-claude/final-fix-c-report.md b/.superpowers/sdd/2026-08-08-memoria-compartida-codex-claude/final-fix-c-report.md
+index e7f48bc..4391357 100644
+--- a/.superpowers/sdd/2026-08-08-memoria-compartida-codex-claude/final-fix-c-report.md
++++ b/.superpowers/sdd/2026-08-08-memoria-compartida-codex-claude/final-fix-c-report.md
+@@ -71,3 +71,45 @@ GREEN final:
+ - Los repositorios Git de prueba fueron locales y temporales.
+ - El resultado está validado en este worktree; no se declara integrado,
+   instalado ni desplegado en producción.
++
++## Ronda correctiva posterior — base `20e016d`
++
++La revisión final agregó pruebas rojas específicas y cerró estos huecos:
++
++- Un pull inicial fallido puede persistir y commitear localmente; el segundo
++  intento sincroniza sin quedar bloqueado por cambios tracked. Un commit fallido
++  no deja stage real y también es reintentable.
++- Los conflictos informan el SHA local anterior al rebase, el SHA remoto y las
++  rutas; sólo se aborta un rebase iniciado por la invocación actual. El puntero
++  `.git` regular al git-dir externo configurado es válido.
++- Los ocho escritores reales del Vault migraron a `transaccion_vault`, con
++  validación previa al commit y allowlists propias. `job_inbox` usa ownership
++  dinámico fail-close y exige un Vault limpio; ningún escritor operativo llama
++  `push_vault`, `pull_vault` ni `git add -A`.
++- El sincronizador común —CLI y jobs— detecta Obsidian Git automático antes de escribir y falla cerrado,
++  porque ese plugin no coopera con `vault-git.lock`. No se cambió su
++  configuración viva: desactivarla es requisito explícito de activación.
++- Graphify se lee desde `graphify-out/graph.json`. Sin entidad explícita, la
++  recuperación construye como máximo 32 candidatos relevantes antes de abrir
++  cierres; con identidad explícita no rellena presupuesto con otra obra.
++- App RAVN pagina por `id.asc` hasta 5.000 filas, distingue truncamiento de
++  ausencia y convierte configuración/autenticación incompleta en
++  `no_disponible`. La entrada del usuario nunca controla tabla, campos ni URL.
++- Un fallo aislado al crear `.graphify-pendiente` conserva cierre e índice
++  verificados, registra pendiente cuando puede y devuelve código 4.
++
++Evidencia GREEN de esta ronda:
++
++- `python3 -m unittest discover -s daemon/memoria/tests -v`: 150 OK.
++- Python 3.13 `-m unittest discover -s daemon/jobs/tests -v`: 163 OK.
++- `npm test`: 57 archivos, 527 tests OK.
++- `npm run build`: exit 0.
++- `py_compile` de memoria, jobslib y los ocho escritores: OK.
++- `git diff --check`: OK.
++
++Continúan respetados los límites anteriores: sin Vault vivo, App real, red,
++checkout principal, push, deploy ni instalación. `output/` quedó intacto.
++
++La revisión especializada posterior detectó y se corrigieron antes del cierre:
++el guard faltante en la CLI, la tupla/contador de `job_top30`, la mezcla de
++tipos homónimos en recuperación y el orden antiguo→nuevo previo al cap de 32.
+diff --git a/daemon/MEMORIA.md b/daemon/MEMORIA.md
+index 991f19a..6c51f84 100644
+--- a/daemon/MEMORIA.md
++++ b/daemon/MEMORIA.md
+@@ -39,6 +39,8 @@ que contiene `daemon/memoria/`.
+    `~/.ravn-jobs/vault-git.lock`. Reabre el cierre y el índice antes de declarar
+    persistencia; un fallo de red conserva el cierre local y registra un
+    pendiente sin confundirlo con sincronización completa.
++   Un marcador Graphify que no puede publicarse es también resultado parcial:
++   el cierre y el índice conservan su evidencia, pero la CLI devuelve código 4.
+ 4. `ravn-memoria recuperar` consulta primero metadata operativa mínima y
+    read-only de App RAVN mediante la sesión autenticada de jobs. Después abre
+    sólo las rutas sembradas por `Sistema/Memoria/indices/entidades.json`, y
+@@ -94,10 +96,12 @@ ravn-memoria reindexar --vault "/Users/ezeotero/Obsidian/RAVN"
+ ```
+ 
+ `cerrar` devuelve código `0` sólo cuando verificó persistencia, índice y
+-sincronización Git; `2` ante validación inválida; `3` ante un fallo de
+-persistencia; y `4` cuando el cierre quedó durable e indexado localmente pero
+-la sincronización remota quedó pendiente. La salida JSON separa
+-`persistido_local`, `indexado`, `sincronizado`, `paso` y `pendiente`. Los flags
++marcador Graphify y sincronización Git; `2` ante validación inválida; `3` ante
++un fallo de persistencia; y `4` cuando Git o el marcador Graphify quedó
++pendiente, o cuando el guard de un escritor Git externo frenó antes de tocar el
++Vault. La salida JSON separa
++`persistido_local`, `indexado`, `graphify_marcado`, `sincronizado`, `paso` y
++`pendiente`. Los flags
+ `--sin-app` y `--sin-sincronizacion` existen sólo para pruebas o diagnóstico
+ aislado, no para el flujo normal. `estado` está reservado pero todavía no está
+ implementado.
+@@ -196,9 +200,10 @@ otro runner si launchd ya administra `com.ravn.jobs`.
+   `Sistema/Memoria/pendientes-escritura/`; corregir permisos o almacenamiento y
+   reintentar. No afirmar persistencia hasta obtener `ok=true`.
+ - **Código `4` al cerrar:** la evidencia local y el índice sí fueron
+-  verificados, pero Git no terminó. Revisar `paso`, `detalle` y `pendiente`,
++  verificados cuando la salida incluye esos campos; si el guard de Obsidian Git
++  frenó antes, no hubo escritura. Revisar `paso`, `detalle` y `pendiente`,
+   resolver la causa y reintentar; no presentar el cierre como compartido hasta
+-  que `sincronizado=true`.
++  obtener código 0.
+ - **Recuperación vacía:** confirmar que existe un cierre estructurado, usar una
+   entidad inequívoca y revisar `indice_estado`. Sólo ejecutar `reindexar` como
+   reparación explícita. El crudo no se consulta por defecto.
+@@ -209,6 +214,14 @@ otro runner si launchd ya administra `com.ravn.jobs`.
+   una línea `Conversaciones/crudo/`.
+ - **Vault git:** usar el git-dir externo
+   `/Users/ezeotero/.ravn-vault-git`; nunca crear `.git` dentro del Vault iCloud.
++- **Obsidian Git bloquea los jobs:** el plugin no respeta
++  `~/.ravn-jobs/vault-git.lock`. Antes de habilitar los escritores, desactivar
++  `autoSaveInterval`, `autoPullInterval`, `autoPushInterval` y
++  `autoPullOnBoot`. El runtime lo verifica antes de escribir y falla cerrado;
++  el modo Git manual puede permanecer disponible.
++- **Escritores legacy:** auditoría, cerebro/Graphify, datos, dólar, FODA,
++  inbox, SISMAT y top-30 usan `transaccion_vault`; sus escrituras, validación y
++  Git ocurren bajo el mismo lock y nunca usan `git add -A`.
+ 
+ ## Evidencia de esta verificación
+ 
+diff --git a/daemon/jobs/job_auditoria.py b/daemon/jobs/job_auditoria.py
+index 2b985e4..cb17173 100644
+--- a/daemon/jobs/job_auditoria.py
++++ b/daemon/jobs/job_auditoria.py
+@@ -19,7 +19,7 @@ from pathlib import Path
+ 
+ sys.path.insert(0, str(Path(__file__).resolve().parent))
+ from job_resumen import cargar_cfg_jobs, enviar_whatsapp
+-from jobslib import correr_claude, log, push_vault, registrar_evento, snapshot_negocio
++from jobslib import correr_claude, log, registrar_evento, snapshot_negocio, transaccion_vault
+ 
+ DIR_AUDITORIAS = Path.home() / "Obsidian" / "RAVN" / "Auditorias"
+ MAX_PREV_CHARS = 12000
+@@ -74,9 +74,12 @@ def correr(cfg, token):
+         raise RuntimeError(f"salida de Claude sospechosa ({len(md)} chars, arranque {md[:60]!r}) — no escribo nada")
+ 
+     destino = DIR_AUDITORIAS / f"{hoy.isoformat()}.md"
+-    destino.write_text(md + "\n")
++    transaccion_vault(
++        lambda: destino.write_text(md + "\n"),
++        rutas=lambda _resultado: [destino],
++        mensaje=f"Auditoría semanal {hoy.isoformat()} (job dominical)",
++    )
+     log(f"auditoria: escrita {destino.name} ({len(md)} chars)")
+-    push_vault(f"Auditoría semanal {hoy.isoformat()} (job dominical)")
+ 
+     acciones = re.findall(r"^[-*] \[ \] (.+)$", md, flags=re.M)[:3]
+     lineas = "\n".join(f"{i}. {a}" for i, a in enumerate(acciones, 1)) or "(ver el archivo)"
+diff --git a/daemon/jobs/job_cerebro.py b/daemon/jobs/job_cerebro.py
+index e40a580..daddec0 100644
+--- a/daemon/jobs/job_cerebro.py
++++ b/daemon/jobs/job_cerebro.py
+@@ -26,11 +26,13 @@ if str(RAIZ_REPO) not in sys.path:
+     sys.path.insert(0, str(RAIZ_REPO))
+ 
+ from daemon.memoria.graphify_batch import (
++    MARCADOR_RELATIVO,
++    SNAPSHOT_RELATIVO,
+     actualizar_incremental,
+     ejecutar_actualizacion,
+     validar_graph_json,
+ )
+-from jobslib import VAULT, log, pull_vault, push_vault, registrar_evento, rest
++from jobslib import VAULT, log, registrar_evento, rest, transaccion_vault
+ 
+ GRAPHIFY = "/Users/ezeotero/.local/bin/graphify"
+ GRAPHIFY_OUT = Path(VAULT) / "graphify-out"
+@@ -47,21 +49,24 @@ def _run(cmd, timeout, paso, env=None):
+ 
+ 
+ def correr(cfg, token):
+-    # 1. vault fresco (escritores: bot por GitHub + daemon por git)
+-    pull_vault()
+-
+-    # 2. re-extracción determinística del grafo (sin LLM)
++    # 1-3. pull, re-extracción/export y push son una única transacción del Vault.
+     def actualizar_grafo_completo():
+         _run([GRAPHIFY, "update", VAULT], 900, "graphify update")
+         validar_graph_json(Path(VAULT))
+-
+-    ejecutar_actualizacion(Path(VAULT), actualizar_grafo_completo, solo_si_pendiente=False)
+-
+-    # 3. graph.html a nodo-por-nodo (el dibujo con las diagonales, pedido 28/07).
+-    #    Sin el cap subido graphify cae solo a la vista agregada por comunidades
+-    #    (burbujas sin interconexión) porque graph.json pasó los 4,6 MB.
+-    _run([GRAPHIFY, "export", "html", "--node-limit", "20000"], 600, "export html",
+-         env={"GRAPHIFY_MAX_GRAPH_BYTES": "200000000"})
++        _run(
++            [GRAPHIFY, "export", "html", "--node-limit", "20000"],
++            600,
++            "export html",
++            env={"GRAPHIFY_MAX_GRAPH_BYTES": "200000000"},
++        )
++
++    transaccion_vault(
++        lambda: ejecutar_actualizacion(
++            Path(VAULT), actualizar_grafo_completo, solo_si_pendiente=False
++        ),
++        rutas=lambda _resultado: [GRAPHIFY_OUT],
++        mensaje="cerebro: grafo actualizado (job_cerebro)",
++    )
+ 
+     # 4. el ORGANISMO come el grafo nuevo y se autodiagnostica
+     shutil.copy2(GRAPHIFY_OUT / "graph.json", ORGANISMO / "graph.json")
+@@ -83,12 +88,6 @@ def correr(cfg, token):
+             })
+             insertada = True
+ 
+-    # 6. persistir el grafo actualizado (graphify-out vive dentro del vault)
+-    try:
+-        push_vault("cerebro: grafo actualizado (job_cerebro)")
+-    except Exception as e:
+-        log(f"job_cerebro: push del vault falló (no fatal): {e}")
+-
+     registrar_evento(cfg, token, "job_cerebro",
+                      "cerebro digerido: grafo + diagnóstico + pregunta del día", {
+                          "recientes": resultado.get("recientes"),
+@@ -103,4 +102,14 @@ def correr(cfg, token):
+ 
+ def correr_incremental(cfg, token):
+     """Adaptador de runner; no toca red ni Supabase si no hay lote vencido."""
+-    return actualizar_incremental(Path(VAULT), Path(GRAPHIFY))
++    vault = Path(VAULT)
++    if not any(
++        (vault / relativa).exists()
++        for relativa in (MARCADOR_RELATIVO, SNAPSHOT_RELATIVO)
++    ):
++        return False
++    return transaccion_vault(
++        lambda: actualizar_incremental(vault, Path(GRAPHIFY)),
++        rutas=lambda _resultado: [GRAPHIFY_OUT],
++        mensaje="cerebro: grafo incremental",
++    )
+diff --git a/daemon/jobs/job_datos.py b/daemon/jobs/job_datos.py
+index 04978ce..09915bb 100644
+--- a/daemon/jobs/job_datos.py
++++ b/daemon/jobs/job_datos.py
+@@ -20,7 +20,7 @@ from pathlib import Path
+ from urllib.parse import quote
+ 
+ sys.path.insert(0, str(Path(__file__).resolve().parent))
+-from jobslib import DIR_JOBS, VAULT, log, push_vault, registrar_evento, rest
++from jobslib import DIR_JOBS, VAULT, log, registrar_evento, rest, transaccion_vault
+ 
+ MD_DATOS = Path(VAULT) / "Conocimiento" / "Datos-de-obra.md"
+ CURSOR = DIR_JOBS / "datos-vault-cursor.json"
+@@ -71,12 +71,24 @@ def correr(cfg, token):
+     if not filas:
+         return
+ 
+-    md = MD_DATOS.read_text() if MD_DATOS.exists() else ENCABEZADO
+-    nuevas = [formatear_linea(f) for f in filas if f"ref:{f['id']}" not in md]
++    def persistir():
++        md = MD_DATOS.read_text() if MD_DATOS.exists() else ENCABEZADO
++        nuevas_locales = [
++            formatear_linea(f) for f in filas if f"ref:{f['id']}" not in md
++        ]
++        if nuevas_locales:
++            MD_DATOS.parent.mkdir(parents=True, exist_ok=True)
++            MD_DATOS.write_text(
++                md.rstrip("\n") + "\n" + "\n".join(nuevas_locales) + "\n"
++            )
++        return nuevas_locales
++
++    nuevas = transaccion_vault(
++        persistir,
++        rutas=lambda _resultado: [MD_DATOS],
++        mensaje=f"datos: referencias de obra desde Archivados",
++    )
+     if nuevas:
+-        MD_DATOS.parent.mkdir(parents=True, exist_ok=True)
+-        MD_DATOS.write_text(md.rstrip("\n") + "\n" + "\n".join(nuevas) + "\n")
+-        push_vault(f"datos: +{len(nuevas)} dato(s) de obra desde Archivados")
+         log(f"job datos: {len(nuevas)} dato(s) nuevos → {MD_DATOS.name}")
+         registrar_evento(cfg, token, "job_datos",
+                          f"{len(nuevas)} dato(s) de obra sincronizados al vault",
+diff --git a/daemon/jobs/job_dolar.py b/daemon/jobs/job_dolar.py
+index 8ec120f..20bd1e8 100644
+--- a/daemon/jobs/job_dolar.py
++++ b/daemon/jobs/job_dolar.py
+@@ -11,7 +11,7 @@ from datetime import date
+ from pathlib import Path
+ 
+ sys.path.insert(0, str(Path(__file__).resolve().parent))
+-from jobslib import VAULT, http_json, push_vault, registrar_evento
++from jobslib import VAULT, http_json, registrar_evento, transaccion_vault
+ 
+ URL_BLUELYTICS = "https://api.bluelytics.com.ar/v2/latest"
+ URL_DOLARAPI = "https://dolarapi.com/v1/dolares"
+@@ -66,10 +66,19 @@ def correr(cfg, token):
+     except Exception:
+         cotiz = parsear_dolarapi(http_json(URL_DOLARAPI, user_agent=UA))
+     fecha = date.today().isoformat()
+-    DOLAR_JSON.write_text(json.dumps({"fecha": fecha, **cotiz}, ensure_ascii=False, indent=2))
+-    md = MD_PRECIOS.read_text()
+-    MD_PRECIOS.write_text(insertar_bloque(md, formatear_bloque(cotiz, fecha)))
+-    push_vault(f"daemon: dólar diario {fecha}")
++
++    def persistir():
++        DOLAR_JSON.write_text(
++            json.dumps({"fecha": fecha, **cotiz}, ensure_ascii=False, indent=2)
++        )
++        md = MD_PRECIOS.read_text()
++        MD_PRECIOS.write_text(insertar_bloque(md, formatear_bloque(cotiz, fecha)))
++
++    transaccion_vault(
++        persistir,
++        rutas=lambda _resultado: [DOLAR_JSON, MD_PRECIOS],
++        mensaje=f"daemon: dólar diario {fecha}",
++    )
+     registrar_evento(
+         cfg, token, "job_dolar",
+         f"Dólar actualizado — blue ${cotiz['blue']['venta']:,.0f} / oficial ${cotiz['oficial']['venta']:,.0f}",
+diff --git a/daemon/jobs/job_foda.py b/daemon/jobs/job_foda.py
+index 906ebf6..6364b0a 100644
+--- a/daemon/jobs/job_foda.py
++++ b/daemon/jobs/job_foda.py
+@@ -18,7 +18,7 @@ from datetime import date
+ from pathlib import Path
+ 
+ sys.path.insert(0, str(Path(__file__).resolve().parent))
+-from jobslib import VAULT, correr_claude, log, push_vault, registrar_evento, rest, snapshot_negocio
++from jobslib import VAULT, correr_claude, log, registrar_evento, rest, snapshot_negocio, transaccion_vault
+ 
+ ADN = Path.home() / "Documents" / "organismo" / "adn.json"
+ FODA = Path(VAULT) / "Ravn" / "FODA-vivo.md"
+@@ -61,16 +61,26 @@ def correr(cfg, token):
+     fecha = date.today().isoformat()
+     snapshot = snapshot_negocio(cfg, token)
+ 
+-    antes = FODA.stat().st_mtime if FODA.exists() else 0
+-    resumen = (correr_claude(armar_prompt(fecha, snapshot), timeout=TIMEOUT, modelo="opus") or "").strip()
+-    if not FODA.exists() or FODA.stat().st_mtime <= antes:
+-        raise RuntimeError(f"no se escribió {FODA} — resumen de claude: {resumen[:300]}")
+-
+-    try:
+-        push_vault("cerebro: FODA vivo semanal (job_foda)")
+-    except Exception as e:
+-        log(f"job_foda: push del vault falló (no fatal): {e}")
+-
++    def persistir():
++        antes = FODA.stat().st_mtime_ns if FODA.exists() else 0
++        resumen_local = (
++            correr_claude(
++                armar_prompt(fecha, snapshot), timeout=TIMEOUT, modelo="opus"
++            )
++            or ""
++        ).strip()
++        cambio = FODA.exists() and FODA.stat().st_mtime_ns > antes
++        if not cambio:
++            raise RuntimeError(
++                f"no se escribió {FODA} — resumen de claude: {resumen_local[:300]}"
++            )
++        return resumen_local
++
++    resumen = transaccion_vault(
++        persistir,
++        rutas=lambda _resultado: [FODA],
++        mensaje="cerebro: FODA vivo semanal (job_foda)",
++    )
+     # el resumen es la pregunta del domingo (si el día ya tiene una, no se pisa)
+     sembrada = False
+     if resumen:
+diff --git a/daemon/jobs/job_inbox.py b/daemon/jobs/job_inbox.py
+index ef4937b..a9cc52a 100644
+--- a/daemon/jobs/job_inbox.py
++++ b/daemon/jobs/job_inbox.py
+@@ -10,9 +10,29 @@ from datetime import date, datetime, timedelta
+ from pathlib import Path
+ 
+ sys.path.insert(0, str(Path(__file__).resolve().parent))
+-from jobslib import VAULT, correr_claude, log, push_vault, registrar_evento, rest, snapshot_negocio
++from jobslib import VAULT, correr_claude, log, registrar_evento, rest, snapshot_negocio, transaccion_vault
+ 
+ TIMEOUT = 1800  # 30 min: lee el vault entero y rutea
++_PREFIJOS_PROHIBIDOS = (
++    ".obsidian/",
++    "graphify-out/",
++    "Sistema/Memoria/",
++    "Conocimiento/Precios/",
++)
++
++
++def validar_rutas_inbox(rutas):
++    vault = Path(VAULT).resolve()
++    for ruta in rutas:
++        try:
++            relativa = Path(ruta).resolve().relative_to(vault).as_posix()
++        except ValueError as error:
++            raise ValueError("Ruta del inbox fuera del Vault.") from error
++        if (
++            Path(relativa).suffix.casefold() != ".md"
++            or relativa.startswith(_PREFIJOS_PROHIBIDOS)
++        ):
++            raise ValueError(f"Ruta no permitida para job_inbox: {relativa}")
+ 
+ 
+ def detectar_patrones(filas, umbral=3):
+@@ -96,15 +116,28 @@ def correr(cfg, token):
+     filas = referencias_semana(cfg, token)
+     patrones = detectar_patrones(filas)
+     pipeline = snapshot_negocio(cfg, token)
+-    resumen = correr_claude(armar_prompt(fecha, resumen_referencias(filas), patrones, pipeline), timeout=TIMEOUT)
+-    # Gate tolerante: el nombre canónico es {fecha}.md (el prompt lo exige EXACTO),
+-    # pero las Orientaciones históricas se llaman "AAAA-MM-DD - Título.md" y un
+-    # Claude que copie esa convención NO debe quemar los 3 reintentos del día.
+-    dir_orientacion = Path(VAULT) / "Orientación"
+-    candidatas = sorted(dir_orientacion.glob(f"{fecha}*.md"))
+-    if not candidatas:
+-        raise RuntimeError(f"no se generó la Orientación de {fecha} en {dir_orientacion} — resumen de claude: {resumen[:300]}")
+-    push_vault(f"daemon: inbox nocturno {fecha}")
++    def persistir():
++        resumen_local = correr_claude(
++            armar_prompt(fecha, resumen_referencias(filas), patrones, pipeline),
++            timeout=TIMEOUT,
++        )
++        # Gate tolerante: el nombre canónico es {fecha}.md (el prompt lo exige
++        # EXACTO), pero se tolera la convención histórica con título.
++        dir_orientacion = Path(VAULT) / "Orientación"
++        candidatas_locales = sorted(dir_orientacion.glob(f"{fecha}*.md"))
++        if not candidatas_locales:
++            raise RuntimeError(
++                f"no se generó la Orientación de {fecha} en {dir_orientacion} "
++                f"— resumen de claude: {resumen_local[:300]}"
++            )
++        return resumen_local, candidatas_locales
++
++    resumen, candidatas = transaccion_vault(
++        persistir,
++        mensaje=f"daemon: inbox nocturno {fecha}",
++        exigir_limpio=True,
++        validar_rutas=validar_rutas_inbox,
++    )
+     registrar_evento(
+         cfg, token, "job_inbox",
+         f"Inbox procesado — {resumen.strip().splitlines()[-1][:150] if resumen.strip() else fecha}",
+diff --git a/daemon/jobs/job_sismat.py b/daemon/jobs/job_sismat.py
+index 448a95c..ab0c28d 100644
+--- a/daemon/jobs/job_sismat.py
++++ b/daemon/jobs/job_sismat.py
+@@ -11,7 +11,7 @@ from datetime import date
+ from pathlib import Path
+ 
+ sys.path.insert(0, str(Path(__file__).resolve().parent))
+-from jobslib import VAULT, push_vault, registrar_evento
++from jobslib import VAULT, registrar_evento, transaccion_vault
+ 
+ SISMAT_DIR = Path(VAULT) / "Conocimiento" / "Precios" / "sismat"
+ PYTHON = sys.executable  # el mismo 3.13 del framework (tiene certifi)
+@@ -22,16 +22,35 @@ def meta_es_de_hoy(meta, hoy):
+ 
+ 
+ def correr(cfg, token):
+-    r = subprocess.run(
+-        [PYTHON, str(SISMAT_DIR / "sync.py")],
+-        capture_output=True, text=True, timeout=300,
++    def persistir():
++        resultado = subprocess.run(
++            [PYTHON, str(SISMAT_DIR / "sync.py")],
++            capture_output=True,
++            text=True,
++            timeout=300,
++        )
++        if resultado.returncode != 0:
++            raise RuntimeError(
++                f"sync.py exit {resultado.returncode}: "
++                f"{(resultado.stderr or resultado.stdout)[:500]}"
++            )
++        meta_local = json.loads((SISMAT_DIR / "meta.json").read_text())
++        if not meta_es_de_hoy(meta_local, date.today()):
++            raise RuntimeError(
++                "meta.json no quedó actualizado: "
++                f"descargado={meta_local.get('descargado')}"
++            )
++        return meta_local
++
++    meta = transaccion_vault(
++        persistir,
++        rutas=lambda _resultado: [
++            SISMAT_DIR / "tasks.json",
++            SISMAT_DIR / "materials.json",
++            SISMAT_DIR / "meta.json",
++        ],
++        mensaje="daemon: SISMAT sync mensual",
+     )
+-    if r.returncode != 0:
+-        raise RuntimeError(f"sync.py exit {r.returncode}: {(r.stderr or r.stdout)[:500]}")
+-    meta = json.loads((SISMAT_DIR / "meta.json").read_text())
+-    if not meta_es_de_hoy(meta, date.today()):
+-        raise RuntimeError(f"meta.json no quedó actualizado: descargado={meta.get('descargado')}")
+-    push_vault(f"daemon: SISMAT sync mensual {meta['descargado']}")
+     registrar_evento(
+         cfg, token, "job_sismat",
+         f"SISMAT sincronizado — {meta.get('tareas')} tareas MO, {meta.get('materiales')} materiales",
+diff --git a/daemon/jobs/job_top30.py b/daemon/jobs/job_top30.py
+index ba6b02a..286a867 100644
+--- a/daemon/jobs/job_top30.py
++++ b/daemon/jobs/job_top30.py
+@@ -10,7 +10,7 @@ from datetime import date
+ from pathlib import Path
+ 
+ sys.path.insert(0, str(Path(__file__).resolve().parent))
+-from jobslib import VAULT, correr_claude, push_vault, registrar_evento
++from jobslib import VAULT, correr_claude, registrar_evento, transaccion_vault
+ 
+ MD_PRECIOS = Path(VAULT) / "Conocimiento" / "Precios" / "materiales-construccion.md"
+ MAX_FILAS = 30
+@@ -69,19 +69,32 @@ ARCHIVO A ACTUALIZAR: {ruta_md}
+ 
+ def correr(cfg, token):
+     fecha = date.today().isoformat()
+-    md_antes = MD_PRECIOS.read_text()
+-    n = len(filas_materiales(md_antes))
++    def persistir():
++        md_antes = MD_PRECIOS.read_text()
++        n_local = len(filas_materiales(md_antes))
++        if n_local == 0:
++            return "", n_local, 0
++        resumen_local = correr_claude(
++            armar_prompt(fecha, str(MD_PRECIOS), n_local), timeout=TIMEOUT
++        )
++        md_despues = MD_PRECIOS.read_text()
++        actualizadas_locales = filas_con_fecha(md_despues, fecha)
++        if actualizadas_locales == 0:
++            # El bloque DOLAR también contiene la fecha de hoy; sólo cuenta la
++            # columna Fecha de las filas de materiales.
++            raise RuntimeError(
++                f"ninguna fila quedó con Fecha {fecha} — Claude no actualizó "
++                f"nada. Resumen: {resumen_local[:300]}"
++            )
++        return resumen_local, n_local, actualizadas_locales
++
++    resumen, n, actualizadas = transaccion_vault(
++        persistir,
++        rutas=lambda _resultado: [MD_PRECIOS],
++        mensaje=f"daemon: refresh semanal top-30 materiales {fecha}",
++    )
+     if n == 0:
+         raise RuntimeError(f"no encontré filas de materiales en {MD_PRECIOS}")
+-    resumen = correr_claude(armar_prompt(fecha, str(MD_PRECIOS), n), timeout=TIMEOUT)
+-    md_despues = MD_PRECIOS.read_text()
+-    actualizadas = filas_con_fecha(md_despues, fecha)
+-    if actualizadas == 0:
+-        # OJO: no buscar `fecha in md_despues` — el bloque DOLAR (job_dolar, mismo
+-        # archivo, corre antes en el mismo tick) ya tiene la fecha de hoy y daría
+-        # falso OK. Solo cuenta la columna Fecha de las filas de materiales.
+-        raise RuntimeError(f"ninguna fila quedó con Fecha {fecha} — Claude no actualizó nada. Resumen: {resumen[:300]}")
+-    push_vault(f"daemon: refresh semanal top-30 materiales {fecha}")
+     registrar_evento(
+         cfg, token, "job_top30",
+         f"Materiales refrescados — {resumen[:120]}",
+diff --git a/daemon/jobs/jobslib.py b/daemon/jobs/jobslib.py
+index 5c6264a..2dc113a 100644
+--- a/daemon/jobs/jobslib.py
++++ b/daemon/jobs/jobslib.py
+@@ -7,7 +7,7 @@ Parte 2 (red/procesos, Tarea 2): Supabase REST, git del vault, Claude Code headl
+ import json
+ from datetime import date, datetime, timedelta
+ from pathlib import Path
+-from uuid import UUID
++from uuid import UUID, uuid4
+ 
+ # ---------- parsing de .env ----------
+ 
+@@ -129,7 +129,11 @@ import urllib.request
+ 
+ import certifi
+ 
+-from daemon.memoria.sincronizacion_git import SincronizadorGitVault
++from daemon.memoria.sincronizacion_git import (
++    FalloSincronizacion,
++    SincronizadorGitVault,
++    validar_automatizacion_git_externa,
++)
+ 
+ DIR_JOBS = Path.home() / ".ravn-jobs"
+ STATE = DIR_JOBS / "state.json"
+@@ -459,28 +463,87 @@ def pull_vault():
+             f"pull del vault falló en {resultado.paso}: {resultado.detalle or {}}"
+         )
+ 
+-def push_vault(mensaje):
+-    """add -A + commit + (pull --rebase) + push del vault vía el git externo.
+-    El vault tiene DOS escritores: el bot (por la API de GitHub, desde Railway) y
+-    este daemon (por git, desde la Mac). Por eso SIEMPRE traemos el remoto antes de
+-    pushear — si no, el push rebota con 'fetch first' cuando el bot escribió algo."""
+-    with crear_sincronizador_vault().bloqueo():
+-        # Compatibilidad legacy: estos jobs producen conjuntos amplios de notas.
+-        # Los cierres nuevos usan allowlist estricta en SincronizadorGitVault.
+-        subprocess.run(GIT_VAULT + ["add", "-A"], check=True, capture_output=True, text=True)
+-        diff = subprocess.run(GIT_VAULT + ["diff", "--cached", "--quiet"])
+-        if diff.returncode != 0:
+-            subprocess.run(GIT_VAULT + ["commit", "-m", mensaje], check=True, capture_output=True, text=True)
+-        r = None
+-        for _ in (1, 2):
+-            pr = subprocess.run(GIT_VAULT + ["pull", "--rebase", "origin", "main"], capture_output=True, text=True)
+-            if pr.returncode != 0:
+-                # rebase con conflicto → abortar para no dejar el repo trabado
+-                subprocess.run(GIT_VAULT + ["rebase", "--abort"], capture_output=True, text=True)
+-            r = subprocess.run(GIT_VAULT + ["push", "origin", "main"], capture_output=True, text=True)
+-            if r.returncode == 0:
+-                return
+-    raise RuntimeError(f"push del vault falló: {r.stderr[:300] if r else 'sin push'}")
++def transaccion_vault(
++    persistir,
++    *,
++    rutas=None,
++    mensaje,
++    exigir_limpio=False,
++    validar_rutas=None,
++):
++    """Ejecuta escritura y Git bajo un lock, con ownership explícito por rutas."""
++    validar_automatizacion_git_externa(Path(VAULT))
++    sincronizador = crear_sincronizador_vault()
++
++    def persistir_controlado():
++        if exigir_limpio:
++            existentes = sincronizador.rutas_modificadas(incluir_no_trackeadas=True)
++            if existentes:
++                raise RuntimeError(
++                    "el Vault debe estar limpio antes de una escritura dinámica: "
++                    + ", ".join(existentes[:10])
++                )
++        return persistir()
++
++    def rutas_controladas(resultado):
++        candidatas = (
++            list(rutas(resultado))
++            if rutas is not None
++            else [
++                Path(VAULT) / ruta
++                for ruta in sincronizador.rutas_modificadas(
++                    incluir_no_trackeadas=True
++                )
++            ]
++        )
++        if validar_rutas is not None:
++            try:
++                validar_rutas(candidatas)
++            except ValueError as error:
++                raise FalloSincronizacion(
++                    "stage", {"motivo": "rutas_del_job_no_permitidas"}
++                ) from error
++        return candidatas
++
++    resultado, estado_git = sincronizador.transaccion(
++        persistir_controlado,
++        rutas=rutas_controladas,
++        mensaje=mensaje,
++        registrar_pendiente=_registrar_pendiente_vault,
++    )
++    if not estado_git.sincronizado:
++        raise RuntimeError(
++            f"sincronización del Vault pendiente en {estado_git.paso}: "
++            f"{estado_git.detalle or {}}"
++        )
++    return resultado
++
++
++def _registrar_pendiente_vault(operacion, detalle):
++    directorio = DIR_JOBS / "pendientes-vault"
++    directorio.mkdir(parents=True, exist_ok=True)
++    destino = directorio / f"{uuid4()}.json"
++    destino.write_text(
++        json.dumps(
++            {"operacion": operacion, "detalle": detalle},
++            ensure_ascii=False,
++            indent=2,
++        )
++        + "\n"
++    )
++    destino.chmod(0o600)
++    return destino
++
++
++def push_vault(mensaje, rutas=None):
++    """Compatibilidad explícita: sin allowlist se rechaza; nunca usa add -A."""
++    if not rutas:
++        raise ValueError("push_vault requiere rutas explícitas; use transaccion_vault.")
++    return transaccion_vault(
++        lambda: None,
++        rutas=lambda _resultado: rutas,
++        mensaje=mensaje,
++    )
+ 
+ # ---------- Claude Code headless (mismo patrón que daemon.py) ----------
+ 
+diff --git a/daemon/jobs/tests/test_job_top30.py b/daemon/jobs/tests/test_job_top30.py
+index 6868cfa..de7bf1d 100644
+--- a/daemon/jobs/tests/test_job_top30.py
++++ b/daemon/jobs/tests/test_job_top30.py
+@@ -1,6 +1,8 @@
+ import sys
++import tempfile
+ import unittest
+ from pathlib import Path
++from unittest.mock import patch
+ 
+ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+ import job_top30
+@@ -63,5 +65,36 @@ class TestPrompt(unittest.TestCase):
+         self.assertIn("nunca inventes", p)
+ 
+ 
++class TestCorrer(unittest.TestCase):
++    def test_evento_informa_cantidad_actualizada_sin_reintento_falso(self):
++        with tempfile.TemporaryDirectory() as tmp:
++            archivo = Path(tmp) / "materiales.md"
++            archivo.write_text(MD)
++            eventos = []
++
++            def claude(_prompt, **_kwargs):
++                hoy = job_top30.date.today().isoformat()
++                archivo.write_text(MD.replace("2026-06-08", hoy))
++                return "actualizadas 3 de 3 filas"
++
++            with (
++                patch.object(job_top30, "MD_PRECIOS", archivo),
++                patch.object(job_top30, "correr_claude", side_effect=claude),
++                patch.object(
++                    job_top30,
++                    "transaccion_vault",
++                    side_effect=lambda persistir, **_kwargs: persistir(),
++                ),
++                patch.object(
++                    job_top30,
++                    "registrar_evento",
++                    side_effect=lambda *args: eventos.append(args),
++                ),
++            ):
++                job_top30.correr({}, "token")
++
++        self.assertEqual(eventos[0][4]["filas_actualizadas"], 3)
++
++
+ if __name__ == "__main__":
+     unittest.main()
+diff --git a/daemon/jobs/tests/test_jobslib.py b/daemon/jobs/tests/test_jobslib.py
+index c99ad6c..5b13e8a 100644
+--- a/daemon/jobs/tests/test_jobslib.py
++++ b/daemon/jobs/tests/test_jobslib.py
+@@ -1,3 +1,4 @@
++import ast
+ import json
+ import sys
+ import tempfile
+@@ -333,38 +334,103 @@ class TestCorrerClaudeError(unittest.TestCase):
+ 
+ 
+ class TestGitVaultCompartido(unittest.TestCase):
+-    def test_push_legacy_retiene_el_lock_comun_durante_todos_los_comandos(self):
++    def test_git_automatico_de_obsidian_bloquea_antes_de_escribir(self):
++        with tempfile.TemporaryDirectory() as tmp:
++            vault = Path(tmp)
++            config = vault / ".obsidian/plugins/obsidian-git/data.json"
++            config.parent.mkdir(parents=True)
++            config.write_text(
++                json.dumps(
++                    {
++                        "autoSaveInterval": 10,
++                        "autoPullInterval": 8,
++                        "autoPullOnBoot": True,
++                    }
++                )
++            )
++
++            with self.assertRaisesRegex(RuntimeError, "Obsidian Git"):
++                jobslib.validar_automatizacion_git_externa(vault)
++
++    def test_obsidian_git_manual_no_bloquea(self):
++        with tempfile.TemporaryDirectory() as tmp:
++            vault = Path(tmp)
++            config = vault / ".obsidian/plugins/obsidian-git/data.json"
++            config.parent.mkdir(parents=True)
++            config.write_text(
++                json.dumps(
++                    {
++                        "autoSaveInterval": 0,
++                        "autoPullInterval": 0,
++                        "autoPullOnBoot": False,
++                    }
++                )
++            )
++
++            jobslib.validar_automatizacion_git_externa(vault)
++
++    def test_transaccion_vault_delega_callback_y_allowlist_al_sincronizador(self):
+         from unittest.mock import patch
++        from daemon.memoria.sincronizacion_git import ResultadoGit
+ 
+         pasos: list[str] = []
+ 
+         class SyncFalso:
+-            @contextmanager
+-            def bloqueo(self):
+-                pasos.append("lock_in")
+-                try:
+-                    yield
+-                finally:
+-                    pasos.append("lock_out")
+-
+-        class R:
+-            returncode = 0
+-            stdout = ""
+-            stderr = ""
+-
+-        def run_falso(*_args, **_kwargs):
+-            pasos.append("git")
+-            return R()
++            def transaccion(self, persistir, *, rutas, mensaje, **_kwargs):
++                pasos.append("transaccion_in")
++                resultado = persistir()
++                rutas_resultado = list(rutas(resultado))
++                pasos.append("transaccion_out")
++                self.mensaje = mensaje
++                self.rutas = rutas_resultado
++                return resultado, ResultadoGit(True, "completado")
++
++        self.assertTrue(
++            hasattr(jobslib, "transaccion_vault"),
++            "falta la API transaccional común para escritores del Vault",
++        )
++        sync = SyncFalso()
++        archivo = Path("Conocimiento/dato.md")
+ 
+         with (
+-            patch.object(jobslib, "crear_sincronizador_vault", return_value=SyncFalso()),
+-            patch.object(jobslib.subprocess, "run", side_effect=run_falso),
++            patch.object(jobslib, "crear_sincronizador_vault", return_value=sync),
++            patch.object(jobslib, "validar_automatizacion_git_externa"),
+         ):
+-            jobslib.push_vault("test")
++            resultado = jobslib.transaccion_vault(
++                lambda: pasos.append("write") or archivo,
++                rutas=lambda valor: [valor],
++                mensaje="job controlado",
++            )
+ 
+-        self.assertEqual(pasos[0], "lock_in")
+-        self.assertEqual(pasos[-1], "lock_out")
+-        self.assertGreater(pasos.count("git"), 0)
++        self.assertEqual(resultado, archivo)
++        self.assertEqual(pasos, ["transaccion_in", "write", "transaccion_out"])
++        self.assertEqual(sync.rutas, [archivo])
++        self.assertEqual(sync.mensaje, "job controlado")
++
++    def test_todos_los_escritores_reales_usan_la_api_transaccional(self):
++        escritores = (
++            "job_auditoria.py",
++            "job_cerebro.py",
++            "job_datos.py",
++            "job_dolar.py",
++            "job_foda.py",
++            "job_inbox.py",
++            "job_sismat.py",
++            "job_top30.py",
++        )
++        raiz = Path(jobslib.__file__).parent
++
++        for nombre in escritores:
++            with self.subTest(job=nombre):
++                arbol = ast.parse((raiz / nombre).read_text(encoding="utf-8"))
++                llamadas = {
++                    nodo.func.id
++                    for nodo in ast.walk(arbol)
++                    if isinstance(nodo, ast.Call) and isinstance(nodo.func, ast.Name)
++                }
++                self.assertIn("transaccion_vault", llamadas)
++                self.assertNotIn("push_vault", llamadas)
++                self.assertNotIn("pull_vault", llamadas)
+ 
+     def test_pull_vault_delega_y_no_oculta_un_fallo(self):
+         from unittest.mock import patch
+diff --git a/daemon/jobs/tests/test_runner.py b/daemon/jobs/tests/test_runner.py
+index e7ed4e5..04f5aff 100644
+--- a/daemon/jobs/tests/test_runner.py
++++ b/daemon/jobs/tests/test_runner.py
+@@ -48,6 +48,9 @@ class TestJobsVencidos(unittest.TestCase):
+     def test_graphify_incremental_sin_marcador_es_un_noop(self):
+         with tempfile.TemporaryDirectory() as tempdir:
+             vault = Path(tempdir) / "vault"
++            transaccion = unittest.mock.Mock(
++                side_effect=lambda persistir, **_kwargs: persistir()
++            )
+             with (
+                 patch.object(runner.job_cerebro, "VAULT", str(vault)),
+                 patch.object(runner.job_cerebro, "GRAPHIFY", Path(tempdir) / "graphify"),
+@@ -55,10 +58,16 @@ class TestJobsVencidos(unittest.TestCase):
+                     "daemon.memoria.graphify_batch.STATE",
+                     Path(tempdir) / "graphify-state.json",
+                 ),
++                patch.object(
++                    runner.job_cerebro,
++                    "transaccion_vault",
++                    transaccion,
++                ),
+             ):
+                 resultado = runner.job_cerebro.correr_incremental({}, "token")
+ 
+         self.assertFalse(resultado)
++        transaccion.assert_not_called()
+ 
+     def test_launchd_dispara_el_runner_cada_quince_minutos(self):
+         plist = (
+@@ -88,8 +97,11 @@ class TestJobsVencidos(unittest.TestCase):
+                 patch.object(runner.job_cerebro.subprocess, "run"),
+                 patch.object(runner.job_cerebro, "_run", side_effect=salidas),
+                 patch.object(runner.job_cerebro.shutil, "copy2"),
+-                patch.object(runner.job_cerebro, "pull_vault"),
+-                patch.object(runner.job_cerebro, "push_vault"),
++                patch.object(
++                    runner.job_cerebro,
++                    "transaccion_vault",
++                    side_effect=lambda persistir, **_kwargs: persistir(),
++                ),
+                 patch.object(runner.job_cerebro, "registrar_evento"),
+                 patch.object(runner.job_cerebro, "log"),
+                 patch(
+@@ -129,8 +141,11 @@ class TestJobsVencidos(unittest.TestCase):
+                     side_effect=["", "", '{"pregunta": null}'],
+                 ),
+                 patch.object(runner.job_cerebro.shutil, "copy2"),
+-                patch.object(runner.job_cerebro, "pull_vault"),
+-                patch.object(runner.job_cerebro, "push_vault"),
++                patch.object(
++                    runner.job_cerebro,
++                    "transaccion_vault",
++                    side_effect=lambda persistir, **_kwargs: persistir(),
++                ),
+                 patch.object(runner.job_cerebro, "registrar_evento"),
+                 patch.object(runner.job_cerebro, "log"),
+                 patch(
+@@ -178,8 +193,11 @@ class TestJobsVencidos(unittest.TestCase):
+                             runner.job_cerebro, "_run", side_effect=run_falso
+                         ),
+                         patch.object(runner.job_cerebro.shutil, "copy2"),
+-                        patch.object(runner.job_cerebro, "pull_vault"),
+-                        patch.object(runner.job_cerebro, "push_vault"),
++                        patch.object(
++                            runner.job_cerebro,
++                            "transaccion_vault",
++                            side_effect=lambda persistir, **_kwargs: persistir(),
++                        ),
+                         patch.object(runner.job_cerebro, "registrar_evento"),
+                         patch.object(runner.job_cerebro, "log"),
+                         patch(
+diff --git a/daemon/memoria/app_ravn.py b/daemon/memoria/app_ravn.py
+index f8231de..674e1d4 100644
+--- a/daemon/memoria/app_ravn.py
++++ b/daemon/memoria/app_ravn.py
+@@ -109,10 +109,16 @@ class BackendSupabaseJobs:
+         cargar_cfg: Callable[[], dict[str, str]],
+         autenticar: Callable[[dict[str, str]], str],
+         rest: Callable[..., object],
++        page_size: int = 200,
++        max_rows: int = 5_000,
+     ) -> None:
++        if page_size <= 0 or max_rows <= 0:
++            raise ValueError("Los límites de lectura de App RAVN deben ser positivos.")
+         self._cargar_cfg = cargar_cfg
+         self._autenticar = autenticar
+         self._rest = rest
++        self._page_size = page_size
++        self._max_rows = max_rows
+         self._cfg: dict[str, str] | None = None
+         self._token: str | None = None
+ 
+@@ -133,18 +139,40 @@ class BackendSupabaseJobs:
+         if self._cfg is None:
+             self._cfg = self._cargar_cfg()
+             self._token = self._autenticar(self._cfg)
+-        consulta = urlencode({"select": ",".join(campos), "limit": "500"})
+-        filas = self._rest(
+-            self._cfg,
+-            self._token,
+-            f"{tabla}?{consulta}",
+-            method="GET",
+-        )
+-        if filas is None:
+-            return []
+-        if not isinstance(filas, list) or not all(isinstance(fila, dict) for fila in filas):
+-            raise ValueError("App RAVN devolvió una respuesta inesperada.")
+-        return filas
++        acumuladas: list[dict[str, object]] = []
++        offset = 0
++        while True:
++            # Se pide una fila testigo por encima del tope. Así un conjunto de
++            # exactamente max_rows se distingue de una respuesta truncada.
++            limite = min(self._page_size, self._max_rows - len(acumuladas) + 1)
++            consulta = urlencode(
++                {
++                    "select": ",".join(campos),
++                    "order": "id.asc",
++                    "limit": str(limite),
++                    "offset": str(offset),
++                }
++            )
++            filas = self._rest(
++                self._cfg,
++                self._token,
++                f"{tabla}?{consulta}",
++                method="GET",
++            )
++            if filas is None:
++                filas = []
++            if not isinstance(filas, list) or not all(
++                isinstance(fila, dict) for fila in filas
++            ):
++                raise ValueError("App RAVN devolvió una respuesta inesperada.")
++            acumuladas.extend(filas)
++            if len(acumuladas) > self._max_rows:
++                raise RuntimeError(
++                    "Lectura de App RAVN incompleta: excedió el límite seguro."
++                )
++            if len(filas) < limite:
++                return acumuladas
++            offset += len(filas)
+ 
+ 
+ class ResolverAppRavn:
+@@ -170,7 +198,7 @@ class ResolverAppRavn:
+                         )
+                         continue
+                     referencias.extend(coincidencias)
+-        except (OSError, RuntimeError, ValueError):
++        except (KeyError, OSError, RuntimeError, ValueError):
+             return ResultadoApp("no_disponible", [])
+ 
+         referencias = _deduplicar_referencias(referencias)
+diff --git a/daemon/memoria/cerrar.py b/daemon/memoria/cerrar.py
+index e085486..c0a97fc 100644
+--- a/daemon/memoria/cerrar.py
++++ b/daemon/memoria/cerrar.py
+@@ -24,6 +24,8 @@ class _Persistencia:
+     cierre: Path
+     crudo: Path | None
+     indice: Path
++    graphify_marcado: bool
++    graphify_pendiente: Path | None
+ 
+ 
+ def cerrar(
+@@ -54,14 +56,25 @@ def cerrar(
+                 resultado.cierre,
+                 resultado.indice,
+                 *((resultado.crudo,) if resultado.crudo is not None else ()),
++                *(
++                    (resultado.graphify_pendiente,)
++                    if resultado.graphify_pendiente is not None
++                    else ()
++                ),
+             ),
+             mensaje=f"memoria: cerrar {cierre.host}/{cierre.thread_id}",
+             registrar_pendiente=almacen.marcar_pendiente,
+         )
+ 
+     sincronizado = resultado_git.sincronizado if resultado_git is not None else None
++    graphify_pendiente = (
++        _relativa(almacen.vault, persistencia.graphify_pendiente)
++        if persistencia.graphify_pendiente is not None
++        else ("no_registrado" if not persistencia.graphify_marcado else "")
++    )
++    completo = sincronizado is not False and persistencia.graphify_marcado
+     return {
+-        "ok": sincronizado is not False,
++        "ok": completo,
+         "cierre": _relativa(almacen.vault, persistencia.cierre),
+         "crudo": (
+             _relativa(almacen.vault, persistencia.crudo)
+@@ -71,8 +84,22 @@ def cerrar(
+         "persistido_local": True,
+         "indexado": True,
+         "sincronizado": sincronizado,
+-        "paso": resultado_git.paso if resultado_git is not None else "omitido_explicito",
+-        "pendiente": resultado_git.pendiente if resultado_git is not None else "",
++        "graphify_marcado": persistencia.graphify_marcado,
++        "graphify_pendiente": graphify_pendiente,
++        "paso": (
++            resultado_git.paso
++            if resultado_git is not None and not resultado_git.sincronizado
++            else (
++                "graphify_marker"
++                if not persistencia.graphify_marcado
++                else (resultado_git.paso if resultado_git is not None else "omitido_explicito")
++            )
++        ),
++        "pendiente": (
++            resultado_git.pendiente
++            if resultado_git is not None and resultado_git.pendiente
++            else graphify_pendiente
++        ),
+         "detalle": resultado_git.detalle if resultado_git is not None else None,
+     }
+ 
+@@ -93,14 +120,28 @@ def _persistir(
+         ruta_cierre = almacen.guardar_cierre(cierre)
+         _verificar_cierre(almacen.vault, ruta_cierre, cierre)
+         _verificar_indice(almacen.vault, ruta_cierre, cierre)
+-        marcar_cierre(almacen.vault)
+     except (OSError, ValueError, json.JSONDecodeError) as error:
+         raise FalloPersistencia(str(error)) from error
+ 
++    graphify_marcado = True
++    graphify_pendiente: Path | None = None
++    try:
++        marcar_cierre(almacen.vault)
++    except OSError:
++        graphify_marcado = False
++        try:
++            graphify_pendiente = almacen.marcar_pendiente(
++                "marcar_graphify", {"motivo": "marker_no_disponible"}
++            )
++        except OSError:
++            graphify_pendiente = None
++
+     return _Persistencia(
+         cierre=ruta_cierre,
+         crudo=crudo,
+         indice=almacen.vault / "Sistema/Memoria/indices/entidades.json",
++        graphify_marcado=graphify_marcado,
++        graphify_pendiente=graphify_pendiente,
+     )
+ 
+ 
+diff --git a/daemon/memoria/cli.py b/daemon/memoria/cli.py
+index e79b526..b1f9579 100644
+--- a/daemon/memoria/cli.py
++++ b/daemon/memoria/cli.py
+@@ -11,7 +11,7 @@ from typing import Sequence
+ from .app_ravn import BackendSupabaseJobs, ResolverAppRavn
+ from .cerrar import FalloPersistencia, cerrar
+ from .recuperar import ConsultaMemoria, recuperar, reindexar
+-from .sincronizacion_git import SincronizadorGitVault
++from .sincronizacion_git import FalloSincronizacion, SincronizadorGitVault
+ 
+ 
+ CODIGO_VALIDACION = 2
+@@ -83,9 +83,12 @@ def _comando_cerrar(args: argparse.Namespace) -> int:
+     except OSError as error:
+         _imprimir_error(CODIGO_PERSISTENCIA, str(error))
+         return CODIGO_PERSISTENCIA
++    except FalloSincronizacion as error:
++        _imprimir_error(CODIGO_SINCRONIZACION, error.paso)
++        return CODIGO_SINCRONIZACION
+ 
+     print(json.dumps(evidencia, ensure_ascii=False))
+-    return 0 if evidencia.get("sincronizado") is not False else CODIGO_SINCRONIZACION
++    return 0 if evidencia.get("ok") is True else CODIGO_SINCRONIZACION
+ 
+ 
+ def _crear_sincronizador(args: argparse.Namespace) -> SincronizadorGitVault | None:
+diff --git a/daemon/memoria/instrucciones.md b/daemon/memoria/instrucciones.md
+index ab8709a..6cc49ea 100644
+--- a/daemon/memoria/instrucciones.md
++++ b/daemon/memoria/instrucciones.md
+@@ -3,7 +3,7 @@
+ 
+ - Antes de todo trabajo material de RAVN, ejecutá `ravn-memoria recuperar --vault "/Users/ezeotero/Obsidian/RAVN" --query "<objetivo>"` y agregá las entidades inequívocas con su tipo: `--obra`, `--cliente`, `--cotizacion` o `--documento`. La recuperación consulta primero el estado operativo mínimo de App RAVN y luego el índice acotado del Vault; Graphify sólo aporta relaciones derivadas. Si una fuente no está disponible, informá su estado explícito y no rellenes el dato con memoria histórica.
+ - No leas `Conversaciones/crudo/` por defecto. Abrí una transcripción cruda sólo cuando un cierre resumido la señale o falte evidencia exacta.
+-- Antes de afirmar que el trabajo terminó, generá un cierre JSON conforme a `/Users/ezeotero/Obsidian/RAVN/Sistema/Memoria/esquemas/cierre-conversacion.schema.json` y pasalo por stdin: `ravn-memoria cerrar --vault "/Users/ezeotero/Obsidian/RAVN" < "/ruta/al/cierre-conversacion.json"`. `cerrar` consume JSON estructurado por stdin; `--session-path`, `--host` y `--thread-id` son opcionales. Código `0` confirma persistencia, índice y sincronización Git; código `4` confirma evidencia local pero deja la sincronización pendiente. Ante `2`, `3` o `4`, informá exactamente el estado devuelto y no afirmes sincronización completa.
++- Antes de afirmar que el trabajo terminó, generá un cierre JSON conforme a `/Users/ezeotero/Obsidian/RAVN/Sistema/Memoria/esquemas/cierre-conversacion.schema.json` y pasalo por stdin: `ravn-memoria cerrar --vault "/Users/ezeotero/Obsidian/RAVN" < "/ruta/al/cierre-conversacion.json"`. `cerrar` consume JSON estructurado por stdin; `--session-path`, `--host` y `--thread-id` son opcionales. Código `0` confirma persistencia, índice, marcador Graphify y sincronización Git; código `4` indica que el flujo no quedó compartido: puede haber evidencia local pendiente o un guard de sincronización puede haber frenado antes de escribir. Ante `2`, `3` o `4`, informá exactamente el estado devuelto y no afirmes sincronización completa.
+ - Persistí los IDs y el estado operativo en App RAVN; persistí el contexto narrativo, las decisiones y los criterios en Obsidian.
+ - Identificá explícitamente cada trabajo parecido por cliente, ubicación, alcance e ID disponible para no mezclar alcances ni antecedentes.
+ <!-- RAVN_MEMORIA_COMPARTIDA:END -->
+diff --git a/daemon/memoria/recuperar.py b/daemon/memoria/recuperar.py
+index 3960419..1e74a07 100644
+--- a/daemon/memoria/recuperar.py
++++ b/daemon/memoria/recuperar.py
+@@ -21,9 +21,7 @@ _CIERRES = Path("Conversaciones") / "cierres"
+ _INDICE = Path("Sistema") / "Memoria" / "indices" / "entidades.json"
+ _TOKEN = re.compile(r"[^\W_]+", re.UNICODE)
+ _GRAFOS = (
+-    Path("Sistema") / "Graphify" / "grafo-app.json",
+-    Path("Sistema") / "Memoria" / "grafo-app.json",
+-    Path("grafo-app.json"),
++    Path("graphify-out") / "graph.json",
+ )
+ _RUTAS_APP = (
+     "/obras/",
+@@ -116,14 +114,21 @@ def recuperar(
+     """
+     vault = Path(vault)
+     tipadas = _entidades_tipadas_consulta(consulta)
++    entidades_por_tipo = {
++        tipo: {_normalizar(valor) for valor in valores}
++        for tipo, valores in tipadas.items()
++    }
+     entidades_consulta = {
+-        _normalizar(valor) for valores in tipadas.values() for valor in valores
++        entidad for valores in entidades_por_tipo.values() for entidad in valores
+     }
+     tokens_consulta = _tokens(consulta.texto)
+     vecinos = _vecinos_graphify(vault, entidades_consulta)
+     app = _resolver_app(resolver_app, tipadas)
+     rutas_indice, indice_estado = _rutas_candidatas_indice(
+-        vault, entidades_consulta | vecinos, tokens_consulta
++        vault,
++        entidades_consulta | vecinos,
++        tokens_consulta,
++        max_candidatas=min(32, consulta.max_notas * 4),
+     )
+ 
+     candidatas: list[tuple[float, NotaContexto]] = []
+@@ -133,7 +138,9 @@ def recuperar(
+         nota = _leer_cierre_validado(vault, ruta)
+         if nota is None:
+             continue
+-        puntaje, razones = _puntuar(nota, entidades_consulta, tokens_consulta, vecinos)
++        puntaje, razones = _puntuar(
++            nota, entidades_por_tipo, tokens_consulta, vecinos
++        )
+         if not razones:
+             continue
+         candidata = NotaContexto(
+@@ -196,7 +203,11 @@ def recuperar(
+ 
+ 
+ def _rutas_candidatas_indice(
+-    vault: Path, entidades: set[str], tokens_consulta: set[str]
++    vault: Path,
++    entidades: set[str],
++    tokens_consulta: set[str],
++    *,
++    max_candidatas: int,
+ ) -> tuple[list[Path], str]:
+     indice_path = vault / _INDICE
+     if not indice_path.is_file():
+@@ -209,27 +220,38 @@ def _rutas_candidatas_indice(
+     except (OSError, KeyError, TypeError, ValueError, json.JSONDecodeError):
+         return [], "corrupto"
+ 
+-    rutas: set[str] = set()
+-    filtrar = bool(entidades)
++    rutas: dict[str, tuple[int, str]] = {}
+     for clave, valores in entradas.items():
+         if not isinstance(clave, str) or not isinstance(valores, list):
+             return [], "corrupto"
+         clave_normalizada = _normalizar(clave)
+-        relevante = (
+-            not filtrar
+-            or clave_normalizada in entidades
+-            or bool(_tokens(clave).intersection(tokens_consulta))
+-        )
+-        if not relevante:
+-            continue
++        exacta = clave_normalizada in entidades
++        tokens_clave = _tokens(clave).intersection(tokens_consulta)
+         for entrada in valores:
+             if not isinstance(entrada, dict) or not isinstance(entrada.get("ruta"), str):
+                 return [], "corrupto"
+-            rutas.add(entrada["ruta"])
++            tema = entrada.get("tema")
++            if tema is not None and not isinstance(tema, str):
++                return [], "corrupto"
++            tokens_tema = _tokens(tema or "").intersection(tokens_consulta)
++            if not exacta and not tokens_clave and not tokens_tema:
++                continue
++            puntaje = 3 if exacta else (2 if tokens_clave else 1)
++            fecha = entrada.get("updated_at", "")
++            if not isinstance(fecha, str):
++                return [], "corrupto"
++            ruta = entrada["ruta"]
++            anterior = rutas.get(ruta)
++            if anterior is None or (puntaje, fecha) > anterior:
++                rutas[ruta] = (puntaje, fecha)
+ 
+     raiz = (vault / _CIERRES).resolve()
+     candidatas: list[Path] = []
+-    for relativa_texto in sorted(rutas):
++    ordenadas = sorted(rutas)
++    ordenadas.sort(key=lambda ruta: rutas[ruta][1], reverse=True)
++    ordenadas.sort(key=lambda ruta: rutas[ruta][0], reverse=True)
++    ordenadas = ordenadas[:max_candidatas]
++    for relativa_texto in ordenadas:
+         relativa = Path(relativa_texto)
+         if relativa.is_absolute() or relativa.parts[:2] != _CIERRES.parts:
+             continue
+@@ -393,7 +415,7 @@ def _listas_del_cierre(cuerpo: str) -> dict[str, list[str]]:
+ 
+ def _puntuar(
+     nota: _CierreLeido,
+-    entidades_consulta: set[str],
++    entidades_consulta: dict[str, set[str]],
+     tokens_consulta: set[str],
+     vecinos: set[str],
+ ) -> tuple[float, list[str]]:
+@@ -404,8 +426,26 @@ def _puntuar(
+         tipo: {_normalizar(valor): valor for valor in valores}
+         for tipo, valores in nota.entidades.items()
+     }
++    entidades_nota = {
++        entidad for valores in entidades_normalizadas.values() for entidad in valores
++    }
++    entidades_aplanadas = {
++        entidad for valores in entidades_consulta.values() for entidad in valores
++    }
++    exactas_tipadas = any(
++        set(entidades_normalizadas[tipo]).intersection(entidades_consulta[tipo])
++        for tipo in TIPOS_ENTIDAD
++    )
++    if entidades_aplanadas and not (
++        exactas_tipadas or entidades_nota.intersection(vecinos)
++    ):
++        # Una consulta anclada a identidad no se rellena con una nota que sólo
++        # comparte palabras del título o del cuerpo.
++        return 0.0, []
+     for tipo in TIPOS_ENTIDAD:
+-        exactas = sorted(entidades_consulta.intersection(entidades_normalizadas[tipo]))
++        exactas = sorted(
++            entidades_consulta[tipo].intersection(entidades_normalizadas[tipo])
++        )
+         for entidad in exactas:
+             puntaje += 100
+             razones.append(f"{tipo}:{entidades_normalizadas[tipo][entidad]}")
+diff --git a/daemon/memoria/sincronizacion_git.py b/daemon/memoria/sincronizacion_git.py
+index 008fc56..85b9bae 100644
+--- a/daemon/memoria/sincronizacion_git.py
++++ b/daemon/memoria/sincronizacion_git.py
+@@ -5,6 +5,7 @@ from __future__ import annotations
+ from contextlib import contextmanager
+ from dataclasses import dataclass
+ import fcntl
++import json
+ import os
+ from pathlib import Path
+ import subprocess
+@@ -31,6 +32,37 @@ class FalloSincronizacion(RuntimeError):
+         self.detalle = detalle
+ 
+ 
++def validar_automatizacion_git_externa(vault: Path) -> None:
++    """Falla cerrado si Obsidian Git puede correr fuera del lock cooperativo."""
++    config = Path(vault) / ".obsidian/plugins/obsidian-git/data.json"
++    if not config.exists():
++        return
++    try:
++        datos = json.loads(config.read_text())
++    except (OSError, json.JSONDecodeError) as error:
++        raise RuntimeError(
++            "No se pudo verificar la automatización de Obsidian Git."
++        ) from error
++    if not isinstance(datos, dict):
++        raise RuntimeError("La configuración de Obsidian Git es inválida.")
++
++    def intervalo_activo(clave: str) -> bool:
++        try:
++            return float(datos.get(clave) or 0) > 0
++        except (TypeError, ValueError):
++            return True
++
++    automatico = bool(datos.get("autoPullOnBoot")) or any(
++        intervalo_activo(clave)
++        for clave in ("autoSaveInterval", "autoPullInterval", "autoPushInterval")
++    )
++    if automatico:
++        raise RuntimeError(
++            "Obsidian Git automático no respeta vault-git.lock; "
++            "desactivá pull, commit y push automáticos."
++        )
++
++
+ class SincronizadorGitVault:
+     """Coordina pull, escritura, stage acotado, commit y push bajo un lock."""
+ 
+@@ -73,15 +105,29 @@ class SincronizadorGitVault:
+         observar_paso: Callable[[str], None] | None = None,
+     ) -> tuple[T, ResultadoGit]:
+         observar = observar_paso or (lambda _paso: None)
++        try:
++            validar_automatizacion_git_externa(self.vault)
++        except RuntimeError as error:
++            raise FalloSincronizacion(
++                "preflight", {"motivo": "obsidian_git_automatico"}
++            ) from error
+         with self.bloqueo():
+-            fallo_previo: FalloSincronizacion | None = None
+             try:
+                 observar("preflight")
+                 self._preflight()
+-                observar("pull")
+-                self._pull()
+             except FalloSincronizacion as error:
+-                fallo_previo = error
++                observar("write")
++                resultado = persistir()
++                return resultado, self._resultado_parcial(error, registrar_pendiente)
++
++            cambios_previos = self._rutas_sucias_trackeadas()
++            fallo_pull: FalloSincronizacion | None = None
++            if not cambios_previos:
++                try:
++                    observar("pull")
++                    self._pull()
++                except FalloSincronizacion as error:
++                    fallo_pull = error
+ 
+             observar("write")
+             resultado = persistir()
+@@ -90,16 +136,33 @@ class SincronizadorGitVault:
+             except FalloSincronizacion as error:
+                 return resultado, self._resultado_parcial(error, registrar_pendiente)
+ 
+-            if fallo_previo is not None:
++            cambios_ajenos = self._rutas_no_cubiertas(cambios_previos, allowlist)
++            if cambios_previos and cambios_ajenos:
+                 return resultado, self._resultado_parcial(
+-                    fallo_previo, registrar_pendiente
++                    FalloSincronizacion(
++                        "preflight",
++                        {
++                            "motivo": "cambios_trackeados_ajenos",
++                            "rutas": sorted(cambios_ajenos)[:20],
++                        },
++                    ),
++                    registrar_pendiente,
+                 )
+ 
+             try:
+                 observar("stage")
+-                self._stage(allowlist)
+                 observar("commit")
+                 self._commit_si_hay_cambios(allowlist, mensaje)
++                if fallo_pull is not None:
++                    if not cambios_previos:
++                        return resultado, self._resultado_parcial(
++                            fallo_pull, registrar_pendiente
++                        )
++                    observar("pull")
++                    self._pull()
++                elif cambios_previos:
++                    observar("pull")
++                    self._pull()
+                 observar("push")
+                 self._push_con_un_reintento()
+             except FalloSincronizacion as error:
+@@ -115,22 +178,27 @@ class SincronizadorGitVault:
+         """Actualiza el work-tree bajo el mismo lock usado por cierres y jobs."""
+         with self.bloqueo():
+             try:
++                validar_automatizacion_git_externa(self.vault)
+                 self._preflight()
+                 self._pull()
+-            except FalloSincronizacion as error:
++            except RuntimeError as error:
++                if not isinstance(error, FalloSincronizacion):
++                    error = FalloSincronizacion(
++                        "preflight", {"motivo": "obsidian_git_automatico"}
++                    )
+                 return ResultadoGit(False, error.paso, detalle=error.detalle)
+         return ResultadoGit(True, "pull", detalle={"rama": self.branch, "remote": self.remote})
+ 
+     def _preflight(self) -> None:
+         if not self.vault.is_dir() or not self.git_dir.is_dir():
+             raise FalloSincronizacion("preflight", {"motivo": "repositorio_no_disponible"})
+-        if (self.vault / ".git").exists() or (self.vault / ".git").is_symlink():
+-            raise FalloSincronizacion("preflight", {"motivo": "git_embebido_en_vault"})
++        self._validar_puntero_git()
++        if self._rebase_en_curso():
++            raise FalloSincronizacion(
++                "preflight", {"motivo": "rebase_ajeno_en_curso"}
++            )
+         self._git("rev-parse", "--verify", "HEAD", paso="preflight")
+-        staged = self._git(
+-            "diff", "--cached", "--name-only", "-z", paso="preflight"
+-        ).stdout.split("\0")
+-        rutas_staged = sorted(ruta for ruta in staged if ruta)
++        rutas_staged = sorted(self._rutas_staged())
+         if rutas_staged:
+             raise FalloSincronizacion(
+                 "preflight",
+@@ -140,38 +208,59 @@ class SincronizadorGitVault:
+                 },
+             )
+ 
+-    def _pull(self) -> None:
++    def _pull(self, *, paso_fallo: str = "pull") -> None:
++        sha_local_original = self._sha("HEAD")
++        rebase_antes = self._rebase_en_curso()
+         resultado = self._git(
+-            "pull", "--rebase", self.remote, self.branch, paso="pull", check=False
++            "pull", "--rebase", self.remote, self.branch, paso=paso_fallo, check=False
+         )
+         if resultado.returncode == 0:
+             return
+-        detalle = self._detalle_conflicto("pull", resultado.returncode)
+-        self._git("rebase", "--abort", paso="pull_abort", check=False)
+-        raise FalloSincronizacion("pull", detalle)
++        rebase_despues = self._rebase_en_curso()
++        rutas_conflicto = self._rutas_conflicto(paso_fallo)
++        inicio_rebase = rebase_despues and not rebase_antes
++        es_conflicto = bool(rutas_conflicto) or inicio_rebase
++        detalle = self._detalle_pull(
++            resultado.returncode,
++            sha_local=sha_local_original,
++            rutas_conflicto=rutas_conflicto,
++        )
++        if inicio_rebase:
++            self._git("rebase", "--abort", paso=f"{paso_fallo}_abort", check=False)
++        raise FalloSincronizacion("conflicto" if es_conflicto else paso_fallo, detalle)
+ 
+-    def _stage(self, rutas: list[str]) -> None:
++    def _commit_si_hay_cambios(self, rutas: list[str], mensaje: str) -> None:
+         if not rutas:
+             raise FalloSincronizacion("stage", {"motivo": "allowlist_vacia"})
+-        self._git("add", "--", *rutas, paso="stage")
+-        staged = self._git(
+-            "diff", "--cached", "--name-only", "-z", paso="stage"
+-        ).stdout.split("\0")
+-        ajenos = sorted(ruta for ruta in staged if ruta and ruta not in set(rutas))
+-        if ajenos:
++        staged_ajenos = sorted(self._rutas_no_cubiertas(self._rutas_staged(), rutas))
++        if staged_ajenos:
+             raise FalloSincronizacion(
+-                "stage", {"motivo": "indice_contiene_rutas_ajenas", "rutas": ajenos[:20]}
++                "stage",
++                {"motivo": "indice_contiene_rutas_ajenas", "rutas": staged_ajenos[:20]},
+             )
+-
+-    def _commit_si_hay_cambios(self, rutas: list[str], mensaje: str) -> None:
++        # Intent-to-add vuelve visibles los archivos nuevos para `commit --only`
++        # sin dejarlos staged. Si el commit falla, el índice real sigue limpio y
++        # el work-tree conserva intacta la evidencia para el siguiente intento.
++        self._git("add", "-N", "--", *rutas, paso="stage")
+         diff = self._git(
+-            "diff", "--cached", "--quiet", "--", *rutas, paso="commit", check=False
++            "diff", "--quiet", "--", *rutas, paso="commit", check=False
+         )
+         if diff.returncode == 0:
+             return
+         if diff.returncode != 1:
+             raise FalloSincronizacion("commit", {"codigo": diff.returncode})
+-        self._git("commit", "-m", redactar_secretos(mensaje), "--", *rutas, paso="commit")
++        commit = self._git(
++            "commit",
++            "-m",
++            redactar_secretos(mensaje),
++            "--only",
++            "--",
++            *rutas,
++            paso="commit",
++            check=False,
++        )
++        if commit.returncode != 0:
++            raise FalloSincronizacion("commit", {"codigo": commit.returncode})
+ 
+     def _push_con_un_reintento(self) -> None:
+         primero = self._git(
+@@ -180,13 +269,7 @@ class SincronizadorGitVault:
+         if primero.returncode == 0:
+             return
+ 
+-        pull = self._git(
+-            "pull", "--rebase", self.remote, self.branch, paso="push_retry_pull", check=False
+-        )
+-        if pull.returncode != 0:
+-            detalle = self._detalle_conflicto("push_retry_pull", pull.returncode)
+-            self._git("rebase", "--abort", paso="push_retry_abort", check=False)
+-            raise FalloSincronizacion("conflicto", detalle)
++        self._pull(paso_fallo="push_retry_pull")
+ 
+         segundo = self._git(
+             "push", self.remote, self.branch, paso="push_retry", check=False
+@@ -196,17 +279,104 @@ class SincronizadorGitVault:
+                 "push", {"codigo": segundo.returncode, "reintento": 1}
+             )
+ 
+-    def _detalle_conflicto(self, paso: str, codigo: int) -> dict[str, object]:
+-        rutas = self._git(
+-            "diff", "--name-only", "--diff-filter=U", paso=paso, check=False
+-        ).stdout.splitlines()
++    def _detalle_pull(
++        self,
++        codigo: int,
++        *,
++        sha_local: str,
++        rutas_conflicto: list[str],
++    ) -> dict[str, object]:
+         return {
+             "codigo": codigo,
+-            "sha_local": self._sha("HEAD"),
++            "sha_local": sha_local,
+             "sha_remoto": self._sha(f"{self.remote}/{self.branch}"),
+-            "rutas_conflicto": [redactar_secretos(ruta) for ruta in rutas[:20]],
++            "rutas_conflicto": [
++                redactar_secretos(ruta) for ruta in rutas_conflicto[:20]
++            ],
+         }
+ 
++    def _rutas_conflicto(self, paso: str) -> list[str]:
++        return self._git(
++            "diff", "--name-only", "--diff-filter=U", paso=paso, check=False
++        ).stdout.splitlines()
++
++    def _rutas_staged(self) -> set[str]:
++        return {
++            ruta
++            for ruta in self._git(
++                "diff", "--cached", "--name-only", "-z", paso="preflight"
++            ).stdout.split("\0")
++            if ruta
++        }
++
++    def _rutas_sucias_trackeadas(self) -> set[str]:
++        return {
++            ruta
++            for ruta in self._git(
++                "diff", "--name-only", "-z", paso="preflight"
++            ).stdout.split("\0")
++            if ruta
++        }
++
++    def rutas_modificadas(self, *, incluir_no_trackeadas: bool = False) -> list[str]:
++        """Lista determinística para ownership dinámico; quien llama ya posee el lock."""
++        rutas = self._rutas_sucias_trackeadas() | self._rutas_staged()
++        if incluir_no_trackeadas:
++            rutas.update(
++                ruta
++                for ruta in self._git(
++                    "ls-files",
++                    "--others",
++                    "--exclude-standard",
++                    "-z",
++                    paso="preflight",
++                ).stdout.split("\0")
++                if ruta
++            )
++        return sorted(rutas)
++
++    @staticmethod
++    def _rutas_no_cubiertas(
++        cambios: Iterable[str], allowlist: Iterable[str]
++    ) -> set[str]:
++        prefijos = tuple(ruta.rstrip("/") + "/" for ruta in allowlist)
++        exactas = set(allowlist)
++        return {
++            cambio
++            for cambio in cambios
++            if cambio not in exactas and not cambio.startswith(prefijos)
++        }
++
++    def _rebase_en_curso(self) -> bool:
++        return any(
++            (self.git_dir / nombre).exists()
++            for nombre in ("rebase-merge", "rebase-apply")
++        )
++
++    def _validar_puntero_git(self) -> None:
++        puntero = self.vault / ".git"
++        if not puntero.exists() and not puntero.is_symlink():
++            return
++        if puntero.is_symlink() or not puntero.is_file():
++            raise FalloSincronizacion(
++                "preflight", {"motivo": "git_embebido_en_vault"}
++            )
++        try:
++            contenido = puntero.read_text(encoding="utf-8").strip()
++            prefijo, separador, destino = contenido.partition(":")
++            if prefijo.casefold() != "gitdir" or not separador or not destino.strip():
++                raise ValueError
++            ruta = Path(destino.strip())
++            if not ruta.is_absolute():
++                ruta = puntero.parent / ruta
++            coincide = ruta.resolve() == self.git_dir.resolve()
++        except (OSError, ValueError):
++            coincide = False
++        if not coincide:
++            raise FalloSincronizacion(
++                "preflight", {"motivo": "puntero_git_no_coincide"}
++            )
++
+     def _sha(self, referencia: str) -> str:
+         resultado = self._git(
+             "rev-parse", "--verify", referencia, paso="sha", check=False
+diff --git a/daemon/memoria/tests/test_app_ravn.py b/daemon/memoria/tests/test_app_ravn.py
+index dde57af..eab594d 100644
+--- a/daemon/memoria/tests/test_app_ravn.py
++++ b/daemon/memoria/tests/test_app_ravn.py
+@@ -4,6 +4,7 @@ from __future__ import annotations
+ 
+ import json
+ import unittest
++from urllib.parse import parse_qs, urlsplit
+ 
+ from daemon.memoria.app_ravn import BackendSupabaseJobs, ResolverAppRavn
+ 
+@@ -152,6 +153,17 @@ class ResolverAppRavnTests(unittest.TestCase):
+         self.assertEqual(resultado.estado, "no_disponible")
+         self.assertEqual(resultado.referencias, [])
+ 
++    def test_cfg_o_auth_incompletos_devuelven_no_disponible_sin_propagar_keyerror(self) -> None:
++        try:
++            resultado = ResolverAppRavn(
++                BackendFalso(error=KeyError("BOT_EMAIL"))
++            ).resolver({"cotizaciones": ["Garage"]})
++        except KeyError as error:
++            self.fail(f"el KeyError de configuración se propagó: {error}")
++
++        self.assertEqual(resultado.estado, "no_disponible")
++        self.assertEqual(resultado.referencias, [])
++
+     def test_input_hostil_no_controla_tabla_ni_campos(self) -> None:
+         backend = BackendFalso({"cotizaciones": []})
+         ResolverAppRavn(backend).resolver(
+@@ -187,6 +199,62 @@ class ResolverAppRavnTests(unittest.TestCase):
+         self.assertTrue(llamadas[0][0].startswith("cotizaciones?select="))
+         self.assertNotIn("service_role", llamadas[0][0])
+ 
++    def test_backend_pagina_hasta_encontrar_match_despues_de_las_primeras_500(self) -> None:
++        filas = [
++            {"id": f"id-{numero:04d}", "titulo": f"Cotización {numero}", "estado": "borrador"}
++            for numero in range(501)
++        ]
++        llamadas: list[str] = []
++
++        def rest_falso(_cfg, _token, path, data=None, method="GET"):
++            self.assertEqual(method, "GET")
++            self.assertIsNone(data)
++            llamadas.append(path)
++            query = parse_qs(urlsplit(path).query)
++            offset = int(query.get("offset", ["0"])[0])
++            limite = int(query.get("limit", ["500"])[0])
++            return filas[offset : offset + limite]
++
++        backend = BackendSupabaseJobs(
++            cargar_cfg=lambda: {"ok": "1"},
++            autenticar=lambda _cfg: "token",
++            rest=rest_falso,
++        )
++        resultado = ResolverAppRavn(backend).resolver(
++            {"cotizaciones": ["Cotización 500"]}
++        )
++
++        self.assertEqual(resultado.estado, "ok")
++        self.assertEqual(resultado.referencias[0].id, "id-0500")
++        self.assertGreaterEqual(len(llamadas), 3)
++        self.assertTrue(all("order=id.asc" in path for path in llamadas))
++
++    def test_backend_truncado_devuelve_no_disponible_y_no_falso_sin_match(self) -> None:
++        filas = [
++            {"id": f"id-{numero}", "titulo": f"Cotización {numero}"}
++            for numero in range(4)
++        ]
++
++        def rest_falso(_cfg, _token, path, **_kwargs):
++            query = parse_qs(urlsplit(path).query)
++            offset = int(query.get("offset", ["0"])[0])
++            limite = int(query.get("limit", ["500"])[0])
++            return filas[offset : offset + limite]
++
++        backend = BackendSupabaseJobs(
++            cargar_cfg=lambda: {"ok": "1"},
++            autenticar=lambda _cfg: "token",
++            rest=rest_falso,
++        )
++        backend._page_size = 2
++        backend._max_rows = 3
++
++        resultado = ResolverAppRavn(backend).resolver(
++            {"cotizaciones": ["No existe"]}
++        )
++
++        self.assertEqual(resultado.estado, "no_disponible")
++
+ 
+ if __name__ == "__main__":
+     unittest.main()
+diff --git a/daemon/memoria/tests/test_cerrar.py b/daemon/memoria/tests/test_cerrar.py
+index 58b8baf..30a01c2 100644
+--- a/daemon/memoria/tests/test_cerrar.py
++++ b/daemon/memoria/tests/test_cerrar.py
+@@ -192,6 +192,32 @@ class CerrarCliTests(unittest.TestCase):
+         self.assertEqual(evidencia["paso"], "push")
+         self.assertNotIn("error", evidencia)
+ 
++    def test_fallo_del_marker_graphify_conserva_cierre_e_indice_y_sale_parcial(self):
++        with (
++            patch(
++                "daemon.memoria.cerrar.marcar_cierre",
++                side_effect=OSError("marker bloqueado"),
++            ),
++            patch("sys.stdin", io.StringIO(json.dumps(CIERRE_DICT))),
++            patch("sys.stdout", new_callable=io.StringIO) as stdout,
++            patch("sys.stderr", new_callable=io.StringIO) as stderr,
++        ):
++            codigo = cli.main(
++                ["cerrar", "--vault", str(self.vault), "--sin-sincronizacion"]
++            )
++
++        evidencia = json.loads(stdout.getvalue() or stderr.getvalue())
++        self.assertEqual(codigo, 4)
++        self.assertFalse(evidencia["ok"])
++        self.assertTrue(evidencia["persistido_local"])
++        self.assertTrue(evidencia["indexado"])
++        self.assertFalse(evidencia["graphify_marcado"])
++        self.assertTrue(evidencia["graphify_pendiente"])
++        self.assertTrue((self.vault / evidencia["cierre"]).is_file())
++        self.assertTrue(
++            (self.vault / "Sistema/Memoria/indices/entidades.json").is_file()
++        )
++
+ 
+ if __name__ == "__main__":
+     unittest.main()
+diff --git a/daemon/memoria/tests/test_recuperar.py b/daemon/memoria/tests/test_recuperar.py
+index 54c8be0..2576d36 100644
+--- a/daemon/memoria/tests/test_recuperar.py
++++ b/daemon/memoria/tests/test_recuperar.py
+@@ -180,6 +180,31 @@ class RecuperarTests(unittest.TestCase):
+         self.assertEqual(paquete.notas, [])
+         self.assertLessEqual(paquete.tokens_estimados, 560)
+ 
++    def test_entidad_tipificada_no_coincide_con_otro_tipo_homonimo(self) -> None:
++        cierre = _cierre(cierre_id="cliente-garage", tema="Garage", entidades=[])
++        self.almacen.guardar_cierre(
++            replace(
++                cierre,
++                entidades={
++                    "obras": [],
++                    "clientes": ["Garage"],
++                    "cotizaciones": [],
++                    "documentos": [],
++                },
++            )
++        )
++
++        paquete = recuperar(
++            ConsultaMemoria(
++                "garage",
++                [],
++                entidades_tipadas={"obras": ["Garage"]},
++            ),
++            self.vault,
++        )
++
++        self.assertEqual(paquete.notas, [])
++
+     def test_recuperacion_no_reexpone_secretos_de_un_cierre_manual(self) -> None:
+         ruta = self.almacen.guardar_cierre(
+             _cierre(
+@@ -320,7 +345,7 @@ class RecuperarTests(unittest.TestCase):
+         self.almacen.guardar_cierre(
+             _cierre(cierre_id="vecina", tema="Patio", entidades=["Glorietas"])
+         )
+-        grafo = self.vault / "Sistema/Graphify/grafo-app.json"
++        grafo = self.vault / "graphify-out/graph.json"
+         grafo.parent.mkdir(parents=True)
+         grafo.write_text(
+             json.dumps(
+@@ -337,6 +362,65 @@ class RecuperarTests(unittest.TestCase):
+         self.assertEqual(paquete.notas[0].ruta.split("/")[0:2], ["Conversaciones", "cierres"])
+         self.assertIn("vecino_obras:Glorietas", paquete.notas[0].razones)
+ 
++    def test_query_sin_entidad_no_abre_cierres_irrelevantes_del_indice(self) -> None:
++        for numero in range(20):
++            self.almacen.guardar_cierre(
++                _cierre(
++                    cierre_id=f"irrelevante-{numero}",
++                    tema="Tema sin coincidencia",
++                    entidades=[f"Entidad {numero}"],
++                    hechos=["Dato histórico."],
++                )
++            )
++
++        import daemon.memoria.recuperar as modulo
++
++        original = modulo._leer_cierre_validado
++        lecturas = 0
++
++        def contar(vault: Path, ruta: Path):
++            nonlocal lecturas
++            lecturas += 1
++            return original(vault, ruta)
++
++        with patch.object(modulo, "_leer_cierre_validado", side_effect=contar):
++            paquete = recuperar(ConsultaMemoria("adoquín vehicular", []), self.vault)
++
++        self.assertEqual(lecturas, 0)
++        self.assertEqual(paquete.notas, [])
++
++    def test_query_generica_limita_las_rutas_candidatas_antes_de_abrirlas(self) -> None:
++        por_fecha: list[tuple[str, Path]] = []
++        for numero in range(40):
++            fecha = f"2026-08-08T10:{numero:02d}:00-03:00"
++            ruta = self.almacen.guardar_cierre(
++                replace(
++                    _cierre(
++                    cierre_id=f"garage-{numero}",
++                    tema="Garage",
++                    entidades=[f"Obra {numero}"],
++                    hechos=["Garage histórico."],
++                    ),
++                    fecha_cierre=fecha,
++                )
++            )
++            por_fecha.append((fecha, ruta))
++
++        import daemon.memoria.recuperar as modulo
++
++        original = modulo._leer_cierre_validado
++        lecturas: list[Path] = []
++
++        def contar(vault: Path, ruta: Path):
++            lecturas.append(ruta)
++            return original(vault, ruta)
++
++        with patch.object(modulo, "_leer_cierre_validado", side_effect=contar):
++            recuperar(ConsultaMemoria("garage", []), self.vault)
++
++        esperadas = {ruta.resolve() for _, ruta in sorted(por_fecha, reverse=True)[:32]}
++        self.assertEqual({ruta.resolve() for ruta in lecturas}, esperadas)
++
+     def test_cli_recuperar_emite_json_y_reindexar_descarta_markdown_no_validado(self) -> None:
+         cierre_path = self.almacen.guardar_cierre(
+             _cierre(cierre_id="reindexable", tema="Patio", entidades=["Glorietas"])
+diff --git a/daemon/memoria/tests/test_sincronizacion_git.py b/daemon/memoria/tests/test_sincronizacion_git.py
+index 85f0e88..ca7d4a3 100644
+--- a/daemon/memoria/tests/test_sincronizacion_git.py
++++ b/daemon/memoria/tests/test_sincronizacion_git.py
+@@ -9,7 +9,7 @@ import subprocess
+ import tempfile
+ import unittest
+ 
+-from daemon.memoria.sincronizacion_git import SincronizadorGitVault
++from daemon.memoria.sincronizacion_git import FalloSincronizacion, SincronizadorGitVault
+ 
+ 
+ class SincronizacionGitTests(unittest.TestCase):
+@@ -95,6 +95,49 @@ class SincronizacionGitTests(unittest.TestCase):
+         self.assertFalse((self.vault / ".git").exists())
+         self.assertEqual(os.stat(self.lock).st_mode & 0o777, 0o600)
+ 
++    def test_acepta_puntero_git_regular_si_apunta_al_git_dir_externo_configurado(self) -> None:
++        puntero = self.vault / ".git"
++        puntero.write_text(f"gitdir: {self.git_dir}\n", encoding="utf-8")
++        cierre = self.vault / "Conversaciones/cierres/2026/08/con-puntero.md"
++
++        def persistir() -> Path:
++            cierre.parent.mkdir(parents=True)
++            cierre.write_text("cierre\n", encoding="utf-8")
++            return cierre
++
++        _, resultado = self.sync.transaccion(
++            persistir,
++            rutas=lambda valor: [valor],
++            mensaje="memoria: puntero externo",
++            registrar_pendiente=lambda *_: None,
++        )
++
++        self.assertTrue(resultado.sincronizado, resultado.detalle)
++        self.assertEqual(puntero.read_text(), f"gitdir: {self.git_dir}\n")
++
++    def test_obsidian_git_automatico_bloquea_todo_escritor_antes_de_persistir(self) -> None:
++        config = self.vault / ".obsidian/plugins/obsidian-git/data.json"
++        config.parent.mkdir(parents=True)
++        config.write_text(
++            json.dumps({"autoSaveInterval": 10, "autoPullInterval": 8})
++        )
++        escribio = False
++
++        def persistir() -> Path:
++            nonlocal escribio
++            escribio = True
++            return self.vault / "no-debe-existir.md"
++
++        with self.assertRaisesRegex(FalloSincronizacion, "preflight"):
++            self.sync.transaccion(
++                persistir,
++                rutas=lambda valor: [valor],
++                mensaje="memoria: bloqueada",
++                registrar_pendiente=lambda *_: None,
++            )
++
++        self.assertFalse(escribio)
++
+     def test_fallo_de_pull_conserva_persistencia_y_deja_pendiente_sanitizado(self) -> None:
+         cierre = self.vault / "Conversaciones/cierres/2026/08/local.md"
+         pendientes: list[tuple[str, dict[str, object]]] = []
+@@ -121,6 +164,82 @@ class SincronizacionGitTests(unittest.TestCase):
+         self.assertNotIn("secreto", serializado)
+         self.assertNotIn(str(self.raiz), serializado)
+ 
++    def test_pull_fallido_deja_cambio_tracked_reintentable_y_segundo_intento_sincroniza(self) -> None:
++        remoto_real = self.remoto
++        self._git_externo(
++            "remote", "set-url", "origin", str(self.raiz / "remoto-ausente.git")
++        )
++
++        def persistir() -> Path:
++            readme = self.vault / "README.md"
++            readme.write_text("cierre durable\n", encoding="utf-8")
++            return readme
++
++        _, primero = self.sync.transaccion(
++            persistir,
++            rutas=lambda valor: [valor],
++            mensaje="memoria: pull parcial reintentable",
++            registrar_pendiente=lambda *_: None,
++        )
++        self._git_externo("remote", "set-url", "origin", str(remoto_real))
++        _, segundo = self.sync.transaccion(
++            persistir,
++            rutas=lambda valor: [valor],
++            mensaje="memoria: pull parcial reintentable",
++            registrar_pendiente=lambda *_: None,
++        )
++
++        self.assertFalse(primero.sincronizado)
++        self.assertTrue(segundo.sincronizado, segundo.detalle)
++        self.assertEqual(self._git_externo("status", "--short").stdout, "")
++        verificacion = self.raiz / "verificacion-pull-parcial"
++        subprocess.run(
++            ["git", "clone", "-b", "main", str(self.remoto), str(verificacion)],
++            check=True,
++            capture_output=True,
++        )
++        self.assertEqual((verificacion / "README.md").read_text(), "cierre durable\n")
++
++    def test_commit_fallido_no_deja_stage_y_segundo_intento_sincroniza(self) -> None:
++        ejecutar_real = self.sync._ejecutar
++        fallo_commit = True
++
++        def ejecutar(cmd, **kwargs):
++            nonlocal fallo_commit
++            if "commit" in cmd and fallo_commit:
++                fallo_commit = False
++                return subprocess.CompletedProcess(cmd, 1, "", "hook falló")
++            return ejecutar_real(cmd, **kwargs)
++
++        self.sync._ejecutar = ejecutar
++
++        def persistir() -> Path:
++            readme = self.vault / "README.md"
++            readme.write_text("cambio reintentable\n", encoding="utf-8")
++            return readme
++
++        _, primero = self.sync.transaccion(
++            persistir,
++            rutas=lambda valor: [valor],
++            mensaje="memoria: commit reintentable",
++            registrar_pendiente=lambda *_: None,
++        )
++        staged_tras_fallo = self._git_externo(
++            "diff", "--cached", "--name-only"
++        ).stdout
++        _, segundo = self.sync.transaccion(
++            persistir,
++            rutas=lambda valor: [valor],
++            mensaje="memoria: commit reintentable",
++            registrar_pendiente=lambda *_: None,
++        )
++
++        self.assertFalse(primero.sincronizado)
++        self.assertEqual(primero.paso, "commit")
++        self.assertEqual(staged_tras_fallo, "")
++        self.assertTrue(segundo.sincronizado, segundo.detalle)
++        self.assertEqual(self._git_externo("status", "--short").stdout, "")
++
+     def test_reintento_de_mismo_contenido_no_duplica_commit(self) -> None:
+         cierre = self.vault / "Conversaciones/cierres/2026/08/idempotente.md"
+ 
+@@ -195,19 +314,23 @@ class SincronizacionGitTests(unittest.TestCase):
+         compartido = self.vault / compartido_semilla.relative_to(self.semilla)
+         pendientes: list[dict[str, object]] = []
+         remoto_movido = False
++        sha_local_original = ""
++        sha_remoto_esperado = ""
+ 
+         def persistir() -> Path:
+             compartido.write_text("version local\n", encoding="utf-8")
+             return compartido
+ 
+         def observar(paso: str) -> None:
+-            nonlocal remoto_movido
++            nonlocal remoto_movido, sha_local_original, sha_remoto_esperado
+             if paso != "push" or remoto_movido:
+                 return
+             remoto_movido = True
++            sha_local_original = self._git_externo("rev-parse", "HEAD").stdout.strip()
+             compartido_semilla.write_text("version remota\n", encoding="utf-8")
+             self._git(self.semilla, "add", compartido_semilla.relative_to(self.semilla).as_posix())
+             self._git(self.semilla, "commit", "-m", "conflicto remoto")
++            sha_remoto_esperado = self._git(self.semilla, "rev-parse", "HEAD").stdout.strip()
+             self._git(self.semilla, "push", "origin", "main")
+ 
+         _, resultado = self.sync.transaccion(
+@@ -224,13 +347,44 @@ class SincronizacionGitTests(unittest.TestCase):
+         self.assertEqual(compartido_semilla.read_text(), "version remota\n")
+         self.assertNotIn("<<<<<<<", compartido.read_text())
+         self.assertEqual(len(pendientes), 1)
+-        self.assertTrue(pendientes[0]["sha_local"])
+-        self.assertTrue(pendientes[0]["sha_remoto"])
++        self.assertEqual(pendientes[0]["sha_local"], sha_local_original)
++        self.assertEqual(pendientes[0]["sha_remoto"], sha_remoto_esperado)
+         self.assertEqual(
+             pendientes[0]["rutas_conflicto"],
+             [compartido.relative_to(self.vault).as_posix()],
+         )
+ 
++    def test_preflight_no_aborta_un_rebase_que_no_inicio_esta_instancia(self) -> None:
++        (self.git_dir / "rebase-merge").mkdir()
++        comandos: list[list[str]] = []
++        ejecutar_real = self.sync._ejecutar
++
++        def ejecutar(cmd, **kwargs):
++            comandos.append(cmd)
++            if cmd[-2:] == ["rebase", "--abort"]:
++                return subprocess.CompletedProcess(cmd, 0, "", "")
++            return ejecutar_real(cmd, **kwargs)
++
++        self.sync._ejecutar = ejecutar
++        cierre = self.vault / "Conversaciones/cierres/2026/08/rebase-ajeno.md"
++
++        def persistir() -> Path:
++            cierre.parent.mkdir(parents=True)
++            cierre.write_text("durable\n", encoding="utf-8")
++            return cierre
++
++        _, resultado = self.sync.transaccion(
++            persistir,
++            rutas=lambda valor: [valor],
++            mensaje="memoria: rebase ajeno",
++            registrar_pendiente=lambda *_: None,
++        )
++
++        self.assertFalse(resultado.sincronizado)
++        self.assertEqual(resultado.paso, "preflight")
++        self.assertTrue((self.git_dir / "rebase-merge").is_dir())
++        self.assertNotIn(["rebase", "--abort"], [cmd[-2:] for cmd in comandos])
++
+     def test_indice_git_preexistente_bloquea_sync_sin_stagear_el_cierre(self) -> None:
+         (self.vault / "README.md").write_text("cambio ajeno\n", encoding="utf-8")
+         self._git_externo("add", "README.md")
