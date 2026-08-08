@@ -59,14 +59,7 @@ def actualizar_incremental(vault: Path, graphify_bin: Path) -> bool:
                 f"graphify update: {detalle or f'exit {resultado.returncode}'}"
             )
 
-        graph = vault / "graphify-out" / "graph.json"
-        try:
-            with graph.open(encoding="utf-8") as archivo:
-                json.load(archivo)
-        except (OSError, json.JSONDecodeError) as error:
-            raise ValueError(
-                f"Graphify no produjo un graph.json válido: {graph}"
-            ) from error
+        validar_graph_json(vault)
 
     return ejecutar_actualizacion(vault, actualizar, solo_si_pendiente=True)
 
@@ -86,7 +79,7 @@ def ejecutar_actualizacion(
     lock_path.parent.mkdir(parents=True, exist_ok=True)
 
     with lock_path.open("a+b") as lock:
-        fcntl.flock(lock.fileno(), fcntl.LOCK_EX)
+        _tomar_lock(lock)
         _recuperar_snapshot(marker, snapshot)
         if solo_si_pendiente and not debe_actualizar(
             marker, state, datetime.now(timezone.utc)
@@ -108,6 +101,22 @@ def ejecutar_actualizacion(
             _restaurar_snapshot(marker, snapshot)
             raise
     return True
+
+
+def validar_graph_json(vault: Path) -> None:
+    """Confirma que la salida publicada por Graphify existe y es JSON válido."""
+    graph = Path(vault) / "graphify-out" / "graph.json"
+    try:
+        with graph.open(encoding="utf-8") as archivo:
+            json.load(archivo)
+    except (OSError, json.JSONDecodeError) as error:
+        raise ValueError(
+            f"Graphify no produjo un graph.json válido: {graph}"
+        ) from error
+
+
+def _tomar_lock(lock) -> None:
+    fcntl.flock(lock.fileno(), fcntl.LOCK_EX)
 
 
 def _consumir_marcador(marker: Path, snapshot: Path) -> bool:

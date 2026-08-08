@@ -73,8 +73,11 @@ class TestJobsVencidos(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tempdir:
             vault = Path(tempdir) / "vault"
             marker = vault / "Sistema" / "Memoria" / ".graphify-pendiente"
+            graph = vault / "graphify-out" / "graph.json"
             marker.parent.mkdir(parents=True)
             marker.touch()
+            graph.parent.mkdir(parents=True)
+            graph.write_text("{}", encoding="utf-8")
             organismo = Path(tempdir) / "organismo"
             salidas = ["", "", '{"pregunta": null}']
 
@@ -102,8 +105,11 @@ class TestJobsVencidos(unittest.TestCase):
             vault = Path(tempdir) / "vault"
             marker = vault / "Sistema" / "Memoria" / ".graphify-pendiente"
             snapshot = marker.with_name(".graphify-en-proceso")
+            graph = vault / "graphify-out" / "graph.json"
             marker.parent.mkdir(parents=True)
             marker.touch()
+            graph.parent.mkdir(parents=True)
+            graph.write_text("{}", encoding="utf-8")
             unlink_real = Path.unlink
 
             def unlink_con_cierre(path: Path, *args, **kwargs):
@@ -134,6 +140,57 @@ class TestJobsVencidos(unittest.TestCase):
                 runner.job_cerebro.correr({}, "token")
 
             self.assertTrue(marker.exists())
+
+    def test_cerebro_full_no_avanza_si_graph_json_es_invalido_o_falta(self):
+        for contenido in (None, "{invalido"):
+            with self.subTest(contenido=contenido):
+                with tempfile.TemporaryDirectory() as tempdir:
+                    vault = Path(tempdir) / "vault"
+                    marker = vault / "Sistema" / "Memoria" / ".graphify-pendiente"
+                    graph = vault / "graphify-out" / "graph.json"
+                    marker.parent.mkdir(parents=True)
+                    marker.touch()
+                    if contenido is not None:
+                        graph.parent.mkdir(parents=True)
+                        graph.write_text(contenido, encoding="utf-8")
+                    pasos: list[list[str]] = []
+
+                    def run_falso(cmd, timeout, paso, env=None):
+                        pasos.append(cmd)
+                        if len(pasos) == 3:
+                            return '{"pregunta": null}'
+                        return ""
+
+                    with (
+                        patch.object(runner.job_cerebro, "VAULT", str(vault)),
+                        patch.object(
+                            runner.job_cerebro, "GRAPHIFY_OUT", vault / "graphify-out"
+                        ),
+                        patch.object(
+                            runner.job_cerebro,
+                            "ORGANISMO",
+                            Path(tempdir) / "organismo",
+                        ),
+                        patch.object(runner.job_cerebro.subprocess, "run"),
+                        patch.object(
+                            runner.job_cerebro, "_run", side_effect=run_falso
+                        ),
+                        patch.object(runner.job_cerebro.shutil, "copy2"),
+                        patch.object(runner.job_cerebro, "push_vault"),
+                        patch.object(runner.job_cerebro, "registrar_evento"),
+                        patch.object(runner.job_cerebro, "log"),
+                        patch(
+                            "daemon.memoria.graphify_batch.STATE",
+                            Path(tempdir) / "graphify-state.json",
+                        ),
+                    ):
+                        with self.assertRaisesRegex(
+                            ValueError, "Graphify no produjo un graph.json válido"
+                        ):
+                            runner.job_cerebro.correr({}, "token")
+
+                    self.assertTrue(marker.exists())
+                    self.assertEqual(len(pasos), 1)
 
 
 class TestCorrerVencidos(unittest.TestCase):

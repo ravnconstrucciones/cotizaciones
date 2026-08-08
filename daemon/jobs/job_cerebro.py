@@ -28,6 +28,7 @@ if str(RAIZ_REPO) not in sys.path:
 from daemon.memoria.graphify_batch import (
     actualizar_incremental,
     ejecutar_actualizacion,
+    validar_graph_json,
 )
 from jobslib import GIT_VAULT, VAULT, log, push_vault, registrar_evento, rest
 
@@ -51,11 +52,11 @@ def correr(cfg, token):
                    capture_output=True, text=True, timeout=120)
 
     # 2. re-extracción determinística del grafo (sin LLM)
-    ejecutar_actualizacion(
-        Path(VAULT),
-        lambda: _run([GRAPHIFY, "update", VAULT], 900, "graphify update"),
-        solo_si_pendiente=False,
-    )
+    def actualizar_grafo_completo():
+        _run([GRAPHIFY, "update", VAULT], 900, "graphify update")
+        validar_graph_json(Path(VAULT))
+
+    ejecutar_actualizacion(Path(VAULT), actualizar_grafo_completo, solo_si_pendiente=False)
 
     # 3. graph.html a nodo-por-nodo (el dibujo con las diagonales, pedido 28/07).
     #    Sin el cap subido graphify cae solo a la vista agregada por comunidades

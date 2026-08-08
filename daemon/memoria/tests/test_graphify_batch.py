@@ -7,7 +7,6 @@ from pathlib import Path
 import subprocess
 import sys
 import tempfile
-import threading
 import time
 import unittest
 from unittest.mock import patch
@@ -133,61 +132,6 @@ class GraphifyBatchTests(unittest.TestCase):
 
         self.assertTrue(self.marker.exists())
 
-    def test_dos_consumidores_no_ejecutan_graphify_en_paralelo(self) -> None:
-        marcar_cierre(self.vault)
-        primera_en_graphify = threading.Event()
-        liberar_primera = threading.Event()
-        segunda_invocada = threading.Event()
-        mutex = threading.Lock()
-        llamadas = 0
-        resultados: list[bool] = []
-        errores: list[BaseException] = []
-
-        def run_falso(*args, **kwargs):
-            nonlocal llamadas
-            with mutex:
-                llamadas += 1
-                numero = llamadas
-            if numero == 1:
-                primera_en_graphify.set()
-                if not liberar_primera.wait(timeout=2):
-                    raise TimeoutError("la prueba no liberó la primera actualización")
-            graph = self.vault / "graphify-out" / "graph.json"
-            graph.parent.mkdir(parents=True, exist_ok=True)
-            graph.write_text("{}", encoding="utf-8")
-            return subprocess.CompletedProcess(args[0], 0, "", "")
-
-        def consumir(*, segunda: bool = False) -> None:
-            if segunda:
-                segunda_invocada.set()
-            try:
-                resultados.append(actualizar_incremental(self.vault, Path("graphify")))
-            except BaseException as error:
-                errores.append(error)
-
-        with (
-            patch("daemon.memoria.graphify_batch.STATE", self.state),
-            patch("daemon.memoria.graphify_batch.subprocess.run", side_effect=run_falso),
-        ):
-            primera = threading.Thread(target=consumir)
-            primera.start()
-            self.assertTrue(primera_en_graphify.wait(timeout=1))
-            marcar_cierre(self.vault)
-            segunda = threading.Thread(target=consumir, kwargs={"segunda": True})
-            segunda.start()
-            self.assertTrue(segunda_invocada.wait(timeout=1))
-            time.sleep(0.05)
-            liberar_primera.set()
-            primera.join(timeout=2)
-            segunda.join(timeout=2)
-
-        self.assertFalse(primera.is_alive())
-        self.assertFalse(segunda.is_alive())
-        self.assertEqual(errores, [])
-        self.assertEqual(llamadas, 1)
-        self.assertCountEqual(resultados, [True, False])
-        self.assertTrue(self.marker.exists())
-
     def test_dos_procesos_comparten_la_exclusion(self) -> None:
         marcar_cierre(self.vault)
         graphify = self.root / "graphify-bloqueante"
@@ -210,11 +154,18 @@ class GraphifyBatchTests(unittest.TestCase):
             "import daemon.memoria.graphify_batch as batch\n"
             "batch.STATE = Path(sys.argv[3])\n"
             "Path(sys.argv[4]).touch()\n"
+            "tomar_lock_real = batch._tomar_lock\n"
+            "def tomar_lock_instrumentado(lock):\n"
+            "    Path(sys.argv[5]).touch()\n"
+            "    return tomar_lock_real(lock)\n"
+            "batch._tomar_lock = tomar_lock_instrumentado\n"
             "print(batch.actualizar_incremental(Path(sys.argv[1]), Path(sys.argv[2])))\n"
         )
         estado = self.root / "estado-procesos.json"
         listo_1 = self.root / "consumidor-1-listo"
         listo_2 = self.root / "consumidor-2-listo"
+        intento_1 = self.root / "consumidor-1-intento-lock"
+        intento_2 = self.root / "consumidor-2-intento-lock"
 
         primero = subprocess.Popen(
             [
@@ -225,6 +176,7 @@ class GraphifyBatchTests(unittest.TestCase):
                 str(graphify),
                 str(estado),
                 str(listo_1),
+                str(intento_1),
             ],
             cwd=Path(__file__).resolve().parents[3],
             text=True,
@@ -244,6 +196,7 @@ class GraphifyBatchTests(unittest.TestCase):
                     str(graphify),
                     str(estado),
                     str(listo_2),
+                    str(intento_2),
                 ],
                 cwd=Path(__file__).resolve().parents[3],
                 text=True,
@@ -251,7 +204,9 @@ class GraphifyBatchTests(unittest.TestCase):
                 stderr=subprocess.PIPE,
             )
             self._esperar(listo_2)
-            time.sleep(0.05)
+            self._esperar(intento_2)
+            self.assertIsNone(segundo.poll())
+            self.assertEqual(ejecuciones.read_text(encoding="utf-8"), "x")
             liberar.touch()
             salida_1, error_1 = primero.communicate(timeout=5)
             salida_2, error_2 = segundo.communicate(timeout=5)
