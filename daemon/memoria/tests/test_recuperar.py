@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 import io
 import json
 import multiprocessing
@@ -107,8 +108,8 @@ class RecuperarTests(unittest.TestCase):
 
         self.assertEqual(paquete.notas[0].entidades["obras"], ["Glorietas"])
         self.assertLessEqual(paquete.tokens_estimados, 120)
-        self.assertEqual(paquete.procedencia, ["Conversaciones/cierres"])
-        self.assertIn("entidad_exacta:Glorietas", paquete.notas[0].razones)
+        self.assertEqual(paquete.procedencia, ["cierre"])
+        self.assertIn("entidad:Glorietas", paquete.notas[0].razones)
 
     def test_no_abre_crudo_por_defecto(self) -> None:
         self.almacen.guardar_cierre(
@@ -214,13 +215,32 @@ class RecuperarTests(unittest.TestCase):
                 cierre_id="multilinea",
                 tema="Garage",
                 entidades=["Glorietas"],
-                hechos=["Primera línea.\nSegunda línea emitida por el cierre."],
+                hechos=["Primera línea.\n# Segunda línea emitida por el cierre."],
             )
         )
 
         paquete = recuperar(ConsultaMemoria("garage", []), self.vault)
 
-        self.assertIn("Segunda línea emitida por el cierre.", paquete.notas[0].contenido)
+        self.assertIn("# Segunda línea emitida por el cierre.", paquete.notas[0].contenido)
+
+    def test_contexto_conserva_los_encabezados_y_listas_canonicas(self) -> None:
+        cierre = replace(
+            _cierre(
+                cierre_id="secciones",
+                tema="Garage",
+                entidades=["Glorietas"],
+                hechos=["Hecho confirmado."],
+            ),
+            decisiones=["Decisión tomada."],
+            pendientes=["Pendiente abierto."],
+        )
+        self.almacen.guardar_cierre(cierre)
+
+        paquete = recuperar(ConsultaMemoria("garage", [], max_tokens=300), self.vault)
+
+        self.assertIn("## Hechos confirmados\n- Hecho confirmado.", paquete.notas[0].contenido)
+        self.assertIn("## Decisiones\n- Decisión tomada.", paquete.notas[0].contenido)
+        self.assertIn("## Pendientes\n- Pendiente abierto.", paquete.notas[0].contenido)
 
     def test_suma_vecino_de_graphify_como_procedencia(self) -> None:
         self.almacen.guardar_cierre(
@@ -241,7 +261,7 @@ class RecuperarTests(unittest.TestCase):
         paquete = recuperar(ConsultaMemoria("", ["Casa Central"]), self.vault)
 
         self.assertEqual(paquete.notas[0].ruta.split("/")[0:2], ["Conversaciones", "cierres"])
-        self.assertIn("vecino_graphify:Glorietas", paquete.notas[0].razones)
+        self.assertIn("vecino:Glorietas", paquete.notas[0].razones)
 
     def test_cli_recuperar_emite_json_y_reindexar_descarta_markdown_no_validado(self) -> None:
         cierre_path = self.almacen.guardar_cierre(

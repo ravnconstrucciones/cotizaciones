@@ -236,9 +236,10 @@ def _lista_entidades(valor: object) -> list[str]:
 def _contenido_contexto(cierre: Cierre, cuerpo: str) -> str:
     del cuerpo  # El contenido se reconstruye desde el cierre ya validado y redactado.
     lineas: list[str] = []
-    for campo in _SECCIONES_CIERRE.values():
+    for titulo, campo in _SECCIONES_CIERRE.items():
         valores = getattr(cierre, campo)
         if valores:
+            lineas.append(f"## {titulo}")
             lineas.extend(f"- {valor}" for valor in valores)
     return "\n".join(lineas).rstrip() + "\n"
 
@@ -250,11 +251,17 @@ def _listas_del_cierre(cuerpo: str) -> dict[str, list[str]]:
     vistos: set[str] = set()
     for linea in cuerpo.splitlines():
         if linea.startswith("## "):
-            actual = _SECCIONES_CIERRE.get(linea[3:])
-            if actual is None or actual in vistos:
-                raise ValueError("El cierre contiene secciones no canónicas o repetidas.")
-            vistos.add(actual)
-            continue
+            siguiente = _SECCIONES_CIERRE.get(linea[3:])
+            if siguiente is not None:
+                actual = siguiente
+                if actual in vistos:
+                    raise ValueError("El cierre contiene secciones no canónicas o repetidas.")
+                vistos.add(actual)
+                continue
+            if actual is not None and listas[actual]:
+                listas[actual][-1] += f"\n{linea}"
+                continue
+            raise ValueError("El cierre contiene secciones no canónicas o repetidas.")
         if actual is None or not linea:
             continue
         if linea.startswith("- "):
@@ -262,7 +269,7 @@ def _listas_del_cierre(cuerpo: str) -> dict[str, list[str]]:
             if valor != "Sin registros.":
                 listas[actual].append(valor)
             continue
-        if not listas[actual] or linea.startswith("#"):
+        if not listas[actual]:
             raise ValueError("El cuerpo del cierre no respeta el formato canónico.")
         listas[actual][-1] += f"\n{linea}"
     if vistos != set(listas):
@@ -283,25 +290,25 @@ def _puntuar(
     exactas = sorted(entidades_consulta.intersection(entidades_normalizadas))
     for entidad in exactas:
         puntaje += 100
-        razones.append(f"entidad_exacta:{entidades_normalizadas[entidad]}")
+        razones.append(f"entidad:{entidades_normalizadas[entidad]}")
 
     tokens_entidad = _tokens(" ".join(entidades))
     for token in sorted(tokens_consulta.intersection(tokens_entidad)):
         puntaje += 40
-        razones.append(f"token_entidad:{token}")
+        razones.append(f"entidad_token:{token}")
     for token in sorted(tokens_consulta.intersection(_tokens(nota.cierre.tema))):
         puntaje += 20
-        razones.append(f"token_titulo:{token}")
+        razones.append(f"titulo:{token}")
     cuerpo_tokens = _tokens(nota.cuerpo)
     for token in sorted(tokens_consulta.intersection(cuerpo_tokens)):
         puntaje += 5
-        razones.append(f"token_cuerpo:{token}")
+        razones.append(f"cuerpo:{token}")
     if nota.cierre.estado == "parcial":
         puntaje += 10
-        razones.append("estado_parcial")
+        razones.append("parcial")
     for entidad in sorted(set(entidades_normalizadas).intersection(vecinos)):
         puntaje += 15
-        razones.append(f"vecino_graphify:{entidades_normalizadas[entidad]}")
+        razones.append(f"vecino:{entidades_normalizadas[entidad]}")
 
     if razones:
         descuento = _descuento_antiguedad(nota.cierre.fecha_cierre)
@@ -390,7 +397,7 @@ def _construir_paquete(
     app_refs = _sin_duplicados(
         referencia for nota in notas for referencia in refs_por_ruta[nota.ruta]
     )
-    procedencia = ["Conversaciones/cierres"] if notas else []
+    procedencia = ["cierre"] if notas else []
     confianza = min(1.0, puntajes_por_ruta[notas[0].ruta] / 100) if notas else 0.0
     estimados = 0
     for _ in range(10):
