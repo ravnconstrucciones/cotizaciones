@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Runner de los jobs programados de Ravn (com.ravn.jobs, cada 30 min).
+"""Runner de los jobs programados de Ravn (com.ravn.jobs, cada 15 min).
 
 Catch-up: los vencimientos comparan PERÍODOS (día/semana ISO/mes), no horarios
 exactos — si la Mac estuvo apagada, el primer tick después del arranque corre
@@ -53,6 +53,7 @@ JOBS = [
     ("salud",   job_salud.correr,   lambda u, a: vencio_semanal(u, a, hora_minima=9)),
     ("auditoria", job_auditoria.correr, lambda u, a: vencio_dominical(u, a, hora_minima=8)),
     ("memoria", job_memoria.correr, lambda u, a: True),
+    ("graphify_memoria", job_cerebro.correr_incremental, lambda u, a: True),
     ("inbox",   job_inbox.correr,   lambda u, a: vencio_diario(u, a, hora_minima=2)),
     # foda va ANTES que cerebro (mismo tick dominical): siembra su resumen como
     # la pregunta del domingo — cerebro ve que ya hay pregunta y no pisa.
@@ -64,7 +65,7 @@ JOBS = [
     # nuevas entre huérfanas y el resto — Eze aprueba por WhatsApp (UNIR).
     ("sinapsis", job_sinapsis.correr, lambda u, a: vencio_diario(u, a, hora_minima=3)),
     # datos corre CADA tick: es barato (1 GET con cursor, casi siempre vacío)
-    # y así un dato clasificado en Archivados llega al vault en ≤30 min.
+    # y así un dato clasificado en Archivados llega al vault en ≤15 min.
     ("datos",   job_datos.correr,   lambda u, a: True),
 ]
 

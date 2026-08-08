@@ -3,6 +3,8 @@ import tempfile
 import unittest
 from datetime import datetime
 from pathlib import Path
+import plistlib
+from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import jobslib
@@ -36,9 +38,55 @@ class TestJobsVencidos(unittest.TestCase):
         vencidos = runner.jobs_vencidos(estado, ahora)
 
         self.assertIn("memoria", vencidos)
+        self.assertIn("graphify_memoria", vencidos)
         self.assertLess(vencidos.index("memoria"), vencidos.index("cerebro"))
         nombres = [nombre for nombre, _, _ in runner.JOBS]
-        self.assertEqual(nombres[nombres.index("inbox") - 1], "memoria")
+        self.assertEqual(nombres[nombres.index("memoria") + 1], "graphify_memoria")
+        self.assertEqual(nombres[nombres.index("inbox") - 1], "graphify_memoria")
+
+    def test_graphify_incremental_sin_marcador_es_un_noop(self):
+        with tempfile.TemporaryDirectory() as tempdir:
+            vault = Path(tempdir) / "vault"
+            with (
+                patch.object(runner.job_cerebro, "VAULT", str(vault)),
+                patch.object(runner.job_cerebro, "GRAPHIFY", Path(tempdir) / "graphify"),
+            ):
+                resultado = runner.job_cerebro.correr_incremental({}, "token")
+
+        self.assertFalse(resultado)
+
+    def test_launchd_dispara_el_runner_cada_quince_minutos(self):
+        plist = (
+            Path(__file__).resolve().parents[2] / "launchd" / "com.ravn.jobs.plist"
+        )
+        with plist.open("rb") as archivo:
+            configuracion = plistlib.load(archivo)
+
+        self.assertEqual(configuracion["StartInterval"], 900)
+
+    def test_cerebro_full_exitoso_limpia_marcador_incremental(self):
+        with tempfile.TemporaryDirectory() as tempdir:
+            vault = Path(tempdir) / "vault"
+            marker = vault / "Sistema" / "Memoria" / ".graphify-pendiente"
+            marker.parent.mkdir(parents=True)
+            marker.touch()
+            organismo = Path(tempdir) / "organismo"
+            salidas = ["", "", '{"pregunta": null}']
+
+            with (
+                patch.object(runner.job_cerebro, "VAULT", str(vault)),
+                patch.object(runner.job_cerebro, "GRAPHIFY_OUT", vault / "graphify-out"),
+                patch.object(runner.job_cerebro, "ORGANISMO", organismo),
+                patch.object(runner.job_cerebro.subprocess, "run"),
+                patch.object(runner.job_cerebro, "_run", side_effect=salidas),
+                patch.object(runner.job_cerebro.shutil, "copy2"),
+                patch.object(runner.job_cerebro, "push_vault"),
+                patch.object(runner.job_cerebro, "registrar_evento"),
+                patch.object(runner.job_cerebro, "log"),
+            ):
+                runner.job_cerebro.correr({}, "token")
+
+            self.assertFalse(marker.exists())
 
 
 class TestCorrerVencidos(unittest.TestCase):

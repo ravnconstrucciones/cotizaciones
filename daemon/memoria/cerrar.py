@@ -9,6 +9,7 @@ from typing import Any
 
 from .almacen import AlmacenMemoria, claves_indice
 from .colectores import leer_sesion
+from .graphify_batch import marcar_cierre
 from .modelo import Cierre, Mensaje, validar_cierre
 
 
@@ -37,6 +38,7 @@ def cerrar(
         _verificar_indice(almacen.vault, ruta_cierre, cierre)
         if crudo is not None:
             _reabrir(crudo)
+        marcar_cierre(almacen.vault)
     except (OSError, ValueError, json.JSONDecodeError) as error:
         raise FalloPersistencia(str(error)) from error
 

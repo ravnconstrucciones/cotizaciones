@@ -21,6 +21,14 @@ from datetime import date
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+RAIZ_REPO = Path(__file__).resolve().parents[2]
+if str(RAIZ_REPO) not in sys.path:
+    sys.path.insert(0, str(RAIZ_REPO))
+
+from daemon.memoria.graphify_batch import (
+    MARCADOR_RELATIVO,
+    actualizar_incremental,
+)
 from jobslib import GIT_VAULT, VAULT, log, push_vault, registrar_evento, rest
 
 GRAPHIFY = "/Users/ezeotero/.local/bin/graphify"
@@ -43,7 +51,15 @@ def correr(cfg, token):
                    capture_output=True, text=True, timeout=120)
 
     # 2. re-extracción determinística del grafo (sin LLM)
+    marker = Path(VAULT) / MARCADOR_RELATIVO
+    marca_inicial = marker.stat().st_mtime_ns if marker.exists() else None
     _run([GRAPHIFY, "update", VAULT], 900, "graphify update")
+    if (
+        marca_inicial is not None
+        and marker.exists()
+        and marker.stat().st_mtime_ns == marca_inicial
+    ):
+        marker.unlink()
 
     # 3. graph.html a nodo-por-nodo (el dibujo con las diagonales, pedido 28/07).
     #    Sin el cap subido graphify cae solo a la vista agregada por comunidades
@@ -87,3 +103,8 @@ def correr(cfg, token):
                          "pregunta_insertada": insertada,
                      })
     log(f"job_cerebro OK — pregunta {'insertada' if insertada else 'ya existía / no hubo'}")
+
+
+def correr_incremental(cfg, token):
+    """Adaptador de runner; no toca red ni Supabase si no hay lote vencido."""
+    return actualizar_incremental(Path(VAULT), Path(GRAPHIFY))
