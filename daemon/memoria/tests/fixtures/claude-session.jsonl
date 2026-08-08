@@ -1,0 +1,3 @@
+{"type":"user","uuid":"22222222-2222-2222-2222-222222222222","timestamp":"2026-08-08T12:00:01Z","message":{"content":"Necesito revisar API_KEY=valor-falso"}}
+{"type":"assistant","timestamp":"2026-08-08T12:00:02Z","message":{"content":[{"type":"text","text":"Lo reviso."}]}}
+{"type":"tool_result","timestamp":"2026-08-08T12:00:03Z","content":"Salida de herramienta representativa"}
