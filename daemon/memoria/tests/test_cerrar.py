@@ -13,6 +13,7 @@ from unittest.mock import patch
 
 from daemon.memoria import cli
 from daemon.memoria.cerrar import FalloPersistencia
+from daemon.memoria.sincronizacion_git import ResultadoGit
 
 
 CIERRE_DICT = {
@@ -59,6 +60,7 @@ class CerrarCliTests(unittest.TestCase):
                 "cerrar",
                 "--vault",
                 str(self.vault),
+                "--sin-sincronizacion",
                 *args,
             ],
             input=json.dumps(datos),
@@ -72,7 +74,9 @@ class CerrarCliTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         evidencia = json.loads(result.stdout)
         self.assertTrue(evidencia["ok"])
+        self.assertTrue(evidencia["persistido_local"])
         self.assertTrue(evidencia["indexado"])
+        self.assertIsNone(evidencia["sincronizado"])
         self.assertTrue((self.vault / evidencia["cierre"]).is_file())
         self.assertEqual(evidencia["crudo"], "")
 
@@ -155,10 +159,38 @@ class CerrarCliTests(unittest.TestCase):
             patch("sys.stdin", io.StringIO(json.dumps(CIERRE_DICT))),
             patch("sys.stderr", new_callable=io.StringIO) as stderr,
         ):
-            codigo = cli.main(["cerrar", "--vault", str(self.vault)])
+            codigo = cli.main(
+                ["cerrar", "--vault", str(self.vault), "--sin-sincronizacion"]
+            )
 
         self.assertEqual(codigo, 3)
         self.assertEqual(json.loads(stderr.getvalue())["codigo"], 3)
+
+    def test_cli_sale_con_codigo_cuatro_si_persiste_pero_no_sincroniza(self):
+        class SyncParcial:
+            def transaccion(self, persistir, **_kwargs):
+                return persistir(), ResultadoGit(
+                    sincronizado=False,
+                    paso="push",
+                    pendiente="Sistema/Memoria/pendientes-escritura/p.json",
+                    detalle={"codigo": 1},
+                )
+
+        with (
+            patch("daemon.memoria.cli._crear_sincronizador", return_value=SyncParcial()),
+            patch("sys.stdin", io.StringIO(json.dumps(CIERRE_DICT))),
+            patch("sys.stdout", new_callable=io.StringIO) as stdout,
+        ):
+            codigo = cli.main(["cerrar", "--vault", str(self.vault)])
+
+        evidencia = json.loads(stdout.getvalue())
+        self.assertEqual(codigo, 4)
+        self.assertFalse(evidencia["ok"])
+        self.assertTrue(evidencia["persistido_local"])
+        self.assertTrue(evidencia["indexado"])
+        self.assertFalse(evidencia["sincronizado"])
+        self.assertEqual(evidencia["paso"], "push")
+        self.assertNotIn("error", evidencia)
 
 
 if __name__ == "__main__":

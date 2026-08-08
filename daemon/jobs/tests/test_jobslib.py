@@ -3,6 +3,7 @@ import sys
 import tempfile
 import unittest
 import urllib.error
+from contextlib import contextmanager
 from datetime import datetime
 from pathlib import Path
 
@@ -329,6 +330,53 @@ class TestCorrerClaudeError(unittest.TestCase):
             with self.assertRaises(RuntimeError) as ctx:
                 jobslib.correr_claude("hola")
         self.assertIn("limite de uso alcanzado", str(ctx.exception))
+
+
+class TestGitVaultCompartido(unittest.TestCase):
+    def test_push_legacy_retiene_el_lock_comun_durante_todos_los_comandos(self):
+        from unittest.mock import patch
+
+        pasos: list[str] = []
+
+        class SyncFalso:
+            @contextmanager
+            def bloqueo(self):
+                pasos.append("lock_in")
+                try:
+                    yield
+                finally:
+                    pasos.append("lock_out")
+
+        class R:
+            returncode = 0
+            stdout = ""
+            stderr = ""
+
+        def run_falso(*_args, **_kwargs):
+            pasos.append("git")
+            return R()
+
+        with (
+            patch.object(jobslib, "crear_sincronizador_vault", return_value=SyncFalso()),
+            patch.object(jobslib.subprocess, "run", side_effect=run_falso),
+        ):
+            jobslib.push_vault("test")
+
+        self.assertEqual(pasos[0], "lock_in")
+        self.assertEqual(pasos[-1], "lock_out")
+        self.assertGreater(pasos.count("git"), 0)
+
+    def test_pull_vault_delega_y_no_oculta_un_fallo(self):
+        from unittest.mock import patch
+        from daemon.memoria.sincronizacion_git import ResultadoGit
+
+        class SyncFalso:
+            def pull_solo(self):
+                return ResultadoGit(False, "pull", detalle={"codigo": 1})
+
+        with patch.object(jobslib, "crear_sincronizador_vault", return_value=SyncFalso()):
+            with self.assertRaisesRegex(RuntimeError, "pull del vault falló"):
+                jobslib.pull_vault()
 
 
 if __name__ == "__main__":

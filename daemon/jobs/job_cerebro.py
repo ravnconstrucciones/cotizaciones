@@ -30,7 +30,7 @@ from daemon.memoria.graphify_batch import (
     ejecutar_actualizacion,
     validar_graph_json,
 )
-from jobslib import GIT_VAULT, VAULT, log, push_vault, registrar_evento, rest
+from jobslib import VAULT, log, pull_vault, push_vault, registrar_evento, rest
 
 GRAPHIFY = "/Users/ezeotero/.local/bin/graphify"
 GRAPHIFY_OUT = Path(VAULT) / "graphify-out"
@@ -48,8 +48,7 @@ def _run(cmd, timeout, paso, env=None):
 
 def correr(cfg, token):
     # 1. vault fresco (escritores: bot por GitHub + daemon por git)
-    subprocess.run(GIT_VAULT + ["pull", "--rebase", "origin", "main"],
-                   capture_output=True, text=True, timeout=120)
+    pull_vault()
 
     # 2. re-extracción determinística del grafo (sin LLM)
     def actualizar_grafo_completo():

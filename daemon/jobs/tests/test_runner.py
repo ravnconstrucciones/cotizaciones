@@ -88,6 +88,7 @@ class TestJobsVencidos(unittest.TestCase):
                 patch.object(runner.job_cerebro.subprocess, "run"),
                 patch.object(runner.job_cerebro, "_run", side_effect=salidas),
                 patch.object(runner.job_cerebro.shutil, "copy2"),
+                patch.object(runner.job_cerebro, "pull_vault"),
                 patch.object(runner.job_cerebro, "push_vault"),
                 patch.object(runner.job_cerebro, "registrar_evento"),
                 patch.object(runner.job_cerebro, "log"),
@@ -128,6 +129,7 @@ class TestJobsVencidos(unittest.TestCase):
                     side_effect=["", "", '{"pregunta": null}'],
                 ),
                 patch.object(runner.job_cerebro.shutil, "copy2"),
+                patch.object(runner.job_cerebro, "pull_vault"),
                 patch.object(runner.job_cerebro, "push_vault"),
                 patch.object(runner.job_cerebro, "registrar_evento"),
                 patch.object(runner.job_cerebro, "log"),
@@ -176,6 +178,7 @@ class TestJobsVencidos(unittest.TestCase):
                             runner.job_cerebro, "_run", side_effect=run_falso
                         ),
                         patch.object(runner.job_cerebro.shutil, "copy2"),
+                        patch.object(runner.job_cerebro, "pull_vault"),
                         patch.object(runner.job_cerebro, "push_vault"),
                         patch.object(runner.job_cerebro, "registrar_evento"),
                         patch.object(runner.job_cerebro, "log"),

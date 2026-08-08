@@ -15,6 +15,8 @@ from daemon.memoria import cli
 from daemon.memoria.almacen import AlmacenMemoria
 from daemon.memoria.modelo import Cierre
 from daemon.memoria.recuperar import ConsultaMemoria, recuperar
+from daemon.memoria.app_ravn import ResolverAppRavn
+from daemon.memoria.app_ravn import ResultadoApp
 
 
 def _reindexar_despues_de_escanear(
@@ -108,12 +110,12 @@ class RecuperarTests(unittest.TestCase):
         )
 
         paquete = recuperar(
-            ConsultaMemoria("garage adoquines", ["Glorietas"], max_tokens=180), self.vault
+            ConsultaMemoria("garage adoquines", ["Glorietas"], max_tokens=420), self.vault
         )
 
         self.assertEqual(paquete.notas[0].entidades["obras"], ["Glorietas"])
-        self.assertLessEqual(paquete.tokens_estimados, 180)
-        self.assertEqual(paquete.procedencia, ["cierre"])
+        self.assertLessEqual(paquete.tokens_estimados, 420)
+        self.assertEqual(paquete.procedencia[0]["fuente"], "indice_vault")
         self.assertIn("obras:Glorietas", paquete.notas[0].razones)
 
     def test_no_abre_crudo_por_defecto(self) -> None:
@@ -134,7 +136,28 @@ class RecuperarTests(unittest.TestCase):
         self.assertFalse(any("Conversaciones/crudo" in nota.ruta for nota in paquete.notas))
         self.assertEqual(len(paquete.notas), 1)
 
-    def test_presupuesto_detiene_la_seleccion_antes_de_una_nota_menos_relevante(self) -> None:
+    def test_referencias_app_no_exponen_paths_locales(self) -> None:
+        cierre = replace(
+            _cierre(
+                cierre_id="refs-seguras",
+                tema="Garage",
+                entidades=["Glorietas"],
+            ),
+            enlaces=[
+                "/Users/ezeotero/privado/video.mov",
+                "/cotizaciones/cot-1",
+                "app://obra/obra-1",
+            ],
+        )
+        self.almacen.guardar_cierre(cierre)
+
+        paquete = recuperar(ConsultaMemoria("garage", ["Glorietas"]), self.vault)
+
+        self.assertNotIn("/Users/ezeotero/privado/video.mov", paquete.app_refs)
+        self.assertIn("/cotizaciones/cot-1", paquete.app_refs)
+        self.assertIn("app://obra/obra-1", paquete.app_refs)
+
+    def test_presupuesto_no_rellena_con_una_entidad_ajena(self) -> None:
         self.almacen.guardar_cierre(
             _cierre(
                 cierre_id="principal",
@@ -152,10 +175,10 @@ class RecuperarTests(unittest.TestCase):
             )
         )
 
-        paquete = recuperar(ConsultaMemoria("garage", ["Glorietas"], max_tokens=300), self.vault)
+        paquete = recuperar(ConsultaMemoria("garage", ["Glorietas"], max_tokens=560), self.vault)
 
-        self.assertEqual(paquete.notas[0].entidades["obras"], ["Otra obra"])
-        self.assertLessEqual(paquete.tokens_estimados, 300)
+        self.assertEqual(paquete.notas, [])
+        self.assertLessEqual(paquete.tokens_estimados, 560)
 
     def test_recuperacion_no_reexpone_secretos_de_un_cierre_manual(self) -> None:
         ruta = self.almacen.guardar_cierre(
@@ -190,9 +213,7 @@ class RecuperarTests(unittest.TestCase):
             encoding="utf-8",
         )
 
-        paquete = recuperar(
-            ConsultaMemoria("garage", ["OPENAI_API_KEY=secreto-entidad"]), self.vault
-        )
+        paquete = recuperar(ConsultaMemoria("garage", []), self.vault)
         serializado = json.dumps(paquete.a_dict(), ensure_ascii=False)
 
         self.assertEqual(paquete.notas[0].entidades["obras"], ["OPENAI_API_KEY=[REDACTADO]"])
@@ -323,15 +344,27 @@ class RecuperarTests(unittest.TestCase):
         invalido = self.vault / "Conversaciones/cierres/2026/08/invalido.md"
         invalido.write_text("---\nentidades: [\"Secreto\"]\n---\n", encoding="utf-8")
         indice = self.vault / "Sistema/Memoria/indices/entidades.json"
-        indice.write_text(json.dumps({"entidades": {"fantasma": [{"ruta": "x"}]}}), encoding="utf-8")
-
         with patch("sys.stdout", new_callable=io.StringIO) as stdout:
             codigo = cli.main(
-                ["recuperar", "--vault", str(self.vault), "--query", "patio", "--entidad", "Glorietas"]
+                [
+                    "recuperar",
+                    "--vault",
+                    str(self.vault),
+                    "--query",
+                    "patio",
+                    "--entidad",
+                    "Glorietas",
+                    "--sin-app",
+                ]
             )
         salida = json.loads(stdout.getvalue())
         self.assertEqual(codigo, 0)
         self.assertEqual(salida["notas"][0]["ruta"], cierre_path.relative_to(self.vault).as_posix())
+
+        indice.write_text(
+            json.dumps({"entidades": {"fantasma": [{"ruta": "x"}]}}),
+            encoding="utf-8",
+        )
 
         with patch("sys.stdout", new_callable=io.StringIO) as stdout:
             codigo = cli.main(["reindexar", "--vault", str(self.vault)])
@@ -418,6 +451,126 @@ class RecuperarTests(unittest.TestCase):
             (self.vault / "Sistema/Memoria/indices/entidades.json").read_text(encoding="utf-8")
         )
         self.assertIn("glorietas", indice["entidades"])
+
+    def test_indice_ausente_degrada_explicito_sin_escanear_corpus(self) -> None:
+        cierre = self.vault / "Conversaciones/cierres/2026/08/no-indexado.md"
+        cierre.parent.mkdir(parents=True)
+        cierre.write_text("garage que no debe abrirse", encoding="utf-8")
+
+        with patch(
+            "daemon.memoria.recuperar._leer_cierre_validado",
+            side_effect=AssertionError("no debe abrir cierres sin índice"),
+        ):
+            paquete = recuperar(ConsultaMemoria("garage", []), self.vault)
+
+        self.assertEqual(paquete.indice_estado, "no_disponible")
+        self.assertEqual(paquete.notas, [])
+
+    def test_recuperacion_abre_solo_rutas_sembradas_por_indice(self) -> None:
+        indexada = self.almacen.guardar_cierre(
+            _cierre(cierre_id="indexada", tema="Garage", entidades=["Glorietas"])
+        )
+        no_indexada = self.vault / "Conversaciones/cierres/2026/08/fuera.md"
+        no_indexada.write_text(indexada.read_text(encoding="utf-8"), encoding="utf-8")
+        import daemon.memoria.recuperar as modulo
+
+        original = modulo._leer_cierre_validado
+        abiertas: list[Path] = []
+
+        def registrar(vault: Path, ruta: Path):
+            abiertas.append(ruta)
+            return original(vault, ruta)
+
+        with patch.object(modulo, "_leer_cierre_validado", side_effect=registrar):
+            paquete = recuperar(ConsultaMemoria("garage", []), self.vault)
+
+        self.assertEqual([ruta.resolve() for ruta in abiertas], [indexada.resolve()])
+        self.assertEqual(len(paquete.notas), 1)
+
+    def test_app_operativa_aparece_primero_y_vault_queda_historico(self) -> None:
+        self.almacen.guardar_cierre(
+            _cierre(
+                cierre_id="estado-viejo",
+                tema="Garage Glorietas",
+                entidades=["Garage Glorietas"],
+                hechos=["La cotización seguía en borrador."],
+            )
+        )
+
+        class Backend:
+            def seleccionar(self, tabla, _campos):
+                if tabla == "presupuestos":
+                    return [
+                        {
+                            "id": "11111111-1111-4111-8111-111111111111",
+                            "nombre_obra": "Garage Glorietas",
+                            "nombre_cliente": "Asociación Civil",
+                            "estado": "aprobado",
+                            "presupuesto_aprobado": True,
+                            "fecha": "2026-08-08",
+                        }
+                    ]
+                if tabla == "obras":
+                    return []
+                return []
+
+        consulta = ConsultaMemoria(
+            "estado garage",
+            [],
+            max_tokens=800,
+            entidades_tipadas={"obras": ["Garage Glorietas"]},
+        )
+        paquete = recuperar(consulta, self.vault, resolver_app=ResolverAppRavn(Backend()))
+
+        self.assertEqual(paquete.app["estado"], "ok")
+        self.assertEqual(paquete.procedencia[0]["fuente"], "app_ravn")
+        self.assertEqual(paquete.notas[0].autoridad, "historica")
+        self.assertEqual(paquete.notas[0].coincidencia, "entidad_exacta")
+        self.assertLessEqual(paquete.tokens_estimados, 800)
+
+    def test_cli_acepta_entidades_tipadas_y_construye_resolver_lazy(self) -> None:
+        class ResolverFalso:
+            def resolver(self, entidades):
+                self.entidades = entidades
+                return ResultadoApp("sin_coincidencia", [])
+
+        resolver = ResolverFalso()
+        with (
+            patch("daemon.memoria.cli._crear_resolver_app", return_value=resolver),
+            patch("sys.stdout", new_callable=io.StringIO) as stdout,
+        ):
+            codigo = cli.main(
+                [
+                    "recuperar",
+                    "--vault",
+                    str(self.vault),
+                    "--query",
+                    "garage",
+                    "--obra",
+                    "Garage Glorietas",
+                    "--cliente",
+                    "Asociación Civil",
+                ]
+            )
+
+        salida = json.loads(stdout.getvalue())
+        self.assertEqual(codigo, 0)
+        self.assertEqual(
+            resolver.entidades,
+            {
+                "obras": ["Garage Glorietas"],
+                "clientes": ["Asociación Civil"],
+                "cotizaciones": [],
+                "documentos": [],
+            },
+        )
+        self.assertEqual(salida["app"]["estado"], "sin_coincidencia")
+
+    def test_limites_no_permiten_superar_ocho_notas_o_tres_mil_tokens(self) -> None:
+        with self.assertRaises(ValueError):
+            ConsultaMemoria("x", [], max_notas=9)
+        with self.assertRaises(ValueError):
+            ConsultaMemoria("x", [], max_tokens=3001)
 
 
 if __name__ == "__main__":

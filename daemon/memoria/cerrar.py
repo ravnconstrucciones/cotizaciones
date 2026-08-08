@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from dataclasses import dataclass
 from dataclasses import replace
 from pathlib import Path
 from typing import Any
@@ -11,10 +12,18 @@ from .almacen import AlmacenMemoria, _crudo_a_markdown, claves_indice
 from .colectores import leer_sesion
 from .graphify_batch import marcar_cierre
 from .modelo import Cierre, Mensaje, validar_cierre
+from .sincronizacion_git import SincronizadorGitVault
 
 
 class FalloPersistencia(RuntimeError):
     """La escritura ocurrió parcialmente o no pudo comprobarse."""
+
+
+@dataclass(frozen=True)
+class _Persistencia:
+    cierre: Path
+    crudo: Path | None
+    indice: Path
 
 
 def cerrar(
@@ -24,12 +33,54 @@ def cerrar(
     session_path: Path | None = None,
     host: str | None = None,
     thread_id: str | None = None,
+    sincronizador: SincronizadorGitVault | None = None,
 ) -> dict[str, object]:
     """Persiste un cierre y devuelve evidencia solo después de reabrirla."""
     mensajes = _leer_mensajes(session_path)
     cierre = validar_cierre(_completar_metadata(datos, mensajes, host, thread_id))
     mensajes = _completar_fechas(mensajes, cierre.fecha_inicio)
     almacen = AlmacenMemoria(vault)
+
+    def persistir() -> _Persistencia:
+        return _persistir(almacen, cierre, mensajes)
+
+    if sincronizador is None:
+        persistencia = persistir()
+        resultado_git = None
+    else:
+        persistencia, resultado_git = sincronizador.transaccion(
+            persistir,
+            rutas=lambda resultado: (
+                resultado.cierre,
+                resultado.indice,
+                *((resultado.crudo,) if resultado.crudo is not None else ()),
+            ),
+            mensaje=f"memoria: cerrar {cierre.host}/{cierre.thread_id}",
+            registrar_pendiente=almacen.marcar_pendiente,
+        )
+
+    sincronizado = resultado_git.sincronizado if resultado_git is not None else None
+    return {
+        "ok": sincronizado is not False,
+        "cierre": _relativa(almacen.vault, persistencia.cierre),
+        "crudo": (
+            _relativa(almacen.vault, persistencia.crudo)
+            if persistencia.crudo is not None
+            else ""
+        ),
+        "persistido_local": True,
+        "indexado": True,
+        "sincronizado": sincronizado,
+        "paso": resultado_git.paso if resultado_git is not None else "omitido_explicito",
+        "pendiente": resultado_git.pendiente if resultado_git is not None else "",
+        "detalle": resultado_git.detalle if resultado_git is not None else None,
+    }
+
+
+def _persistir(
+    almacen: AlmacenMemoria, cierre: Cierre, mensajes: list[Mensaje]
+) -> _Persistencia:
+    crudo: Path | None = None
 
     try:
         crudo = almacen.guardar_crudo(mensajes) if mensajes else None
@@ -46,12 +97,11 @@ def cerrar(
     except (OSError, ValueError, json.JSONDecodeError) as error:
         raise FalloPersistencia(str(error)) from error
 
-    return {
-        "ok": True,
-        "cierre": _relativa(almacen.vault, ruta_cierre),
-        "crudo": _relativa(almacen.vault, crudo) if crudo is not None else "",
-        "indexado": True,
-    }
+    return _Persistencia(
+        cierre=ruta_cierre,
+        crudo=crudo,
+        indice=almacen.vault / "Sistema/Memoria/indices/entidades.json",
+    )
 
 
 def _leer_mensajes(session_path: Path | None) -> list[Mensaje]:

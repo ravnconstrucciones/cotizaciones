@@ -12,6 +12,7 @@ import re
 import tempfile
 from typing import Any
 
+from .app_ravn import ResolverAppRavn, ResultadoApp
 from .almacen import _bloquear_indice, claves_indice
 from .modelo import Cierre, TIPOS_ENTIDAD, cierre_a_markdown, validar_cierre
 
@@ -23,6 +24,12 @@ _GRAFOS = (
     Path("Sistema") / "Graphify" / "grafo-app.json",
     Path("Sistema") / "Memoria" / "grafo-app.json",
     Path("grafo-app.json"),
+)
+_RUTAS_APP = (
+    "/obras/",
+    "/cotizaciones/",
+    "/diagnosticos/",
+    "/presupuestos/",
 )
 _SECCIONES_CIERRE = {
     "Hechos confirmados": "hechos",
@@ -41,6 +48,7 @@ class ConsultaMemoria:
     entidades: list[str]
     max_notas: int = 8
     max_tokens: int = 3000
+    entidades_tipadas: dict[str, list[str]] | None = None
 
     def __post_init__(self) -> None:
         if not isinstance(self.texto, str):
@@ -49,6 +57,10 @@ class ConsultaMemoria:
             raise ValueError("Las entidades deben ser textos no vacíos.")
         if self.max_notas < 0 or self.max_tokens < 0:
             raise ValueError("Los límites de recuperación no pueden ser negativos.")
+        if self.max_notas > 8 or self.max_tokens > 3000:
+            raise ValueError("Los topes máximos son 8 notas y 3000 tokens.")
+        if self.entidades_tipadas is not None:
+            _validar_entidades_tipadas_consulta(self.entidades_tipadas)
 
 
 @dataclass(frozen=True)
@@ -58,15 +70,24 @@ class NotaContexto:
     contenido: str
     entidades: dict[str, list[str]]
     razones: list[str]
+    fuente: str
+    fecha: str
+    host: str
+    thread_id: str
+    secciones: list[str]
+    autoridad: str
+    coincidencia: str
 
 
 @dataclass(frozen=True)
 class PaqueteContexto:
+    app: dict[str, object]
     notas: list[NotaContexto]
     app_refs: list[str]
     tokens_estimados: int
-    procedencia: list[str]
+    procedencia: list[dict[str, object]]
     confianza: float
+    indice_estado: str
 
     def a_dict(self) -> dict[str, object]:
         return asdict(self)
@@ -82,21 +103,36 @@ class _CierreLeido:
     app_refs: list[str]
 
 
-def recuperar(consulta: ConsultaMemoria, vault: Path) -> PaqueteContexto:
+def recuperar(
+    consulta: ConsultaMemoria,
+    vault: Path,
+    *,
+    resolver_app: ResolverAppRavn | None = None,
+) -> PaqueteContexto:
     """Devuelve cierres relevantes dentro de límites duros de notas y tokens.
 
     El recorrido está intencionalmente confinado a ``Conversaciones/cierres``:
     una consulta nunca abre ``Conversaciones/crudo``.
     """
     vault = Path(vault)
-    entidades_consulta = {_normalizar(valor) for valor in consulta.entidades}
+    tipadas = _entidades_tipadas_consulta(consulta)
+    entidades_consulta = {
+        _normalizar(valor) for valores in tipadas.values() for valor in valores
+    }
     tokens_consulta = _tokens(consulta.texto)
     vecinos = _vecinos_graphify(vault, entidades_consulta)
+    app = _resolver_app(resolver_app, tipadas)
+    rutas_indice, indice_estado = _rutas_candidatas_indice(
+        vault, entidades_consulta | vecinos, tokens_consulta
+    )
 
     candidatas: list[tuple[float, NotaContexto]] = []
     refs_por_ruta: dict[str, list[str]] = {}
     puntajes_por_ruta: dict[str, float] = {}
-    for nota in _cierres_validados(vault):
+    for ruta in rutas_indice:
+        nota = _leer_cierre_validado(vault, ruta)
+        if nota is None:
+            continue
         puntaje, razones = _puntuar(nota, entidades_consulta, tokens_consulta, vecinos)
         if not razones:
             continue
@@ -106,13 +142,32 @@ def recuperar(consulta: ConsultaMemoria, vault: Path) -> PaqueteContexto:
             contenido=nota.contenido,
             entidades=nota.entidades,
             razones=razones,
+            fuente="vault_cierre",
+            fecha=nota.cierre.fecha_cierre,
+            host=nota.cierre.host,
+            thread_id=nota.cierre.thread_id,
+            secciones=[
+                titulo
+                for titulo, campo in _SECCIONES_CIERRE.items()
+                if getattr(nota.cierre, campo)
+            ],
+            autoridad=_autoridad_nota(nota, app),
+            coincidencia=_coincidencia_nota(razones),
         )
         candidatas.append((puntaje, candidata))
         refs_por_ruta[nota.ruta] = nota.app_refs
         puntajes_por_ruta[nota.ruta] = puntaje
 
     candidatas.sort(key=lambda candidata: (-candidata[0], candidata[1].ruta))
-    paquete_vacio = _construir_paquete([], refs_por_ruta, puntajes_por_ruta)
+    app_dict = _ajustar_app_al_presupuesto(
+        app.a_dict() if app is not None else {"estado": "no_consultada"},
+        consulta.max_tokens,
+        indice_estado,
+        vecinos,
+    )
+    paquete_vacio = _construir_paquete(
+        [], refs_por_ruta, puntajes_por_ruta, app_dict, indice_estado, vecinos
+    )
     if paquete_vacio.tokens_estimados > consulta.max_tokens:
         raise ValueError("El presupuesto no alcanza para serializar un paquete de contexto vacío.")
 
@@ -121,11 +176,71 @@ def recuperar(consulta: ConsultaMemoria, vault: Path) -> PaqueteContexto:
         if len(seleccionadas) >= consulta.max_notas:
             break
         candidato = _construir_paquete(
-            [*seleccionadas, nota], refs_por_ruta, puntajes_por_ruta
+            [*seleccionadas, nota],
+            refs_por_ruta,
+            puntajes_por_ruta,
+            app_dict,
+            indice_estado,
+            vecinos,
         )
         if candidato.tokens_estimados <= consulta.max_tokens:
             seleccionadas.append(nota)
-    return _construir_paquete(seleccionadas, refs_por_ruta, puntajes_por_ruta)
+    return _construir_paquete(
+        seleccionadas,
+        refs_por_ruta,
+        puntajes_por_ruta,
+        app_dict,
+        indice_estado,
+        vecinos,
+    )
+
+
+def _rutas_candidatas_indice(
+    vault: Path, entidades: set[str], tokens_consulta: set[str]
+) -> tuple[list[Path], str]:
+    indice_path = vault / _INDICE
+    if not indice_path.is_file():
+        return [], "no_disponible"
+    try:
+        indice = json.loads(indice_path.read_text(encoding="utf-8"))
+        entradas = indice["entidades"]
+        if not isinstance(entradas, dict):
+            raise ValueError
+    except (OSError, KeyError, TypeError, ValueError, json.JSONDecodeError):
+        return [], "corrupto"
+
+    rutas: set[str] = set()
+    filtrar = bool(entidades)
+    for clave, valores in entradas.items():
+        if not isinstance(clave, str) or not isinstance(valores, list):
+            return [], "corrupto"
+        clave_normalizada = _normalizar(clave)
+        relevante = (
+            not filtrar
+            or clave_normalizada in entidades
+            or bool(_tokens(clave).intersection(tokens_consulta))
+        )
+        if not relevante:
+            continue
+        for entrada in valores:
+            if not isinstance(entrada, dict) or not isinstance(entrada.get("ruta"), str):
+                return [], "corrupto"
+            rutas.add(entrada["ruta"])
+
+    raiz = (vault / _CIERRES).resolve()
+    candidatas: list[Path] = []
+    for relativa_texto in sorted(rutas):
+        relativa = Path(relativa_texto)
+        if relativa.is_absolute() or relativa.parts[:2] != _CIERRES.parts:
+            continue
+        candidata = vault / relativa
+        try:
+            if not candidata.resolve(strict=True).is_relative_to(raiz):
+                continue
+        except OSError:
+            continue
+        candidatas.append(candidata)
+    return candidatas, "ok"
 
 
 def reindexar(vault: Path) -> dict[str, object]:
@@ -372,7 +487,10 @@ def _vecinos_graphify(vault: Path, entidades_consulta: set[str]) -> set[str]:
 def _referencias_app(enlaces: list[str], cuerpo: str) -> list[str]:
     candidatas = list(enlaces) + re.findall(r"\[[^]]*\]\(([^)]+)\)", cuerpo)
     return _sin_duplicados(
-        referencia for referencia in candidatas if referencia.startswith(("app://", "/"))
+        referencia
+        for referencia in candidatas
+        if referencia.startswith("app://")
+        or referencia.startswith(_RUTAS_APP)
     )
 
 
@@ -397,11 +515,37 @@ def _construir_paquete(
     notas: list[NotaContexto],
     refs_por_ruta: dict[str, list[str]],
     puntajes_por_ruta: dict[str, float],
+    app: dict[str, object],
+    indice_estado: str,
+    vecinos: set[str],
 ) -> PaqueteContexto:
     app_refs = _sin_duplicados(
         referencia for nota in notas for referencia in refs_por_ruta[nota.ruta]
     )
-    procedencia = ["cierre"] if notas else []
+    procedencia: list[dict[str, object]] = []
+    if app.get("estado") != "no_consultada":
+        procedencia.append(
+            {
+                "fuente": "app_ravn",
+                "estado": app.get("estado"),
+                "autoridad": "operativa",
+            }
+        )
+    procedencia.append(
+        {
+            "fuente": "indice_vault",
+            "estado": indice_estado,
+            "autoridad": "historica",
+        }
+    )
+    if vecinos:
+        procedencia.append(
+            {
+                "fuente": "graphify",
+                "estado": "ok",
+                "autoridad": "derivada",
+            }
+        )
     confianza = (
         max(0.0, min(1.0, puntajes_por_ruta[notas[0].ruta] / 100))
         if notas
@@ -409,12 +553,126 @@ def _construir_paquete(
     )
     estimados = 0
     for _ in range(10):
-        paquete = PaqueteContexto(notas, app_refs, estimados, procedencia, confianza)
+        paquete = PaqueteContexto(
+            app,
+            notas,
+            app_refs,
+            estimados,
+            procedencia,
+            confianza,
+            indice_estado,
+        )
         siguiente = _estimar_json(paquete.a_dict())
         if siguiente == estimados:
             return paquete
         estimados = siguiente
     raise RuntimeError("No se pudo estabilizar la estimación del paquete de contexto.")
+
+
+def _resolver_app(
+    resolver: ResolverAppRavn | None,
+    entidades: dict[str, list[str]],
+) -> ResultadoApp | None:
+    if resolver is None or not any(entidades.values()):
+        return None
+    return resolver.resolver(entidades)
+
+
+def _entidades_tipadas_consulta(consulta: ConsultaMemoria) -> dict[str, list[str]]:
+    if consulta.entidades_tipadas is not None:
+        return _validar_entidades_tipadas_consulta(consulta.entidades_tipadas)
+    resultado = {tipo: [] for tipo in TIPOS_ENTIDAD}
+    prefijos = {
+        "obra": "obras",
+        "obras": "obras",
+        "cliente": "clientes",
+        "clientes": "clientes",
+        "cotizacion": "cotizaciones",
+        "cotizaciones": "cotizaciones",
+        "documento": "documentos",
+        "documentos": "documentos",
+    }
+    for entidad in consulta.entidades:
+        prefijo, separador, valor = entidad.partition(":")
+        tipo = prefijos.get(_normalizar(prefijo)) if separador else None
+        if tipo is not None and valor.strip():
+            resultado[tipo].append(valor.strip())
+        else:
+            for nombre_tipo in TIPOS_ENTIDAD:
+                resultado[nombre_tipo].append(entidad)
+    return resultado
+
+
+def _validar_entidades_tipadas_consulta(
+    entidades: dict[str, list[str]],
+) -> dict[str, list[str]]:
+    if not isinstance(entidades, dict) or any(tipo not in TIPOS_ENTIDAD for tipo in entidades):
+        raise ValueError("Tipos de entidad de consulta inválidos.")
+    resultado = {tipo: [] for tipo in TIPOS_ENTIDAD}
+    for tipo, valores in entidades.items():
+        if not isinstance(valores, list) or not all(
+            isinstance(valor, str) and valor.strip() for valor in valores
+        ):
+            raise ValueError("Entidades tipadas inválidas.")
+        resultado[tipo] = list(valores)
+    return resultado
+
+
+def _autoridad_nota(nota: _CierreLeido, app: ResultadoApp | None) -> str:
+    if app is None or app.estado != "ok":
+        return "historica"
+    nombres_app = {
+        _normalizar(referencia.nombre)
+        for referencia in app.referencias
+        if referencia.nombre
+    }
+    entidades_nota = {
+        _normalizar(valor)
+        for valores in nota.entidades.values()
+        for valor in valores
+    }
+    return "historica" if nombres_app.intersection(entidades_nota) else "historica"
+
+
+def _coincidencia_nota(razones: list[str]) -> str:
+    if any(
+        razon.startswith(tuple(f"{tipo}:" for tipo in TIPOS_ENTIDAD))
+        for razon in razones
+    ):
+        return "entidad_exacta"
+    if any(razon.startswith("vecino_") for razon in razones):
+        return "relacion_graphify"
+    return "texto"
+
+
+def _ajustar_app_al_presupuesto(
+    app: dict[str, object],
+    max_tokens: int,
+    indice_estado: str,
+    vecinos: set[str],
+) -> dict[str, object]:
+    ajustado = json.loads(json.dumps(app, ensure_ascii=False))
+    referencias = ajustado.get("referencias")
+    if not isinstance(referencias, list):
+        referencias = []
+        ajustado["referencias"] = referencias
+    ambiguas = ajustado.get("ambiguas")
+    if not isinstance(ambiguas, list):
+        ambiguas = []
+        ajustado["ambiguas"] = ambiguas
+
+    while referencias or ambiguas:
+        paquete = _construir_paquete(
+            [], {}, {}, ajustado, indice_estado, vecinos
+        )
+        if paquete.tokens_estimados <= max_tokens:
+            return ajustado
+        ajustado["truncado"] = True
+        if referencias:
+            referencias.pop()
+        else:
+            ambiguas.pop()
+    return ajustado
 
 
 def _estimar_tokens(texto: str) -> int:
