@@ -8,6 +8,8 @@ Base de esta corrección: `1a7805e`
 
 Base de la corrección ronda 2: `c2fa83c`
 
+Base de la corrección ronda 3: `e346d62`
+
 ## Resultado
 
 - Discovery excluye sólo los journals no-sesión conocidos por nombre y preserva
@@ -44,6 +46,9 @@ Base de la corrección ronda 2: `c2fa83c`
   loop de fuentes. Quedan en `errores_globales` del cursor, se reintentan en cada
   corrida y sólo generan una advertencia hasta recuperarse. Mientras el listado
   de cierres es incompleto no se crean falsos pendientes de cierre.
+- Las sesiones permanentemente omitidas aplican la misma cobertura granular:
+  si su acción ya está durable en el outbox y falla el cursor, el reintento no
+  vuelve a contarla ni la combina con una fuente nueva bajo otro `evento_id`.
 
 ## Evidencia TDD
 
@@ -61,12 +66,21 @@ de la sesión, `Operation not permitted` al leer un cierre y
 GREEN y además ajustaron el contrato del resumen: una acción ya durable en el
 outbox no vuelve a contarse como `sin_cierre` o `resueltas` en el reintento.
 
-GREEN dirigido final: 43 tests OK.
+GREEN dirigido ronda 2: 43 tests OK.
+
+La ronda 3 reprodujo en RED `omitida A + cursor fallido + fuente B nueva`: el
+reintento contaba dos procesadas y generaba outboxes con acciones solapadas. El
+filtro se aplicó antes de incrementar `procesadas`/`omitidas`/`errores`; el caso
+quedó GREEN con dos eventos de acciones disjuntas y A presente una sola vez.
+
+GREEN dirigido ronda 3: 44 tests OK.
 
 Fixtures agregados: `workflow-journal.jsonl` con un único registro `{"type":"started"}`. Todos los demás casos usan archivos temporales sintéticos.
 
 ## Verificación
 
+- `python3.13 -m unittest daemon.memoria.tests.test_colectores daemon.jobs.tests.test_job_memoria`:
+  44 OK en ronda 3.
 - `python3.13 -m unittest discover -s daemon/memoria/tests -p 'test_*.py'`:
   temporalmente bloqueada por trabajo concurrente de Fix C. Una primera corrida
   ejecutó 130 tests y tuvo cinco `IndexError` ajenos en `test_recuperar`; una

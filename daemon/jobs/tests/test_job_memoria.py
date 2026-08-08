@@ -128,6 +128,70 @@ class JobMemoriaTests(unittest.TestCase):
         self.assertEqual(entrada_invalida["estado"], "omitida")
         self.assertIn("detectar", entrada_invalida["error"].lower())
 
+    def test_cursor_fallido_con_omitida_y_fuente_nueva_no_duplica_la_accion(self):
+        omitida = self.sesiones / "omitida.jsonl"
+        shutil.copy2(FIXTURES / "workflow-journal.jsonl", omitida)
+        nueva = self.sesiones / "nueva.jsonl"
+        eventos: list[dict[str, object]] = []
+
+        def descubrir():
+            return [omitida, *([nueva] if nueva.exists() else [])]
+
+        def registrar(cfg, token, tipo, titulo, contenido, evento_id=None):
+            outbox = (
+                self.cursor.parent
+                / "memoria-eventos-pendientes"
+                / f"{evento_id}.json"
+            )
+            payload = json.loads(outbox.read_text(encoding="utf-8"))
+            eventos.append(
+                {
+                    "evento_id": evento_id,
+                    "contenido": contenido,
+                    "acciones": set(payload["acciones"]),
+                }
+            )
+
+        with (
+            patch.object(job_memoria, "descubrir_sesiones", side_effect=descubrir),
+            patch.object(job_memoria, "registrar_evento", side_effect=registrar),
+        ):
+            with patch.object(
+                job_memoria, "_escribir_cursor", side_effect=OSError("cursor")
+            ):
+                with self.assertRaises(OSError):
+                    job_memoria.correr({}, "token")
+
+            outbox_dir = self.cursor.parent / "memoria-eventos-pendientes"
+            primer_outbox = next(outbox_dir.glob("*.json"))
+            accion_omitida = json.loads(
+                primer_outbox.read_text(encoding="utf-8")
+            )["acciones"][0]
+            shutil.copy2(FIXTURES / "codex-session.jsonl", nueva)
+            os.utime(nueva, None)
+
+            reintento = job_memoria.correr({}, "token")
+            final = job_memoria.correr({}, "token")
+
+        acciones_por_evento = [evento["acciones"] for evento in eventos]
+        self.assertEqual(reintento["procesadas"], 1)
+        self.assertEqual(reintento["archivadas"], 1)
+        self.assertEqual(reintento["omitidas"], 0)
+        self.assertEqual(reintento["errores"], 0)
+        self.assertEqual(final["procesadas"], 0)
+        self.assertEqual(len(eventos), 2)
+        self.assertEqual(len({evento["evento_id"] for evento in eventos}), 2)
+        self.assertTrue(accion_omitida.startswith("error:"))
+        self.assertEqual(
+            sum(accion_omitida in acciones for acciones in acciones_por_evento), 1
+        )
+        self.assertTrue(acciones_por_evento[0].isdisjoint(acciones_por_evento[1]))
+        acciones_totales = set().union(*acciones_por_evento)
+        self.assertEqual(len(acciones_totales), 2)
+        self.assertEqual(
+            sum(accion.startswith("respaldo:") for accion in acciones_totales), 1
+        )
+
     def test_error_de_lectura_no_impide_archivar_otra_fuente(self):
         sana = self._copiar_fixture("codex-session.jsonl")
         ilegible = self.sesiones / "ilegible.jsonl"

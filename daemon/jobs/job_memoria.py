@@ -168,12 +168,14 @@ def _correr_bloqueado(cfg: dict[str, str], token: str) -> dict[str, object]:
                     "error": descripcion,
                 }
                 cursor_cambio = True
-                resultado["procesadas"] += 1
-                resultado["omitidas"] += 1
-                resultado["errores"] += 1
-                errores_evento.add(
+                error_evento = (
                     f"{clave_fuente}\0{firma['mtime_ns']}\0{firma['size']}\0{descripcion}"
                 )
+                if f"error:{error_evento}" not in acciones_outbox:
+                    resultado["procesadas"] += 1
+                    resultado["omitidas"] += 1
+                    resultado["errores"] += 1
+                    errores_evento.add(error_evento)
                 continue
 
             sesion = mensajes[0]
