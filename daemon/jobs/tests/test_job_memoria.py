@@ -13,6 +13,7 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import job_memoria
+import jobslib
 
 
 FIXTURES = Path(__file__).resolve().parents[2] / "memoria" / "tests" / "fixtures"
@@ -36,9 +37,7 @@ class JobMemoriaTests(unittest.TestCase):
             patch.object(
                 job_memoria,
                 "registrar_evento",
-                side_effect=lambda cfg, token, tipo, titulo, contenido: self.eventos.append(
-                    {"tipo": tipo, "titulo": titulo, "contenido": contenido}
-                ),
+                side_effect=self._registrar_evento,
             ),
         )
         for parche in self.patches:
@@ -156,6 +155,45 @@ class JobMemoriaTests(unittest.TestCase):
         self.assertEqual(len(self.eventos), 2)
         self.assertEqual(self.eventos[-1]["contenido"]["nivel"], "warning")
 
+    def test_post_exitoso_y_marca_local_fallida_reusa_el_mismo_evento(self):
+        codex = self._copiar_fixture("codex-session.jsonl", antiguedad_segundos=901)
+        filas: dict[str, dict[str, object]] = {}
+        posts: list[str] = []
+
+        def rest_falso(cfg, token, path, data=None, method="GET"):
+            if method == "GET":
+                evento_id = path.split("id=eq.", 1)[1].split("&", 1)[0]
+                return [{"id": evento_id}] if evento_id in filas else []
+            evento_id = data.get("id") or f"auto-{len(posts)}"
+            filas[evento_id] = data
+            posts.append(evento_id)
+            return [data]
+
+        with (
+            patch.object(job_memoria, "descubrir_sesiones", return_value=[codex]),
+            patch.object(job_memoria, "registrar_evento", jobslib.registrar_evento),
+            patch.object(jobslib, "rest", side_effect=rest_falso),
+        ):
+            with patch.object(
+                job_memoria,
+                "_marcar_advertencias_emitidas",
+                side_effect=OSError("falló la marca local"),
+            ):
+                with self.assertRaises(OSError):
+                    job_memoria.correr({}, "token")
+            reintento = job_memoria.correr({}, "token")
+            final = job_memoria.correr({}, "token")
+
+        pendiente = next(
+            (self.vault / "Sistema" / "Memoria" / "pendientes-escritura").glob("*.json")
+        )
+        detalle = json.loads(pendiente.read_text(encoding="utf-8"))["detalle"]
+        self.assertEqual(reintento["sin_cierre"], 1)
+        self.assertEqual(final["procesadas"], 0)
+        self.assertEqual(len(filas), 1)
+        self.assertEqual(len(posts), 1)
+        self.assertTrue(detalle["advertencia_emitida"])
+
     def test_sesion_sin_cierre_modificada_no_duplica_el_pendiente(self):
         codex = self._copiar_fixture("codex-session.jsonl", antiguedad_segundos=901)
 
@@ -253,6 +291,18 @@ class JobMemoriaTests(unittest.TestCase):
         ahora = time.time()
         os.utime(destino, (ahora - antiguedad_segundos, ahora - antiguedad_segundos))
         return destino
+
+    def _registrar_evento(
+        self, cfg, token, tipo, titulo, contenido, evento_id=None
+    ) -> None:
+        self.eventos.append(
+            {
+                "tipo": tipo,
+                "titulo": titulo,
+                "contenido": contenido,
+                "evento_id": evento_id,
+            }
+        )
 
 
 if __name__ == "__main__":

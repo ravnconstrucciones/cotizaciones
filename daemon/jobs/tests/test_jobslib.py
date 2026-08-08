@@ -2,6 +2,7 @@ import json
 import sys
 import tempfile
 import unittest
+import urllib.error
 from datetime import datetime
 from pathlib import Path
 
@@ -160,6 +161,100 @@ class TestEventoPayload(unittest.TestCase):
         p = jobslib.evento_payload("job_inbox", "x" * 300, {}, estado="archivado")
         self.assertEqual(p["estado"], "archivado")
         self.assertEqual(len(p["titulo"]), 200)
+
+    def test_registrar_evento_con_identidad_no_reinserta_si_ya_existe(self):
+        evento_id = "11111111-1111-5111-8111-111111111111"
+        filas = {}
+        llamadas = []
+
+        def rest_falso(cfg, token, path, data=None, method="GET"):
+            llamadas.append((path, method))
+            if method == "GET":
+                return [{"id": evento_id}] if filas else []
+            filas[data["id"]] = data
+            return [data]
+
+        original = jobslib.rest
+        self.addCleanup(setattr, jobslib, "rest", original)
+        jobslib.rest = rest_falso
+
+        jobslib.registrar_evento(
+            {},
+            "token",
+            "job_memoria",
+            "Advertencia",
+            {"sin_cierre": 1},
+            evento_id=evento_id,
+        )
+        jobslib.registrar_evento(
+            {},
+            "token",
+            "job_memoria",
+            "Advertencia",
+            {"sin_cierre": 1},
+            evento_id=evento_id,
+        )
+
+        self.assertEqual(len(filas), 1)
+        self.assertEqual(
+            llamadas,
+            [
+                (f"eventos?id=eq.{evento_id}&select=id&limit=1", "GET"),
+                ("eventos", "POST"),
+                (f"eventos?id=eq.{evento_id}&select=id&limit=1", "GET"),
+            ],
+        )
+
+    def test_conflicto_409_del_mismo_evento_es_exito_idempotente(self):
+        evento_id = "22222222-2222-5222-8222-222222222222"
+        consultas = 0
+
+        def rest_falso(cfg, token, path, data=None, method="GET"):
+            nonlocal consultas
+            if method == "GET":
+                consultas += 1
+                return [] if consultas == 1 else [{"id": evento_id}]
+            raise urllib.error.HTTPError("https://x/eventos", 409, "conflict", {}, None)
+
+        original = jobslib.rest
+        self.addCleanup(setattr, jobslib, "rest", original)
+        jobslib.rest = rest_falso
+
+        resultado = jobslib.registrar_evento(
+            {},
+            "token",
+            "job_memoria",
+            "Advertencia",
+            {"sin_cierre": 1},
+            evento_id=evento_id,
+        )
+
+        self.assertEqual(resultado, {"id": evento_id})
+        self.assertEqual(consultas, 2)
+
+    def test_registrar_evento_idempotente_no_oculta_otro_error_http(self):
+        evento_id = "33333333-3333-5333-8333-333333333333"
+
+        def rest_falso(cfg, token, path, data=None, method="GET"):
+            if method == "GET":
+                return []
+            raise urllib.error.HTTPError("https://x/eventos", 500, "server", {}, None)
+
+        original = jobslib.rest
+        self.addCleanup(setattr, jobslib, "rest", original)
+        jobslib.rest = rest_falso
+
+        with self.assertRaises(urllib.error.HTTPError) as error:
+            jobslib.registrar_evento(
+                {},
+                "token",
+                "job_memoria",
+                "Advertencia",
+                {"sin_cierre": 1},
+                evento_id=evento_id,
+            )
+
+        self.assertEqual(error.exception.code, 500)
 
 
 class TestRest401(unittest.TestCase):

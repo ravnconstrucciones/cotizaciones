@@ -17,6 +17,7 @@ import sys
 import tempfile
 import time
 from typing import Any
+from uuid import NAMESPACE_URL, uuid5
 
 
 RAIZ_REPO = Path(__file__).resolve().parents[2]
@@ -53,6 +54,7 @@ def correr(cfg: dict[str, str], token: str) -> dict[str, object]:
     }
     cursor_cambio = False
     pendientes_advertencia: set[Path] = set()
+    respaldos_evento: set[str] = set()
 
     for fuente in fuentes:
         stat = fuente.stat()
@@ -71,6 +73,9 @@ def correr(cfg: dict[str, str], token: str) -> dict[str, object]:
             firmas_actuales[clave_fuente] = firma
             cursor_cambio = True
             hubo_accion = True
+            respaldos_evento.add(
+                f"{clave_fuente}\0{firma['mtime_ns']}\0{firma['size']}"
+            )
 
         if _esta_inactiva(stat.st_mtime_ns) and (sesion.host, sesion.thread_id) not in cierres:
             pendiente, requiere_advertencia = _marcar_cierre_faltante(
@@ -99,6 +104,7 @@ def correr(cfg: dict[str, str], token: str) -> dict[str, object]:
         "job_memoria",
         titulo,
         {**resultado, "nivel": nivel},
+        evento_id=_identidad_evento(pendientes_advertencia, respaldos_evento),
     )
     _marcar_advertencias_emitidas(almacen, pendientes_advertencia)
 
@@ -251,6 +257,18 @@ def _marcar_advertencias_emitidas(
         verificado = json.loads(_verificar_archivo(pendiente))
         if not verificado.get("detalle", {}).get("advertencia_emitida"):
             raise OSError(f"No se pudo confirmar la advertencia: {pendiente}")
+
+
+def _identidad_evento(pendientes: set[Path], respaldos: set[str]) -> str:
+    """Identidad estable para reintentar el POST después de una falla local."""
+    if pendientes:
+        partes = [f"pendiente:{path.resolve()}" for path in pendientes]
+    else:
+        partes = [f"respaldo:{firma}" for firma in respaldos]
+    if not partes:
+        raise ValueError("No hay acciones para identificar el evento de memoria.")
+    nombre = "ravn:job_memoria\n" + "\n".join(sorted(partes))
+    return str(uuid5(NAMESPACE_URL, nombre))
 
 
 def _buscar_pendiente(vault: Path, detalle: dict[str, object]) -> Path | None:

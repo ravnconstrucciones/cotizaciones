@@ -7,6 +7,7 @@ Parte 2 (red/procesos, Tarea 2): Supabase REST, git del vault, Claude Code headl
 import json
 from datetime import date, datetime, timedelta
 from pathlib import Path
+from uuid import UUID
 
 # ---------- parsing de .env ----------
 
@@ -288,9 +289,31 @@ def rest(cfg, token, path, data=None, method="GET"):
         raise
 
 
-def registrar_evento(cfg, token, tipo, titulo, contenido, estado="procesado"):
-    """Inserta una fila en `eventos` (origen='daemon'). Cada corrida de job pasa por acá."""
-    rest(cfg, token, "eventos", data=evento_payload(tipo, titulo, contenido, estado), method="POST")
+def registrar_evento(
+    cfg, token, tipo, titulo, contenido, estado="procesado", evento_id=None
+):
+    """Inserta un evento; con identidad estable, un reintento no lo duplica."""
+    payload = evento_payload(tipo, titulo, contenido, estado)
+    if evento_id is None:
+        return rest(cfg, token, "eventos", data=payload, method="POST")
+
+    evento_id = str(UUID(str(evento_id)))
+    payload["id"] = evento_id
+    filtro = f"eventos?id=eq.{evento_id}&select=id&limit=1"
+
+    existente = rest(cfg, token, filtro)
+    if existente:
+        return existente[0]
+
+    try:
+        return rest(cfg, token, "eventos", data=payload, method="POST")
+    except urllib.error.HTTPError as error:
+        if error.code != 409:
+            raise
+        existente = rest(cfg, token, filtro)
+        if existente:
+            return existente[0]
+        raise
 
 
 # ---------- snapshot del estado real del negocio (fuente de verdad para el cerebro) ----------
