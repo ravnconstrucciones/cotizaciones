@@ -11,14 +11,22 @@ from typing import Any
 HOSTS = {"codex", "claude"}
 ESTADOS = {"completo", "parcial", "bloqueado"}
 SENSIBILIDADES = {"normal", "restringida"}
+_SENSITIVE_KEY = (
+    r"(?:[A-Za-z][A-Za-z0-9_-]*?(?:API[_-]?KEY|TOKEN|SECRET(?:[_-]?KEY)?|"
+    r"PASSWORD|PASSWD|PRIVATE[_-]?KEY|ACCESS[_-]?KEY|CLIENT[_-]?SECRET(?:[_-]?KEY)?)|"
+    r"API[_-]?KEY|TOKEN|SECRET(?:[_-]?KEY)?|PASSWORD|PASSWD|PRIVATE[_-]?KEY|"
+    r"ACCESS[_-]?KEY|CLIENT[_-]?SECRET(?:[_-]?KEY)?|DATABASE_(?:URL|URI)|REDIS_URL|"
+    r"CONNECTION_STRING|ENCRYPTION_KEY|SIGNING_KEY)"
+)
 SECRET_PATTERNS = (
     r"(?i)(SUPABASE_SERVICE_ROLE_KEY\s*=\s*)[^\s]+",
     r"(?i)(ANTHROPIC_API_KEY\s*=\s*)[^\s]+",
     r"(?i)(OPENAI_API_KEY\s*=\s*)[^\s]+",
     r"(?i)(Authorization:\s*Bearer\s+)\S+",
     r"(?im)(^\s*(?:Set-)?Cookie\s*:\s*)[^\r\n]+",
-    r"(?i)([\"'](?:[A-Za-z][A-Za-z0-9_-]*?(?:API[_-]?KEY|TOKEN|SECRET(?:[_-]?KEY)?|PASSWORD|PASSWD|PRIVATE[_-]?KEY|ACCESS[_-]?KEY|CLIENT[_-]?SECRET(?:[_-]?KEY)?)|API[_-]?KEY|TOKEN|SECRET(?:[_-]?KEY)?|PASSWORD|PASSWD|PRIVATE[_-]?KEY|ACCESS[_-]?KEY|CLIENT[_-]?SECRET(?:[_-]?KEY)?|DATABASE_(?:URL|URI)|REDIS_URL|CONNECTION_STRING|ENCRYPTION_KEY|SIGNING_KEY)[\"']\s*:\s*[\"'])[^\"'\r\n]*([\"'])",
-    r"(?i)(\b(?:[A-Za-z][A-Za-z0-9_-]*?(?:API[_-]?KEY|TOKEN|SECRET(?:[_-]?KEY)?|PASSWORD|PASSWD|PRIVATE[_-]?KEY|ACCESS[_-]?KEY|CLIENT[_-]?SECRET(?:[_-]?KEY)?)|API[_-]?KEY|TOKEN|SECRET(?:[_-]?KEY)?|PASSWORD|PASSWD|PRIVATE[_-]?KEY|ACCESS[_-]?KEY|CLIENT[_-]?SECRET(?:[_-]?KEY)?|DATABASE_(?:URL|URI)|REDIS_URL|CONNECTION_STRING|ENCRYPTION_KEY|SIGNING_KEY)\s*[:=]\s*)(?:\"[^\"\r\n]*\"|'[^'\r\n]*'|[^\s\r\n]+)",
+    rf"(?i)((?:[\"']{_SENSITIVE_KEY}[\"']\s*:\s*)([\"']))(?:\\.|(?!\2)[^\r\n])*\2",
+    rf"(?i)((?:\b{_SENSITIVE_KEY}\s*:\s*)([\"']))(?:\\.|(?!\2)[^\r\n])*\2",
+    rf"(?i)(\b{_SENSITIVE_KEY}\s*[:=]\s*)(?![\"']\[REDACTADO\][\"'])(?:\"(?:\\.|[^\"\\\r\n])*\"|'(?:\\.|[^'\\\r\n])*'|[^\s\r\n]+)",
     r"(?im)(^\s*(?:Authorization|Proxy-Authorization)\s*:\s*)(?!\s*Bearer\s+\[REDACTADO\])[^\r\n]+",
 )
 
@@ -107,7 +115,7 @@ def redactar_secretos(texto: str) -> str:
 
 
 def _reemplazar_secreto(coincidencia: re.Match[str]) -> str:
-    if coincidencia.lastindex == 2:
+    if coincidencia.re.groups >= 2 and coincidencia.group(2) is not None:
         return f"{coincidencia.group(1)}[REDACTADO]{coincidencia.group(2)}"
     return f"{coincidencia.group(1)}[REDACTADO]"
 

@@ -106,6 +106,22 @@ class ModeloCanonicoTests(unittest.TestCase):
             '{"OPENAI_API_KEY":"[REDACTADO]","obra":"Glorietas","precio":100}',
         )
 
+    def test_redacta_valor_json_quoted_con_comillas_escapadas_completo(self):
+        texto = r'{"OPENAI_API_KEY":"se\"creto","obra":"Glorietas"}'
+
+        self.assertEqual(
+            redactar_secretos(texto),
+            '{"OPENAI_API_KEY":"[REDACTADO]","obra":"Glorietas"}',
+        )
+
+    def test_redacta_valor_yaml_quoted_con_comillas_escapadas_completo(self):
+        texto = 'OPENAI_API_KEY: "se\\"creto"\nobra: Glorietas'
+
+        self.assertEqual(
+            redactar_secretos(texto),
+            'OPENAI_API_KEY: "[REDACTADO]"\nobra: Glorietas',
+        )
+
     def test_redacta_familias_sensibles_en_yaml_y_conserva_texto_ordinario(self):
         texto = (
             "AWS_SECRET_ACCESS_KEY: aws-secret+/==\n"
