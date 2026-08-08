@@ -13,7 +13,7 @@ from unittest.mock import patch
 
 from daemon.memoria import cli
 from daemon.memoria.cerrar import FalloPersistencia
-from daemon.memoria.sincronizacion_git import ResultadoGit
+from daemon.memoria.sincronizacion_git import FalloSincronizacion, ResultadoGit
 
 
 CIERRE_DICT = {
@@ -191,6 +191,26 @@ class CerrarCliTests(unittest.TestCase):
         self.assertFalse(evidencia["sincronizado"])
         self.assertEqual(evidencia["paso"], "push")
         self.assertNotIn("error", evidencia)
+
+    def test_guard_git_temprano_informa_preflight_sin_fingir_persistencia(self):
+        with (
+            patch(
+                "daemon.memoria.cli.cerrar",
+                side_effect=FalloSincronizacion(
+                    "preflight", {"motivo": "obsidian_git_automatico"}
+                ),
+            ),
+            patch("sys.stdin", io.StringIO(json.dumps(CIERRE_DICT))),
+            patch("sys.stderr", new_callable=io.StringIO) as stderr,
+        ):
+            codigo = cli.main(["cerrar", "--vault", str(self.vault)])
+
+        evidencia = json.loads(stderr.getvalue())
+        self.assertEqual(codigo, 4)
+        self.assertEqual(evidencia["paso"], "preflight")
+        self.assertEqual(evidencia["detalle"]["motivo"], "obsidian_git_automatico")
+        self.assertFalse(evidencia["persistido_local"])
+        self.assertFalse(evidencia["sincronizado"])
 
     def test_fallo_del_marker_graphify_conserva_cierre_e_indice_y_sale_parcial(self):
         with (

@@ -181,16 +181,26 @@ class RecuperarTests(unittest.TestCase):
         self.assertLessEqual(paquete.tokens_estimados, 560)
 
     def test_entidad_tipificada_no_coincide_con_otro_tipo_homonimo(self) -> None:
-        cierre = _cierre(cierre_id="cliente-garage", tema="Garage", entidades=[])
+        for numero in range(40):
+            cierre = _cierre(
+                cierre_id=f"cliente-garage-{numero}", tema="Garage", entidades=[]
+            )
+            self.almacen.guardar_cierre(
+                replace(
+                    cierre,
+                    fecha_cierre="2026-08-08T12:00:00-03:00",
+                    entidades={
+                        "obras": [],
+                        "clientes": ["Garage"],
+                        "cotizaciones": [],
+                        "documentos": [],
+                    },
+                )
+            )
         self.almacen.guardar_cierre(
             replace(
-                cierre,
-                entidades={
-                    "obras": [],
-                    "clientes": ["Garage"],
-                    "cotizaciones": [],
-                    "documentos": [],
-                },
+                _cierre(cierre_id="obra-garage", tema="Garage", entidades=["Garage"]),
+                fecha_cierre="2026-08-08T10:00:00-03:00",
             )
         )
 
@@ -203,7 +213,8 @@ class RecuperarTests(unittest.TestCase):
             self.vault,
         )
 
-        self.assertEqual(paquete.notas, [])
+        self.assertEqual(len(paquete.notas), 1)
+        self.assertEqual(paquete.notas[0].entidades["obras"], ["Garage"])
 
     def test_recuperacion_no_reexpone_secretos_de_un_cierre_manual(self) -> None:
         ruta = self.almacen.guardar_cierre(

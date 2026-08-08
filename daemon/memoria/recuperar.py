@@ -126,7 +126,8 @@ def recuperar(
     app = _resolver_app(resolver_app, tipadas)
     rutas_indice, indice_estado = _rutas_candidatas_indice(
         vault,
-        entidades_consulta | vecinos,
+        entidades_por_tipo,
+        vecinos,
         tokens_consulta,
         max_candidatas=min(32, consulta.max_notas * 4),
     )
@@ -204,7 +205,8 @@ def recuperar(
 
 def _rutas_candidatas_indice(
     vault: Path,
-    entidades: set[str],
+    entidades: dict[str, set[str]],
+    vecinos: set[str],
     tokens_consulta: set[str],
     *,
     max_candidatas: int,
@@ -221,11 +223,11 @@ def _rutas_candidatas_indice(
         return [], "corrupto"
 
     rutas: dict[str, tuple[int, str]] = {}
+    hay_entidades = any(entidades.values())
     for clave, valores in entradas.items():
         if not isinstance(clave, str) or not isinstance(valores, list):
             return [], "corrupto"
         clave_normalizada = _normalizar(clave)
-        exacta = clave_normalizada in entidades
         tokens_clave = _tokens(clave).intersection(tokens_consulta)
         for entrada in valores:
             if not isinstance(entrada, dict) or not isinstance(entrada.get("ruta"), str):
@@ -233,10 +235,17 @@ def _rutas_candidatas_indice(
             tema = entrada.get("tema")
             if tema is not None and not isinstance(tema, str):
                 return [], "corrupto"
+            origen = entrada.get("origen")
+            if origen is not None and not isinstance(origen, str):
+                return [], "corrupto"
+            exacta = origen in TIPOS_ENTIDAD and clave_normalizada in entidades[origen]
+            vecina = clave_normalizada in vecinos
             tokens_tema = _tokens(tema or "").intersection(tokens_consulta)
-            if not exacta and not tokens_clave and not tokens_tema:
+            if hay_entidades and not exacta and not vecina:
                 continue
-            puntaje = 3 if exacta else (2 if tokens_clave else 1)
+            if not hay_entidades and not tokens_clave and not tokens_tema:
+                continue
+            puntaje = 4 if exacta else (3 if vecina else (2 if tokens_clave else 1))
             fecha = entrada.get("updated_at", "")
             if not isinstance(fecha, str):
                 return [], "corrupto"

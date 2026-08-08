@@ -84,7 +84,12 @@ def _comando_cerrar(args: argparse.Namespace) -> int:
         _imprimir_error(CODIGO_PERSISTENCIA, str(error))
         return CODIGO_PERSISTENCIA
     except FalloSincronizacion as error:
-        _imprimir_error(CODIGO_SINCRONIZACION, error.paso)
+        _imprimir_error(
+            CODIGO_SINCRONIZACION,
+            error.paso,
+            paso=error.paso,
+            detalle=error.detalle,
+        )
         return CODIGO_SINCRONIZACION
 
     print(json.dumps(evidencia, ensure_ascii=False))
@@ -172,7 +177,13 @@ def _comando_no_disponible(comando: str) -> int:
     return CODIGO_VALIDACION
 
 
-def _imprimir_error(codigo: int, error: str) -> None:
+def _imprimir_error(
+    codigo: int,
+    error: str,
+    *,
+    paso: str | None = None,
+    detalle: dict[str, object] | None = None,
+) -> None:
     print(
         json.dumps(
             {
@@ -182,7 +193,10 @@ def _imprimir_error(codigo: int, error: str) -> None:
                 "persistido_local": False,
                 "indexado": False,
                 "sincronizado": False,
-                "paso": "validacion" if codigo == CODIGO_VALIDACION else "persistencia",
+                "paso": paso or (
+                    "validacion" if codigo == CODIGO_VALIDACION else "persistencia"
+                ),
+                "detalle": detalle,
                 "pendiente": "",
             },
             ensure_ascii=False,

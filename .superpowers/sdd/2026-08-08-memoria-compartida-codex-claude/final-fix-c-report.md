@@ -100,7 +100,7 @@ La revisión final agregó pruebas rojas específicas y cerró estos huecos:
 
 Evidencia GREEN de esta ronda:
 
-- `python3 -m unittest discover -s daemon/memoria/tests -v`: 150 OK.
+- `python3 -m unittest discover -s daemon/memoria/tests -v`: 151 OK.
 - Python 3.13 `-m unittest discover -s daemon/jobs/tests -v`: 163 OK.
 - `npm test`: 57 archivos, 527 tests OK.
 - `npm run build`: exit 0.
@@ -113,3 +113,6 @@ checkout principal, push, deploy ni instalación. `output/` quedó intacto.
 La revisión especializada posterior detectó y se corrigieron antes del cierre:
 el guard faltante en la CLI, la tupla/contador de `job_top30`, la mezcla de
 tipos homónimos en recuperación y el orden antiguo→nuevo previo al cap de 32.
+La segunda pasada reforzó además el pre-cap con `origen` tipado y dejó una
+salida CLI honesta (`paso=preflight`, motivo y `persistido_local=false`) cuando
+el guard frena antes de escribir.
