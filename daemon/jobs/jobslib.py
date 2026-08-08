@@ -7,7 +7,7 @@ Parte 2 (red/procesos, Tarea 2): Supabase REST, git del vault, Claude Code headl
 import json
 from datetime import date, datetime, timedelta
 from pathlib import Path
-from uuid import UUID
+from uuid import UUID, uuid4
 
 # ---------- parsing de .env ----------
 
@@ -129,7 +129,7 @@ import urllib.request
 
 import certifi
 
-from daemon.memoria.sincronizacion_git import SincronizadorGitVault
+from daemon.memoria.sincronizacion_git import FalloSincronizacion, SincronizadorGitVault
 
 DIR_JOBS = Path.home() / ".ravn-jobs"
 STATE = DIR_JOBS / "state.json"
@@ -451,6 +451,48 @@ def crear_sincronizador_vault():
     )
 
 
+def validar_automatizacion_git_externa(vault):
+    """Rechaza otro escritor Git autónomo que no respeta nuestro lock.
+
+    Obsidian Git trabaja en un proceso distinto y no conoce ``vault-git.lock``.
+    Permitir sus timers mientras los jobs escriben dejaría una carrera imposible
+    de resolver sólo desde este proceso. La ausencia del plugin o su uso manual
+    no bloquean.
+    """
+    config = Path(vault) / ".obsidian/plugins/obsidian-git/data.json"
+    if not config.exists():
+        return
+    try:
+        datos = json.loads(config.read_text())
+    except (OSError, json.JSONDecodeError) as error:
+        raise RuntimeError(
+            "No se pudo verificar la automatización de Obsidian Git; "
+            "se bloquea la escritura del Vault por seguridad."
+        ) from error
+    if not isinstance(datos, dict):
+        raise RuntimeError(
+            "La configuración de Obsidian Git es inválida; "
+            "se bloquea la escritura del Vault por seguridad."
+        )
+
+    def intervalo_activo(clave):
+        try:
+            return float(datos.get(clave) or 0) > 0
+        except (TypeError, ValueError):
+            return True
+
+    automatico = bool(datos.get("autoPullOnBoot")) or any(
+        intervalo_activo(clave)
+        for clave in ("autoSaveInterval", "autoPullInterval", "autoPushInterval")
+    )
+    if automatico:
+        raise RuntimeError(
+            "Obsidian Git tiene pull, commit o push automático activo y no "
+            "respeta vault-git.lock. Desactivá sus automatizaciones antes de "
+            "habilitar escritores del Vault."
+        )
+
+
 def pull_vault():
     """Pull serializado; nunca deja un conflicto de rebase abierto."""
     resultado = crear_sincronizador_vault().pull_solo()
@@ -459,28 +501,87 @@ def pull_vault():
             f"pull del vault falló en {resultado.paso}: {resultado.detalle or {}}"
         )
 
-def push_vault(mensaje):
-    """add -A + commit + (pull --rebase) + push del vault vía el git externo.
-    El vault tiene DOS escritores: el bot (por la API de GitHub, desde Railway) y
-    este daemon (por git, desde la Mac). Por eso SIEMPRE traemos el remoto antes de
-    pushear — si no, el push rebota con 'fetch first' cuando el bot escribió algo."""
-    with crear_sincronizador_vault().bloqueo():
-        # Compatibilidad legacy: estos jobs producen conjuntos amplios de notas.
-        # Los cierres nuevos usan allowlist estricta en SincronizadorGitVault.
-        subprocess.run(GIT_VAULT + ["add", "-A"], check=True, capture_output=True, text=True)
-        diff = subprocess.run(GIT_VAULT + ["diff", "--cached", "--quiet"])
-        if diff.returncode != 0:
-            subprocess.run(GIT_VAULT + ["commit", "-m", mensaje], check=True, capture_output=True, text=True)
-        r = None
-        for _ in (1, 2):
-            pr = subprocess.run(GIT_VAULT + ["pull", "--rebase", "origin", "main"], capture_output=True, text=True)
-            if pr.returncode != 0:
-                # rebase con conflicto → abortar para no dejar el repo trabado
-                subprocess.run(GIT_VAULT + ["rebase", "--abort"], capture_output=True, text=True)
-            r = subprocess.run(GIT_VAULT + ["push", "origin", "main"], capture_output=True, text=True)
-            if r.returncode == 0:
-                return
-    raise RuntimeError(f"push del vault falló: {r.stderr[:300] if r else 'sin push'}")
+def transaccion_vault(
+    persistir,
+    *,
+    rutas=None,
+    mensaje,
+    exigir_limpio=False,
+    validar_rutas=None,
+):
+    """Ejecuta escritura y Git bajo un lock, con ownership explícito por rutas."""
+    validar_automatizacion_git_externa(Path(VAULT))
+    sincronizador = crear_sincronizador_vault()
+
+    def persistir_controlado():
+        if exigir_limpio:
+            existentes = sincronizador.rutas_modificadas(incluir_no_trackeadas=True)
+            if existentes:
+                raise RuntimeError(
+                    "el Vault debe estar limpio antes de una escritura dinámica: "
+                    + ", ".join(existentes[:10])
+                )
+        return persistir()
+
+    def rutas_controladas(resultado):
+        candidatas = (
+            list(rutas(resultado))
+            if rutas is not None
+            else [
+                Path(VAULT) / ruta
+                for ruta in sincronizador.rutas_modificadas(
+                    incluir_no_trackeadas=True
+                )
+            ]
+        )
+        if validar_rutas is not None:
+            try:
+                validar_rutas(candidatas)
+            except ValueError as error:
+                raise FalloSincronizacion(
+                    "stage", {"motivo": "rutas_del_job_no_permitidas"}
+                ) from error
+        return candidatas
+
+    resultado, estado_git = sincronizador.transaccion(
+        persistir_controlado,
+        rutas=rutas_controladas,
+        mensaje=mensaje,
+        registrar_pendiente=_registrar_pendiente_vault,
+    )
+    if not estado_git.sincronizado:
+        raise RuntimeError(
+            f"sincronización del Vault pendiente en {estado_git.paso}: "
+            f"{estado_git.detalle or {}}"
+        )
+    return resultado
+
+
+def _registrar_pendiente_vault(operacion, detalle):
+    directorio = DIR_JOBS / "pendientes-vault"
+    directorio.mkdir(parents=True, exist_ok=True)
+    destino = directorio / f"{uuid4()}.json"
+    destino.write_text(
+        json.dumps(
+            {"operacion": operacion, "detalle": detalle},
+            ensure_ascii=False,
+            indent=2,
+        )
+        + "\n"
+    )
+    destino.chmod(0o600)
+    return destino
+
+
+def push_vault(mensaje, rutas=None):
+    """Compatibilidad explícita: sin allowlist se rechaza; nunca usa add -A."""
+    if not rutas:
+        raise ValueError("push_vault requiere rutas explícitas; use transaccion_vault.")
+    return transaccion_vault(
+        lambda: None,
+        rutas=lambda _resultado: rutas,
+        mensaje=mensaje,
+    )
 
 # ---------- Claude Code headless (mismo patrón que daemon.py) ----------
 

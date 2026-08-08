@@ -18,7 +18,7 @@ from datetime import date
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from jobslib import VAULT, correr_claude, log, push_vault, registrar_evento, rest, snapshot_negocio
+from jobslib import VAULT, correr_claude, log, registrar_evento, rest, snapshot_negocio, transaccion_vault
 
 ADN = Path.home() / "Documents" / "organismo" / "adn.json"
 FODA = Path(VAULT) / "Ravn" / "FODA-vivo.md"
@@ -61,16 +61,26 @@ def correr(cfg, token):
     fecha = date.today().isoformat()
     snapshot = snapshot_negocio(cfg, token)
 
-    antes = FODA.stat().st_mtime if FODA.exists() else 0
-    resumen = (correr_claude(armar_prompt(fecha, snapshot), timeout=TIMEOUT, modelo="opus") or "").strip()
-    if not FODA.exists() or FODA.stat().st_mtime <= antes:
-        raise RuntimeError(f"no se escribió {FODA} — resumen de claude: {resumen[:300]}")
+    def persistir():
+        antes = FODA.stat().st_mtime_ns if FODA.exists() else 0
+        resumen_local = (
+            correr_claude(
+                armar_prompt(fecha, snapshot), timeout=TIMEOUT, modelo="opus"
+            )
+            or ""
+        ).strip()
+        cambio = FODA.exists() and FODA.stat().st_mtime_ns > antes
+        if not cambio:
+            raise RuntimeError(
+                f"no se escribió {FODA} — resumen de claude: {resumen_local[:300]}"
+            )
+        return resumen_local
 
-    try:
-        push_vault("cerebro: FODA vivo semanal (job_foda)")
-    except Exception as e:
-        log(f"job_foda: push del vault falló (no fatal): {e}")
-
+    resumen = transaccion_vault(
+        persistir,
+        rutas=lambda _resultado: [FODA],
+        mensaje="cerebro: FODA vivo semanal (job_foda)",
+    )
     # el resumen es la pregunta del domingo (si el día ya tiene una, no se pisa)
     sembrada = False
     if resumen:

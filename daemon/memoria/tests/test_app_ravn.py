@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import unittest
+from urllib.parse import parse_qs, urlsplit
 
 from daemon.memoria.app_ravn import BackendSupabaseJobs, ResolverAppRavn
 
@@ -152,6 +153,17 @@ class ResolverAppRavnTests(unittest.TestCase):
         self.assertEqual(resultado.estado, "no_disponible")
         self.assertEqual(resultado.referencias, [])
 
+    def test_cfg_o_auth_incompletos_devuelven_no_disponible_sin_propagar_keyerror(self) -> None:
+        try:
+            resultado = ResolverAppRavn(
+                BackendFalso(error=KeyError("BOT_EMAIL"))
+            ).resolver({"cotizaciones": ["Garage"]})
+        except KeyError as error:
+            self.fail(f"el KeyError de configuración se propagó: {error}")
+
+        self.assertEqual(resultado.estado, "no_disponible")
+        self.assertEqual(resultado.referencias, [])
+
     def test_input_hostil_no_controla_tabla_ni_campos(self) -> None:
         backend = BackendFalso({"cotizaciones": []})
         ResolverAppRavn(backend).resolver(
@@ -186,6 +198,62 @@ class ResolverAppRavnTests(unittest.TestCase):
         self.assertEqual(llamadas[0][1], "GET")
         self.assertTrue(llamadas[0][0].startswith("cotizaciones?select="))
         self.assertNotIn("service_role", llamadas[0][0])
+
+    def test_backend_pagina_hasta_encontrar_match_despues_de_las_primeras_500(self) -> None:
+        filas = [
+            {"id": f"id-{numero:04d}", "titulo": f"Cotización {numero}", "estado": "borrador"}
+            for numero in range(501)
+        ]
+        llamadas: list[str] = []
+
+        def rest_falso(_cfg, _token, path, data=None, method="GET"):
+            self.assertEqual(method, "GET")
+            self.assertIsNone(data)
+            llamadas.append(path)
+            query = parse_qs(urlsplit(path).query)
+            offset = int(query.get("offset", ["0"])[0])
+            limite = int(query.get("limit", ["500"])[0])
+            return filas[offset : offset + limite]
+
+        backend = BackendSupabaseJobs(
+            cargar_cfg=lambda: {"ok": "1"},
+            autenticar=lambda _cfg: "token",
+            rest=rest_falso,
+        )
+        resultado = ResolverAppRavn(backend).resolver(
+            {"cotizaciones": ["Cotización 500"]}
+        )
+
+        self.assertEqual(resultado.estado, "ok")
+        self.assertEqual(resultado.referencias[0].id, "id-0500")
+        self.assertGreaterEqual(len(llamadas), 3)
+        self.assertTrue(all("order=id.asc" in path for path in llamadas))
+
+    def test_backend_truncado_devuelve_no_disponible_y_no_falso_sin_match(self) -> None:
+        filas = [
+            {"id": f"id-{numero}", "titulo": f"Cotización {numero}"}
+            for numero in range(4)
+        ]
+
+        def rest_falso(_cfg, _token, path, **_kwargs):
+            query = parse_qs(urlsplit(path).query)
+            offset = int(query.get("offset", ["0"])[0])
+            limite = int(query.get("limit", ["500"])[0])
+            return filas[offset : offset + limite]
+
+        backend = BackendSupabaseJobs(
+            cargar_cfg=lambda: {"ok": "1"},
+            autenticar=lambda _cfg: "token",
+            rest=rest_falso,
+        )
+        backend._page_size = 2
+        backend._max_rows = 3
+
+        resultado = ResolverAppRavn(backend).resolver(
+            {"cotizaciones": ["No existe"]}
+        )
+
+        self.assertEqual(resultado.estado, "no_disponible")
 
 
 if __name__ == "__main__":

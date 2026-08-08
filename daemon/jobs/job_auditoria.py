@@ -19,7 +19,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from job_resumen import cargar_cfg_jobs, enviar_whatsapp
-from jobslib import correr_claude, log, push_vault, registrar_evento, snapshot_negocio
+from jobslib import correr_claude, log, registrar_evento, snapshot_negocio, transaccion_vault
 
 DIR_AUDITORIAS = Path.home() / "Obsidian" / "RAVN" / "Auditorias"
 MAX_PREV_CHARS = 12000
@@ -74,9 +74,12 @@ def correr(cfg, token):
         raise RuntimeError(f"salida de Claude sospechosa ({len(md)} chars, arranque {md[:60]!r}) — no escribo nada")
 
     destino = DIR_AUDITORIAS / f"{hoy.isoformat()}.md"
-    destino.write_text(md + "\n")
+    transaccion_vault(
+        lambda: destino.write_text(md + "\n"),
+        rutas=lambda _resultado: [destino],
+        mensaje=f"Auditoría semanal {hoy.isoformat()} (job dominical)",
+    )
     log(f"auditoria: escrita {destino.name} ({len(md)} chars)")
-    push_vault(f"Auditoría semanal {hoy.isoformat()} (job dominical)")
 
     acciones = re.findall(r"^[-*] \[ \] (.+)$", md, flags=re.M)[:3]
     lineas = "\n".join(f"{i}. {a}" for i, a in enumerate(acciones, 1)) or "(ver el archivo)"

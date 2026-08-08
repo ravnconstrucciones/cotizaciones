@@ -10,9 +10,29 @@ from datetime import date, datetime, timedelta
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from jobslib import VAULT, correr_claude, log, push_vault, registrar_evento, rest, snapshot_negocio
+from jobslib import VAULT, correr_claude, log, registrar_evento, rest, snapshot_negocio, transaccion_vault
 
 TIMEOUT = 1800  # 30 min: lee el vault entero y rutea
+_PREFIJOS_PROHIBIDOS = (
+    ".obsidian/",
+    "graphify-out/",
+    "Sistema/Memoria/",
+    "Conocimiento/Precios/",
+)
+
+
+def validar_rutas_inbox(rutas):
+    vault = Path(VAULT).resolve()
+    for ruta in rutas:
+        try:
+            relativa = Path(ruta).resolve().relative_to(vault).as_posix()
+        except ValueError as error:
+            raise ValueError("Ruta del inbox fuera del Vault.") from error
+        if (
+            Path(relativa).suffix.casefold() != ".md"
+            or relativa.startswith(_PREFIJOS_PROHIBIDOS)
+        ):
+            raise ValueError(f"Ruta no permitida para job_inbox: {relativa}")
 
 
 def detectar_patrones(filas, umbral=3):
@@ -96,15 +116,28 @@ def correr(cfg, token):
     filas = referencias_semana(cfg, token)
     patrones = detectar_patrones(filas)
     pipeline = snapshot_negocio(cfg, token)
-    resumen = correr_claude(armar_prompt(fecha, resumen_referencias(filas), patrones, pipeline), timeout=TIMEOUT)
-    # Gate tolerante: el nombre canónico es {fecha}.md (el prompt lo exige EXACTO),
-    # pero las Orientaciones históricas se llaman "AAAA-MM-DD - Título.md" y un
-    # Claude que copie esa convención NO debe quemar los 3 reintentos del día.
-    dir_orientacion = Path(VAULT) / "Orientación"
-    candidatas = sorted(dir_orientacion.glob(f"{fecha}*.md"))
-    if not candidatas:
-        raise RuntimeError(f"no se generó la Orientación de {fecha} en {dir_orientacion} — resumen de claude: {resumen[:300]}")
-    push_vault(f"daemon: inbox nocturno {fecha}")
+    def persistir():
+        resumen_local = correr_claude(
+            armar_prompt(fecha, resumen_referencias(filas), patrones, pipeline),
+            timeout=TIMEOUT,
+        )
+        # Gate tolerante: el nombre canónico es {fecha}.md (el prompt lo exige
+        # EXACTO), pero se tolera la convención histórica con título.
+        dir_orientacion = Path(VAULT) / "Orientación"
+        candidatas_locales = sorted(dir_orientacion.glob(f"{fecha}*.md"))
+        if not candidatas_locales:
+            raise RuntimeError(
+                f"no se generó la Orientación de {fecha} en {dir_orientacion} "
+                f"— resumen de claude: {resumen_local[:300]}"
+            )
+        return resumen_local, candidatas_locales
+
+    resumen, candidatas = transaccion_vault(
+        persistir,
+        mensaje=f"daemon: inbox nocturno {fecha}",
+        exigir_limpio=True,
+        validar_rutas=validar_rutas_inbox,
+    )
     registrar_evento(
         cfg, token, "job_inbox",
         f"Inbox procesado — {resumen.strip().splitlines()[-1][:150] if resumen.strip() else fecha}",

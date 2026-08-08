@@ -11,7 +11,7 @@ from datetime import date
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from jobslib import VAULT, http_json, push_vault, registrar_evento
+from jobslib import VAULT, http_json, registrar_evento, transaccion_vault
 
 URL_BLUELYTICS = "https://api.bluelytics.com.ar/v2/latest"
 URL_DOLARAPI = "https://dolarapi.com/v1/dolares"
@@ -66,10 +66,19 @@ def correr(cfg, token):
     except Exception:
         cotiz = parsear_dolarapi(http_json(URL_DOLARAPI, user_agent=UA))
     fecha = date.today().isoformat()
-    DOLAR_JSON.write_text(json.dumps({"fecha": fecha, **cotiz}, ensure_ascii=False, indent=2))
-    md = MD_PRECIOS.read_text()
-    MD_PRECIOS.write_text(insertar_bloque(md, formatear_bloque(cotiz, fecha)))
-    push_vault(f"daemon: dólar diario {fecha}")
+
+    def persistir():
+        DOLAR_JSON.write_text(
+            json.dumps({"fecha": fecha, **cotiz}, ensure_ascii=False, indent=2)
+        )
+        md = MD_PRECIOS.read_text()
+        MD_PRECIOS.write_text(insertar_bloque(md, formatear_bloque(cotiz, fecha)))
+
+    transaccion_vault(
+        persistir,
+        rutas=lambda _resultado: [DOLAR_JSON, MD_PRECIOS],
+        mensaje=f"daemon: dólar diario {fecha}",
+    )
     registrar_evento(
         cfg, token, "job_dolar",
         f"Dólar actualizado — blue ${cotiz['blue']['venta']:,.0f} / oficial ${cotiz['oficial']['venta']:,.0f}",

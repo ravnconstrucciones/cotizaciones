@@ -24,6 +24,8 @@ class _Persistencia:
     cierre: Path
     crudo: Path | None
     indice: Path
+    graphify_marcado: bool
+    graphify_pendiente: Path | None
 
 
 def cerrar(
@@ -54,14 +56,25 @@ def cerrar(
                 resultado.cierre,
                 resultado.indice,
                 *((resultado.crudo,) if resultado.crudo is not None else ()),
+                *(
+                    (resultado.graphify_pendiente,)
+                    if resultado.graphify_pendiente is not None
+                    else ()
+                ),
             ),
             mensaje=f"memoria: cerrar {cierre.host}/{cierre.thread_id}",
             registrar_pendiente=almacen.marcar_pendiente,
         )
 
     sincronizado = resultado_git.sincronizado if resultado_git is not None else None
+    graphify_pendiente = (
+        _relativa(almacen.vault, persistencia.graphify_pendiente)
+        if persistencia.graphify_pendiente is not None
+        else ("no_registrado" if not persistencia.graphify_marcado else "")
+    )
+    completo = sincronizado is not False and persistencia.graphify_marcado
     return {
-        "ok": sincronizado is not False,
+        "ok": completo,
         "cierre": _relativa(almacen.vault, persistencia.cierre),
         "crudo": (
             _relativa(almacen.vault, persistencia.crudo)
@@ -71,8 +84,22 @@ def cerrar(
         "persistido_local": True,
         "indexado": True,
         "sincronizado": sincronizado,
-        "paso": resultado_git.paso if resultado_git is not None else "omitido_explicito",
-        "pendiente": resultado_git.pendiente if resultado_git is not None else "",
+        "graphify_marcado": persistencia.graphify_marcado,
+        "graphify_pendiente": graphify_pendiente,
+        "paso": (
+            resultado_git.paso
+            if resultado_git is not None and not resultado_git.sincronizado
+            else (
+                "graphify_marker"
+                if not persistencia.graphify_marcado
+                else (resultado_git.paso if resultado_git is not None else "omitido_explicito")
+            )
+        ),
+        "pendiente": (
+            resultado_git.pendiente
+            if resultado_git is not None and resultado_git.pendiente
+            else graphify_pendiente
+        ),
         "detalle": resultado_git.detalle if resultado_git is not None else None,
     }
 
@@ -93,14 +120,28 @@ def _persistir(
         ruta_cierre = almacen.guardar_cierre(cierre)
         _verificar_cierre(almacen.vault, ruta_cierre, cierre)
         _verificar_indice(almacen.vault, ruta_cierre, cierre)
-        marcar_cierre(almacen.vault)
     except (OSError, ValueError, json.JSONDecodeError) as error:
         raise FalloPersistencia(str(error)) from error
+
+    graphify_marcado = True
+    graphify_pendiente: Path | None = None
+    try:
+        marcar_cierre(almacen.vault)
+    except OSError:
+        graphify_marcado = False
+        try:
+            graphify_pendiente = almacen.marcar_pendiente(
+                "marcar_graphify", {"motivo": "marker_no_disponible"}
+            )
+        except OSError:
+            graphify_pendiente = None
 
     return _Persistencia(
         cierre=ruta_cierre,
         crudo=crudo,
         indice=almacen.vault / "Sistema/Memoria/indices/entidades.json",
+        graphify_marcado=graphify_marcado,
+        graphify_pendiente=graphify_pendiente,
     )
 
 

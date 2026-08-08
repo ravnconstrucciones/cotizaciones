@@ -39,6 +39,8 @@ que contiene `daemon/memoria/`.
    `~/.ravn-jobs/vault-git.lock`. Reabre el cierre y el índice antes de declarar
    persistencia; un fallo de red conserva el cierre local y registra un
    pendiente sin confundirlo con sincronización completa.
+   Un marcador Graphify que no puede publicarse es también resultado parcial:
+   el cierre y el índice conservan su evidencia, pero la CLI devuelve código 4.
 4. `ravn-memoria recuperar` consulta primero metadata operativa mínima y
    read-only de App RAVN mediante la sesión autenticada de jobs. Después abre
    sólo las rutas sembradas por `Sistema/Memoria/indices/entidades.json`, y
@@ -94,10 +96,11 @@ ravn-memoria reindexar --vault "/Users/ezeotero/Obsidian/RAVN"
 ```
 
 `cerrar` devuelve código `0` sólo cuando verificó persistencia, índice y
-sincronización Git; `2` ante validación inválida; `3` ante un fallo de
-persistencia; y `4` cuando el cierre quedó durable e indexado localmente pero
-la sincronización remota quedó pendiente. La salida JSON separa
-`persistido_local`, `indexado`, `sincronizado`, `paso` y `pendiente`. Los flags
+marcador Graphify y sincronización Git; `2` ante validación inválida; `3` ante
+un fallo de persistencia; y `4` cuando el cierre quedó durable e indexado pero
+Git o el marcador Graphify quedó pendiente. La salida JSON separa
+`persistido_local`, `indexado`, `graphify_marcado`, `sincronizado`, `paso` y
+`pendiente`. Los flags
 `--sin-app` y `--sin-sincronizacion` existen sólo para pruebas o diagnóstico
 aislado, no para el flujo normal. `estado` está reservado pero todavía no está
 implementado.
@@ -209,6 +212,14 @@ otro runner si launchd ya administra `com.ravn.jobs`.
   una línea `Conversaciones/crudo/`.
 - **Vault git:** usar el git-dir externo
   `/Users/ezeotero/.ravn-vault-git`; nunca crear `.git` dentro del Vault iCloud.
+- **Obsidian Git bloquea los jobs:** el plugin no respeta
+  `~/.ravn-jobs/vault-git.lock`. Antes de habilitar los escritores, desactivar
+  `autoSaveInterval`, `autoPullInterval`, `autoPushInterval` y
+  `autoPullOnBoot`. El runtime lo verifica antes de escribir y falla cerrado;
+  el modo Git manual puede permanecer disponible.
+- **Escritores legacy:** auditoría, cerebro/Graphify, datos, dólar, FODA,
+  inbox, SISMAT y top-30 usan `transaccion_vault`; sus escrituras, validación y
+  Git ocurren bajo el mismo lock y nunca usan `git add -A`.
 
 ## Evidencia de esta verificación
 

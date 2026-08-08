@@ -20,7 +20,7 @@ from pathlib import Path
 from urllib.parse import quote
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from jobslib import DIR_JOBS, VAULT, log, push_vault, registrar_evento, rest
+from jobslib import DIR_JOBS, VAULT, log, registrar_evento, rest, transaccion_vault
 
 MD_DATOS = Path(VAULT) / "Conocimiento" / "Datos-de-obra.md"
 CURSOR = DIR_JOBS / "datos-vault-cursor.json"
@@ -71,12 +71,24 @@ def correr(cfg, token):
     if not filas:
         return
 
-    md = MD_DATOS.read_text() if MD_DATOS.exists() else ENCABEZADO
-    nuevas = [formatear_linea(f) for f in filas if f"ref:{f['id']}" not in md]
+    def persistir():
+        md = MD_DATOS.read_text() if MD_DATOS.exists() else ENCABEZADO
+        nuevas_locales = [
+            formatear_linea(f) for f in filas if f"ref:{f['id']}" not in md
+        ]
+        if nuevas_locales:
+            MD_DATOS.parent.mkdir(parents=True, exist_ok=True)
+            MD_DATOS.write_text(
+                md.rstrip("\n") + "\n" + "\n".join(nuevas_locales) + "\n"
+            )
+        return nuevas_locales
+
+    nuevas = transaccion_vault(
+        persistir,
+        rutas=lambda _resultado: [MD_DATOS],
+        mensaje=f"datos: referencias de obra desde Archivados",
+    )
     if nuevas:
-        MD_DATOS.parent.mkdir(parents=True, exist_ok=True)
-        MD_DATOS.write_text(md.rstrip("\n") + "\n" + "\n".join(nuevas) + "\n")
-        push_vault(f"datos: +{len(nuevas)} dato(s) de obra desde Archivados")
         log(f"job datos: {len(nuevas)} dato(s) nuevos → {MD_DATOS.name}")
         registrar_evento(cfg, token, "job_datos",
                          f"{len(nuevas)} dato(s) de obra sincronizados al vault",

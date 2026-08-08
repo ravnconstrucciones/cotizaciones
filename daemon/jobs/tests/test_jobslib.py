@@ -1,3 +1,4 @@
+import ast
 import json
 import sys
 import tempfile
@@ -333,38 +334,103 @@ class TestCorrerClaudeError(unittest.TestCase):
 
 
 class TestGitVaultCompartido(unittest.TestCase):
-    def test_push_legacy_retiene_el_lock_comun_durante_todos_los_comandos(self):
+    def test_git_automatico_de_obsidian_bloquea_antes_de_escribir(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            vault = Path(tmp)
+            config = vault / ".obsidian/plugins/obsidian-git/data.json"
+            config.parent.mkdir(parents=True)
+            config.write_text(
+                json.dumps(
+                    {
+                        "autoSaveInterval": 10,
+                        "autoPullInterval": 8,
+                        "autoPullOnBoot": True,
+                    }
+                )
+            )
+
+            with self.assertRaisesRegex(RuntimeError, "Obsidian Git"):
+                jobslib.validar_automatizacion_git_externa(vault)
+
+    def test_obsidian_git_manual_no_bloquea(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            vault = Path(tmp)
+            config = vault / ".obsidian/plugins/obsidian-git/data.json"
+            config.parent.mkdir(parents=True)
+            config.write_text(
+                json.dumps(
+                    {
+                        "autoSaveInterval": 0,
+                        "autoPullInterval": 0,
+                        "autoPullOnBoot": False,
+                    }
+                )
+            )
+
+            jobslib.validar_automatizacion_git_externa(vault)
+
+    def test_transaccion_vault_delega_callback_y_allowlist_al_sincronizador(self):
         from unittest.mock import patch
+        from daemon.memoria.sincronizacion_git import ResultadoGit
 
         pasos: list[str] = []
 
         class SyncFalso:
-            @contextmanager
-            def bloqueo(self):
-                pasos.append("lock_in")
-                try:
-                    yield
-                finally:
-                    pasos.append("lock_out")
+            def transaccion(self, persistir, *, rutas, mensaje, **_kwargs):
+                pasos.append("transaccion_in")
+                resultado = persistir()
+                rutas_resultado = list(rutas(resultado))
+                pasos.append("transaccion_out")
+                self.mensaje = mensaje
+                self.rutas = rutas_resultado
+                return resultado, ResultadoGit(True, "completado")
 
-        class R:
-            returncode = 0
-            stdout = ""
-            stderr = ""
-
-        def run_falso(*_args, **_kwargs):
-            pasos.append("git")
-            return R()
+        self.assertTrue(
+            hasattr(jobslib, "transaccion_vault"),
+            "falta la API transaccional común para escritores del Vault",
+        )
+        sync = SyncFalso()
+        archivo = Path("Conocimiento/dato.md")
 
         with (
-            patch.object(jobslib, "crear_sincronizador_vault", return_value=SyncFalso()),
-            patch.object(jobslib.subprocess, "run", side_effect=run_falso),
+            patch.object(jobslib, "crear_sincronizador_vault", return_value=sync),
+            patch.object(jobslib, "validar_automatizacion_git_externa"),
         ):
-            jobslib.push_vault("test")
+            resultado = jobslib.transaccion_vault(
+                lambda: pasos.append("write") or archivo,
+                rutas=lambda valor: [valor],
+                mensaje="job controlado",
+            )
 
-        self.assertEqual(pasos[0], "lock_in")
-        self.assertEqual(pasos[-1], "lock_out")
-        self.assertGreater(pasos.count("git"), 0)
+        self.assertEqual(resultado, archivo)
+        self.assertEqual(pasos, ["transaccion_in", "write", "transaccion_out"])
+        self.assertEqual(sync.rutas, [archivo])
+        self.assertEqual(sync.mensaje, "job controlado")
+
+    def test_todos_los_escritores_reales_usan_la_api_transaccional(self):
+        escritores = (
+            "job_auditoria.py",
+            "job_cerebro.py",
+            "job_datos.py",
+            "job_dolar.py",
+            "job_foda.py",
+            "job_inbox.py",
+            "job_sismat.py",
+            "job_top30.py",
+        )
+        raiz = Path(jobslib.__file__).parent
+
+        for nombre in escritores:
+            with self.subTest(job=nombre):
+                arbol = ast.parse((raiz / nombre).read_text(encoding="utf-8"))
+                llamadas = {
+                    nodo.func.id
+                    for nodo in ast.walk(arbol)
+                    if isinstance(nodo, ast.Call) and isinstance(nodo.func, ast.Name)
+                }
+                self.assertIn("transaccion_vault", llamadas)
+                self.assertNotIn("push_vault", llamadas)
+                self.assertNotIn("pull_vault", llamadas)
 
     def test_pull_vault_delega_y_no_oculta_un_fallo(self):
         from unittest.mock import patch

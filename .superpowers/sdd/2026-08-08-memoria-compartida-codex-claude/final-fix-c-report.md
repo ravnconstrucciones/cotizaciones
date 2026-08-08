@@ -71,3 +71,41 @@ GREEN final:
 - Los repositorios Git de prueba fueron locales y temporales.
 - El resultado está validado en este worktree; no se declara integrado,
   instalado ni desplegado en producción.
+
+## Ronda correctiva posterior — base `20e016d`
+
+La revisión final agregó pruebas rojas específicas y cerró estos huecos:
+
+- Un pull inicial fallido puede persistir y commitear localmente; el segundo
+  intento sincroniza sin quedar bloqueado por cambios tracked. Un commit fallido
+  no deja stage real y también es reintentable.
+- Los conflictos informan el SHA local anterior al rebase, el SHA remoto y las
+  rutas; sólo se aborta un rebase iniciado por la invocación actual. El puntero
+  `.git` regular al git-dir externo configurado es válido.
+- Los ocho escritores reales del Vault migraron a `transaccion_vault`, con
+  validación previa al commit y allowlists propias. `job_inbox` usa ownership
+  dinámico fail-close y exige un Vault limpio; ningún escritor operativo llama
+  `push_vault`, `pull_vault` ni `git add -A`.
+- El runtime detecta Obsidian Git automático antes de escribir y falla cerrado,
+  porque ese plugin no coopera con `vault-git.lock`. No se cambió su
+  configuración viva: desactivarla es requisito explícito de activación.
+- Graphify se lee desde `graphify-out/graph.json`. Sin entidad explícita, la
+  recuperación construye como máximo 32 candidatos relevantes antes de abrir
+  cierres; con identidad explícita no rellena presupuesto con otra obra.
+- App RAVN pagina por `id.asc` hasta 5.000 filas, distingue truncamiento de
+  ausencia y convierte configuración/autenticación incompleta en
+  `no_disponible`. La entrada del usuario nunca controla tabla, campos ni URL.
+- Un fallo aislado al crear `.graphify-pendiente` conserva cierre e índice
+  verificados, registra pendiente cuando puede y devuelve código 4.
+
+Evidencia GREEN de esta ronda:
+
+- `python3 -m unittest discover -s daemon/memoria/tests -v`: 148 OK.
+- Python 3.13 `-m unittest discover -s daemon/jobs/tests -v`: 162 OK.
+- `npm test`: 57 archivos, 527 tests OK.
+- `npm run build`: exit 0.
+- `py_compile` de memoria, jobslib y los ocho escritores: OK.
+- `git diff --check`: OK.
+
+Continúan respetados los límites anteriores: sin Vault vivo, App real, red,
+checkout principal, push, deploy ni instalación. `output/` quedó intacto.

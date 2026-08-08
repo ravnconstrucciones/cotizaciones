@@ -21,9 +21,7 @@ _CIERRES = Path("Conversaciones") / "cierres"
 _INDICE = Path("Sistema") / "Memoria" / "indices" / "entidades.json"
 _TOKEN = re.compile(r"[^\W_]+", re.UNICODE)
 _GRAFOS = (
-    Path("Sistema") / "Graphify" / "grafo-app.json",
-    Path("Sistema") / "Memoria" / "grafo-app.json",
-    Path("grafo-app.json"),
+    Path("graphify-out") / "graph.json",
 )
 _RUTAS_APP = (
     "/obras/",
@@ -123,7 +121,10 @@ def recuperar(
     vecinos = _vecinos_graphify(vault, entidades_consulta)
     app = _resolver_app(resolver_app, tipadas)
     rutas_indice, indice_estado = _rutas_candidatas_indice(
-        vault, entidades_consulta | vecinos, tokens_consulta
+        vault,
+        entidades_consulta | vecinos,
+        tokens_consulta,
+        max_candidatas=min(32, consulta.max_notas * 4),
     )
 
     candidatas: list[tuple[float, NotaContexto]] = []
@@ -196,7 +197,11 @@ def recuperar(
 
 
 def _rutas_candidatas_indice(
-    vault: Path, entidades: set[str], tokens_consulta: set[str]
+    vault: Path,
+    entidades: set[str],
+    tokens_consulta: set[str],
+    *,
+    max_candidatas: int,
 ) -> tuple[list[Path], str]:
     indice_path = vault / _INDICE
     if not indice_path.is_file():
@@ -209,27 +214,39 @@ def _rutas_candidatas_indice(
     except (OSError, KeyError, TypeError, ValueError, json.JSONDecodeError):
         return [], "corrupto"
 
-    rutas: set[str] = set()
-    filtrar = bool(entidades)
+    rutas: dict[str, tuple[int, str]] = {}
     for clave, valores in entradas.items():
         if not isinstance(clave, str) or not isinstance(valores, list):
             return [], "corrupto"
         clave_normalizada = _normalizar(clave)
-        relevante = (
-            not filtrar
-            or clave_normalizada in entidades
-            or bool(_tokens(clave).intersection(tokens_consulta))
-        )
-        if not relevante:
-            continue
+        exacta = clave_normalizada in entidades
+        tokens_clave = _tokens(clave).intersection(tokens_consulta)
         for entrada in valores:
             if not isinstance(entrada, dict) or not isinstance(entrada.get("ruta"), str):
                 return [], "corrupto"
-            rutas.add(entrada["ruta"])
+            tema = entrada.get("tema")
+            if tema is not None and not isinstance(tema, str):
+                return [], "corrupto"
+            tokens_tema = _tokens(tema or "").intersection(tokens_consulta)
+            if not exacta and not tokens_clave and not tokens_tema:
+                continue
+            puntaje = 3 if exacta else (2 if tokens_clave else 1)
+            fecha = entrada.get("updated_at", "")
+            if not isinstance(fecha, str):
+                return [], "corrupto"
+            ruta = entrada["ruta"]
+            anterior = rutas.get(ruta)
+            if anterior is None or (puntaje, fecha) > anterior:
+                rutas[ruta] = (puntaje, fecha)
 
     raiz = (vault / _CIERRES).resolve()
     candidatas: list[Path] = []
-    for relativa_texto in sorted(rutas):
+    ordenadas = sorted(
+        rutas,
+        key=lambda ruta: (-rutas[ruta][0], rutas[ruta][1], ruta),
+        reverse=False,
+    )[:max_candidatas]
+    for relativa_texto in ordenadas:
         relativa = Path(relativa_texto)
         if relativa.is_absolute() or relativa.parts[:2] != _CIERRES.parts:
             continue
@@ -404,6 +421,15 @@ def _puntuar(
         tipo: {_normalizar(valor): valor for valor in valores}
         for tipo, valores in nota.entidades.items()
     }
+    entidades_nota = {
+        entidad for valores in entidades_normalizadas.values() for entidad in valores
+    }
+    if entidades_consulta and not entidades_nota.intersection(
+        entidades_consulta | vecinos
+    ):
+        # Una consulta anclada a identidad no se rellena con una nota que sólo
+        # comparte palabras del título o del cuerpo.
+        return 0.0, []
     for tipo in TIPOS_ENTIDAD:
         exactas = sorted(entidades_consulta.intersection(entidades_normalizadas[tipo]))
         for entidad in exactas:

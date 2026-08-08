@@ -192,6 +192,32 @@ class CerrarCliTests(unittest.TestCase):
         self.assertEqual(evidencia["paso"], "push")
         self.assertNotIn("error", evidencia)
 
+    def test_fallo_del_marker_graphify_conserva_cierre_e_indice_y_sale_parcial(self):
+        with (
+            patch(
+                "daemon.memoria.cerrar.marcar_cierre",
+                side_effect=OSError("marker bloqueado"),
+            ),
+            patch("sys.stdin", io.StringIO(json.dumps(CIERRE_DICT))),
+            patch("sys.stdout", new_callable=io.StringIO) as stdout,
+            patch("sys.stderr", new_callable=io.StringIO) as stderr,
+        ):
+            codigo = cli.main(
+                ["cerrar", "--vault", str(self.vault), "--sin-sincronizacion"]
+            )
+
+        evidencia = json.loads(stdout.getvalue() or stderr.getvalue())
+        self.assertEqual(codigo, 4)
+        self.assertFalse(evidencia["ok"])
+        self.assertTrue(evidencia["persistido_local"])
+        self.assertTrue(evidencia["indexado"])
+        self.assertFalse(evidencia["graphify_marcado"])
+        self.assertTrue(evidencia["graphify_pendiente"])
+        self.assertTrue((self.vault / evidencia["cierre"]).is_file())
+        self.assertTrue(
+            (self.vault / "Sistema/Memoria/indices/entidades.json").is_file()
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

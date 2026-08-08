@@ -320,7 +320,7 @@ class RecuperarTests(unittest.TestCase):
         self.almacen.guardar_cierre(
             _cierre(cierre_id="vecina", tema="Patio", entidades=["Glorietas"])
         )
-        grafo = self.vault / "Sistema/Graphify/grafo-app.json"
+        grafo = self.vault / "graphify-out/graph.json"
         grafo.parent.mkdir(parents=True)
         grafo.write_text(
             json.dumps(
@@ -336,6 +336,59 @@ class RecuperarTests(unittest.TestCase):
 
         self.assertEqual(paquete.notas[0].ruta.split("/")[0:2], ["Conversaciones", "cierres"])
         self.assertIn("vecino_obras:Glorietas", paquete.notas[0].razones)
+
+    def test_query_sin_entidad_no_abre_cierres_irrelevantes_del_indice(self) -> None:
+        for numero in range(20):
+            self.almacen.guardar_cierre(
+                _cierre(
+                    cierre_id=f"irrelevante-{numero}",
+                    tema="Tema sin coincidencia",
+                    entidades=[f"Entidad {numero}"],
+                    hechos=["Dato histórico."],
+                )
+            )
+
+        import daemon.memoria.recuperar as modulo
+
+        original = modulo._leer_cierre_validado
+        lecturas = 0
+
+        def contar(vault: Path, ruta: Path):
+            nonlocal lecturas
+            lecturas += 1
+            return original(vault, ruta)
+
+        with patch.object(modulo, "_leer_cierre_validado", side_effect=contar):
+            paquete = recuperar(ConsultaMemoria("adoquín vehicular", []), self.vault)
+
+        self.assertEqual(lecturas, 0)
+        self.assertEqual(paquete.notas, [])
+
+    def test_query_generica_limita_las_rutas_candidatas_antes_de_abrirlas(self) -> None:
+        for numero in range(40):
+            self.almacen.guardar_cierre(
+                _cierre(
+                    cierre_id=f"garage-{numero}",
+                    tema="Garage",
+                    entidades=[f"Obra {numero}"],
+                    hechos=["Garage histórico."],
+                )
+            )
+
+        import daemon.memoria.recuperar as modulo
+
+        original = modulo._leer_cierre_validado
+        lecturas = 0
+
+        def contar(vault: Path, ruta: Path):
+            nonlocal lecturas
+            lecturas += 1
+            return original(vault, ruta)
+
+        with patch.object(modulo, "_leer_cierre_validado", side_effect=contar):
+            recuperar(ConsultaMemoria("garage", []), self.vault)
+
+        self.assertLessEqual(lecturas, 32)
 
     def test_cli_recuperar_emite_json_y_reindexar_descarta_markdown_no_validado(self) -> None:
         cierre_path = self.almacen.guardar_cierre(

@@ -26,11 +26,13 @@ if str(RAIZ_REPO) not in sys.path:
     sys.path.insert(0, str(RAIZ_REPO))
 
 from daemon.memoria.graphify_batch import (
+    MARCADOR_RELATIVO,
+    SNAPSHOT_RELATIVO,
     actualizar_incremental,
     ejecutar_actualizacion,
     validar_graph_json,
 )
-from jobslib import VAULT, log, pull_vault, push_vault, registrar_evento, rest
+from jobslib import VAULT, log, registrar_evento, rest, transaccion_vault
 
 GRAPHIFY = "/Users/ezeotero/.local/bin/graphify"
 GRAPHIFY_OUT = Path(VAULT) / "graphify-out"
@@ -47,21 +49,24 @@ def _run(cmd, timeout, paso, env=None):
 
 
 def correr(cfg, token):
-    # 1. vault fresco (escritores: bot por GitHub + daemon por git)
-    pull_vault()
-
-    # 2. re-extracción determinística del grafo (sin LLM)
+    # 1-3. pull, re-extracción/export y push son una única transacción del Vault.
     def actualizar_grafo_completo():
         _run([GRAPHIFY, "update", VAULT], 900, "graphify update")
         validar_graph_json(Path(VAULT))
+        _run(
+            [GRAPHIFY, "export", "html", "--node-limit", "20000"],
+            600,
+            "export html",
+            env={"GRAPHIFY_MAX_GRAPH_BYTES": "200000000"},
+        )
 
-    ejecutar_actualizacion(Path(VAULT), actualizar_grafo_completo, solo_si_pendiente=False)
-
-    # 3. graph.html a nodo-por-nodo (el dibujo con las diagonales, pedido 28/07).
-    #    Sin el cap subido graphify cae solo a la vista agregada por comunidades
-    #    (burbujas sin interconexión) porque graph.json pasó los 4,6 MB.
-    _run([GRAPHIFY, "export", "html", "--node-limit", "20000"], 600, "export html",
-         env={"GRAPHIFY_MAX_GRAPH_BYTES": "200000000"})
+    transaccion_vault(
+        lambda: ejecutar_actualizacion(
+            Path(VAULT), actualizar_grafo_completo, solo_si_pendiente=False
+        ),
+        rutas=lambda _resultado: [GRAPHIFY_OUT],
+        mensaje="cerebro: grafo actualizado (job_cerebro)",
+    )
 
     # 4. el ORGANISMO come el grafo nuevo y se autodiagnostica
     shutil.copy2(GRAPHIFY_OUT / "graph.json", ORGANISMO / "graph.json")
@@ -83,12 +88,6 @@ def correr(cfg, token):
             })
             insertada = True
 
-    # 6. persistir el grafo actualizado (graphify-out vive dentro del vault)
-    try:
-        push_vault("cerebro: grafo actualizado (job_cerebro)")
-    except Exception as e:
-        log(f"job_cerebro: push del vault falló (no fatal): {e}")
-
     registrar_evento(cfg, token, "job_cerebro",
                      "cerebro digerido: grafo + diagnóstico + pregunta del día", {
                          "recientes": resultado.get("recientes"),
@@ -103,4 +102,14 @@ def correr(cfg, token):
 
 def correr_incremental(cfg, token):
     """Adaptador de runner; no toca red ni Supabase si no hay lote vencido."""
-    return actualizar_incremental(Path(VAULT), Path(GRAPHIFY))
+    vault = Path(VAULT)
+    if not any(
+        (vault / relativa).exists()
+        for relativa in (MARCADOR_RELATIVO, SNAPSHOT_RELATIVO)
+    ):
+        return False
+    return transaccion_vault(
+        lambda: actualizar_incremental(vault, Path(GRAPHIFY)),
+        rutas=lambda _resultado: [GRAPHIFY_OUT],
+        mensaje="cerebro: grafo incremental",
+    )

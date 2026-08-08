@@ -74,14 +74,22 @@ class SincronizadorGitVault:
     ) -> tuple[T, ResultadoGit]:
         observar = observar_paso or (lambda _paso: None)
         with self.bloqueo():
-            fallo_previo: FalloSincronizacion | None = None
             try:
                 observar("preflight")
                 self._preflight()
-                observar("pull")
-                self._pull()
             except FalloSincronizacion as error:
-                fallo_previo = error
+                observar("write")
+                resultado = persistir()
+                return resultado, self._resultado_parcial(error, registrar_pendiente)
+
+            cambios_previos = self._rutas_sucias_trackeadas()
+            fallo_pull: FalloSincronizacion | None = None
+            if not cambios_previos:
+                try:
+                    observar("pull")
+                    self._pull()
+                except FalloSincronizacion as error:
+                    fallo_pull = error
 
             observar("write")
             resultado = persistir()
@@ -90,16 +98,33 @@ class SincronizadorGitVault:
             except FalloSincronizacion as error:
                 return resultado, self._resultado_parcial(error, registrar_pendiente)
 
-            if fallo_previo is not None:
+            cambios_ajenos = self._rutas_no_cubiertas(cambios_previos, allowlist)
+            if cambios_previos and cambios_ajenos:
                 return resultado, self._resultado_parcial(
-                    fallo_previo, registrar_pendiente
+                    FalloSincronizacion(
+                        "preflight",
+                        {
+                            "motivo": "cambios_trackeados_ajenos",
+                            "rutas": sorted(cambios_ajenos)[:20],
+                        },
+                    ),
+                    registrar_pendiente,
                 )
 
             try:
                 observar("stage")
-                self._stage(allowlist)
                 observar("commit")
                 self._commit_si_hay_cambios(allowlist, mensaje)
+                if fallo_pull is not None:
+                    if not cambios_previos:
+                        return resultado, self._resultado_parcial(
+                            fallo_pull, registrar_pendiente
+                        )
+                    observar("pull")
+                    self._pull()
+                elif cambios_previos:
+                    observar("pull")
+                    self._pull()
                 observar("push")
                 self._push_con_un_reintento()
             except FalloSincronizacion as error:
@@ -124,13 +149,13 @@ class SincronizadorGitVault:
     def _preflight(self) -> None:
         if not self.vault.is_dir() or not self.git_dir.is_dir():
             raise FalloSincronizacion("preflight", {"motivo": "repositorio_no_disponible"})
-        if (self.vault / ".git").exists() or (self.vault / ".git").is_symlink():
-            raise FalloSincronizacion("preflight", {"motivo": "git_embebido_en_vault"})
+        self._validar_puntero_git()
+        if self._rebase_en_curso():
+            raise FalloSincronizacion(
+                "preflight", {"motivo": "rebase_ajeno_en_curso"}
+            )
         self._git("rev-parse", "--verify", "HEAD", paso="preflight")
-        staged = self._git(
-            "diff", "--cached", "--name-only", "-z", paso="preflight"
-        ).stdout.split("\0")
-        rutas_staged = sorted(ruta for ruta in staged if ruta)
+        rutas_staged = sorted(self._rutas_staged())
         if rutas_staged:
             raise FalloSincronizacion(
                 "preflight",
@@ -140,38 +165,59 @@ class SincronizadorGitVault:
                 },
             )
 
-    def _pull(self) -> None:
+    def _pull(self, *, paso_fallo: str = "pull") -> None:
+        sha_local_original = self._sha("HEAD")
+        rebase_antes = self._rebase_en_curso()
         resultado = self._git(
-            "pull", "--rebase", self.remote, self.branch, paso="pull", check=False
+            "pull", "--rebase", self.remote, self.branch, paso=paso_fallo, check=False
         )
         if resultado.returncode == 0:
             return
-        detalle = self._detalle_conflicto("pull", resultado.returncode)
-        self._git("rebase", "--abort", paso="pull_abort", check=False)
-        raise FalloSincronizacion("pull", detalle)
-
-    def _stage(self, rutas: list[str]) -> None:
-        if not rutas:
-            raise FalloSincronizacion("stage", {"motivo": "allowlist_vacia"})
-        self._git("add", "--", *rutas, paso="stage")
-        staged = self._git(
-            "diff", "--cached", "--name-only", "-z", paso="stage"
-        ).stdout.split("\0")
-        ajenos = sorted(ruta for ruta in staged if ruta and ruta not in set(rutas))
-        if ajenos:
-            raise FalloSincronizacion(
-                "stage", {"motivo": "indice_contiene_rutas_ajenas", "rutas": ajenos[:20]}
-            )
+        rebase_despues = self._rebase_en_curso()
+        rutas_conflicto = self._rutas_conflicto(paso_fallo)
+        inicio_rebase = rebase_despues and not rebase_antes
+        es_conflicto = bool(rutas_conflicto) or inicio_rebase
+        detalle = self._detalle_pull(
+            resultado.returncode,
+            sha_local=sha_local_original,
+            rutas_conflicto=rutas_conflicto,
+        )
+        if inicio_rebase:
+            self._git("rebase", "--abort", paso=f"{paso_fallo}_abort", check=False)
+        raise FalloSincronizacion("conflicto" if es_conflicto else paso_fallo, detalle)
 
     def _commit_si_hay_cambios(self, rutas: list[str], mensaje: str) -> None:
+        if not rutas:
+            raise FalloSincronizacion("stage", {"motivo": "allowlist_vacia"})
+        staged_ajenos = sorted(self._rutas_no_cubiertas(self._rutas_staged(), rutas))
+        if staged_ajenos:
+            raise FalloSincronizacion(
+                "stage",
+                {"motivo": "indice_contiene_rutas_ajenas", "rutas": staged_ajenos[:20]},
+            )
+        # Intent-to-add vuelve visibles los archivos nuevos para `commit --only`
+        # sin dejarlos staged. Si el commit falla, el índice real sigue limpio y
+        # el work-tree conserva intacta la evidencia para el siguiente intento.
+        self._git("add", "-N", "--", *rutas, paso="stage")
         diff = self._git(
-            "diff", "--cached", "--quiet", "--", *rutas, paso="commit", check=False
+            "diff", "--quiet", "--", *rutas, paso="commit", check=False
         )
         if diff.returncode == 0:
             return
         if diff.returncode != 1:
             raise FalloSincronizacion("commit", {"codigo": diff.returncode})
-        self._git("commit", "-m", redactar_secretos(mensaje), "--", *rutas, paso="commit")
+        commit = self._git(
+            "commit",
+            "-m",
+            redactar_secretos(mensaje),
+            "--only",
+            "--",
+            *rutas,
+            paso="commit",
+            check=False,
+        )
+        if commit.returncode != 0:
+            raise FalloSincronizacion("commit", {"codigo": commit.returncode})
 
     def _push_con_un_reintento(self) -> None:
         primero = self._git(
@@ -180,13 +226,7 @@ class SincronizadorGitVault:
         if primero.returncode == 0:
             return
 
-        pull = self._git(
-            "pull", "--rebase", self.remote, self.branch, paso="push_retry_pull", check=False
-        )
-        if pull.returncode != 0:
-            detalle = self._detalle_conflicto("push_retry_pull", pull.returncode)
-            self._git("rebase", "--abort", paso="push_retry_abort", check=False)
-            raise FalloSincronizacion("conflicto", detalle)
+        self._pull(paso_fallo="push_retry_pull")
 
         segundo = self._git(
             "push", self.remote, self.branch, paso="push_retry", check=False
@@ -196,16 +236,103 @@ class SincronizadorGitVault:
                 "push", {"codigo": segundo.returncode, "reintento": 1}
             )
 
-    def _detalle_conflicto(self, paso: str, codigo: int) -> dict[str, object]:
-        rutas = self._git(
-            "diff", "--name-only", "--diff-filter=U", paso=paso, check=False
-        ).stdout.splitlines()
+    def _detalle_pull(
+        self,
+        codigo: int,
+        *,
+        sha_local: str,
+        rutas_conflicto: list[str],
+    ) -> dict[str, object]:
         return {
             "codigo": codigo,
-            "sha_local": self._sha("HEAD"),
+            "sha_local": sha_local,
             "sha_remoto": self._sha(f"{self.remote}/{self.branch}"),
-            "rutas_conflicto": [redactar_secretos(ruta) for ruta in rutas[:20]],
+            "rutas_conflicto": [
+                redactar_secretos(ruta) for ruta in rutas_conflicto[:20]
+            ],
         }
+
+    def _rutas_conflicto(self, paso: str) -> list[str]:
+        return self._git(
+            "diff", "--name-only", "--diff-filter=U", paso=paso, check=False
+        ).stdout.splitlines()
+
+    def _rutas_staged(self) -> set[str]:
+        return {
+            ruta
+            for ruta in self._git(
+                "diff", "--cached", "--name-only", "-z", paso="preflight"
+            ).stdout.split("\0")
+            if ruta
+        }
+
+    def _rutas_sucias_trackeadas(self) -> set[str]:
+        return {
+            ruta
+            for ruta in self._git(
+                "diff", "--name-only", "-z", paso="preflight"
+            ).stdout.split("\0")
+            if ruta
+        }
+
+    def rutas_modificadas(self, *, incluir_no_trackeadas: bool = False) -> list[str]:
+        """Lista determinística para ownership dinámico; quien llama ya posee el lock."""
+        rutas = self._rutas_sucias_trackeadas() | self._rutas_staged()
+        if incluir_no_trackeadas:
+            rutas.update(
+                ruta
+                for ruta in self._git(
+                    "ls-files",
+                    "--others",
+                    "--exclude-standard",
+                    "-z",
+                    paso="preflight",
+                ).stdout.split("\0")
+                if ruta
+            )
+        return sorted(rutas)
+
+    @staticmethod
+    def _rutas_no_cubiertas(
+        cambios: Iterable[str], allowlist: Iterable[str]
+    ) -> set[str]:
+        prefijos = tuple(ruta.rstrip("/") + "/" for ruta in allowlist)
+        exactas = set(allowlist)
+        return {
+            cambio
+            for cambio in cambios
+            if cambio not in exactas and not cambio.startswith(prefijos)
+        }
+
+    def _rebase_en_curso(self) -> bool:
+        return any(
+            (self.git_dir / nombre).exists()
+            for nombre in ("rebase-merge", "rebase-apply")
+        )
+
+    def _validar_puntero_git(self) -> None:
+        puntero = self.vault / ".git"
+        if not puntero.exists() and not puntero.is_symlink():
+            return
+        if puntero.is_symlink() or not puntero.is_file():
+            raise FalloSincronizacion(
+                "preflight", {"motivo": "git_embebido_en_vault"}
+            )
+        try:
+            contenido = puntero.read_text(encoding="utf-8").strip()
+            prefijo, separador, destino = contenido.partition(":")
+            if prefijo.casefold() != "gitdir" or not separador or not destino.strip():
+                raise ValueError
+            ruta = Path(destino.strip())
+            if not ruta.is_absolute():
+                ruta = puntero.parent / ruta
+            coincide = ruta.resolve() == self.git_dir.resolve()
+        except (OSError, ValueError):
+            coincide = False
+        if not coincide:
+            raise FalloSincronizacion(
+                "preflight", {"motivo": "puntero_git_no_coincide"}
+            )
 
     def _sha(self, referencia: str) -> str:
         resultado = self._git(

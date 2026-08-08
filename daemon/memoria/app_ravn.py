@@ -109,10 +109,16 @@ class BackendSupabaseJobs:
         cargar_cfg: Callable[[], dict[str, str]],
         autenticar: Callable[[dict[str, str]], str],
         rest: Callable[..., object],
+        page_size: int = 200,
+        max_rows: int = 5_000,
     ) -> None:
+        if page_size <= 0 or max_rows <= 0:
+            raise ValueError("Los límites de lectura de App RAVN deben ser positivos.")
         self._cargar_cfg = cargar_cfg
         self._autenticar = autenticar
         self._rest = rest
+        self._page_size = page_size
+        self._max_rows = max_rows
         self._cfg: dict[str, str] | None = None
         self._token: str | None = None
 
@@ -133,18 +139,40 @@ class BackendSupabaseJobs:
         if self._cfg is None:
             self._cfg = self._cargar_cfg()
             self._token = self._autenticar(self._cfg)
-        consulta = urlencode({"select": ",".join(campos), "limit": "500"})
-        filas = self._rest(
-            self._cfg,
-            self._token,
-            f"{tabla}?{consulta}",
-            method="GET",
-        )
-        if filas is None:
-            return []
-        if not isinstance(filas, list) or not all(isinstance(fila, dict) for fila in filas):
-            raise ValueError("App RAVN devolvió una respuesta inesperada.")
-        return filas
+        acumuladas: list[dict[str, object]] = []
+        offset = 0
+        while True:
+            # Se pide una fila testigo por encima del tope. Así un conjunto de
+            # exactamente max_rows se distingue de una respuesta truncada.
+            limite = min(self._page_size, self._max_rows - len(acumuladas) + 1)
+            consulta = urlencode(
+                {
+                    "select": ",".join(campos),
+                    "order": "id.asc",
+                    "limit": str(limite),
+                    "offset": str(offset),
+                }
+            )
+            filas = self._rest(
+                self._cfg,
+                self._token,
+                f"{tabla}?{consulta}",
+                method="GET",
+            )
+            if filas is None:
+                filas = []
+            if not isinstance(filas, list) or not all(
+                isinstance(fila, dict) for fila in filas
+            ):
+                raise ValueError("App RAVN devolvió una respuesta inesperada.")
+            acumuladas.extend(filas)
+            if len(acumuladas) > self._max_rows:
+                raise RuntimeError(
+                    "Lectura de App RAVN incompleta: excedió el límite seguro."
+                )
+            if len(filas) < limite:
+                return acumuladas
+            offset += len(filas)
 
 
 class ResolverAppRavn:
@@ -170,7 +198,7 @@ class ResolverAppRavn:
                         )
                         continue
                     referencias.extend(coincidencias)
-        except (OSError, RuntimeError, ValueError):
+        except (KeyError, OSError, RuntimeError, ValueError):
             return ResultadoApp("no_disponible", [])
 
         referencias = _deduplicar_referencias(referencias)

@@ -48,6 +48,9 @@ class TestJobsVencidos(unittest.TestCase):
     def test_graphify_incremental_sin_marcador_es_un_noop(self):
         with tempfile.TemporaryDirectory() as tempdir:
             vault = Path(tempdir) / "vault"
+            transaccion = unittest.mock.Mock(
+                side_effect=lambda persistir, **_kwargs: persistir()
+            )
             with (
                 patch.object(runner.job_cerebro, "VAULT", str(vault)),
                 patch.object(runner.job_cerebro, "GRAPHIFY", Path(tempdir) / "graphify"),
@@ -55,10 +58,16 @@ class TestJobsVencidos(unittest.TestCase):
                     "daemon.memoria.graphify_batch.STATE",
                     Path(tempdir) / "graphify-state.json",
                 ),
+                patch.object(
+                    runner.job_cerebro,
+                    "transaccion_vault",
+                    transaccion,
+                ),
             ):
                 resultado = runner.job_cerebro.correr_incremental({}, "token")
 
         self.assertFalse(resultado)
+        transaccion.assert_not_called()
 
     def test_launchd_dispara_el_runner_cada_quince_minutos(self):
         plist = (
@@ -88,8 +97,11 @@ class TestJobsVencidos(unittest.TestCase):
                 patch.object(runner.job_cerebro.subprocess, "run"),
                 patch.object(runner.job_cerebro, "_run", side_effect=salidas),
                 patch.object(runner.job_cerebro.shutil, "copy2"),
-                patch.object(runner.job_cerebro, "pull_vault"),
-                patch.object(runner.job_cerebro, "push_vault"),
+                patch.object(
+                    runner.job_cerebro,
+                    "transaccion_vault",
+                    side_effect=lambda persistir, **_kwargs: persistir(),
+                ),
                 patch.object(runner.job_cerebro, "registrar_evento"),
                 patch.object(runner.job_cerebro, "log"),
                 patch(
@@ -129,8 +141,11 @@ class TestJobsVencidos(unittest.TestCase):
                     side_effect=["", "", '{"pregunta": null}'],
                 ),
                 patch.object(runner.job_cerebro.shutil, "copy2"),
-                patch.object(runner.job_cerebro, "pull_vault"),
-                patch.object(runner.job_cerebro, "push_vault"),
+                patch.object(
+                    runner.job_cerebro,
+                    "transaccion_vault",
+                    side_effect=lambda persistir, **_kwargs: persistir(),
+                ),
                 patch.object(runner.job_cerebro, "registrar_evento"),
                 patch.object(runner.job_cerebro, "log"),
                 patch(
@@ -178,8 +193,11 @@ class TestJobsVencidos(unittest.TestCase):
                             runner.job_cerebro, "_run", side_effect=run_falso
                         ),
                         patch.object(runner.job_cerebro.shutil, "copy2"),
-                        patch.object(runner.job_cerebro, "pull_vault"),
-                        patch.object(runner.job_cerebro, "push_vault"),
+                        patch.object(
+                            runner.job_cerebro,
+                            "transaccion_vault",
+                            side_effect=lambda persistir, **_kwargs: persistir(),
+                        ),
                         patch.object(runner.job_cerebro, "registrar_evento"),
                         patch.object(runner.job_cerebro, "log"),
                         patch(

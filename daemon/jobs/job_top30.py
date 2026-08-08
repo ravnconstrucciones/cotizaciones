@@ -10,7 +10,7 @@ from datetime import date
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from jobslib import VAULT, correr_claude, push_vault, registrar_evento
+from jobslib import VAULT, correr_claude, registrar_evento, transaccion_vault
 
 MD_PRECIOS = Path(VAULT) / "Conocimiento" / "Precios" / "materiales-construccion.md"
 MAX_FILAS = 30
@@ -69,19 +69,32 @@ ARCHIVO A ACTUALIZAR: {ruta_md}
 
 def correr(cfg, token):
     fecha = date.today().isoformat()
-    md_antes = MD_PRECIOS.read_text()
-    n = len(filas_materiales(md_antes))
+    def persistir():
+        md_antes = MD_PRECIOS.read_text()
+        n_local = len(filas_materiales(md_antes))
+        if n_local == 0:
+            return "", n_local, 0
+        resumen_local = correr_claude(
+            armar_prompt(fecha, str(MD_PRECIOS), n_local), timeout=TIMEOUT
+        )
+        md_despues = MD_PRECIOS.read_text()
+        actualizadas_locales = filas_con_fecha(md_despues, fecha)
+        if actualizadas_locales == 0:
+            # El bloque DOLAR también contiene la fecha de hoy; sólo cuenta la
+            # columna Fecha de las filas de materiales.
+            raise RuntimeError(
+                f"ninguna fila quedó con Fecha {fecha} — Claude no actualizó "
+                f"nada. Resumen: {resumen_local[:300]}"
+            )
+        return resumen_local, n_local
+
+    resumen, n = transaccion_vault(
+        persistir,
+        rutas=lambda _resultado: [MD_PRECIOS],
+        mensaje=f"daemon: refresh semanal top-30 materiales {fecha}",
+    )
     if n == 0:
         raise RuntimeError(f"no encontré filas de materiales en {MD_PRECIOS}")
-    resumen = correr_claude(armar_prompt(fecha, str(MD_PRECIOS), n), timeout=TIMEOUT)
-    md_despues = MD_PRECIOS.read_text()
-    actualizadas = filas_con_fecha(md_despues, fecha)
-    if actualizadas == 0:
-        # OJO: no buscar `fecha in md_despues` — el bloque DOLAR (job_dolar, mismo
-        # archivo, corre antes en el mismo tick) ya tiene la fecha de hoy y daría
-        # falso OK. Solo cuenta la columna Fecha de las filas de materiales.
-        raise RuntimeError(f"ninguna fila quedó con Fecha {fecha} — Claude no actualizó nada. Resumen: {resumen[:300]}")
-    push_vault(f"daemon: refresh semanal top-30 materiales {fecha}")
     registrar_evento(
         cfg, token, "job_top30",
         f"Materiales refrescados — {resumen[:120]}",

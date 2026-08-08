@@ -85,7 +85,7 @@ def _comando_cerrar(args: argparse.Namespace) -> int:
         return CODIGO_PERSISTENCIA
 
     print(json.dumps(evidencia, ensure_ascii=False))
-    return 0 if evidencia.get("sincronizado") is not False else CODIGO_SINCRONIZACION
+    return 0 if evidencia.get("ok") is True else CODIGO_SINCRONIZACION
 
 
 def _crear_sincronizador(args: argparse.Namespace) -> SincronizadorGitVault | None:

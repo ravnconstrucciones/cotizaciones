@@ -95,6 +95,26 @@ class SincronizacionGitTests(unittest.TestCase):
         self.assertFalse((self.vault / ".git").exists())
         self.assertEqual(os.stat(self.lock).st_mode & 0o777, 0o600)
 
+    def test_acepta_puntero_git_regular_si_apunta_al_git_dir_externo_configurado(self) -> None:
+        puntero = self.vault / ".git"
+        puntero.write_text(f"gitdir: {self.git_dir}\n", encoding="utf-8")
+        cierre = self.vault / "Conversaciones/cierres/2026/08/con-puntero.md"
+
+        def persistir() -> Path:
+            cierre.parent.mkdir(parents=True)
+            cierre.write_text("cierre\n", encoding="utf-8")
+            return cierre
+
+        _, resultado = self.sync.transaccion(
+            persistir,
+            rutas=lambda valor: [valor],
+            mensaje="memoria: puntero externo",
+            registrar_pendiente=lambda *_: None,
+        )
+
+        self.assertTrue(resultado.sincronizado, resultado.detalle)
+        self.assertEqual(puntero.read_text(), f"gitdir: {self.git_dir}\n")
+
     def test_fallo_de_pull_conserva_persistencia_y_deja_pendiente_sanitizado(self) -> None:
         cierre = self.vault / "Conversaciones/cierres/2026/08/local.md"
         pendientes: list[tuple[str, dict[str, object]]] = []
@@ -120,6 +140,82 @@ class SincronizacionGitTests(unittest.TestCase):
         serializado = json.dumps(pendientes, ensure_ascii=False)
         self.assertNotIn("secreto", serializado)
         self.assertNotIn(str(self.raiz), serializado)
+
+    def test_pull_fallido_deja_cambio_tracked_reintentable_y_segundo_intento_sincroniza(self) -> None:
+        remoto_real = self.remoto
+        self._git_externo(
+            "remote", "set-url", "origin", str(self.raiz / "remoto-ausente.git")
+        )
+
+        def persistir() -> Path:
+            readme = self.vault / "README.md"
+            readme.write_text("cierre durable\n", encoding="utf-8")
+            return readme
+
+        _, primero = self.sync.transaccion(
+            persistir,
+            rutas=lambda valor: [valor],
+            mensaje="memoria: pull parcial reintentable",
+            registrar_pendiente=lambda *_: None,
+        )
+        self._git_externo("remote", "set-url", "origin", str(remoto_real))
+        _, segundo = self.sync.transaccion(
+            persistir,
+            rutas=lambda valor: [valor],
+            mensaje="memoria: pull parcial reintentable",
+            registrar_pendiente=lambda *_: None,
+        )
+
+        self.assertFalse(primero.sincronizado)
+        self.assertTrue(segundo.sincronizado, segundo.detalle)
+        self.assertEqual(self._git_externo("status", "--short").stdout, "")
+        verificacion = self.raiz / "verificacion-pull-parcial"
+        subprocess.run(
+            ["git", "clone", "-b", "main", str(self.remoto), str(verificacion)],
+            check=True,
+            capture_output=True,
+        )
+        self.assertEqual((verificacion / "README.md").read_text(), "cierre durable\n")
+
+    def test_commit_fallido_no_deja_stage_y_segundo_intento_sincroniza(self) -> None:
+        ejecutar_real = self.sync._ejecutar
+        fallo_commit = True
+
+        def ejecutar(cmd, **kwargs):
+            nonlocal fallo_commit
+            if "commit" in cmd and fallo_commit:
+                fallo_commit = False
+                return subprocess.CompletedProcess(cmd, 1, "", "hook falló")
+            return ejecutar_real(cmd, **kwargs)
+
+        self.sync._ejecutar = ejecutar
+
+        def persistir() -> Path:
+            readme = self.vault / "README.md"
+            readme.write_text("cambio reintentable\n", encoding="utf-8")
+            return readme
+
+        _, primero = self.sync.transaccion(
+            persistir,
+            rutas=lambda valor: [valor],
+            mensaje="memoria: commit reintentable",
+            registrar_pendiente=lambda *_: None,
+        )
+        staged_tras_fallo = self._git_externo(
+            "diff", "--cached", "--name-only"
+        ).stdout
+        _, segundo = self.sync.transaccion(
+            persistir,
+            rutas=lambda valor: [valor],
+            mensaje="memoria: commit reintentable",
+            registrar_pendiente=lambda *_: None,
+        )
+
+        self.assertFalse(primero.sincronizado)
+        self.assertEqual(primero.paso, "commit")
+        self.assertEqual(staged_tras_fallo, "")
+        self.assertTrue(segundo.sincronizado, segundo.detalle)
+        self.assertEqual(self._git_externo("status", "--short").stdout, "")
 
     def test_reintento_de_mismo_contenido_no_duplica_commit(self) -> None:
         cierre = self.vault / "Conversaciones/cierres/2026/08/idempotente.md"
@@ -195,19 +291,23 @@ class SincronizacionGitTests(unittest.TestCase):
         compartido = self.vault / compartido_semilla.relative_to(self.semilla)
         pendientes: list[dict[str, object]] = []
         remoto_movido = False
+        sha_local_original = ""
+        sha_remoto_esperado = ""
 
         def persistir() -> Path:
             compartido.write_text("version local\n", encoding="utf-8")
             return compartido
 
         def observar(paso: str) -> None:
-            nonlocal remoto_movido
+            nonlocal remoto_movido, sha_local_original, sha_remoto_esperado
             if paso != "push" or remoto_movido:
                 return
             remoto_movido = True
+            sha_local_original = self._git_externo("rev-parse", "HEAD").stdout.strip()
             compartido_semilla.write_text("version remota\n", encoding="utf-8")
             self._git(self.semilla, "add", compartido_semilla.relative_to(self.semilla).as_posix())
             self._git(self.semilla, "commit", "-m", "conflicto remoto")
+            sha_remoto_esperado = self._git(self.semilla, "rev-parse", "HEAD").stdout.strip()
             self._git(self.semilla, "push", "origin", "main")
 
         _, resultado = self.sync.transaccion(
@@ -224,12 +324,43 @@ class SincronizacionGitTests(unittest.TestCase):
         self.assertEqual(compartido_semilla.read_text(), "version remota\n")
         self.assertNotIn("<<<<<<<", compartido.read_text())
         self.assertEqual(len(pendientes), 1)
-        self.assertTrue(pendientes[0]["sha_local"])
-        self.assertTrue(pendientes[0]["sha_remoto"])
+        self.assertEqual(pendientes[0]["sha_local"], sha_local_original)
+        self.assertEqual(pendientes[0]["sha_remoto"], sha_remoto_esperado)
         self.assertEqual(
             pendientes[0]["rutas_conflicto"],
             [compartido.relative_to(self.vault).as_posix()],
         )
+
+    def test_preflight_no_aborta_un_rebase_que_no_inicio_esta_instancia(self) -> None:
+        (self.git_dir / "rebase-merge").mkdir()
+        comandos: list[list[str]] = []
+        ejecutar_real = self.sync._ejecutar
+
+        def ejecutar(cmd, **kwargs):
+            comandos.append(cmd)
+            if cmd[-2:] == ["rebase", "--abort"]:
+                return subprocess.CompletedProcess(cmd, 0, "", "")
+            return ejecutar_real(cmd, **kwargs)
+
+        self.sync._ejecutar = ejecutar
+        cierre = self.vault / "Conversaciones/cierres/2026/08/rebase-ajeno.md"
+
+        def persistir() -> Path:
+            cierre.parent.mkdir(parents=True)
+            cierre.write_text("durable\n", encoding="utf-8")
+            return cierre
+
+        _, resultado = self.sync.transaccion(
+            persistir,
+            rutas=lambda valor: [valor],
+            mensaje="memoria: rebase ajeno",
+            registrar_pendiente=lambda *_: None,
+        )
+
+        self.assertFalse(resultado.sincronizado)
+        self.assertEqual(resultado.paso, "preflight")
+        self.assertTrue((self.git_dir / "rebase-merge").is_dir())
+        self.assertNotIn(["rebase", "--abort"], [cmd[-2:] for cmd in comandos])
 
     def test_indice_git_preexistente_bloquea_sync_sin_stagear_el_cierre(self) -> None:
         (self.vault / "README.md").write_text("cambio ajeno\n", encoding="utf-8")
