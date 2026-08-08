@@ -129,6 +129,14 @@ import urllib.request
 
 import certifi
 
+# El runner corre como script suelto desde daemon/jobs (launchd), así que el
+# paquete raíz `daemon` no está en sys.path; los tests corren desde la raíz.
+import sys
+
+_RAIZ_REPO = str(Path(__file__).resolve().parents[2])
+if _RAIZ_REPO not in sys.path:
+    sys.path.insert(0, _RAIZ_REPO)
+
 from daemon.memoria.sincronizacion_git import (
     FalloSincronizacion,
     SincronizadorGitVault,

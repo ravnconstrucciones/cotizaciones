@@ -282,7 +282,7 @@ class GraphifyBatchTests(unittest.TestCase):
         contenido_json = "{}" if json_valido else "{invalido"
         script.write_text(
             "#!/bin/sh\n"
-            "if [ \"$1\" != update ] || [ \"$3\" != --no-viz ]; then exit 9; fi\n"
+            "if [ \"$1\" != update ] || [ -n \"$3\" ]; then exit 9; fi\n"
             f"count=0\nif [ -f '{self.root / 'ejecuciones.txt'}' ]; then "
             f"read count < '{self.root / 'ejecuciones.txt'}'; fi\n"
             f"count=$((count + 1))\nprintf '%s' \"$count\" > "

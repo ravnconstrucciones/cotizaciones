@@ -30,7 +30,10 @@ if str(RAIZ_REPO) not in sys.path:
 from daemon.memoria.almacen import AlmacenMemoria, _crudo_a_markdown
 from daemon.memoria.colectores import descubrir_sesiones, leer_sesion
 from daemon.memoria.modelo import Mensaje
-from jobslib import DIR_JOBS, VAULT, registrar_evento
+from jobslib import DIR_JOBS, VAULT as _VAULT_CRUDO, registrar_evento
+
+# jobslib.VAULT es str; acá se opera con `/` y resolve(), que piden Path.
+VAULT = Path(_VAULT_CRUDO)
 
 
 CURSOR = DIR_JOBS / "memoria-cursor.json"

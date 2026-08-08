@@ -47,7 +47,7 @@ def actualizar_incremental(vault: Path, graphify_bin: Path) -> bool:
 
     def actualizar() -> None:
         resultado = subprocess.run(
-            [str(graphify_bin), "update", str(vault), "--no-viz"],
+            [str(graphify_bin), "update", str(vault)],
             capture_output=True,
             text=True,
             timeout=900,
