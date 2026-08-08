@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+from contextlib import contextmanager
 from datetime import datetime, timezone
+import fcntl
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -80,28 +83,35 @@ class AlmacenMemoria:
         """Agrega las entidades de un cierre al índice de recuperación inmediata."""
         ruta_cierre = ruta_cierre or self._ruta_cierre(cierre)
         destino = self.vault / "Sistema" / "Memoria" / "indices" / "entidades.json"
-        indice = _leer_indice(destino)
-        entidades = indice.setdefault("entidades", {})
-        ruta_relativa = _ruta_relativa(self.vault, ruta_cierre)
-        entrada = {
-            "ruta": ruta_relativa,
-            "updated_at": cierre.fecha_cierre,
-            "host": cierre.host,
-            "thread_id": cierre.thread_id,
-            "tema": cierre.tema,
-            "estado": cierre.estado,
-        }
-        for entidad in {_normalizar_entidad(valor) for valor in cierre.entidades if valor.strip()}:
-            if not entidad:
-                continue
-            notas = entidades.setdefault(entidad, [])
-            notas[:] = [nota for nota in notas if nota.get("ruta") != ruta_relativa]
-            notas.append(entrada)
-            notas.sort(key=lambda nota: (nota["updated_at"], nota["ruta"]), reverse=True)
-
-        indice["updated_at"] = cierre.fecha_cierre
         try:
-            self._escribir_atomico(destino, json.dumps(indice, ensure_ascii=False, indent=2) + "\n")
+            with _bloquear_indice(destino.parent):
+                indice = _leer_indice(destino)
+                entidades = indice.setdefault("entidades", {})
+                ruta_relativa = _texto_indice(_ruta_relativa(self.vault, ruta_cierre))
+                entrada = {
+                    "ruta": ruta_relativa,
+                    "updated_at": _texto_indice(cierre.fecha_cierre),
+                    "host": _texto_indice(cierre.host),
+                    "thread_id": _texto_indice(cierre.thread_id),
+                    "tema": _texto_indice(cierre.tema),
+                    "estado": _texto_indice(cierre.estado),
+                }
+                for entidad in {
+                    _normalizar_entidad(_texto_indice(valor))
+                    for valor in cierre.entidades
+                    if valor.strip()
+                }:
+                    if not entidad:
+                        continue
+                    notas = entidades.setdefault(entidad, [])
+                    notas[:] = [nota for nota in notas if nota.get("ruta") != ruta_relativa]
+                    notas.append(entrada)
+                    notas.sort(key=lambda nota: (nota["updated_at"], nota["ruta"]), reverse=True)
+
+                indice["updated_at"] = _texto_indice(cierre.fecha_cierre)
+                self._escribir_atomico(
+                    destino, json.dumps(indice, ensure_ascii=False, indent=2) + "\n"
+                )
         except OSError as error:
             if _marcar_error:
                 self.marcar_pendiente(
@@ -135,9 +145,9 @@ class AlmacenMemoria:
 
     def _ruta_cierre(self, cierre: Cierre) -> Path:
         fecha = _fecha_para_ruta(cierre.fecha_cierre)
-        nombre = "-".join(
-            (fecha, _slug(cierre.tema), _slug(cierre.host), _slug(cierre.thread_id))
-        )
+        clave = "\0".join((cierre.host, cierre.thread_id, cierre.fecha_cierre))
+        identificador = hashlib.sha256(clave.encode("utf-8")).hexdigest()[:24]
+        nombre = f"{fecha}-{identificador}"
         return self.vault / "Conversaciones" / "cierres" / fecha[:4] / fecha[5:7] / f"{nombre}.md"
 
     @staticmethod
@@ -169,6 +179,18 @@ def _leer_indice(path: Path) -> dict[str, object]:
     return indice
 
 
+@contextmanager
+def _bloquear_indice(directorio: Path):
+    """Serializa el ciclo leer-modificar-escribir entre procesos locales."""
+    directorio.mkdir(parents=True, exist_ok=True)
+    with (directorio / "entidades.lock").open("a+", encoding="utf-8") as archivo:
+        fcntl.flock(archivo.fileno(), fcntl.LOCK_EX)
+        try:
+            yield
+        finally:
+            fcntl.flock(archivo.fileno(), fcntl.LOCK_UN)
+
+
 def _crudo_a_markdown(mensajes: list[Mensaje]) -> str:
     lineas = ["# Transcripción normalizada", ""]
     for mensaje in mensajes:
@@ -196,6 +218,10 @@ def _normalizar_entidad(entidad: str) -> str:
         if not unicodedata.combining(caracter)
     )
     return " ".join(sin_acentos.casefold().split())
+
+
+def _texto_indice(valor: str) -> str:
+    return redactar_secretos(valor)
 
 
 def _slug(valor: str) -> str:
