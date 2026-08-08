@@ -88,3 +88,57 @@ Total de pruebas ejecutadas en la pasada final: 751.
   con extensión `.conflict`, por lo que recuperación/reindexado no los tratan
   como cierres aprobados. El pendiente JSON conserva rutas y hashes de ambas
   versiones para resolución humana.
+
+## Fix A — ronda de revisión 1/5
+
+Commit: `f805a2e` (`fix(memoria): cubrir mappings y ocultar identidad cruda`).
+
+### Hallazgos resueltos
+
+- `Authorization`, `Proxy-Authorization`, `Cookie` y `Set-Cookie` se redactan
+  también cuando aparecen en mappings YAML de secuencia, con claves quoted o no
+  quoted. La sustitución termina en el salto de línea y conserva el siguiente
+  item de la lista.
+- Los cuatro encabezados se redactan dentro de mappings inline hasta `,` o `}`;
+  no consumen campos vecinos. Los filtros previos de JSON, YAML de bloque,
+  Bearer, Basic, cookies y secretos genéricos continúan cubiertos por la suite.
+- La ruta cruda ya no incorpora slugs derivados de `host` ni `thread_id`. Usa
+  únicamente la fecha, un host fijo `codex`/`claude` (o `host` para entradas no
+  canónicas) y el SHA-256 completo de `host + NUL + thread_id`. La misma identidad
+  conserva ruta determinística sin exponer el valor original.
+- `marcar_pendiente` redacta recursivamente strings, claves de objetos y valores
+  dentro de listas/tuplas antes de escribir JSON. Esto cubre todos los pendientes
+  producidos por los archivos propios del fix sin modificar `job_memoria`.
+
+### Evidencia RED/GREEN
+
+RED inicial de la ronda:
+
+`python3.13 -m unittest <5 regresiones focales> -v`
+
+- 5 pruebas ejecutadas, 5 fallos esperados.
+- Las secuencias dejaban tres valores expuestos; el mapping inline perdía un
+  separador y dejaba cookies expuestas; la ruta normal seguía usando el thread;
+  una identidad maliciosa aparecía completa en el nombre; y el pendiente
+  persistía tres secretos anidados.
+
+GREEN final de la ronda:
+
+- Memoria: 93/93 pruebas, `OK`.
+- Jobs: 135/135 pruebas, `OK`.
+- Vitest: 57 archivos, 527/527 pruebas.
+- `py_compile` del núcleo de memoria: OK.
+- `git diff --check`: OK.
+- Total de la pasada final: 755 pruebas.
+
+### Compatibilidad y límites
+
+- Los respaldos crudos ya existentes conservan su nombre anterior; no se tocó el
+  Vault vivo. Una sesión nueva o modificada se archiva con la ruta hasheada. El
+  cursor actual impide una migración silenciosa de sesiones sin cambios, por lo
+  que cualquier limpieza de nombres legados debe ser una operación separada y
+  aprobada.
+- `host` y `thread_id` siguen presentes, redactados según los patrones conocidos,
+  dentro del frontmatter restringido. La protección nueva evita su exposición en
+  nombres de archivo y pendientes; no pretende convertir identificadores
+  ordinarios en secretos.
