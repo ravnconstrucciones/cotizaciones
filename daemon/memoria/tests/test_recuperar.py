@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import io
 import json
+import multiprocessing
 from pathlib import Path
 import tempfile
 import unittest
@@ -13,6 +14,37 @@ from daemon.memoria import cli
 from daemon.memoria.almacen import AlmacenMemoria
 from daemon.memoria.modelo import Cierre
 from daemon.memoria.recuperar import ConsultaMemoria, recuperar
+
+
+def _reindexar_despues_de_escanear(
+    vault: str,
+    escaneo_listo: multiprocessing.synchronize.Event,
+    continuar: multiprocessing.synchronize.Event,
+) -> None:
+    """Congela un reindexado tras leer para ejercer el orden de locks real."""
+    import daemon.memoria.recuperar as modulo
+
+    original = modulo._cierres_validados
+
+    def escanear_y_esperar(ruta: Path):
+        resultado = original(ruta)
+        escaneo_listo.set()
+        continuar.wait(timeout=5)
+        return resultado
+
+    with patch.object(modulo, "_cierres_validados", side_effect=escanear_y_esperar):
+        modulo.reindexar(Path(vault))
+
+
+def _guardar_cierre_en_proceso(
+    vault: str,
+    cierre: Cierre,
+    iniciado: multiprocessing.synchronize.Event,
+    terminado: multiprocessing.synchronize.Event,
+) -> None:
+    iniciado.set()
+    AlmacenMemoria(Path(vault)).guardar_cierre(cierre)
+    terminado.set()
 
 
 def _cierre(
@@ -75,7 +107,7 @@ class RecuperarTests(unittest.TestCase):
 
         self.assertEqual(paquete.notas[0].entidades["obras"], ["Glorietas"])
         self.assertLessEqual(paquete.tokens_estimados, 120)
-        self.assertEqual(paquete.notas[0].ruta, paquete.procedencia[0]["ruta"])
+        self.assertEqual(paquete.procedencia, ["Conversaciones/cierres"])
         self.assertIn("entidad_exacta:Glorietas", paquete.notas[0].razones)
 
     def test_no_abre_crudo_por_defecto(self) -> None:
@@ -114,10 +146,10 @@ class RecuperarTests(unittest.TestCase):
             )
         )
 
-        paquete = recuperar(ConsultaMemoria("garage", ["Glorietas"], max_tokens=50), self.vault)
+        paquete = recuperar(ConsultaMemoria("garage", ["Glorietas"], max_tokens=300), self.vault)
 
-        self.assertEqual(paquete.notas, [])
-        self.assertEqual(paquete.tokens_estimados, 0)
+        self.assertEqual(paquete.notas[0].entidades["obras"], ["Otra obra"])
+        self.assertLessEqual(paquete.tokens_estimados, 300)
 
     def test_recuperacion_no_reexpone_secretos_de_un_cierre_manual(self) -> None:
         ruta = self.almacen.guardar_cierre(
@@ -139,6 +171,56 @@ class RecuperarTests(unittest.TestCase):
 
         self.assertNotIn("secreto-no-publicable", paquete.notas[0].contenido)
         self.assertIn("[REDACTADO]", paquete.notas[0].contenido)
+
+    def test_recuperacion_no_reexpone_secretos_de_entidades_o_razones(self) -> None:
+        ruta = self.almacen.guardar_cierre(
+            _cierre(cierre_id="entidad-secreta", tema="Garage", entidades=["Glorietas"])
+        )
+        ruta.write_text(
+            ruta.read_text(encoding="utf-8").replace(
+                '["Glorietas"]', '["OPENAI_API_KEY=secreto-entidad"]'
+            ),
+            encoding="utf-8",
+        )
+
+        paquete = recuperar(
+            ConsultaMemoria("garage", ["OPENAI_API_KEY=secreto-entidad"]), self.vault
+        )
+        serializado = json.dumps(paquete.a_dict(), ensure_ascii=False)
+
+        self.assertEqual(paquete.notas[0].entidades["obras"], ["OPENAI_API_KEY=[REDACTADO]"])
+        self.assertNotIn("secreto-entidad", serializado)
+
+    def test_presupuesto_cuenta_el_json_final_con_metadata_extensa(self) -> None:
+        self.almacen.guardar_cierre(
+            _cierre(
+                cierre_id="metadata-extensa",
+                tema="Garage",
+                entidades=["Entidad de metadata " * 30],
+                hechos=["Corta."],
+            )
+        )
+
+        paquete = recuperar(ConsultaMemoria("garage", [], max_tokens=100), self.vault)
+        serializado = json.dumps(paquete.a_dict(), ensure_ascii=False)
+
+        self.assertEqual(paquete.tokens_estimados, (len(serializado) + 3) // 4)
+        self.assertLessEqual(paquete.tokens_estimados, 100)
+        self.assertEqual(paquete.notas, [])
+
+    def test_round_trip_admite_item_multilinea_emitido_por_cierre_a_markdown(self) -> None:
+        self.almacen.guardar_cierre(
+            _cierre(
+                cierre_id="multilinea",
+                tema="Garage",
+                entidades=["Glorietas"],
+                hechos=["Primera línea.\nSegunda línea emitida por el cierre."],
+            )
+        )
+
+        paquete = recuperar(ConsultaMemoria("garage", []), self.vault)
+
+        self.assertIn("Segunda línea emitida por el cierre.", paquete.notas[0].contenido)
 
     def test_suma_vecino_de_graphify_como_procedencia(self) -> None:
         self.almacen.guardar_cierre(
@@ -207,6 +289,37 @@ class RecuperarTests(unittest.TestCase):
         )
         self.assertEqual(codigo, 0)
         self.assertNotIn("glorietas", indice["entidades"])
+
+    def test_reindexar_no_pisa_un_cierre_guardado_durante_su_reconstruccion(self) -> None:
+        contexto = multiprocessing.get_context("fork")
+        escaneo_listo = contexto.Event()
+        continuar = contexto.Event()
+        escritor_iniciado = contexto.Event()
+        escritor_terminado = contexto.Event()
+        cierre = _cierre(cierre_id="concurrente", tema="Garage", entidades=["Glorietas"])
+        reindexado = contexto.Process(
+            target=_reindexar_despues_de_escanear,
+            args=(str(self.vault), escaneo_listo, continuar),
+        )
+        escritor = contexto.Process(
+            target=_guardar_cierre_en_proceso,
+            args=(str(self.vault), cierre, escritor_iniciado, escritor_terminado),
+        )
+        reindexado.start()
+        self.assertTrue(escaneo_listo.wait(timeout=5))
+        escritor.start()
+        self.assertTrue(escritor_iniciado.wait(timeout=5))
+        self.assertFalse(escritor_terminado.wait(timeout=0.2))
+        continuar.set()
+        reindexado.join(timeout=10)
+        escritor.join(timeout=10)
+        self.assertEqual(reindexado.exitcode, 0)
+        self.assertEqual(escritor.exitcode, 0)
+
+        indice = json.loads(
+            (self.vault / "Sistema/Memoria/indices/entidades.json").read_text(encoding="utf-8")
+        )
+        self.assertIn("glorietas", indice["entidades"])
 
 
 if __name__ == "__main__":

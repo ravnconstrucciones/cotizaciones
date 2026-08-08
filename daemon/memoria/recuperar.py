@@ -58,8 +58,6 @@ class NotaContexto:
     contenido: str
     entidades: dict[str, list[str]]
     razones: list[str]
-    puntaje: float
-    tokens_estimados: int
 
 
 @dataclass(frozen=True)
@@ -67,7 +65,7 @@ class PaqueteContexto:
     notas: list[NotaContexto]
     app_refs: list[str]
     tokens_estimados: int
-    procedencia: list[dict[str, object]]
+    procedencia: list[str]
     confianza: float
 
     def a_dict(self) -> dict[str, object]:
@@ -95,51 +93,51 @@ def recuperar(consulta: ConsultaMemoria, vault: Path) -> PaqueteContexto:
     tokens_consulta = _tokens(consulta.texto)
     vecinos = _vecinos_graphify(vault, entidades_consulta)
 
-    candidatas: list[NotaContexto] = []
+    candidatas: list[tuple[float, NotaContexto]] = []
     refs_por_ruta: dict[str, list[str]] = {}
+    puntajes_por_ruta: dict[str, float] = {}
     for nota in _cierres_validados(vault):
         puntaje, razones = _puntuar(nota, entidades_consulta, tokens_consulta, vecinos)
         if not razones:
             continue
-        tokens = _estimar_tokens(nota.contenido)
-        candidatas.append(
-            NotaContexto(
-                ruta=nota.ruta,
-                titulo=nota.cierre.tema,
-                contenido=nota.contenido,
-                entidades=nota.entidades,
-                razones=razones,
-                puntaje=puntaje,
-                tokens_estimados=tokens,
-            )
+        candidata = NotaContexto(
+            ruta=nota.ruta,
+            titulo=nota.cierre.tema,
+            contenido=nota.contenido,
+            entidades=nota.entidades,
+            razones=razones,
         )
+        candidatas.append((puntaje, candidata))
         refs_por_ruta[nota.ruta] = nota.app_refs
+        puntajes_por_ruta[nota.ruta] = puntaje
 
-    candidatas.sort(key=lambda nota: (-nota.puntaje, nota.ruta))
+    candidatas.sort(key=lambda candidata: (-candidata[0], candidata[1].ruta))
+    paquete_vacio = _construir_paquete([], refs_por_ruta, puntajes_por_ruta)
+    if paquete_vacio.tokens_estimados > consulta.max_tokens:
+        raise ValueError("El presupuesto no alcanza para serializar un paquete de contexto vacío.")
+
     seleccionadas: list[NotaContexto] = []
-    tokens_totales = 0
-    for nota in candidatas:
+    for _, nota in candidatas:
         if len(seleccionadas) >= consulta.max_notas:
             break
-        if tokens_totales + nota.tokens_estimados > consulta.max_tokens:
-            break
-        seleccionadas.append(nota)
-        tokens_totales += nota.tokens_estimados
-
-    app_refs = _sin_duplicados(
-        referencia for nota in seleccionadas for referencia in refs_por_ruta[nota.ruta]
-    )
-    procedencia = [
-        {"ruta": nota.ruta, "razones": list(nota.razones), "puntaje": nota.puntaje}
-        for nota in seleccionadas
-    ]
-    confianza = min(1.0, seleccionadas[0].puntaje / 100) if seleccionadas else 0.0
-    return PaqueteContexto(seleccionadas, app_refs, tokens_totales, procedencia, confianza)
+        candidato = _construir_paquete(
+            [*seleccionadas, nota], refs_por_ruta, puntajes_por_ruta
+        )
+        if candidato.tokens_estimados <= consulta.max_tokens:
+            seleccionadas.append(nota)
+    return _construir_paquete(seleccionadas, refs_por_ruta, puntajes_por_ruta)
 
 
 def reindexar(vault: Path) -> dict[str, object]:
     """Reconstruye el índice exclusivamente desde cierres Markdown válidos."""
     vault = Path(vault)
+    destino = vault / _INDICE
+    with _bloquear_indice(destino.parent):
+        return _reindexar_bajo_lock(vault, destino)
+
+
+def _reindexar_bajo_lock(vault: Path, destino: Path) -> dict[str, object]:
+    """Escanea y publica mientras retiene el lock cooperativo del índice."""
     entidades: dict[str, list[dict[str, str]]] = {}
     ultima_actualizacion = ""
     cierres = list(_cierres_validados(vault))
@@ -163,7 +161,7 @@ def reindexar(vault: Path) -> dict[str, object]:
     indice: dict[str, object] = {"entidades": entidades}
     if ultima_actualizacion:
         indice["updated_at"] = ultima_actualizacion
-    _escribir_indice(vault / _INDICE, indice)
+    _escribir_indice_bajo_lock(destino, indice)
     return {"ok": True, "cierres_indexados": len(cierres), "indice": _INDICE.as_posix()}
 
 
@@ -182,11 +180,8 @@ def _cierres_validados(vault: Path) -> list[_CierreLeido]:
 def _leer_cierre_validado(vault: Path, ruta: Path) -> _CierreLeido | None:
     try:
         frontmatter, cuerpo = _separar_markdown(ruta.read_text(encoding="utf-8"))
-        entidades = _entidades_por_categoria(frontmatter.get("entidades", []))
         datos = dict(frontmatter)
-        datos["entidades"] = [
-            entidad for valores in entidades.values() for entidad in valores
-        ]
+        datos["entidades"] = _lista_entidades(frontmatter.get("entidades", []))
         datos.update(_listas_del_cierre(cuerpo))
         cierre = validar_cierre(datos)
     except (OSError, ValueError, TypeError, json.JSONDecodeError):
@@ -197,7 +192,7 @@ def _leer_cierre_validado(vault: Path, ruta: Path) -> _CierreLeido | None:
     return _CierreLeido(
         cierre=cierre,
         ruta=ruta.relative_to(vault).as_posix(),
-        entidades=entidades,
+        entidades={"obras": list(cierre.entidades)},
         contenido=contenido,
         cuerpo=cuerpo_redactado,
         app_refs=_referencias_app(cierre.enlaces, cuerpo_redactado),
@@ -225,23 +220,27 @@ def _valor_frontmatter(valor: str) -> object:
     return valor
 
 
-def _entidades_por_categoria(valor: object) -> dict[str, list[str]]:
+def _lista_entidades(valor: object) -> list[str]:
     if isinstance(valor, list) and all(isinstance(item, str) for item in valor):
-        return {"obras": list(valor)}
+        return list(valor)
     if isinstance(valor, dict) and all(
         isinstance(clave, str)
         and isinstance(items, list)
         and all(isinstance(item, str) for item in items)
         for clave, items in valor.items()
     ):
-        return {clave: list(items) for clave, items in valor.items()}
+        return [entidad for items in valor.values() for entidad in items]
     raise ValueError("Las entidades del cierre son inválidas.")
 
 
 def _contenido_contexto(cierre: Cierre, cuerpo: str) -> str:
-    secciones = [linea for linea in cuerpo.splitlines() if linea != "- Sin registros."]
-    contenido = f"# {cierre.tema}\n" + "\n".join(secciones).strip()
-    return contenido.rstrip() + "\n"
+    del cuerpo  # El contenido se reconstruye desde el cierre ya validado y redactado.
+    lineas: list[str] = []
+    for campo in _SECCIONES_CIERRE.values():
+        valores = getattr(cierre, campo)
+        if valores:
+            lineas.extend(f"- {valor}" for valor in valores)
+    return "\n".join(lineas).rstrip() + "\n"
 
 
 def _listas_del_cierre(cuerpo: str) -> dict[str, list[str]]:
@@ -258,11 +257,14 @@ def _listas_del_cierre(cuerpo: str) -> dict[str, list[str]]:
             continue
         if actual is None or not linea:
             continue
-        if not linea.startswith("- "):
+        if linea.startswith("- "):
+            valor = linea[2:]
+            if valor != "Sin registros.":
+                listas[actual].append(valor)
+            continue
+        if not listas[actual] or linea.startswith("#"):
             raise ValueError("El cuerpo del cierre no respeta el formato canónico.")
-        valor = linea[2:]
-        if valor != "Sin registros.":
-            listas[actual].append(valor)
+        listas[actual][-1] += f"\n{linea}"
     if vistos != set(listas):
         raise ValueError("El cierre no contiene todas las secciones canónicas.")
     return listas
@@ -363,26 +365,49 @@ def _referencias_app(enlaces: list[str], cuerpo: str) -> list[str]:
     )
 
 
-def _escribir_indice(destino: Path, indice: dict[str, object]) -> None:
-    with _bloquear_indice(destino.parent):
-        destino.parent.mkdir(parents=True, exist_ok=True)
-        with tempfile.NamedTemporaryFile(
-            mode="w", encoding="utf-8", dir=destino.parent, delete=False
-        ) as archivo:
-            temporal = Path(archivo.name)
-            json.dump(indice, archivo, ensure_ascii=False, indent=2)
-            archivo.write("\n")
-            archivo.flush()
-            os.fsync(archivo.fileno())
-        try:
-            os.replace(temporal, destino)
-        except Exception:
-            temporal.unlink(missing_ok=True)
-            raise
+def _escribir_indice_bajo_lock(destino: Path, indice: dict[str, object]) -> None:
+    destino.parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.NamedTemporaryFile(
+        mode="w", encoding="utf-8", dir=destino.parent, delete=False
+    ) as archivo:
+        temporal = Path(archivo.name)
+        json.dump(indice, archivo, ensure_ascii=False, indent=2)
+        archivo.write("\n")
+        archivo.flush()
+        os.fsync(archivo.fileno())
+    try:
+        os.replace(temporal, destino)
+    except Exception:
+        temporal.unlink(missing_ok=True)
+        raise
+
+
+def _construir_paquete(
+    notas: list[NotaContexto],
+    refs_por_ruta: dict[str, list[str]],
+    puntajes_por_ruta: dict[str, float],
+) -> PaqueteContexto:
+    app_refs = _sin_duplicados(
+        referencia for nota in notas for referencia in refs_por_ruta[nota.ruta]
+    )
+    procedencia = ["Conversaciones/cierres"] if notas else []
+    confianza = min(1.0, puntajes_por_ruta[notas[0].ruta] / 100) if notas else 0.0
+    estimados = 0
+    for _ in range(10):
+        paquete = PaqueteContexto(notas, app_refs, estimados, procedencia, confianza)
+        siguiente = _estimar_json(paquete.a_dict())
+        if siguiente == estimados:
+            return paquete
+        estimados = siguiente
+    raise RuntimeError("No se pudo estabilizar la estimación del paquete de contexto.")
 
 
 def _estimar_tokens(texto: str) -> int:
     return ceil(len(texto) / 4)
+
+
+def _estimar_json(datos: dict[str, object]) -> int:
+    return _estimar_tokens(json.dumps(datos, ensure_ascii=False))
 
 
 def _tokens(texto: str) -> set[str]:
