@@ -7,7 +7,7 @@ from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
-from .almacen import AlmacenMemoria, claves_indice
+from .almacen import AlmacenMemoria, _crudo_a_markdown, claves_indice
 from .colectores import leer_sesion
 from .graphify_batch import marcar_cierre
 from .modelo import Cierre, Mensaje, validar_cierre
@@ -33,11 +33,15 @@ def cerrar(
 
     try:
         crudo = almacen.guardar_crudo(mensajes) if mensajes else None
+        if crudo is not None:
+            fuente_real = _relativa(almacen.vault, crudo)
+            cierre = replace(cierre, fuente_cruda=fuente_real)
+            _verificar_crudo(crudo, mensajes)
+        else:
+            _verificar_fuente_referenciada(almacen, cierre.fuente_cruda)
         ruta_cierre = almacen.guardar_cierre(cierre)
         _verificar_cierre(almacen.vault, ruta_cierre, cierre)
         _verificar_indice(almacen.vault, ruta_cierre, cierre)
-        if crudo is not None:
-            _reabrir(crudo)
         marcar_cierre(almacen.vault)
     except (OSError, ValueError, json.JSONDecodeError) as error:
         raise FalloPersistencia(str(error)) from error
@@ -102,6 +106,38 @@ def _verificar_indice(vault: Path, ruta_cierre: Path, cierre: Cierre) -> None:
             for entrada in entradas
         ):
             raise ValueError(f"El índice reabierto no contiene el cierre: {ruta}")
+
+
+def _verificar_crudo(ruta: Path, mensajes: list[Mensaje]) -> None:
+    esperado = _crudo_a_markdown(mensajes)
+    if _reabrir(ruta) != esperado:
+        raise OSError(f"La fuente cruda escrita no coincide con la sesión: {ruta}")
+
+
+def _verificar_fuente_referenciada(almacen: AlmacenMemoria, referencia: str) -> Path:
+    relativa = Path(referencia)
+    raiz_relativa = Path("Conversaciones") / "crudo"
+    motivo = ""
+    if relativa.is_absolute() or relativa.parts[:2] != raiz_relativa.parts:
+        motivo = "la referencia debe ser relativa y estar bajo Conversaciones/crudo"
+    else:
+        candidata = almacen.vault / relativa
+        raiz_real = (almacen.vault / raiz_relativa).resolve()
+        try:
+            destino_real = candidata.resolve(strict=True)
+        except OSError:
+            motivo = "la referencia no existe"
+        else:
+            if not destino_real.is_relative_to(raiz_real) or not destino_real.is_file():
+                motivo = "la referencia no apunta a un archivo confinado en Conversaciones/crudo"
+            else:
+                return candidata
+
+    almacen.marcar_pendiente(
+        "fuente_cruda_inexistente",
+        {"fuente_cruda": referencia, "error": motivo},
+    )
+    raise OSError(f"Fuente cruda inválida: {referencia}; {motivo}.")
 
 
 def _reabrir(ruta: Path) -> str:

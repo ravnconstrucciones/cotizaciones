@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime
 import json
 import re
 from typing import Any
@@ -11,6 +12,7 @@ from typing import Any
 HOSTS = {"codex", "claude"}
 ESTADOS = {"completo", "parcial", "bloqueado"}
 SENSIBILIDADES = {"normal", "restringida"}
+TIPOS_ENTIDAD = ("obras", "clientes", "cotizaciones", "documentos")
 _SENSITIVE_KEY = (
     r"(?:[A-Za-z][A-Za-z0-9_-]*?(?:API[_-]?KEY|TOKEN|SECRET(?:[_-]?KEY)?|"
     r"PASSWORD|PASSWD|PRIVATE[_-]?KEY|ACCESS[_-]?KEY|CLIENT[_-]?SECRET(?:[_-]?KEY)?)|"
@@ -18,6 +20,7 @@ _SENSITIVE_KEY = (
     r"ACCESS[_-]?KEY|CLIENT[_-]?SECRET(?:[_-]?KEY)?|DATABASE_(?:URL|URI)|REDIS_URL|"
     r"CONNECTION_STRING|ENCRYPTION_KEY|SIGNING_KEY)"
 )
+_HEADER_KEY = r"(?:Authorization|Proxy-Authorization|Cookie|Set-Cookie)"
 SECRET_PATTERNS = (
     r"(?i)(SUPABASE_SERVICE_ROLE_KEY\s*=\s*)[^\s]+",
     r"(?i)(ANTHROPIC_API_KEY\s*=\s*)[^\s]+",
@@ -27,6 +30,8 @@ SECRET_PATTERNS = (
     rf"(?i)((?:[\"']{_SENSITIVE_KEY}[\"']\s*:\s*)([\"']))(?:\\.|(?!\2)[^\r\n])*\2",
     rf"(?i)((?:\b{_SENSITIVE_KEY}\s*:\s*)([\"']))(?:\\.|(?!\2)[^\r\n])*\2",
     rf"(?i)(\b{_SENSITIVE_KEY}\s*[:=]\s*)(?![\"']\[REDACTADO\][\"'])(?:\"(?:\\.|[^\"\\\r\n])*\"|'(?:\\.|[^'\\\r\n])*'|[^\s\r\n]+)",
+    rf"(?i)((?:[\"']{_HEADER_KEY}[\"']\s*:\s*)([\"']))(?:\\.|(?!\2)[^\r\n])*\2",
+    rf"(?im)^(\s*[\"']{_HEADER_KEY}[\"']\s*:\s*)[^\r\n]+",
     r"(?im)(^\s*(?:Authorization|Proxy-Authorization)\s*:\s*)(?!\s*Bearer\s+\[REDACTADO\])[^\r\n]+",
 )
 
@@ -42,7 +47,6 @@ _CAMPO_TEXTO = (
     "sensibilidad",
 )
 _CAMPO_LISTA = (
-    "entidades",
     "hechos",
     "decisiones",
     "metodos",
@@ -95,7 +99,7 @@ class Cierre:
     fecha_cierre: str
     tema: str
     estado: str
-    entidades: list[str]
+    entidades: dict[str, list[str]]
     hechos: list[str]
     decisiones: list[str]
     metodos: list[str]
@@ -138,6 +142,25 @@ def validar_cierre(data: dict) -> Cierre:
         raise ValueError("Estado no válido.")
     if valores["sensibilidad"] not in SENSIBILIDADES:
         raise ValueError("Sensibilidad no válida.")
+    for campo in ("fecha_inicio", "fecha_cierre"):
+        validar_timestamp_iso8601(valores[campo], campo=campo)
+
+    entidades = data.get("entidades")
+    if not isinstance(entidades, dict) or set(entidades) != set(TIPOS_ENTIDAD):
+        raise ValueError(
+            "El campo 'entidades' debe tener exactamente obras, clientes, "
+            "cotizaciones y documentos."
+        )
+    if not all(
+        isinstance(entidades[tipo], list)
+        and all(isinstance(item, str) for item in entidades[tipo])
+        for tipo in TIPOS_ENTIDAD
+    ):
+        raise ValueError("Cada tipo de entidad debe ser una lista de textos.")
+    valores["entidades"] = {
+        tipo: [redactar_secretos(item) for item in entidades[tipo]]
+        for tipo in TIPOS_ENTIDAD
+    }
 
     for campo in _CAMPO_LISTA:
         valor = data.get(campo)
@@ -148,12 +171,30 @@ def validar_cierre(data: dict) -> Cierre:
     return Cierre(**valores)
 
 
+def validar_timestamp_iso8601(valor: str, *, campo: str = "timestamp") -> datetime:
+    """Acepta únicamente timestamps ISO-8601 completos y calendáricamente válidos."""
+    if "T" not in valor:
+        raise ValueError(f"El campo '{campo}' debe ser un timestamp ISO-8601.")
+    try:
+        return datetime.fromisoformat(valor.replace("Z", "+00:00"))
+    except ValueError as error:
+        raise ValueError(f"El campo '{campo}' debe ser un timestamp ISO-8601 válido.") from error
+
+
 def cierre_a_markdown(cierre: Cierre) -> str:
     """Serializa un cierre a Markdown con frontmatter y orden estable."""
     lineas = ["---"]
     for campo in _FRONTMATTER:
         valor = getattr(cierre, campo)
-        if isinstance(valor, list):
+        if isinstance(valor, dict):
+            contenido = json.dumps(
+                {
+                    tipo: [redactar_secretos(elemento) for elemento in valor.get(tipo, [])]
+                    for tipo in TIPOS_ENTIDAD
+                },
+                ensure_ascii=False,
+            )
+        elif isinstance(valor, list):
             contenido = json.dumps(
                 [redactar_secretos(elemento) for elemento in valor], ensure_ascii=False
             )

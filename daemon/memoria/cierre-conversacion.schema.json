@@ -26,11 +26,21 @@
     "id": { "type": "string", "pattern": "\\S" },
     "host": { "enum": ["codex", "claude"] },
     "thread_id": { "type": "string", "pattern": "\\S" },
-    "fecha_inicio": { "type": "string", "pattern": "\\S" },
-    "fecha_cierre": { "type": "string", "pattern": "\\S" },
+    "fecha_inicio": { "type": "string", "format": "date-time" },
+    "fecha_cierre": { "type": "string", "format": "date-time" },
     "tema": { "type": "string", "pattern": "\\S" },
     "estado": { "enum": ["completo", "parcial", "bloqueado"] },
-    "entidades": { "$ref": "#/$defs/listaTextos" },
+    "entidades": {
+      "type": "object",
+      "required": ["obras", "clientes", "cotizaciones", "documentos"],
+      "properties": {
+        "obras": { "$ref": "#/$defs/listaTextos" },
+        "clientes": { "$ref": "#/$defs/listaTextos" },
+        "cotizaciones": { "$ref": "#/$defs/listaTextos" },
+        "documentos": { "$ref": "#/$defs/listaTextos" }
+      },
+      "additionalProperties": false
+    },
     "hechos": { "$ref": "#/$defs/listaTextos" },
     "decisiones": { "$ref": "#/$defs/listaTextos" },
     "metodos": { "$ref": "#/$defs/listaTextos" },

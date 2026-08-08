@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import replace
+import hashlib
 import json
 import multiprocessing
 from pathlib import Path
@@ -22,7 +23,12 @@ CIERRE = Cierre(
     fecha_cierre="2026-08-08T11:00:00-03:00",
     tema="Memoria compartida",
     estado="completo",
-    entidades=["RAVN", "Las Glorietas"],
+    entidades={
+        "obras": ["Las Glorietas"],
+        "clientes": ["RAVN"],
+        "cotizaciones": [],
+        "documentos": [],
+    },
     hechos=["El cierre se guardó."],
     decisiones=[],
     metodos=[],
@@ -44,6 +50,21 @@ def _guardar_cierre_en_proceso(
     AlmacenMemoria(Path(vault)).guardar_cierre(cierre)
 
 
+def _guardar_cierre_conflictivo_en_proceso(
+    vault: str,
+    cierre: Cierre,
+    inicio: multiprocessing.synchronize.Event,
+    resultados: multiprocessing.queues.Queue,
+) -> None:
+    inicio.wait(timeout=5)
+    try:
+        AlmacenMemoria(Path(vault)).guardar_cierre(cierre)
+    except ValueError:
+        resultados.put("conflicto")
+    else:
+        resultados.put("ok")
+
+
 class AlmacenMemoriaTests(unittest.TestCase):
     def setUp(self):
         self.tempdir = tempfile.TemporaryDirectory()
@@ -60,18 +81,76 @@ class AlmacenMemoriaTests(unittest.TestCase):
         self.assertEqual(len(list((self.vault / "Conversaciones/cierres").rglob("*.md"))), 1)
 
     def test_clave_de_cierre_usa_host_thread_y_timestamp_completo(self):
-        """El tema no cambia un reintento y dos horas no comparten archivo."""
+        """Dos horas no comparten archivo y otro contenido en la misma clave es conflicto."""
         original = self.store.guardar_cierre(CIERRE)
-        reintento_con_otro_tema = self.store.guardar_cierre(
-            replace(CIERRE, tema="Tema corregido")
-        )
+        with self.assertRaises(ValueError):
+            self.store.guardar_cierre(replace(CIERRE, tema="Tema corregido"))
         otra_hora = self.store.guardar_cierre(
             replace(CIERRE, fecha_cierre="2026-08-08T12:00:00-03:00")
         )
 
-        self.assertEqual(original, reintento_con_otro_tema)
         self.assertNotEqual(original, otra_hora)
         self.assertEqual(len(list((self.vault / "Conversaciones/cierres").rglob("*.md"))), 2)
+
+    def test_conflicto_preserva_original_candidato_y_no_contamina_indice(self):
+        original = self.store.guardar_cierre(CIERRE)
+        bytes_originales = original.read_bytes()
+        conflictivo = replace(
+            CIERRE,
+            entidades={
+                "obras": ["Otra obra"],
+                "clientes": [],
+                "cotizaciones": [],
+                "documentos": [],
+            },
+        )
+
+        with self.assertRaisesRegex(ValueError, "conflicto"):
+            self.store.guardar_cierre(conflictivo)
+
+        self.assertEqual(original.read_bytes(), bytes_originales)
+        conflictos = self.vault / "Sistema/Memoria/conflictos-cierre"
+        candidatos = list(conflictos.rglob("*.conflict"))
+        self.assertEqual(len(candidatos), 1)
+        self.assertEqual(list(conflictos.rglob("*.md")), [])
+        self.assertIn("Otra obra", candidatos[0].read_text(encoding="utf-8"))
+        pendientes = list((self.vault / "Sistema/Memoria/pendientes-escritura").glob("*.json"))
+        detalle = json.loads(pendientes[0].read_text(encoding="utf-8"))
+        self.assertEqual(detalle["operacion"], "conflicto_cierre")
+        indice = json.loads(
+            (self.vault / "Sistema/Memoria/indices/entidades.json").read_text(encoding="utf-8")
+        )
+        self.assertIn("las glorietas", indice["entidades"])
+        self.assertNotIn("otra obra", indice["entidades"])
+
+    def test_lock_por_ruta_serializa_dos_contenidos_para_la_misma_clave(self):
+        contexto = multiprocessing.get_context("fork")
+        inicio = contexto.Event()
+        resultados = contexto.Queue()
+        segundo = replace(CIERRE, tema="Contenido concurrente distinto")
+        procesos = [
+            contexto.Process(
+                target=_guardar_cierre_conflictivo_en_proceso,
+                args=(str(self.vault), cierre, inicio, resultados),
+            )
+            for cierre in (CIERRE, segundo)
+        ]
+        for proceso in procesos:
+            proceso.start()
+        inicio.set()
+        for proceso in procesos:
+            proceso.join(timeout=10)
+            self.assertEqual(proceso.exitcode, 0)
+
+        self.assertEqual(sorted(resultados.get(timeout=5) for _ in procesos), ["conflicto", "ok"])
+        self.assertEqual(
+            len(
+                list(
+                    (self.vault / "Sistema/Memoria/conflictos-cierre").rglob("*.conflict")
+                )
+            ),
+            1,
+        )
 
     def test_fallo_de_replace_conserva_pendiente(self):
         """Una falla antes de publicar deja una recuperación visible."""
@@ -104,8 +183,18 @@ class AlmacenMemoriaTests(unittest.TestCase):
         inicio = contexto.Event()
         listo = contexto.Queue()
         cierres = (
-            replace(CIERRE, id="cierre-a", thread_id="thread-a", entidades=["Entidad A"]),
-            replace(CIERRE, id="cierre-b", thread_id="thread-b", entidades=["Entidad B"]),
+            replace(
+                CIERRE,
+                id="cierre-a",
+                thread_id="thread-a",
+                entidades={**CIERRE.entidades, "obras": ["Entidad A"]},
+            ),
+            replace(
+                CIERRE,
+                id="cierre-b",
+                thread_id="thread-b",
+                entidades={**CIERRE.entidades, "obras": ["Entidad B"]},
+            ),
         )
         procesos = [
             contexto.Process(
@@ -134,7 +223,10 @@ class AlmacenMemoriaTests(unittest.TestCase):
         cierre = replace(
             CIERRE,
             tema="Tema OPENAI_API_KEY=secreto-tema",
-            entidades=["OPENAI_API_KEY=secreto-entidad"],
+            entidades={
+                **CIERRE.entidades,
+                "documentos": ["OPENAI_API_KEY=secreto-entidad"],
+            },
         )
 
         self.store.guardar_cierre(cierre)
@@ -143,6 +235,23 @@ class AlmacenMemoriaTests(unittest.TestCase):
         self.assertNotIn("secreto-tema", indice)
         self.assertNotIn("secreto-entidad", indice)
         self.assertIn("[REDACTADO]", indice)
+
+    def test_actualizar_indice_elimina_la_ruta_de_claves_anteriores(self):
+        ruta = self.store.guardar_cierre(CIERRE)
+        indice_path = self.vault / "Sistema/Memoria/indices/entidades.json"
+        indice = json.loads(indice_path.read_text(encoding="utf-8"))
+        indice["entidades"]["entidad obsoleta"] = [
+            {"ruta": ruta.relative_to(self.vault).as_posix(), "origen": "obras"}
+        ]
+        indice_path.write_text(json.dumps(indice), encoding="utf-8")
+
+        self.store.actualizar_indice(CIERRE, ruta)
+
+        actualizado = json.loads(indice_path.read_text(encoding="utf-8"))
+        self.assertNotIn("entidad obsoleta", actualizado["entidades"])
+        self.assertEqual(
+            actualizado["entidades"]["las glorietas"][0]["origen"], "obras"
+        )
 
     def test_guardar_crudo_archiva_mensajes_en_una_ruta_por_sesion(self):
         """La transcripción normalizada conserva un respaldo fuera del índice diario."""
@@ -158,6 +267,38 @@ class AlmacenMemoriaTests(unittest.TestCase):
             Path("Conversaciones/crudo/2026/08/2026-08-08-codex-t-1.md"),
         )
         self.assertIn("Hola", path.read_text(encoding="utf-8"))
+
+    def test_crudo_incluye_frontmatter_restringido_y_hash_integral_del_cuerpo(self):
+        mensajes = [
+            Mensaje(
+                "codex",
+                "t-1",
+                "2026-08-08T10:00:00-03:00",
+                "user",
+                "message",
+                "Hola\r\nCookie: secreto",
+                {},
+            )
+        ]
+
+        path = self.store.guardar_crudo(mensajes)
+        contenido = path.read_text(encoding="utf-8")
+        frontmatter, cuerpo = contenido.split("---\n", 2)[1:]
+        campos = dict(linea.split(": ", 1) for linea in frontmatter.strip().splitlines())
+
+        self.assertEqual(campos["sensibilidad"], "restringida")
+        self.assertEqual(campos["host"], "codex")
+        self.assertEqual(json.loads(campos["thread_id"]), "t-1")
+        self.assertEqual(json.loads(campos["fuente"]), "session://codex/t-1")
+        self.assertEqual(campos["sha256"], hashlib.sha256(cuerpo.encode("utf-8")).hexdigest())
+        self.assertNotIn("\r", cuerpo)
+        self.assertNotIn("secreto", cuerpo)
+
+    def test_guardar_crudo_rechaza_timestamp_iso_invalido(self):
+        mensajes = [Mensaje("codex", "t-1", "2026-02-30T10:00:00Z", "user", "message", "Hola", {})]
+
+        with self.assertRaises(ValueError):
+            self.store.guardar_crudo(mensajes)
 
 
 if __name__ == "__main__":

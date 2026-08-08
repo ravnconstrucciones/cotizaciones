@@ -13,7 +13,7 @@ import tempfile
 from typing import Any
 
 from .almacen import _bloquear_indice, claves_indice
-from .modelo import Cierre, cierre_a_markdown, validar_cierre
+from .modelo import Cierre, TIPOS_ENTIDAD, cierre_a_markdown, validar_cierre
 
 
 _CIERRES = Path("Conversaciones") / "cierres"
@@ -181,7 +181,7 @@ def _leer_cierre_validado(vault: Path, ruta: Path) -> _CierreLeido | None:
     try:
         frontmatter, cuerpo = _separar_markdown(ruta.read_text(encoding="utf-8"))
         datos = dict(frontmatter)
-        datos["entidades"] = _lista_entidades(frontmatter.get("entidades", []))
+        datos["entidades"] = _entidades_tipadas(frontmatter.get("entidades", {}))
         datos.update(_listas_del_cierre(cuerpo))
         cierre = validar_cierre(datos)
     except (OSError, ValueError, TypeError, json.JSONDecodeError):
@@ -192,7 +192,7 @@ def _leer_cierre_validado(vault: Path, ruta: Path) -> _CierreLeido | None:
     return _CierreLeido(
         cierre=cierre,
         ruta=ruta.relative_to(vault).as_posix(),
-        entidades={"obras": list(cierre.entidades)},
+        entidades={tipo: list(cierre.entidades[tipo]) for tipo in TIPOS_ENTIDAD},
         contenido=contenido,
         cuerpo=cuerpo_redactado,
         app_refs=_referencias_app(cierre.enlaces, cuerpo_redactado),
@@ -220,17 +220,16 @@ def _valor_frontmatter(valor: str) -> object:
     return valor
 
 
-def _lista_entidades(valor: object) -> list[str]:
-    if isinstance(valor, list) and all(isinstance(item, str) for item in valor):
-        return list(valor)
-    if isinstance(valor, dict) and all(
-        isinstance(clave, str)
-        and isinstance(items, list)
-        and all(isinstance(item, str) for item in items)
-        for clave, items in valor.items()
+def _entidades_tipadas(valor: object) -> dict[str, list[str]]:
+    if not isinstance(valor, dict) or set(valor) != set(TIPOS_ENTIDAD):
+        raise ValueError("Las entidades del cierre son inválidas.")
+    if not all(
+        isinstance(valor[tipo], list)
+        and all(isinstance(item, str) for item in valor[tipo])
+        for tipo in TIPOS_ENTIDAD
     ):
-        return [entidad for items in valor.values() for entidad in items]
-    raise ValueError("Las entidades del cierre son inválidas.")
+        raise ValueError("Las entidades del cierre son inválidas.")
+    return {tipo: list(valor[tipo]) for tipo in TIPOS_ENTIDAD}
 
 
 def _contenido_contexto(cierre: Cierre, cuerpo: str) -> str:
@@ -286,16 +285,20 @@ def _puntuar(
     puntaje = 0.0
     razones: list[str] = []
     entidades = [valor for valores in nota.entidades.values() for valor in valores]
-    entidades_normalizadas = {_normalizar(valor): valor for valor in entidades}
-    exactas = sorted(entidades_consulta.intersection(entidades_normalizadas))
-    for entidad in exactas:
-        puntaje += 100
-        razones.append(f"entidad:{entidades_normalizadas[entidad]}")
+    entidades_normalizadas = {
+        tipo: {_normalizar(valor): valor for valor in valores}
+        for tipo, valores in nota.entidades.items()
+    }
+    for tipo in TIPOS_ENTIDAD:
+        exactas = sorted(entidades_consulta.intersection(entidades_normalizadas[tipo]))
+        for entidad in exactas:
+            puntaje += 100
+            razones.append(f"{tipo}:{entidades_normalizadas[tipo][entidad]}")
 
-    tokens_entidad = _tokens(" ".join(entidades))
-    for token in sorted(tokens_consulta.intersection(tokens_entidad)):
-        puntaje += 40
-        razones.append(f"entidad_token:{token}")
+        tokens_entidad = _tokens(" ".join(nota.entidades[tipo]))
+        for token in sorted(tokens_consulta.intersection(tokens_entidad)):
+            puntaje += 40
+            razones.append(f"{tipo}_token:{token}")
     for token in sorted(tokens_consulta.intersection(_tokens(nota.cierre.tema))):
         puntaje += 20
         razones.append(f"titulo:{token}")
@@ -306,9 +309,10 @@ def _puntuar(
     if nota.cierre.estado == "parcial":
         puntaje += 10
         razones.append("parcial")
-    for entidad in sorted(set(entidades_normalizadas).intersection(vecinos)):
-        puntaje += 15
-        razones.append(f"vecino:{entidades_normalizadas[entidad]}")
+    for tipo in TIPOS_ENTIDAD:
+        for entidad in sorted(set(entidades_normalizadas[tipo]).intersection(vecinos)):
+            puntaje += 15
+            razones.append(f"vecino_{tipo}:{entidades_normalizadas[tipo][entidad]}")
 
     if razones:
         descuento = _descuento_antiguedad(nota.cierre.fecha_cierre)
@@ -398,7 +402,11 @@ def _construir_paquete(
         referencia for nota in notas for referencia in refs_por_ruta[nota.ruta]
     )
     procedencia = ["cierre"] if notas else []
-    confianza = min(1.0, puntajes_por_ruta[notas[0].ruta] / 100) if notas else 0.0
+    confianza = (
+        max(0.0, min(1.0, puntajes_por_ruta[notas[0].ruta] / 100))
+        if notas
+        else 0.0
+    )
     estimados = 0
     for _ in range(10):
         paquete = PaqueteContexto(notas, app_refs, estimados, procedencia, confianza)

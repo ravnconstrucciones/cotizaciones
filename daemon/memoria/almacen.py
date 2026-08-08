@@ -14,7 +14,13 @@ import tempfile
 import unicodedata
 from uuid import uuid4
 
-from .modelo import Cierre, Mensaje, cierre_a_markdown, redactar_secretos
+from .modelo import (
+    Cierre,
+    Mensaje,
+    cierre_a_markdown,
+    redactar_secretos,
+    validar_timestamp_iso8601,
+)
 
 
 class AlmacenMemoria:
@@ -34,6 +40,8 @@ class AlmacenMemoria:
             for mensaje in mensajes
         ):
             raise ValueError("Los mensajes crudos deben pertenecer a una única sesión.")
+        for mensaje in mensajes:
+            validar_timestamp_iso8601(mensaje.timestamp, campo="timestamp")
 
         fecha = _fecha_para_ruta(primero.timestamp)
         destino = (
@@ -44,12 +52,10 @@ class AlmacenMemoria:
             / fecha[5:7]
             / f"{fecha}-{_slug(primero.host)}-{_slug(primero.thread_id)}.md"
         )
-        if destino.exists():
-            return destino
-
         contenido = _crudo_a_markdown(mensajes)
         try:
-            self._escribir_atomico(destino, contenido)
+            if not destino.exists() or destino.read_bytes() != contenido.encode("utf-8"):
+                self._escribir_atomico(destino, contenido)
         except OSError as error:
             self.marcar_pendiente(
                 "guardar_crudo",
@@ -61,10 +67,23 @@ class AlmacenMemoria:
     def guardar_cierre(self, cierre: Cierre) -> Path:
         """Publica un cierre y lo deja disponible de inmediato en el índice local."""
         destino = self._ruta_cierre(cierre)
+        contenido = cierre_a_markdown(cierre)
+        bytes_nuevos = contenido.encode("utf-8")
         try:
-            if not destino.exists():
-                self._escribir_atomico(destino, cierre_a_markdown(cierre))
-            self.actualizar_indice(cierre, destino, _marcar_error=False)
+            with _bloquear_ruta(destino):
+                if destino.exists():
+                    bytes_actuales = destino.read_bytes()
+                    if bytes_actuales != bytes_nuevos:
+                        candidato = self._preservar_conflicto(
+                            destino, bytes_actuales, contenido
+                        )
+                        raise ValueError(
+                            f"Conflicto de cierre: la ruta {destino} ya contiene otros bytes; "
+                            f"el candidato quedó en {candidato}."
+                        )
+                else:
+                    self._escribir_atomico(destino, contenido)
+                self.actualizar_indice(cierre, destino, _marcar_error=False)
         except OSError as error:
             self.marcar_pendiente(
                 "guardar_cierre",
@@ -77,6 +96,38 @@ class AlmacenMemoria:
             raise
         return destino
 
+    def _preservar_conflicto(
+        self, original: Path, bytes_originales: bytes, contenido_candidato: str
+    ) -> Path:
+        bytes_candidato = contenido_candidato.encode("utf-8")
+        hash_original = hashlib.sha256(bytes_originales).hexdigest()
+        hash_candidato = hashlib.sha256(bytes_candidato).hexdigest()
+        fecha = original.parent.name
+        anio = original.parent.parent.name
+        candidato = (
+            self.vault
+            / "Sistema"
+            / "Memoria"
+            / "conflictos-cierre"
+            / anio
+            / fecha
+            / f"{original.stem}-{hash_candidato[:16]}.conflict"
+        )
+        if not candidato.exists():
+            self._escribir_atomico(candidato, contenido_candidato)
+        pendiente = self.marcar_pendiente(
+            "conflicto_cierre",
+            {
+                "original": _ruta_relativa(self.vault, original),
+                "candidato": _ruta_relativa(self.vault, candidato),
+                "sha256_original": hash_original,
+                "sha256_candidato": hash_candidato,
+            },
+        )
+        if candidato.read_bytes() != bytes_candidato or not pendiente.is_file():
+            raise OSError(f"No se pudo preservar el conflicto de cierre: {original}")
+        return candidato
+
     def actualizar_indice(
         self, cierre: Cierre, ruta_cierre: Path | None = None, *, _marcar_error: bool = True
     ) -> Path:
@@ -88,6 +139,17 @@ class AlmacenMemoria:
                 indice = _leer_indice(destino)
                 entidades = indice.setdefault("entidades", {})
                 ruta_relativa = _texto_indice(_ruta_relativa(self.vault, ruta_cierre))
+                for clave_anterior in list(entidades):
+                    notas_anteriores = entidades[clave_anterior]
+                    if not isinstance(notas_anteriores, list):
+                        raise ValueError(f"Entrada inválida en el índice: {clave_anterior}")
+                    entidades[clave_anterior] = [
+                        nota
+                        for nota in notas_anteriores
+                        if not isinstance(nota, dict) or nota.get("ruta") != ruta_relativa
+                    ]
+                    if not entidades[clave_anterior]:
+                        del entidades[clave_anterior]
                 entrada_base = {
                     "ruta": ruta_relativa,
                     "updated_at": _texto_indice(cierre.fecha_cierre),
@@ -98,7 +160,6 @@ class AlmacenMemoria:
                 }
                 for clave, origen in claves_indice(cierre):
                     notas = entidades.setdefault(clave, [])
-                    notas[:] = [nota for nota in notas if nota.get("ruta") != ruta_relativa]
                     notas.append({**entrada_base, "origen": origen})
                     notas.sort(key=lambda nota: (nota["updated_at"], nota["ruta"]), reverse=True)
 
@@ -185,13 +246,45 @@ def _bloquear_indice(directorio: Path):
             fcntl.flock(archivo.fileno(), fcntl.LOCK_UN)
 
 
+@contextmanager
+def _bloquear_ruta(destino: Path):
+    """Serializa comparación, publicación e indexado de una ruta de cierre."""
+    destino.parent.mkdir(parents=True, exist_ok=True)
+    lock = destino.with_name(f".{destino.name}.lock")
+    with lock.open("a+", encoding="utf-8") as archivo:
+        fcntl.flock(archivo.fileno(), fcntl.LOCK_EX)
+        try:
+            yield
+        finally:
+            fcntl.flock(archivo.fileno(), fcntl.LOCK_UN)
+
+
 def _crudo_a_markdown(mensajes: list[Mensaje]) -> str:
+    primero = mensajes[0]
+    cuerpo = _cuerpo_crudo(mensajes)
+    digest = hashlib.sha256(cuerpo.encode("utf-8")).hexdigest()
+    fuente = redactar_secretos(f"session://{primero.host}/{primero.thread_id}")
+    frontmatter = [
+        "---",
+        "sensibilidad: restringida",
+        f"host: {redactar_secretos(primero.host)}",
+        f"thread_id: {json.dumps(redactar_secretos(primero.thread_id), ensure_ascii=False)}",
+        f"fuente: {json.dumps(fuente, ensure_ascii=False)}",
+        f"sha256: {digest}",
+        "---",
+    ]
+    return "\n".join(frontmatter) + "\n" + cuerpo
+
+
+def _cuerpo_crudo(mensajes: list[Mensaje]) -> str:
     lineas = ["# Transcripción normalizada", ""]
     for mensaje in mensajes:
         lineas.extend(
             [
-                f"## {redactar_secretos(mensaje.timestamp)} — {redactar_secretos(mensaje.autor)} ({redactar_secretos(mensaje.tipo)})",
-                redactar_secretos(mensaje.texto),
+                f"## {_normalizar_lineas(redactar_secretos(mensaje.timestamp))} — "
+                f"{_normalizar_lineas(redactar_secretos(mensaje.autor))} "
+                f"({_normalizar_lineas(redactar_secretos(mensaje.tipo))})",
+                _normalizar_lineas(redactar_secretos(mensaje.texto)),
                 "",
             ]
         )
@@ -199,10 +292,7 @@ def _crudo_a_markdown(mensajes: list[Mensaje]) -> str:
 
 
 def _fecha_para_ruta(timestamp: str) -> str:
-    fecha = timestamp[:10]
-    if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", fecha):
-        raise ValueError(f"Fecha ISO-8601 inválida para ruta: {timestamp}")
-    return fecha
+    return validar_timestamp_iso8601(timestamp).date().isoformat()
 
 
 def _normalizar_entidad(entidad: str) -> str:
@@ -217,12 +307,13 @@ def _normalizar_entidad(entidad: str) -> str:
 def claves_indice(cierre: Cierre) -> set[tuple[str, str]]:
     """Devuelve claves recuperables y el campo que les dio origen."""
     entidades = {
-        _normalizar_entidad(_texto_indice(valor))
-        for valor in cierre.entidades
+        (_normalizar_entidad(_texto_indice(valor)), tipo)
+        for tipo, valores in cierre.entidades.items()
+        for valor in valores
         if valor.strip()
     }
     if entidades:
-        return {(entidad, "entidad") for entidad in entidades}
+        return entidades
     return {(_normalizar_entidad(_texto_indice(cierre.tema)), "tema")}
 
 
@@ -238,3 +329,7 @@ def _slug(valor: str) -> str:
 
 def _ruta_relativa(vault: Path, ruta: Path) -> str:
     return ruta.relative_to(vault).as_posix()
+
+
+def _normalizar_lineas(valor: str) -> str:
+    return valor.replace("\r\n", "\n").replace("\r", "\n")

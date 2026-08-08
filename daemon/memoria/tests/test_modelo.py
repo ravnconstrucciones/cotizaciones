@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+from pathlib import Path
 import unittest
 
 from daemon.memoria.modelo import (
@@ -22,7 +24,12 @@ def cierre_valido() -> dict:
         "fecha_cierre": "2026-08-08T11:00:00-03:00",
         "tema": "Memoria compartida",
         "estado": "completo",
-        "entidades": ["RAVN"],
+        "entidades": {
+            "obras": ["Las Glorietas"],
+            "clientes": ["RAVN"],
+            "cotizaciones": [],
+            "documentos": [],
+        },
         "hechos": ["El modelo tiene contrato."],
         "decisiones": ["Usar formato Markdown."],
         "metodos": ["TDD"],
@@ -69,6 +76,22 @@ class ModeloCanonicoTests(unittest.TestCase):
             redactar_secretos(texto),
             "Cookie: [REDACTADO]\nSet-Cookie: [REDACTADO]",
         )
+
+    def test_redacta_encabezados_sensibles_como_claves_json_y_yaml(self):
+        texto = (
+            '{"Authorization":"Basic abc==","Proxy-Authorization":"Token xyz",'
+            '"Cookie":"sesion=abc","Set-Cookie":"refresh=def"}\n'
+            "Authorization: Bearer token-123\n"
+            "'Proxy-Authorization': 'Basic cHJveHk='\n"
+            '"Cookie": session=ghi\n'
+            "Set-Cookie: refresh=jkl; HttpOnly"
+        )
+
+        redactado = redactar_secretos(texto)
+
+        for secreto in ("abc==", "xyz", "sesion=abc", "refresh=def", "token-123", "cHJveHk=", "session=ghi", "refresh=jkl"):
+            self.assertNotIn(secreto, redactado)
+        self.assertEqual(redactado.count("[REDACTADO]"), 8)
 
     def test_redacta_claves_genericas_sensibles_habituales(self):
         texto = (
@@ -152,6 +175,38 @@ class ModeloCanonicoTests(unittest.TestCase):
         self.assertEqual(cierre.hechos, ["El modelo tiene contrato."])
         data["hechos"].append("No debe filtrarse.")
         self.assertEqual(cierre.hechos, ["El modelo tiene contrato."])
+        data["entidades"]["clientes"].append("No debe filtrarse.")
+        self.assertEqual(cierre.entidades["clientes"], ["RAVN"])
+
+    def test_entidades_exige_las_cuatro_claves_tipadas_exactas(self):
+        for entidades in (
+            ["RAVN"],
+            {"obras": [], "clientes": [], "cotizaciones": []},
+            {
+                "obras": [],
+                "clientes": [],
+                "cotizaciones": [],
+                "documentos": [],
+                "proveedores": [],
+            },
+            {
+                "obras": [1],
+                "clientes": [],
+                "cotizaciones": [],
+                "documentos": [],
+            },
+        ):
+            with self.subTest(entidades=entidades), self.assertRaises(ValueError):
+                validar_cierre({**cierre_valido(), "entidades": entidades})
+
+    def test_fechas_de_cierre_deben_ser_timestamps_iso_8601_reales(self):
+        for campo, valor in (
+            ("fecha_inicio", "2026-02-30T10:00:00-03:00"),
+            ("fecha_cierre", "08/08/2026 11:00"),
+            ("fecha_cierre", "2026-08-08"),
+        ):
+            with self.subTest(campo=campo, valor=valor), self.assertRaises(ValueError):
+                validar_cierre({**cierre_valido(), campo: valor})
 
     def test_mensaje_conserva_el_contrato_de_sesion(self):
         mensaje = Mensaje(
@@ -184,12 +239,38 @@ class ModeloCanonicoTests(unittest.TestCase):
         self.assertIn("- El modelo tiene contrato.", markdown)
 
     def test_markdown_redacta_secretos_tambien_en_entidades_del_frontmatter(self):
-        cierre = Cierre(**{**cierre_valido(), "entidades": ["OPENAI_API_KEY=secreto"]})
+        entidades = cierre_valido()["entidades"]
+        cierre = Cierre(
+            **{
+                **cierre_valido(),
+                "entidades": {**entidades, "documentos": ["OPENAI_API_KEY=secreto"]},
+            }
+        )
 
         markdown = cierre_a_markdown(cierre)
 
         self.assertNotIn("secreto", markdown)
         self.assertIn("OPENAI_API_KEY=[REDACTADO]", markdown)
+
+    def test_schema_y_markdown_conservan_el_tipo_de_cada_entidad(self):
+        cierre = validar_cierre(cierre_valido())
+
+        markdown = cierre_a_markdown(cierre)
+        entidades_linea = next(
+            linea.removeprefix("entidades: ")
+            for linea in markdown.splitlines()
+            if linea.startswith("entidades: ")
+        )
+        schema = json.loads(
+            (Path(__file__).parents[1] / "cierre-conversacion.schema.json").read_text(
+                encoding="utf-8"
+            )
+        )
+
+        self.assertEqual(json.loads(entidades_linea), cierre_valido()["entidades"])
+        contrato = schema["properties"]["entidades"]
+        self.assertEqual(contrato["required"], ["obras", "clientes", "cotizaciones", "documentos"])
+        self.assertFalse(contrato["additionalProperties"])
 
     def test_markdown_indenta_cada_continuacion_multilinea(self):
         datos = cierre_valido()

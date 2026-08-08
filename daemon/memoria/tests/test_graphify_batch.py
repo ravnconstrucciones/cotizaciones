@@ -27,7 +27,12 @@ CIERRE = {
     "fecha_cierre": "2026-08-08T11:00:00-03:00",
     "tema": "Graphify incremental",
     "estado": "completo",
-    "entidades": ["Graphify"],
+    "entidades": {
+        "obras": [],
+        "clientes": [],
+        "cotizaciones": [],
+        "documentos": ["Graphify"],
+    },
     "hechos": ["El cierre quedó persistido."],
     "decisiones": [],
     "metodos": ["TDD"],
@@ -35,7 +40,7 @@ CIERRE = {
     "pendientes": [],
     "separaciones": [],
     "enlaces": [],
-    "fuente_cruda": "session://codex/thread-graphify-1",
+    "fuente_cruda": "Conversaciones/crudo/2026/08/thread-graphify-1.md",
     "sensibilidad": "normal",
 }
 
@@ -49,6 +54,9 @@ class GraphifyBatchTests(unittest.TestCase):
         self.state = self.root / "estado" / "graphify-memoria.json"
         self.marker = self.vault / "Sistema" / "Memoria" / ".graphify-pendiente"
         self.ahora = datetime(2026, 8, 8, 12, 0, tzinfo=timezone.utc)
+        fuente = self.vault / CIERRE["fuente_cruda"]
+        fuente.parent.mkdir(parents=True)
+        fuente.write_text("crudo ya archivado", encoding="utf-8")
 
     def test_primer_marcador_debe_actualizar(self) -> None:
         marcar_cierre(self.vault)

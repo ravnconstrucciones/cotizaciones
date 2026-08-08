@@ -64,7 +64,12 @@ def _cierre(
         fecha_cierre="2026-08-08T11:00:00-03:00",
         tema=tema,
         estado=estado,
-        entidades=entidades,
+        entidades={
+            "obras": entidades,
+            "clientes": [],
+            "cotizaciones": [],
+            "documentos": [],
+        },
         hechos=hechos or [],
         decisiones=[],
         metodos=[],
@@ -103,13 +108,13 @@ class RecuperarTests(unittest.TestCase):
         )
 
         paquete = recuperar(
-            ConsultaMemoria("garage adoquines", ["Glorietas"], max_tokens=120), self.vault
+            ConsultaMemoria("garage adoquines", ["Glorietas"], max_tokens=180), self.vault
         )
 
         self.assertEqual(paquete.notas[0].entidades["obras"], ["Glorietas"])
-        self.assertLessEqual(paquete.tokens_estimados, 120)
+        self.assertLessEqual(paquete.tokens_estimados, 180)
         self.assertEqual(paquete.procedencia, ["cierre"])
-        self.assertIn("entidad:Glorietas", paquete.notas[0].razones)
+        self.assertIn("obras:Glorietas", paquete.notas[0].razones)
 
     def test_no_abre_crudo_por_defecto(self) -> None:
         self.almacen.guardar_cierre(
@@ -179,7 +184,8 @@ class RecuperarTests(unittest.TestCase):
         )
         ruta.write_text(
             ruta.read_text(encoding="utf-8").replace(
-                '["Glorietas"]', '["OPENAI_API_KEY=secreto-entidad"]'
+                '"obras": ["Glorietas"]',
+                '"obras": ["OPENAI_API_KEY=secreto-entidad"]',
             ),
             encoding="utf-8",
         )
@@ -191,6 +197,44 @@ class RecuperarTests(unittest.TestCase):
 
         self.assertEqual(paquete.notas[0].entidades["obras"], ["OPENAI_API_KEY=[REDACTADO]"])
         self.assertNotIn("secreto-entidad", serializado)
+
+    def test_recuperacion_conserva_tipos_en_entidades_y_razones(self) -> None:
+        cierre = replace(
+            _cierre(cierre_id="tipado", tema="Documento de obra", entidades=["Glorietas"]),
+            entidades={
+                "obras": ["Glorietas"],
+                "clientes": ["Asociación Civil"],
+                "cotizaciones": ["COT-0042"],
+                "documentos": ["REM-0004"],
+            },
+        )
+        self.almacen.guardar_cierre(cierre)
+
+        paquete = recuperar(ConsultaMemoria("", ["REM-0004"]), self.vault)
+
+        self.assertEqual(paquete.notas[0].entidades, cierre.entidades)
+        self.assertIn("documentos:REM-0004", paquete.notas[0].razones)
+        indice = json.loads(
+            (self.vault / "Sistema/Memoria/indices/entidades.json").read_text(encoding="utf-8")
+        )
+        self.assertEqual(indice["entidades"]["rem-0004"][0]["origen"], "documentos")
+
+    def test_confianza_nunca_es_negativa_por_antiguedad(self) -> None:
+        cierre = replace(
+            _cierre(
+                cierre_id="antiguo",
+                tema="Sin coincidencia",
+                entidades=[],
+                hechos=["palabraunica"],
+            ),
+            fecha_inicio="1900-01-01T10:00:00Z",
+            fecha_cierre="1900-01-01T11:00:00Z",
+        )
+        self.almacen.guardar_cierre(cierre)
+
+        paquete = recuperar(ConsultaMemoria("palabraunica", []), self.vault)
+
+        self.assertEqual(paquete.confianza, 0.0)
 
     def test_presupuesto_cuenta_el_json_final_con_metadata_extensa(self) -> None:
         self.almacen.guardar_cierre(
@@ -270,7 +314,7 @@ class RecuperarTests(unittest.TestCase):
         paquete = recuperar(ConsultaMemoria("", ["Casa Central"]), self.vault)
 
         self.assertEqual(paquete.notas[0].ruta.split("/")[0:2], ["Conversaciones", "cierres"])
-        self.assertIn("vecino:Glorietas", paquete.notas[0].razones)
+        self.assertIn("vecino_obras:Glorietas", paquete.notas[0].razones)
 
     def test_cli_recuperar_emite_json_y_reindexar_descarta_markdown_no_validado(self) -> None:
         cierre_path = self.almacen.guardar_cierre(

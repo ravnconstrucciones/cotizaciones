@@ -23,7 +23,12 @@ CIERRE_DICT = {
     "fecha_cierre": "2026-08-08T11:00:00-03:00",
     "tema": "Comando común",
     "estado": "completo",
-    "entidades": ["RAVN"],
+    "entidades": {
+        "obras": [],
+        "clientes": ["RAVN"],
+        "cotizaciones": [],
+        "documentos": [],
+    },
     "hechos": ["El cierre quedó persistido."],
     "decisiones": [],
     "metodos": ["TDD"],
@@ -31,7 +36,7 @@ CIERRE_DICT = {
     "pendientes": [],
     "separaciones": [],
     "enlaces": [],
-    "fuente_cruda": "session://codex/thread-cli-1",
+    "fuente_cruda": "Conversaciones/crudo/2026/08/fuente-existente.md",
     "sensibilidad": "normal",
 }
 
@@ -41,6 +46,9 @@ class CerrarCliTests(unittest.TestCase):
         self.tempdir = tempfile.TemporaryDirectory()
         self.addCleanup(self.tempdir.cleanup)
         self.vault = Path(self.tempdir.name) / "vault"
+        fuente = self.vault / CIERRE_DICT["fuente_cruda"]
+        fuente.parent.mkdir(parents=True)
+        fuente.write_text("crudo ya archivado", encoding="utf-8")
 
     def _ejecutar(self, datos: dict, *args: str) -> subprocess.CompletedProcess[str]:
         return subprocess.run(
@@ -81,6 +89,8 @@ class CerrarCliTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         evidencia = json.loads(result.stdout)
         self.assertTrue((self.vault / evidencia["crudo"]).is_file())
+        cierre = (self.vault / evidencia["cierre"]).read_text(encoding="utf-8")
+        self.assertIn(f"fuente_cruda: {evidencia['crudo']}", cierre)
 
     def test_stdin_tiene_precedencia_sobre_metadata_inferida(self):
         result = self._ejecutar(CIERRE_DICT, "--host", "claude", "--thread-id", "otro-thread")
@@ -91,7 +101,10 @@ class CerrarCliTests(unittest.TestCase):
         self.assertIn("thread_id: thread-cli-1", cierre)
 
     def test_cli_indexa_cierre_general_por_tema(self):
-        cierre_general = {**CIERRE_DICT, "entidades": []}
+        cierre_general = {
+            **CIERRE_DICT,
+            "entidades": {clave: [] for clave in CIERRE_DICT["entidades"]},
+        }
 
         result = self._ejecutar(cierre_general)
 
@@ -104,6 +117,31 @@ class CerrarCliTests(unittest.TestCase):
         self.assertTrue(evidencia["indexado"])
         self.assertEqual(entrada["origen"], "tema")
         self.assertEqual(entrada["ruta"], evidencia["cierre"])
+
+    def test_cli_sin_session_path_falla_y_deja_pendiente_si_fuente_no_existe(self):
+        datos = {
+            **CIERRE_DICT,
+            "fuente_cruda": "Conversaciones/crudo/2026/08/inexistente.md",
+        }
+
+        result = self._ejecutar(datos)
+
+        self.assertEqual(result.returncode, 3, result.stderr)
+        self.assertFalse(json.loads(result.stderr)["ok"])
+        pendientes = list(
+            (self.vault / "Sistema/Memoria/pendientes-escritura").glob("*.json")
+        )
+        self.assertEqual(len(pendientes), 1)
+        self.assertEqual(
+            json.loads(pendientes[0].read_text(encoding="utf-8"))["operacion"],
+            "fuente_cruda_inexistente",
+        )
+
+    def test_cli_rechaza_fecha_invalida_sin_publicar_cierre(self):
+        result = self._ejecutar({**CIERRE_DICT, "fecha_cierre": "2026-02-30T11:00:00Z"})
+
+        self.assertEqual(result.returncode, 2, result.stderr)
+        self.assertFalse((self.vault / "Conversaciones/cierres").exists())
 
     def test_datos_invalidos_salen_con_codigo_dos(self):
         result = self._ejecutar({"host": "codex"})
