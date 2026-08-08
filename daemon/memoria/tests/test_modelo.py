@@ -54,6 +54,50 @@ class ModeloCanonicoTests(unittest.TestCase):
             "Authorization: Bearer [REDACTADO]",
         )
 
+    def test_redacta_bearer_completo_incluso_con_caracteres_base64(self):
+        texto = "Authorization: Bearer abc+/== obra Glorietas"
+
+        self.assertEqual(
+            redactar_secretos(texto),
+            "Authorization: Bearer [REDACTADO] obra Glorietas",
+        )
+
+    def test_redacta_encabezados_de_cookie(self):
+        texto = "Cookie: session=abc; theme=dark\nSet-Cookie: refresh=def; HttpOnly"
+
+        self.assertEqual(
+            redactar_secretos(texto),
+            "Cookie: [REDACTADO]\nSet-Cookie: [REDACTADO]",
+        )
+
+    def test_redacta_claves_genericas_sensibles_habituales(self):
+        texto = (
+            "JWT_SECRET=jwt-123 STRIPE_SECRET_KEY=stripe-123 "
+            "password: clave-obra X-API-Key: api-123"
+        )
+
+        self.assertEqual(
+            redactar_secretos(texto),
+            "JWT_SECRET=[REDACTADO] STRIPE_SECRET_KEY=[REDACTADO] "
+            "password: [REDACTADO] X-API-Key: [REDACTADO]",
+        )
+
+    def test_redacta_volcado_de_entorno_y_conserva_texto_de_obra(self):
+        texto = (
+            "OBRA=Glorietas\n"
+            "DATABASE_URL=postgres://usuario:clave@db.example/ravn\n"
+            "SERVICE_TOKEN=abc+/==\n"
+            "precio estimado 100"
+        )
+
+        self.assertEqual(
+            redactar_secretos(texto),
+            "OBRA=Glorietas\n"
+            "DATABASE_URL=[REDACTADO]\n"
+            "SERVICE_TOKEN=[REDACTADO]\n"
+            "precio estimado 100",
+        )
+
     def test_cierre_exige_fuente_y_estado_valido(self):
         with self.assertRaises(ValueError):
             validar_cierre({"host": "codex", "thread_id": "t-1", "estado": "inventado"})

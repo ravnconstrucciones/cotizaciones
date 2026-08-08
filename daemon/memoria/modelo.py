@@ -15,7 +15,10 @@ SECRET_PATTERNS = (
     r"(?i)(SUPABASE_SERVICE_ROLE_KEY\s*=\s*)[^\s]+",
     r"(?i)(ANTHROPIC_API_KEY\s*=\s*)[^\s]+",
     r"(?i)(OPENAI_API_KEY\s*=\s*)[^\s]+",
-    r"(?i)(Authorization:\s*Bearer\s+)[A-Za-z0-9._-]+",
+    r"(?i)(Authorization:\s*Bearer\s+)\S+",
+    r"(?im)(^\s*(?:Set-)?Cookie\s*:\s*)[^\r\n]+",
+    r"(?i)(\b(?:[A-Za-z][A-Za-z0-9_-]*?(?:API[_-]?KEY|TOKEN|SECRET(?:[_-]?KEY)?|PASSWORD|PASSWD|PRIVATE[_-]?KEY|ACCESS[_-]?KEY|CLIENT[_-]?SECRET(?:[_-]?KEY)?)|API[_-]?KEY|TOKEN|SECRET(?:[_-]?KEY)?|PASSWORD|PASSWD|PRIVATE[_-]?KEY|ACCESS[_-]?KEY|CLIENT[_-]?SECRET(?:[_-]?KEY)?|DATABASE_(?:URL|URI)|REDIS_URL|CONNECTION_STRING|ENCRYPTION_KEY|SIGNING_KEY)\s*[:=]\s*)(?:\"[^\"\r\n]*\"|'[^'\r\n]*'|[^\s\r\n]+)",
+    r"(?im)(^\s*(?:Authorization|Proxy-Authorization)\s*:\s*)(?!\s*Bearer\s+\[REDACTADO\])[^\r\n]+",
 )
 
 _CAMPO_TEXTO = (
