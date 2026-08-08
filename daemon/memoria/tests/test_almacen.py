@@ -261,12 +261,58 @@ class AlmacenMemoriaTests(unittest.TestCase):
         ]
 
         path = self.store.guardar_crudo(mensajes)
+        identidad = "\0".join(("codex", "t-1")).encode("utf-8")
 
         self.assertEqual(
             path.relative_to(self.vault),
-            Path("Conversaciones/crudo/2026/08/2026-08-08-codex-t-1.md"),
+            Path(
+                "Conversaciones/crudo/2026/08/"
+                f"2026-08-08-codex-{hashlib.sha256(identidad).hexdigest()}.md"
+            ),
         )
         self.assertIn("Hola", path.read_text(encoding="utf-8"))
+
+    def test_ruta_cruda_hashea_identidad_y_nunca_expone_host_o_thread_malicioso(self):
+        host = "codex-OPENAI_API_KEY=secreto-host"
+        thread_id = "thread-COOKIE=secreto-thread"
+        mensajes = [
+            Mensaje(
+                host,
+                thread_id,
+                "2026-08-08T10:00:00Z",
+                "user",
+                "message",
+                "Hola",
+                {},
+            )
+        ]
+
+        primera = self.store.guardar_crudo(mensajes)
+        segunda = self.store.guardar_crudo(mensajes)
+        relativa = primera.relative_to(self.vault).as_posix()
+
+        self.assertEqual(primera, segunda)
+        self.assertRegex(relativa, r"/2026-08-08-host-[0-9a-f]{64}\.md$")
+        self.assertNotIn("secreto-host", relativa)
+        self.assertNotIn("secreto-thread", relativa)
+        self.assertNotIn("OPENAI", relativa)
+        self.assertNotIn("COOKIE", relativa)
+
+    def test_pendiente_redacta_strings_anidados_antes_de_persistir(self):
+        pendiente = self.store.marcar_pendiente(
+            "prueba",
+            {
+                "thread_id": "OPENAI_API_KEY=secreto-thread",
+                "anidado": ["Cookie: secreto-cookie", {"token": "TOKEN=secreto-token"}],
+            },
+        )
+
+        contenido = pendiente.read_text(encoding="utf-8")
+
+        self.assertNotIn("secreto-thread", contenido)
+        self.assertNotIn("secreto-cookie", contenido)
+        self.assertNotIn("secreto-token", contenido)
+        self.assertEqual(contenido.count("[REDACTADO]"), 3)
 
     def test_crudo_incluye_frontmatter_restringido_y_hash_integral_del_cuerpo(self):
         mensajes = [

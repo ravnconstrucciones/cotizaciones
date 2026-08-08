@@ -9,7 +9,6 @@ import hashlib
 import json
 import os
 from pathlib import Path
-import re
 import tempfile
 import unicodedata
 from uuid import uuid4
@@ -50,7 +49,7 @@ class AlmacenMemoria:
             / "crudo"
             / fecha[:4]
             / fecha[5:7]
-            / f"{fecha}-{_slug(primero.host)}-{_slug(primero.thread_id)}.md"
+            / _nombre_crudo(fecha, primero.host, primero.thread_id)
         )
         contenido = _crudo_a_markdown(mensajes)
         try:
@@ -185,9 +184,9 @@ class AlmacenMemoria:
         directorio = self.vault / "Sistema" / "Memoria" / "pendientes-escritura"
         directorio.mkdir(parents=True, exist_ok=True)
         pendiente = {
-            "operacion": operacion,
+            "operacion": redactar_secretos(operacion),
             "created_at": datetime.now(timezone.utc).isoformat(),
-            "detalle": detalle or {},
+            "detalle": _redactar_dato(detalle or {}),
         }
         destino = directorio / f"{datetime.now(timezone.utc):%Y%m%dT%H%M%S%fZ}-{uuid4().hex}.json"
         # No se usa os.replace: este archivo debe sobrevivir justamente a esa falla.
@@ -321,10 +320,11 @@ def _texto_indice(valor: str) -> str:
     return redactar_secretos(valor)
 
 
-def _slug(valor: str) -> str:
-    normalizado = _normalizar_entidad(valor)
-    slug = re.sub(r"[^a-z0-9]+", "-", normalizado).strip("-")
-    return slug or "sin-nombre"
+def _nombre_crudo(fecha: str, host: str, thread_id: str) -> str:
+    host_seguro = host if host in {"codex", "claude"} else "host"
+    identidad = "\0".join((host, thread_id)).encode("utf-8")
+    digest = hashlib.sha256(identidad).hexdigest()
+    return f"{fecha}-{host_seguro}-{digest}.md"
 
 
 def _ruta_relativa(vault: Path, ruta: Path) -> str:
@@ -333,3 +333,16 @@ def _ruta_relativa(vault: Path, ruta: Path) -> str:
 
 def _normalizar_lineas(valor: str) -> str:
     return valor.replace("\r\n", "\n").replace("\r", "\n")
+
+
+def _redactar_dato(valor: object) -> object:
+    if isinstance(valor, str):
+        return redactar_secretos(valor)
+    if isinstance(valor, dict):
+        return {
+            redactar_secretos(str(clave)): _redactar_dato(elemento)
+            for clave, elemento in valor.items()
+        }
+    if isinstance(valor, (list, tuple)):
+        return [_redactar_dato(elemento) for elemento in valor]
+    return valor

@@ -25,13 +25,16 @@ SECRET_PATTERNS = (
     r"(?i)(SUPABASE_SERVICE_ROLE_KEY\s*=\s*)[^\s]+",
     r"(?i)(ANTHROPIC_API_KEY\s*=\s*)[^\s]+",
     r"(?i)(OPENAI_API_KEY\s*=\s*)[^\s]+",
-    r"(?i)(Authorization:\s*Bearer\s+)\S+",
+    r"(?i)(Authorization:\s*Bearer\s+)[^\s,}\]]+",
     r"(?im)(^\s*(?:Set-)?Cookie\s*:\s*)[^\r\n]+",
     rf"(?i)((?:[\"']{_SENSITIVE_KEY}[\"']\s*:\s*)([\"']))(?:\\.|(?!\2)[^\r\n])*\2",
     rf"(?i)((?:\b{_SENSITIVE_KEY}\s*:\s*)([\"']))(?:\\.|(?!\2)[^\r\n])*\2",
     rf"(?i)(\b{_SENSITIVE_KEY}\s*[:=]\s*)(?![\"']\[REDACTADO\][\"'])(?:\"(?:\\.|[^\"\\\r\n])*\"|'(?:\\.|[^'\\\r\n])*'|[^\s\r\n]+)",
     rf"(?i)((?:[\"']{_HEADER_KEY}[\"']\s*:\s*)([\"']))(?:\\.|(?!\2)[^\r\n])*\2",
-    rf"(?im)^(\s*[\"']{_HEADER_KEY}[\"']\s*:\s*)[^\r\n]+",
+    rf"(?i)((?:(?:\{{|,)\s*(?:[\"']{_HEADER_KEY}[\"']|{_HEADER_KEY})\s*:\s*)([\"']))(?:\\.|(?!\2)[^\r\n])*\2",
+    rf"(?i)((?:\{{|,)\s*(?:[\"']{_HEADER_KEY}[\"']|{_HEADER_KEY})\s*:\s*)(?!\s*[\"']?\[REDACTADO\][\"']?\s*(?:,|\}}))[^,}}\r\n]+",
+    rf"(?im)^(\s*-\s*(?:[\"']{_HEADER_KEY}[\"']|{_HEADER_KEY})\s*:\s*)(?!\s*(?:[\"']?\[REDACTADO\][\"']?)\s*$)[^\r\n]+",
+    rf"(?im)^(\s*[\"']{_HEADER_KEY}[\"']\s*:\s*)(?!\s*(?:[\"']?\[REDACTADO\][\"']?)\s*$)[^\r\n]+",
     r"(?im)(^\s*(?:Authorization|Proxy-Authorization)\s*:\s*)(?!\s*Bearer\s+\[REDACTADO\])[^\r\n]+",
 )
 

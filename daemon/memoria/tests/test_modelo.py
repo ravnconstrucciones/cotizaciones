@@ -93,6 +93,42 @@ class ModeloCanonicoTests(unittest.TestCase):
             self.assertNotIn(secreto, redactado)
         self.assertEqual(redactado.count("[REDACTADO]"), 8)
 
+    def test_redacta_encabezados_en_secuencias_yaml_sin_consumir_otros_items(self):
+        texto = (
+            "headers:\n"
+            "  - Cookie: session=abc; theme=dark\n"
+            '  - "Authorization": Basic dXNlcjpwYXNz\n'
+            "  - 'Proxy-Authorization': 'Digest secreto-proxy'\n"
+            "  - Set-Cookie: refresh=def; HttpOnly\n"
+            "  - obra: Las Glorietas"
+        )
+
+        self.assertEqual(
+            redactar_secretos(texto),
+            "headers:\n"
+            "  - Cookie: [REDACTADO]\n"
+            '  - "Authorization": [REDACTADO]\n'
+            "  - 'Proxy-Authorization': '[REDACTADO]'\n"
+            "  - Set-Cookie: [REDACTADO]\n"
+            "  - obra: Las Glorietas",
+        )
+
+    def test_redacta_encabezados_en_mapping_inline_sin_consumir_campos_vecinos(self):
+        texto = (
+            "headers: {Authorization: Bearer token-a, "
+            '"Proxy-Authorization": "Basic token-b", '
+            "Cookie: session=token-c, Set-Cookie: refresh=token-d, "
+            "obra: Las Glorietas}"
+        )
+
+        self.assertEqual(
+            redactar_secretos(texto),
+            "headers: {Authorization: [REDACTADO], "
+            '"Proxy-Authorization": "[REDACTADO]", '
+            "Cookie: [REDACTADO], Set-Cookie: [REDACTADO], "
+            "obra: Las Glorietas}",
+        )
+
     def test_redacta_claves_genericas_sensibles_habituales(self):
         texto = (
             "JWT_SECRET=jwt-123 STRIPE_SECRET_KEY=stripe-123 "
