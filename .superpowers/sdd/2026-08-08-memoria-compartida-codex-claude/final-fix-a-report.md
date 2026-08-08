@@ -193,3 +193,63 @@ GREEN final de la ronda:
   que contenga esa forma debe estar quoted para no ser ambiguo en YAML/JSON.
 - No se tocaron colectores, `daemon/jobs/job_memoria.py`, el Vault/estado vivo ni
   `output/`.
+
+## Fix A — ronda de revisión 3/5
+
+Commit: `8e39f36` (`fix(memoria): cerrar variantes estructurales de headers`).
+
+### Hallazgos resueltos
+
+- El sanitizador normaliza escapes Unicode JSON válidos antes de reconocer
+  claves sensibles. Esto cubre claves parcial o totalmente escapadas y pares de
+  sustitutos; los sustitutos aislados y escapes anulados por otra barra se
+  conservan sin fabricar Unicode inválido.
+- Los escalares YAML literales/folded de headers (`|`/`>`, chomping e indicador de
+  indentación en ambos órdenes) se reemplazan completos y terminan en el sibling
+  de igual o menor indentación. También se cubren mappings dentro de secuencias.
+- Los valores quoted multilínea, con escapes de comilla o comillas simples YAML
+  duplicadas, se recorren hasta su cierre. Una comilla block sin cierre falla
+  cerrado hasta el siguiente sibling en vez de filtrar continuaciones.
+- El lexer flow conserva nesting, comillas y claves vecinas quoted, escapadas,
+  dotted o Unicode —incluidas claves Unicode que no son identificadores—. Las
+  comas y dos puntos dentro de cookies no cortan el secreto si no forman un
+  límite inequívoco.
+- Cuando un valor flow no ofrece un límite de campo parseable, se redacta hasta
+  el cierre del contenedor sensible.
+
+### Evidencia RED/GREEN
+
+RED inicial de la ronda:
+
+`python3.13 -m unittest <5 regresiones estructurales> -v`
+
+- 5 métodos ejecutados: 4 fallos esperados y 1 caso fail-closed que ya pasaba.
+- Se filtraban claves JSON Unicode, cuerpos block/folded y continuaciones quoted;
+  el flow no reconocía vecinos dotted/Unicode escapados.
+
+RED adicionales:
+
+- 1 fallo esperado al exigir una clave vecina Unicode no identificadora
+  (`🛠.estado`).
+- 1 fallo esperado al exigir fallo cerrado para un quote block sin cierre.
+
+GREEN final de la ronda:
+
+- Memoria: 102/102 pruebas, `OK`.
+- Jobs: 135/135 pruebas, `OK`.
+- Vitest: 57 archivos, 527/527 pruebas.
+- `py_compile` del núcleo de memoria: OK.
+- `git diff --check`: OK.
+- Total de la pasada final: 764 pruebas.
+
+### Compatibilidad y límites
+
+- La normalización Unicode es semántica: las secuencias JSON `\uXXXX` válidas
+  pasan a sus caracteres antes del resto del filtrado. Esto puede cambiar la
+  representación textual de campos ordinarios, pero no su significado.
+- Una clave flow plain que contiene `=` se trata como ambigua frente a un
+  fragmento de cookie. En ese caso se prioriza no filtrar y se redacta hasta el
+  siguiente límite inequívoco o el cierre; claves ambiguas deben ir quoted para
+  conservarse como sibling.
+- No se tocaron colectores, `daemon/jobs/job_memoria.py`, el Vault/estado vivo ni
+  `output/`.
