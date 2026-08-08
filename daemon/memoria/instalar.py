@@ -11,7 +11,7 @@ import re
 import shlex
 import stat
 import tempfile
-from typing import Sequence
+from typing import Iterable, Sequence
 
 from .modelo import Cierre, ESTADOS, HOSTS, SENSIBILIDADES
 
@@ -39,7 +39,6 @@ DIRECTORIOS_VAULT = (
 )
 DIRECTORIOS_PRIVADOS = frozenset((DIRECTORIOS_VAULT[0], DIRECTORIOS_VAULT[-1]))
 WRAPPER = Path("/Users/ezeotero/.local/bin/ravn-memoria")
-BASE_STAGE = Path("/Users/ezeotero")
 VAULT_LOGICO = Path("/Users/ezeotero/Obsidian/RAVN")
 VAULT_FISICO = Path(
     "/Users/ezeotero/Library/Mobile Documents/iCloud~md~obsidian/Documents/RAVN"
@@ -136,10 +135,8 @@ def _preflight_fuente(ruta: Path) -> None:
 
 
 def _preflight_destinos(root: Path, archivos: list[Path], directorios: list[Path]) -> None:
-    base_stage = _bajo_root(root, BASE_STAGE)
-    for ruta in (*archivos, *directorios, base_stage):
+    for ruta in (*archivos, *directorios):
         _validar_ruta_destino(root, ruta)
-    _asegurar_escribible(base_stage, permitir_symlink=_es_root_vivo(root))
 
     for ruta in archivos:
         if ruta.exists() and not ruta.is_file():
@@ -338,47 +335,54 @@ def _aplicar_transaccion(
     archivos = list(contenidos)
     _preflight_destinos(root, archivos, directorios)
     originales = {ruta: _estado_archivo(ruta) for ruta in archivos}
-    modos_directorios = {
-        ruta: _modo_actual(ruta) for ruta in directorios if ruta.exists()
-    }
     por_escribir = {
         ruta: contenido
         for ruta, contenido in contenidos.items()
         if _leer_opcional(ruta) != contenido
     }
     creados: list[Path] = []
-    stage: Path | None = None
+    preparados: dict[Path, Path] = {}
+    publicados: list[Path] = []
+    modos_cambiados: dict[Path, int] = {}
 
     try:
-        base_stage = _bajo_root(root, BASE_STAGE)
         permitir_symlink = _es_root_vivo(root)
-        _crear_directorio(base_stage, creados, permitir_symlink=permitir_symlink)
-        stage = Path(tempfile.mkdtemp(prefix=".ravn-memoria-stage-", dir=base_stage))
-        creados.append(stage)
-        preparados = _preparar_archivos(stage, por_escribir, originales, wrapper)
-
         for ruta in directorios:
             _crear_directorio(ruta, creados, permitir_symlink=permitir_symlink)
         for ruta in archivos:
             _crear_directorio(ruta.parent, creados, permitir_symlink=permitir_symlink)
 
+        preparados = _preparar_archivos(root, por_escribir, originales, wrapper)
+
         for logico, ruta in zip(DIRECTORIOS_VAULT, directorios, strict=True):
             _validar_ruta_destino(root, ruta)
             if logico in DIRECTORIOS_PRIVADOS and _modo_actual(ruta) != 0o700:
+                modo_anterior = _modo_actual(ruta)
                 ruta.chmod(0o700)
+                if modo_anterior is not None and ruta not in creados:
+                    modos_cambiados[ruta] = modo_anterior
 
         for ruta, preparado in preparados.items():
             _validar_ruta_destino(root, ruta)
             _publicar_archivo(preparado, ruta)
+            publicados.append(ruta)
 
         if wrapper not in preparados and _modo_actual(wrapper) != 0o755:
             _validar_ruta_destino(root, wrapper)
+            modo_anterior = _modo_actual(wrapper)
             wrapper.chmod(0o755)
+            if modo_anterior is not None:
+                modos_cambiados[wrapper] = modo_anterior
 
-        _limpiar_stage(stage)
-        creados.remove(stage)
+        _limpiar_preparados(preparados.values())
     except BaseException as error:
-        errores = _rollback(originales, modos_directorios, creados, stage)
+        errores = _rollback(
+            originales,
+            publicados,
+            modos_cambiados,
+            creados,
+            preparados.values(),
+        )
         if errores:
             detalle = "; ".join(errores)
             raise RuntimeError(f"Falló la instalación y el rollback: {detalle}") from error
@@ -386,20 +390,52 @@ def _aplicar_transaccion(
 
 
 def _preparar_archivos(
-    stage: Path,
+    root: Path,
     contenidos: dict[Path, str],
     originales: dict[Path, _EstadoArchivo],
     wrapper: Path,
 ) -> dict[Path, Path]:
     preparados: dict[Path, Path] = {}
-    for indice, (destino, contenido) in enumerate(contenidos.items()):
-        preparado = stage / f"{indice:02d}.stage"
-        _escribir_bytes(preparado, contenido.encode("utf-8"))
-        modo_original = originales[destino].modo
-        modo = 0o755 if destino == wrapper else (0o644 if modo_original is None else modo_original)
-        preparado.chmod(modo)
-        preparados[destino] = preparado
+    try:
+        for destino, contenido in contenidos.items():
+            _validar_ruta_destino(root, destino)
+            modo_original = originales[destino].modo
+            modo = (
+                0o755
+                if destino == wrapper
+                else (0o644 if modo_original is None else modo_original)
+            )
+            preparados[destino] = _preparar_archivo(
+                destino, contenido.encode("utf-8"), modo
+            )
+    except BaseException:
+        _limpiar_preparados(preparados.values())
+        raise
     return preparados
+
+
+def _preparar_archivo(destino: Path, contenido: bytes, modo: int) -> Path:
+    descriptor, nombre = tempfile.mkstemp(
+        prefix=f".{destino.name}.ravn-stage-", dir=destino.parent
+    )
+    preparado = Path(nombre)
+    try:
+        with os.fdopen(descriptor, "wb") as archivo:
+            archivo.write(contenido)
+            archivo.flush()
+            os.fsync(archivo.fileno())
+        preparado.chmod(modo)
+        return preparado
+    except BaseException:
+        try:
+            os.close(descriptor)
+        except OSError:
+            pass
+        try:
+            preparado.unlink()
+        except FileNotFoundError:
+            pass
+        raise
 
 
 def _publicar_archivo(origen: str | os.PathLike[str], destino: str | os.PathLike[str]) -> None:
@@ -408,12 +444,14 @@ def _publicar_archivo(origen: str | os.PathLike[str], destino: str | os.PathLike
 
 def _rollback(
     originales: dict[Path, _EstadoArchivo],
-    modos_directorios: dict[Path, int | None],
+    publicados: list[Path],
+    modos_cambiados: dict[Path, int],
     creados: list[Path],
-    stage: Path | None,
+    preparados: Iterable[Path],
 ) -> list[str]:
     errores: list[str] = []
-    for ruta, original in reversed(list(originales.items())):
+    for ruta in reversed(publicados):
+        original = originales[ruta]
         try:
             if original.contenido is None:
                 if ruta.is_symlink() or ruta.exists():
@@ -423,20 +461,17 @@ def _rollback(
         except OSError as error:
             errores.append(f"archivo {ruta}: {error}")
 
-    for ruta, modo in modos_directorios.items():
-        if modo is None:
-            continue
+    for ruta, modo in reversed(list(modos_cambiados.items())):
         try:
             if ruta.is_dir() and _modo_actual(ruta) != modo:
                 ruta.chmod(modo)
         except OSError as error:
             errores.append(f"modo {ruta}: {error}")
 
-    if stage is not None:
-        try:
-            _limpiar_stage(stage)
-        except OSError as error:
-            errores.append(f"stage {stage}: {error}")
+    try:
+        _limpiar_preparados(preparados)
+    except OSError as error:
+        errores.append(f"temporales: {error}")
 
     for ruta in sorted(set(creados), key=lambda item: len(item.parts), reverse=True):
         try:
@@ -484,15 +519,10 @@ def _crear_directorio(
         creados.append(directorio)
 
 
-def _limpiar_stage(stage: Path) -> None:
-    if not stage.exists():
-        return
-    for ruta in sorted(stage.rglob("*"), key=lambda item: len(item.parts), reverse=True):
-        if ruta.is_dir() and not ruta.is_symlink():
-            ruta.rmdir()
-        else:
+def _limpiar_preparados(preparados: Iterable[Path]) -> None:
+    for ruta in preparados:
+        if ruta.is_symlink() or ruta.exists():
             ruta.unlink()
-    stage.rmdir()
 
 
 def _estado_archivo(ruta: Path) -> _EstadoArchivo:
@@ -518,13 +548,6 @@ def _leer_opcional(ruta: Path) -> str:
 def _leer_texto(ruta: Path) -> str:
     with ruta.open("r", encoding="utf-8", newline="") as archivo:
         return archivo.read()
-
-
-def _escribir_bytes(ruta: Path, contenido: bytes) -> None:
-    with ruta.open("xb") as archivo:
-        archivo.write(contenido)
-        archivo.flush()
-        os.fsync(archivo.fileno())
 
 
 if __name__ == "__main__":

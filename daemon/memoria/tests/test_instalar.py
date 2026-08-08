@@ -300,6 +300,95 @@ class InstalarTests(unittest.TestCase):
         self.assertTrue(fallo_inyectado)
         self.assertEqual(self.snapshot_arbol(self.root), estado_inicial)
 
+    def test_fallo_posterior_no_reemplaza_archivos_que_no_se_publicaron(self) -> None:
+        modulo = importlib.import_module("daemon.memoria.instalar")
+        modulo.instalar(root=self.root, source=self.source)
+        sin_cambios = [
+            self.destino("/Users/ezeotero/.codex/AGENTS.md"),
+            self.destino("/Users/ezeotero/.claude/CLAUDE.md"),
+            self.destino("/Users/ezeotero/Obsidian/RAVN/CLAUDE.md"),
+            self.destino(
+                "/Users/ezeotero/Obsidian/RAVN/Sistema/Memoria/esquemas/"
+                "cierre-conversacion.schema.json"
+            ),
+        ]
+        identidad_inicial = {
+            ruta: (ruta.stat().st_ino, ruta.stat().st_mtime_ns, ruta.stat().st_mode)
+            for ruta in sin_cambios
+        }
+        graphifyignore = self.destino("/Users/ezeotero/Obsidian/RAVN/.graphifyignore")
+        graphifyignore.write_text("Adjuntos/\n", encoding="utf-8")
+        wrapper = self.destino("/Users/ezeotero/.local/bin/ravn-memoria")
+        wrapper.write_text("#!/bin/sh\nexit 9\n", encoding="utf-8")
+
+        def publicar_con_fallo(
+            origen: str | os.PathLike[str], destino: str | os.PathLike[str]
+        ) -> None:
+            if Path(destino) == wrapper:
+                raise OSError("fallo posterior inyectado")
+            os.replace(origen, destino)
+
+        with patch(
+            "daemon.memoria.instalar._publicar_archivo", side_effect=publicar_con_fallo
+        ):
+            with self.assertRaises(OSError):
+                modulo.instalar(root=self.root, source=self.source)
+
+        identidad_final = {
+            ruta: (ruta.stat().st_ino, ruta.stat().st_mtime_ns, ruta.stat().st_mode)
+            for ruta in sin_cambios
+        }
+        self.assertEqual(identidad_final, identidad_inicial)
+
+    def test_cada_temporal_se_publica_desde_el_parent_del_destino(self) -> None:
+        modulo = importlib.import_module("daemon.memoria.instalar")
+        pares: list[tuple[Path, Path]] = []
+
+        def publicar_mismo_filesystem(
+            origen: str | os.PathLike[str], destino: str | os.PathLike[str]
+        ) -> None:
+            origen_path = Path(origen)
+            destino_path = Path(destino)
+            self.assertEqual(origen_path.parent, destino_path.parent)
+            pares.append((origen_path, destino_path))
+            os.replace(origen, destino)
+
+        with patch(
+            "daemon.memoria.instalar._publicar_archivo",
+            side_effect=publicar_mismo_filesystem,
+        ):
+            modulo.instalar(root=self.root, source=self.source)
+
+        self.assertEqual(len(pares), 6)
+
+    def test_fallo_de_preparacion_no_publica_y_elimina_temporales_y_directorios(self) -> None:
+        modulo = importlib.import_module("daemon.memoria.instalar")
+        preparar_real = getattr(modulo, "_preparar_archivo", None)
+        intentos = 0
+
+        def preparar_con_fallo(*args, **kwargs):
+            nonlocal intentos
+            intentos += 1
+            if intentos == 3:
+                raise OSError("fallo de preparación inyectado")
+            if preparar_real is None:
+                raise AssertionError("falta _preparar_archivo")
+            return preparar_real(*args, **kwargs)
+
+        with (
+            patch(
+                "daemon.memoria.instalar._preparar_archivo",
+                side_effect=preparar_con_fallo,
+                create=True,
+            ),
+            patch("daemon.memoria.instalar._publicar_archivo") as publicar,
+        ):
+            with self.assertRaises(OSError):
+                modulo.instalar(root=self.root, source=self.source)
+
+        publicar.assert_not_called()
+        self.assertFalse(self.root.exists())
+
     @staticmethod
     def snapshot_arbol(root: Path) -> dict[str, tuple[object, ...]]:
         snapshot: dict[str, tuple[object, ...]] = {}
