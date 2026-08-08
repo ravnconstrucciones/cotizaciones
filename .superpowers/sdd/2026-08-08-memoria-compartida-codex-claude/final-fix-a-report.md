@@ -253,3 +253,64 @@ GREEN final de la ronda:
   conservarse como sibling.
 - No se tocaron colectores, `daemon/jobs/job_memoria.py`, el Vault/estado vivo ni
   `output/`.
+
+## Fix A — ronda de revisión 4/5
+
+Commit: `931ac0b` (`fix(memoria): preservar escapes fuera de claves sensibles`).
+
+### Hallazgo resuelto
+
+- Se eliminó la normalización Unicode global introducida en la ronda 3. El
+  sanitizador ya no decodifica ni reescribe el documento completo antes de
+  clasificar una clave.
+- El regex estructural conserva ahora el token quoted crudo. Sólo ese token se
+  decodifica en memoria para compararlo, con `casefold`, contra
+  `Authorization`, `Proxy-Authorization`, `Cookie` y `Set-Cookie`.
+- Las claves double-quoted aceptan escapes JSON/YAML simples y las formas
+  `\uXXXX`, `\UNNNNNNNN` y `\xNN`, incluidos pares sustitutos JSON válidos. Las
+  claves YAML single-quoted respetan el doblado `''`. Un escape inválido o
+  desconocido no se clasifica como header sensible.
+- La representación cruda de la clave queda intacta. Una vez confirmada como
+  sensible, el valor se entrega al mismo scanner estructural de quoted,
+  multiline, block/folded y flow; sólo el valor pasa a `[REDACTADO]`.
+- Los vecinos JSON mantienen exactamente sus bytes, incluyendo `\u000A`,
+  `\u0022`, barras escapadas y pares sustitutos. La salida continúa siendo
+  aceptada por `json.loads` y sus valores vecinos conservan la misma semántica.
+- Se cubrieron claves escapadas parciales y totales, comparación sin distinguir
+  mayúsculas, mappings flow dentro de arrays/objects y valores YAML quoted
+  multiline, literales y folded. No se agregó PyYAML ni otra dependencia.
+
+### Evidencia RED/GREEN
+
+RED inicial, antes de modificar producción:
+
+`python3.13 -m unittest <6 regresiones focales> -v`
+
+- 6 métodos ejecutados, 9 fallos esperados (cuatro subcasos en la matriz JSON).
+- La implementación previa reescribía todas las claves y vecinos `\uXXXX`,
+  convertía `\u000A` en un salto real que invalidaba JSON, fabricaba comillas sin
+  escapar desde `\u0022` y no reconocía claves YAML con `\x` o `\U`.
+
+GREEN focal:
+
+- Las 6 regresiones nuevas pasan.
+- Modelo: 36/36 pruebas, `OK`.
+
+GREEN final:
+
+- Memoria: 107/107 pruebas, `OK`.
+- Jobs: 135/135 pruebas, `OK`.
+- Vitest: 57 archivos, 527/527 pruebas.
+- `py_compile` de `modelo.py` y `test_modelo.py`: OK.
+- `git diff --check`: OK.
+- Total de la pasada final: 769 pruebas.
+
+### Compatibilidad y límites
+
+- Cambia únicamente la representación de salida que la ronda 3 había empezado
+  a normalizar: ahora todo byte ajeno al valor sensible se preserva como entró.
+  El significado de los headers detectados y la política fail-closed del
+  scanner de valores no cambian.
+- No se tocaron schema, almacén, cierre, recuperación, colectores,
+  `daemon/jobs/job_memoria.py`, `output/`, el Vault/estado vivo ni producción.
+  Tampoco hubo push ni deploy.
