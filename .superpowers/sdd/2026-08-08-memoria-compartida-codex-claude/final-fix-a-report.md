@@ -314,3 +314,81 @@ GREEN final:
 - No se tocaron schema, almacén, cierre, recuperación, colectores,
   `daemon/jobs/job_memoria.py`, `output/`, el Vault/estado vivo ni producción.
   Tampoco hubo push ni deploy.
+
+## Fix A — ronda de revisión 5/5
+
+Commit: `f601ead` (`fix(memoria): fallar cerrado ante headers no mapeados`).
+
+### Hallazgo resuelto
+
+- `redactar_secretos` escanea ahora el texto original completo antes de producir
+  la salida. Detecta tokens plain y quoted que contienen `Authorization`,
+  `Proxy-Authorization`, `Cookie` o `Set-Cookie`, sin distinguir mayúsculas. Los
+  tokens double-quoted se decodifican sólo en memoria con los escapes simples y
+  `\x`, `\u` y `\U` ya soportados; el documento fuente no se reescribe.
+- El mapeador estructural devuelve, además del texto redactado, los spans exactos
+  de cada clave sensible que procesó. La postcondición exige que todas las
+  ocurrencias encontradas en el original estén dentro de ese conjunto.
+- Si queda una sola ocurrencia sin manejar, se descarta toda la salida parcial y
+  se devuelve exactamente `[CONTENIDO SENSIBLE REDACTADO]`. El sentinel no
+  incorpora claves, valores ni ningún otro fragmento del texto original.
+- Las claves explícitas YAML block/flow y las variantes decoradas con `?`,
+  anchors, aliases o tags quedan protegidas aunque el mapeador no entienda esa
+  gramática: la postcondición las detecta y falla cerrada. Esto incluye claves
+  explícitas escapadas con `\x`, `\u` y `\U`.
+- Los mappings JSON/YAML comunes siguen usando la redacción localizada y
+  conservan vecinos, delimitadores y bytes originales. También se mantuvo la
+  compatibilidad de una línea mixta con `Authorization: Bearer` después de otros
+  campos, sin clasificar como normal una clave precedida por decoradores YAML.
+
+### Evidencia RED/GREEN
+
+Baseline previo a la implementación:
+
+`python3.13 -m unittest daemon.memoria.tests.test_modelo -v`
+
+- Modelo: 36/36 pruebas, `OK`.
+
+RED inicial, antes de modificar producción:
+
+`python3.13 -m unittest <5 regresiones fail-close> -v`
+
+- 5 métodos ejecutados; 9 fallos esperados y el control de mappings comunes ya
+  pasaba.
+- Se filtraban secretos en claves explícitas block/flow, claves explícitas
+  escapadas y headers precedidos por anchor, alias o tag. Una ocurrencia
+  estructuralmente manejada seguida por otra sin manejar tampoco activaba un
+  cierre global.
+
+RED adicional para tokens quoted con menciones internas:
+
+`python3.13 -m unittest <regresión quoted postcondition> -v`
+
+- 1 método, 2 fallos esperados: una mención literal y otra escapada con `\x`
+  permanecían en la salida.
+
+GREEN focal:
+
+- Modelo: 42/42 pruebas, `OK`.
+
+GREEN final:
+
+- Memoria: 113/113 pruebas, `OK`.
+- Jobs: 135/135 pruebas, `OK`.
+- Vitest: 57 archivos, 527/527 pruebas.
+- `py_compile` de `modelo.py` y `test_modelo.py`: OK.
+- `git diff --check`: OK.
+- Total de la pasada final: 775 pruebas.
+
+### Compatibilidad y límites
+
+- La política prioriza seguridad sobre precisión: una mención de cualquiera de
+  los cuatro headers fuera de una clave estructural reconocida —incluso en
+  prosa o dentro de un token quoted— reemplaza el contenido completo por el
+  sentinel. Es una sobre-redacción deliberada para impedir falsos negativos.
+- No se agregó una dependencia ni un parser YAML general. La postcondición es
+  independiente de la gramática particular y cubre por defecto cualquier forma
+  futura o no reconocida.
+- No se tocaron schema, almacén, cierre, recuperación, colectores,
+  `daemon/jobs/job_memoria.py`, `output/`, el Vault/estado vivo ni producción.
+  Tampoco hubo push ni deploy.
