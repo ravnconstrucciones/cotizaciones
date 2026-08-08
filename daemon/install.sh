@@ -1,6 +1,7 @@
 #!/bin/zsh
 # Instala (o reinstala) com.ravn.jobs: wrapper en ~/.ravn-jobs + plist + bootstrap.
 set -euo pipefail
+PYTHONPATH=/Users/ezeotero/Documents/ravn /Library/Frameworks/Python.framework/Versions/3.13/bin/python3 -m daemon.memoria.instalar
 mkdir -p /Users/ezeotero/.ravn-jobs/logs
 cp /Users/ezeotero/Documents/ravn/daemon/jobs/run-jobs.sh /Users/ezeotero/.ravn-jobs/run-jobs.sh
 chmod +x /Users/ezeotero/.ravn-jobs/run-jobs.sh

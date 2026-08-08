@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ravn.local/schemas/cierre-conversacion.schema.json",
+  "title": "Cierre de conversación RAVN",
+  "type": "object",
+  "required": [
+    "id",
+    "host",
+    "thread_id",
+    "fecha_inicio",
+    "fecha_cierre",
+    "tema",
+    "estado",
+    "entidades",
+    "hechos",
+    "decisiones",
+    "metodos",
+    "cambios",
+    "pendientes",
+    "separaciones",
+    "enlaces",
+    "fuente_cruda",
+    "sensibilidad"
+  ],
+  "properties": {
+    "id": { "type": "string", "pattern": "\\S" },
+    "host": { "enum": ["codex", "claude"] },
+    "thread_id": { "type": "string", "pattern": "\\S" },
+    "fecha_inicio": { "type": "string", "pattern": "\\S" },
+    "fecha_cierre": { "type": "string", "pattern": "\\S" },
+    "tema": { "type": "string", "pattern": "\\S" },
+    "estado": { "enum": ["completo", "parcial", "bloqueado"] },
+    "entidades": { "$ref": "#/$defs/listaTextos" },
+    "hechos": { "$ref": "#/$defs/listaTextos" },
+    "decisiones": { "$ref": "#/$defs/listaTextos" },
+    "metodos": { "$ref": "#/$defs/listaTextos" },
+    "cambios": { "$ref": "#/$defs/listaTextos" },
+    "pendientes": { "$ref": "#/$defs/listaTextos" },
+    "separaciones": { "$ref": "#/$defs/listaTextos" },
+    "enlaces": { "$ref": "#/$defs/listaTextos" },
+    "fuente_cruda": { "type": "string", "pattern": "\\S" },
+    "sensibilidad": { "enum": ["normal", "restringida"] }
+  },
+  "$defs": {
+    "listaTextos": {
+      "type": "array",
+      "items": { "type": "string" }
+    }
+  }
+}
