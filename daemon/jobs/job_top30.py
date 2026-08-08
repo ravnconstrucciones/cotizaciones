@@ -86,9 +86,9 @@ def correr(cfg, token):
                 f"ninguna fila quedó con Fecha {fecha} — Claude no actualizó "
                 f"nada. Resumen: {resumen_local[:300]}"
             )
-        return resumen_local, n_local
+        return resumen_local, n_local, actualizadas_locales
 
-    resumen, n = transaccion_vault(
+    resumen, n, actualizadas = transaccion_vault(
         persistir,
         rutas=lambda _resultado: [MD_PRECIOS],
         mensaje=f"daemon: refresh semanal top-30 materiales {fecha}",

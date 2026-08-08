@@ -1,6 +1,8 @@
 import sys
+import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import job_top30
@@ -61,6 +63,37 @@ class TestPrompt(unittest.TestCase):
         self.assertIn("/ruta/al/archivo.md", p)
         self.assertIn("3 filas", p)
         self.assertIn("nunca inventes", p)
+
+
+class TestCorrer(unittest.TestCase):
+    def test_evento_informa_cantidad_actualizada_sin_reintento_falso(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            archivo = Path(tmp) / "materiales.md"
+            archivo.write_text(MD)
+            eventos = []
+
+            def claude(_prompt, **_kwargs):
+                hoy = job_top30.date.today().isoformat()
+                archivo.write_text(MD.replace("2026-06-08", hoy))
+                return "actualizadas 3 de 3 filas"
+
+            with (
+                patch.object(job_top30, "MD_PRECIOS", archivo),
+                patch.object(job_top30, "correr_claude", side_effect=claude),
+                patch.object(
+                    job_top30,
+                    "transaccion_vault",
+                    side_effect=lambda persistir, **_kwargs: persistir(),
+                ),
+                patch.object(
+                    job_top30,
+                    "registrar_evento",
+                    side_effect=lambda *args: eventos.append(args),
+                ),
+            ):
+                job_top30.correr({}, "token")
+
+        self.assertEqual(eventos[0][4]["filas_actualizadas"], 3)
 
 
 if __name__ == "__main__":

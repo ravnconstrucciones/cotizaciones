@@ -114,8 +114,12 @@ def recuperar(
     """
     vault = Path(vault)
     tipadas = _entidades_tipadas_consulta(consulta)
+    entidades_por_tipo = {
+        tipo: {_normalizar(valor) for valor in valores}
+        for tipo, valores in tipadas.items()
+    }
     entidades_consulta = {
-        _normalizar(valor) for valores in tipadas.values() for valor in valores
+        entidad for valores in entidades_por_tipo.values() for entidad in valores
     }
     tokens_consulta = _tokens(consulta.texto)
     vecinos = _vecinos_graphify(vault, entidades_consulta)
@@ -134,7 +138,9 @@ def recuperar(
         nota = _leer_cierre_validado(vault, ruta)
         if nota is None:
             continue
-        puntaje, razones = _puntuar(nota, entidades_consulta, tokens_consulta, vecinos)
+        puntaje, razones = _puntuar(
+            nota, entidades_por_tipo, tokens_consulta, vecinos
+        )
         if not razones:
             continue
         candidata = NotaContexto(
@@ -241,11 +247,10 @@ def _rutas_candidatas_indice(
 
     raiz = (vault / _CIERRES).resolve()
     candidatas: list[Path] = []
-    ordenadas = sorted(
-        rutas,
-        key=lambda ruta: (-rutas[ruta][0], rutas[ruta][1], ruta),
-        reverse=False,
-    )[:max_candidatas]
+    ordenadas = sorted(rutas)
+    ordenadas.sort(key=lambda ruta: rutas[ruta][1], reverse=True)
+    ordenadas.sort(key=lambda ruta: rutas[ruta][0], reverse=True)
+    ordenadas = ordenadas[:max_candidatas]
     for relativa_texto in ordenadas:
         relativa = Path(relativa_texto)
         if relativa.is_absolute() or relativa.parts[:2] != _CIERRES.parts:
@@ -410,7 +415,7 @@ def _listas_del_cierre(cuerpo: str) -> dict[str, list[str]]:
 
 def _puntuar(
     nota: _CierreLeido,
-    entidades_consulta: set[str],
+    entidades_consulta: dict[str, set[str]],
     tokens_consulta: set[str],
     vecinos: set[str],
 ) -> tuple[float, list[str]]:
@@ -424,14 +429,23 @@ def _puntuar(
     entidades_nota = {
         entidad for valores in entidades_normalizadas.values() for entidad in valores
     }
-    if entidades_consulta and not entidades_nota.intersection(
-        entidades_consulta | vecinos
+    entidades_aplanadas = {
+        entidad for valores in entidades_consulta.values() for entidad in valores
+    }
+    exactas_tipadas = any(
+        set(entidades_normalizadas[tipo]).intersection(entidades_consulta[tipo])
+        for tipo in TIPOS_ENTIDAD
+    )
+    if entidades_aplanadas and not (
+        exactas_tipadas or entidades_nota.intersection(vecinos)
     ):
         # Una consulta anclada a identidad no se rellena con una nota que sólo
         # comparte palabras del título o del cuerpo.
         return 0.0, []
     for tipo in TIPOS_ENTIDAD:
-        exactas = sorted(entidades_consulta.intersection(entidades_normalizadas[tipo]))
+        exactas = sorted(
+            entidades_consulta[tipo].intersection(entidades_normalizadas[tipo])
+        )
         for entidad in exactas:
             puntaje += 100
             razones.append(f"{tipo}:{entidades_normalizadas[tipo][entidad]}")

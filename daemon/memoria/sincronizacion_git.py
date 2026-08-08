@@ -5,6 +5,7 @@ from __future__ import annotations
 from contextlib import contextmanager
 from dataclasses import dataclass
 import fcntl
+import json
 import os
 from pathlib import Path
 import subprocess
@@ -29,6 +30,37 @@ class FalloSincronizacion(RuntimeError):
         super().__init__(paso)
         self.paso = paso
         self.detalle = detalle
+
+
+def validar_automatizacion_git_externa(vault: Path) -> None:
+    """Falla cerrado si Obsidian Git puede correr fuera del lock cooperativo."""
+    config = Path(vault) / ".obsidian/plugins/obsidian-git/data.json"
+    if not config.exists():
+        return
+    try:
+        datos = json.loads(config.read_text())
+    except (OSError, json.JSONDecodeError) as error:
+        raise RuntimeError(
+            "No se pudo verificar la automatización de Obsidian Git."
+        ) from error
+    if not isinstance(datos, dict):
+        raise RuntimeError("La configuración de Obsidian Git es inválida.")
+
+    def intervalo_activo(clave: str) -> bool:
+        try:
+            return float(datos.get(clave) or 0) > 0
+        except (TypeError, ValueError):
+            return True
+
+    automatico = bool(datos.get("autoPullOnBoot")) or any(
+        intervalo_activo(clave)
+        for clave in ("autoSaveInterval", "autoPullInterval", "autoPushInterval")
+    )
+    if automatico:
+        raise RuntimeError(
+            "Obsidian Git automático no respeta vault-git.lock; "
+            "desactivá pull, commit y push automáticos."
+        )
 
 
 class SincronizadorGitVault:
@@ -73,6 +105,12 @@ class SincronizadorGitVault:
         observar_paso: Callable[[str], None] | None = None,
     ) -> tuple[T, ResultadoGit]:
         observar = observar_paso or (lambda _paso: None)
+        try:
+            validar_automatizacion_git_externa(self.vault)
+        except RuntimeError as error:
+            raise FalloSincronizacion(
+                "preflight", {"motivo": "obsidian_git_automatico"}
+            ) from error
         with self.bloqueo():
             try:
                 observar("preflight")
@@ -140,9 +178,14 @@ class SincronizadorGitVault:
         """Actualiza el work-tree bajo el mismo lock usado por cierres y jobs."""
         with self.bloqueo():
             try:
+                validar_automatizacion_git_externa(self.vault)
                 self._preflight()
                 self._pull()
-            except FalloSincronizacion as error:
+            except RuntimeError as error:
+                if not isinstance(error, FalloSincronizacion):
+                    error = FalloSincronizacion(
+                        "preflight", {"motivo": "obsidian_git_automatico"}
+                    )
                 return ResultadoGit(False, error.paso, detalle=error.detalle)
         return ResultadoGit(True, "pull", detalle={"rama": self.branch, "remote": self.remote})
 

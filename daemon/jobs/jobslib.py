@@ -129,7 +129,11 @@ import urllib.request
 
 import certifi
 
-from daemon.memoria.sincronizacion_git import FalloSincronizacion, SincronizadorGitVault
+from daemon.memoria.sincronizacion_git import (
+    FalloSincronizacion,
+    SincronizadorGitVault,
+    validar_automatizacion_git_externa,
+)
 
 DIR_JOBS = Path.home() / ".ravn-jobs"
 STATE = DIR_JOBS / "state.json"
@@ -449,48 +453,6 @@ def crear_sincronizador_vault():
         git_dir=Path.home() / ".ravn-vault-git",
         lock_path=DIR_JOBS / "vault-git.lock",
     )
-
-
-def validar_automatizacion_git_externa(vault):
-    """Rechaza otro escritor Git autónomo que no respeta nuestro lock.
-
-    Obsidian Git trabaja en un proceso distinto y no conoce ``vault-git.lock``.
-    Permitir sus timers mientras los jobs escriben dejaría una carrera imposible
-    de resolver sólo desde este proceso. La ausencia del plugin o su uso manual
-    no bloquean.
-    """
-    config = Path(vault) / ".obsidian/plugins/obsidian-git/data.json"
-    if not config.exists():
-        return
-    try:
-        datos = json.loads(config.read_text())
-    except (OSError, json.JSONDecodeError) as error:
-        raise RuntimeError(
-            "No se pudo verificar la automatización de Obsidian Git; "
-            "se bloquea la escritura del Vault por seguridad."
-        ) from error
-    if not isinstance(datos, dict):
-        raise RuntimeError(
-            "La configuración de Obsidian Git es inválida; "
-            "se bloquea la escritura del Vault por seguridad."
-        )
-
-    def intervalo_activo(clave):
-        try:
-            return float(datos.get(clave) or 0) > 0
-        except (TypeError, ValueError):
-            return True
-
-    automatico = bool(datos.get("autoPullOnBoot")) or any(
-        intervalo_activo(clave)
-        for clave in ("autoSaveInterval", "autoPullInterval", "autoPushInterval")
-    )
-    if automatico:
-        raise RuntimeError(
-            "Obsidian Git tiene pull, commit o push automático activo y no "
-            "respeta vault-git.lock. Desactivá sus automatizaciones antes de "
-            "habilitar escritores del Vault."
-        )
 
 
 def pull_vault():

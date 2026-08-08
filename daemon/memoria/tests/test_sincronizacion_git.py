@@ -9,7 +9,7 @@ import subprocess
 import tempfile
 import unittest
 
-from daemon.memoria.sincronizacion_git import SincronizadorGitVault
+from daemon.memoria.sincronizacion_git import FalloSincronizacion, SincronizadorGitVault
 
 
 class SincronizacionGitTests(unittest.TestCase):
@@ -114,6 +114,29 @@ class SincronizacionGitTests(unittest.TestCase):
 
         self.assertTrue(resultado.sincronizado, resultado.detalle)
         self.assertEqual(puntero.read_text(), f"gitdir: {self.git_dir}\n")
+
+    def test_obsidian_git_automatico_bloquea_todo_escritor_antes_de_persistir(self) -> None:
+        config = self.vault / ".obsidian/plugins/obsidian-git/data.json"
+        config.parent.mkdir(parents=True)
+        config.write_text(
+            json.dumps({"autoSaveInterval": 10, "autoPullInterval": 8})
+        )
+        escribio = False
+
+        def persistir() -> Path:
+            nonlocal escribio
+            escribio = True
+            return self.vault / "no-debe-existir.md"
+
+        with self.assertRaisesRegex(FalloSincronizacion, "preflight"):
+            self.sync.transaccion(
+                persistir,
+                rutas=lambda valor: [valor],
+                mensaje="memoria: bloqueada",
+                registrar_pendiente=lambda *_: None,
+            )
+
+        self.assertFalse(escribio)
 
     def test_fallo_de_pull_conserva_persistencia_y_deja_pendiente_sanitizado(self) -> None:
         cierre = self.vault / "Conversaciones/cierres/2026/08/local.md"

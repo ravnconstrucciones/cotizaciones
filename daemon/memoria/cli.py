@@ -11,7 +11,7 @@ from typing import Sequence
 from .app_ravn import BackendSupabaseJobs, ResolverAppRavn
 from .cerrar import FalloPersistencia, cerrar
 from .recuperar import ConsultaMemoria, recuperar, reindexar
-from .sincronizacion_git import SincronizadorGitVault
+from .sincronizacion_git import FalloSincronizacion, SincronizadorGitVault
 
 
 CODIGO_VALIDACION = 2
@@ -83,6 +83,9 @@ def _comando_cerrar(args: argparse.Namespace) -> int:
     except OSError as error:
         _imprimir_error(CODIGO_PERSISTENCIA, str(error))
         return CODIGO_PERSISTENCIA
+    except FalloSincronizacion as error:
+        _imprimir_error(CODIGO_SINCRONIZACION, error.paso)
+        return CODIGO_SINCRONIZACION
 
     print(json.dumps(evidencia, ensure_ascii=False))
     return 0 if evidencia.get("ok") is True else CODIGO_SINCRONIZACION

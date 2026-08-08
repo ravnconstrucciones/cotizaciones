@@ -97,8 +97,9 @@ ravn-memoria reindexar --vault "/Users/ezeotero/Obsidian/RAVN"
 
 `cerrar` devuelve código `0` sólo cuando verificó persistencia, índice y
 marcador Graphify y sincronización Git; `2` ante validación inválida; `3` ante
-un fallo de persistencia; y `4` cuando el cierre quedó durable e indexado pero
-Git o el marcador Graphify quedó pendiente. La salida JSON separa
+un fallo de persistencia; y `4` cuando Git o el marcador Graphify quedó
+pendiente, o cuando el guard de un escritor Git externo frenó antes de tocar el
+Vault. La salida JSON separa
 `persistido_local`, `indexado`, `graphify_marcado`, `sincronizado`, `paso` y
 `pendiente`. Los flags
 `--sin-app` y `--sin-sincronizacion` existen sólo para pruebas o diagnóstico
@@ -199,9 +200,10 @@ otro runner si launchd ya administra `com.ravn.jobs`.
   `Sistema/Memoria/pendientes-escritura/`; corregir permisos o almacenamiento y
   reintentar. No afirmar persistencia hasta obtener `ok=true`.
 - **Código `4` al cerrar:** la evidencia local y el índice sí fueron
-  verificados, pero Git no terminó. Revisar `paso`, `detalle` y `pendiente`,
+  verificados cuando la salida incluye esos campos; si el guard de Obsidian Git
+  frenó antes, no hubo escritura. Revisar `paso`, `detalle` y `pendiente`,
   resolver la causa y reintentar; no presentar el cierre como compartido hasta
-  que `sincronizado=true`.
+  obtener código 0.
 - **Recuperación vacía:** confirmar que existe un cierre estructurado, usar una
   entidad inequívoca y revisar `indice_estado`. Sólo ejecutar `reindexar` como
   reparación explícita. El crudo no se consulta por defecto.

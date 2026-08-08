@@ -180,6 +180,31 @@ class RecuperarTests(unittest.TestCase):
         self.assertEqual(paquete.notas, [])
         self.assertLessEqual(paquete.tokens_estimados, 560)
 
+    def test_entidad_tipificada_no_coincide_con_otro_tipo_homonimo(self) -> None:
+        cierre = _cierre(cierre_id="cliente-garage", tema="Garage", entidades=[])
+        self.almacen.guardar_cierre(
+            replace(
+                cierre,
+                entidades={
+                    "obras": [],
+                    "clientes": ["Garage"],
+                    "cotizaciones": [],
+                    "documentos": [],
+                },
+            )
+        )
+
+        paquete = recuperar(
+            ConsultaMemoria(
+                "garage",
+                [],
+                entidades_tipadas={"obras": ["Garage"]},
+            ),
+            self.vault,
+        )
+
+        self.assertEqual(paquete.notas, [])
+
     def test_recuperacion_no_reexpone_secretos_de_un_cierre_manual(self) -> None:
         ruta = self.almacen.guardar_cierre(
             _cierre(
@@ -365,30 +390,36 @@ class RecuperarTests(unittest.TestCase):
         self.assertEqual(paquete.notas, [])
 
     def test_query_generica_limita_las_rutas_candidatas_antes_de_abrirlas(self) -> None:
+        por_fecha: list[tuple[str, Path]] = []
         for numero in range(40):
-            self.almacen.guardar_cierre(
-                _cierre(
+            fecha = f"2026-08-08T10:{numero:02d}:00-03:00"
+            ruta = self.almacen.guardar_cierre(
+                replace(
+                    _cierre(
                     cierre_id=f"garage-{numero}",
                     tema="Garage",
                     entidades=[f"Obra {numero}"],
                     hechos=["Garage histórico."],
+                    ),
+                    fecha_cierre=fecha,
                 )
             )
+            por_fecha.append((fecha, ruta))
 
         import daemon.memoria.recuperar as modulo
 
         original = modulo._leer_cierre_validado
-        lecturas = 0
+        lecturas: list[Path] = []
 
         def contar(vault: Path, ruta: Path):
-            nonlocal lecturas
-            lecturas += 1
+            lecturas.append(ruta)
             return original(vault, ruta)
 
         with patch.object(modulo, "_leer_cierre_validado", side_effect=contar):
             recuperar(ConsultaMemoria("garage", []), self.vault)
 
-        self.assertLessEqual(lecturas, 32)
+        esperadas = {ruta.resolve() for _, ruta in sorted(por_fecha, reverse=True)[:32]}
+        self.assertEqual({ruta.resolve() for ruta in lecturas}, esperadas)
 
     def test_cli_recuperar_emite_json_y_reindexar_descarta_markdown_no_validado(self) -> None:
         cierre_path = self.almacen.guardar_cierre(
