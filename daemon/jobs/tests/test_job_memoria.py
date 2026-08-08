@@ -333,7 +333,7 @@ class JobMemoriaTests(unittest.TestCase):
 
         confirmado = json.loads(resuelto.read_text(encoding="utf-8"))
         self.assertFalse(pendiente_evento["evento_emitido"])
-        self.assertEqual(reintento["resueltas"], 1)
+        self.assertEqual(reintento["resueltas"], 0)
         self.assertEqual(final["resueltas"], 0)
         self.assertTrue(confirmado["evento_emitido"])
         self.assertEqual(len(self.eventos), 2)
@@ -513,12 +513,174 @@ class JobMemoriaTests(unittest.TestCase):
             (self.vault / "Sistema" / "Memoria" / "pendientes-escritura").glob("*.json")
         )
         detalle = json.loads(pendientes[0].read_text(encoding="utf-8"))["detalle"]
-        self.assertEqual(reintento["sin_cierre"], 1)
+        self.assertEqual(reintento["sin_cierre"], 0)
         self.assertEqual(final["procesadas"], 0)
         self.assertEqual(len(pendientes), 1)
         self.assertTrue(detalle["advertencia_emitida"])
         self.assertEqual(len(self.eventos), 2)
         self.assertEqual(self.eventos[-1]["contenido"]["nivel"], "warning")
+
+    def test_red_caida_y_sesion_crecida_no_reincluye_la_accion_ya_en_outbox(self):
+        codex = self._copiar_fixture("codex-session.jsonl", antiguedad_segundos=901)
+        tamano_inicial = codex.stat().st_size
+        intentos: list[dict[str, object]] = []
+
+        def registrar(cfg, token, tipo, titulo, contenido, evento_id=None):
+            evento = {
+                "tipo": tipo,
+                "titulo": titulo,
+                "contenido": contenido,
+                "evento_id": evento_id,
+            }
+            intentos.append(evento)
+            if len(intentos) == 1:
+                raise OSError("red")
+            self.eventos.append(evento)
+
+        with (
+            patch.object(job_memoria, "descubrir_sesiones", return_value=[codex]),
+            patch.object(job_memoria, "registrar_evento", side_effect=registrar),
+        ):
+            with self.assertRaises(OSError):
+                job_memoria.correr({}, "token")
+
+            cursor_tras_fallo = json.loads(self.cursor.read_text(encoding="utf-8"))
+            firma_inicial = cursor_tras_fallo["sesiones"][str(codex.resolve())]["firma"]
+            with codex.open("a", encoding="utf-8") as archivo:
+                archivo.write(
+                    '{"type":"message","payload":{"role":"user",'
+                    '"content":"Acción B","timestamp":"2026-08-08T12:00:05Z"}}\n'
+                )
+            pasado = time.time() - 901
+            os.utime(codex, (pasado, pasado))
+
+            reintento = job_memoria.correr({}, "token")
+            final = job_memoria.correr({}, "token")
+
+        exitosos_por_id = {evento["evento_id"]: evento for evento in self.eventos}
+        evento_a_id = intentos[0]["evento_id"]
+        evento_b = next(
+            evento
+            for evento_id, evento in exitosos_por_id.items()
+            if evento_id != evento_a_id
+        )
+        cursor_final = json.loads(self.cursor.read_text(encoding="utf-8"))
+
+        self.assertEqual(firma_inicial["size"], tamano_inicial)
+        self.assertEqual(reintento["procesadas"], 1)
+        self.assertEqual(reintento["archivadas"], 1)
+        self.assertEqual(reintento["sin_cierre"], 0)
+        self.assertEqual(final["procesadas"], 0)
+        self.assertEqual(len(intentos), 3)
+        self.assertEqual(len(exitosos_por_id), 2)
+        self.assertIn(evento_a_id, exitosos_por_id)
+        self.assertEqual(evento_b["contenido"]["procesadas"], 1)
+        self.assertEqual(evento_b["contenido"]["archivadas"], 1)
+        self.assertEqual(evento_b["contenido"]["sin_cierre"], 0)
+        self.assertEqual(
+            cursor_final["sesiones"][str(codex.resolve())]["firma"]["size"],
+            codex.stat().st_size,
+        )
+
+    def test_cierre_ilegible_no_aborta_fuente_sana_y_se_reintenta_sin_spam(self):
+        codex = self._copiar_fixture("codex-session.jsonl", antiguedad_segundos=901)
+        cierre = self.vault / "Conversaciones" / "cierres" / "cierre.md"
+        cierre.parent.mkdir(parents=True)
+        cierre.write_text(
+            "---\nhost: codex\n"
+            "thread_id: 11111111-1111-1111-1111-111111111111\n---\n",
+            encoding="utf-8",
+        )
+        leer_real = job_memoria._leer_frontmatter
+        intentos = 0
+
+        def leer(path):
+            nonlocal intentos
+            if path == cierre:
+                intentos += 1
+                raise PermissionError("Operation not permitted")
+            return leer_real(path)
+
+        with patch.object(job_memoria, "descubrir_sesiones", return_value=[codex]):
+            with patch.object(job_memoria, "_leer_frontmatter", side_effect=leer):
+                primera = job_memoria.correr({}, "token")
+                segunda = job_memoria.correr({}, "token")
+            recuperada = job_memoria.correr({}, "token")
+
+        cursor = json.loads(self.cursor.read_text(encoding="utf-8"))
+        self.assertEqual(intentos, 2)
+        self.assertEqual(primera["archivadas"], 1)
+        self.assertEqual(primera["errores"], 1)
+        self.assertEqual(segunda["procesadas"], 0)
+        self.assertEqual(segunda["errores"], 0)
+        self.assertEqual(recuperada["procesadas"], 0)
+        self.assertEqual(len(self.eventos), 1)
+        self.assertEqual(self.eventos[0]["contenido"]["nivel"], "warning")
+        self.assertEqual(cursor.get("errores_globales"), {})
+        self.assertEqual(
+            list(
+                (self.vault / "Sistema" / "Memoria" / "pendientes-escritura").glob(
+                    "*.json"
+                )
+            ),
+            [],
+        )
+
+    def test_movimiento_bloqueado_no_aborta_fuente_sana_y_se_reintenta_sin_spam(self):
+        codex = self._copiar_fixture("codex-session.jsonl", antiguedad_segundos=901)
+
+        with patch.object(job_memoria, "descubrir_sesiones", return_value=[codex]):
+            job_memoria.correr({}, "token")
+
+        pendiente = next(
+            (self.vault / "Sistema" / "Memoria" / "pendientes-escritura").glob(
+                "*.json"
+            )
+        )
+        cierre = self.vault / "Conversaciones" / "cierres" / "cierre.md"
+        cierre.parent.mkdir(parents=True)
+        cierre.write_text(
+            "---\nhost: codex\n"
+            "thread_id: 11111111-1111-1111-1111-111111111111\n---\n",
+            encoding="utf-8",
+        )
+        claude = self._copiar_fixture("claude-session.jsonl")
+        reemplazar_real = os.replace
+        intentos_movimiento = 0
+
+        def reemplazar(origen, destino):
+            nonlocal intentos_movimiento
+            if (
+                Path(origen) == pendiente
+                and Path(destino).parent.name == "pendientes-resueltos"
+            ):
+                intentos_movimiento += 1
+                raise PermissionError("Operation not permitted")
+            return reemplazar_real(origen, destino)
+
+        with patch.object(
+            job_memoria, "descubrir_sesiones", return_value=[codex, claude]
+        ):
+            with patch.object(job_memoria.os, "replace", side_effect=reemplazar):
+                segunda = job_memoria.correr({}, "token")
+                tercera = job_memoria.correr({}, "token")
+            recuperada = job_memoria.correr({}, "token")
+            final = job_memoria.correr({}, "token")
+
+        resueltos = list(
+            (self.vault / "Sistema" / "Memoria" / "pendientes-resueltos").glob(
+                "*.json"
+            )
+        )
+        self.assertEqual(intentos_movimiento, 2)
+        self.assertEqual(segunda["archivadas"], 1)
+        self.assertEqual(segunda["errores"], 1)
+        self.assertEqual(tercera["procesadas"], 0)
+        self.assertEqual(tercera["errores"], 0)
+        self.assertEqual(recuperada["resueltas"], 1)
+        self.assertEqual(final["resueltas"], 0)
+        self.assertEqual(len(resueltos), 1)
+        self.assertEqual(len(self.eventos), 3)
 
     def test_post_exitoso_y_marca_local_fallida_reusa_el_mismo_evento(self):
         codex = self._copiar_fixture("codex-session.jsonl", antiguedad_segundos=901)
@@ -553,7 +715,7 @@ class JobMemoriaTests(unittest.TestCase):
             (self.vault / "Sistema" / "Memoria" / "pendientes-escritura").glob("*.json")
         )
         detalle = json.loads(pendiente.read_text(encoding="utf-8"))["detalle"]
-        self.assertEqual(reintento["sin_cierre"], 1)
+        self.assertEqual(reintento["sin_cierre"], 0)
         self.assertEqual(final["procesadas"], 0)
         self.assertEqual(len(filas), 1)
         self.assertEqual(len(posts), 1)

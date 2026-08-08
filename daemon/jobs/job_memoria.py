@@ -54,7 +54,10 @@ def _correr_bloqueado(cfg: dict[str, str], token: str) -> dict[str, object]:
     fuentes = _descubrir_todas()
     es_cursor_v2 = cursor.get("version") == 2
     sesiones_actuales = dict(sesiones_previas) if es_cursor_v2 else {}
-    cierres = _cierres_existentes(VAULT)
+    errores_globales_previos = cursor.get("errores_globales", {})
+    if not isinstance(errores_globales_previos, dict):
+        errores_globales_previos = {}
+    errores_globales_actuales: dict[str, dict[str, object]] = {}
     almacen = AlmacenMemoria(VAULT)
     resultado: dict[str, Any] = {
         "procesadas": 0,
@@ -66,12 +69,55 @@ def _correr_bloqueado(cfg: dict[str, str], token: str) -> dict[str, object]:
         "hosts": {"codex": 0, "claude": 0},
     }
     cursor_cambio = not es_cursor_v2
+    acciones_outbox = _acciones_en_outbox()
     pendientes_advertencia: set[Path] = set()
     respaldos_evento: set[str] = set()
     errores_evento: set[str] = set()
     errores_a_marcar: set[str] = set()
+    errores_globales_a_marcar: set[str] = set()
 
-    pendientes_resueltos = _resolver_pendientes_cerrados(VAULT, cierres)
+    def registrar_error_global(clave: str, descripcion: str) -> None:
+        nonlocal cursor_cambio
+        entrada_previa = errores_globales_previos.get(clave)
+        ya_reportado = (
+            isinstance(entrada_previa, dict)
+            and entrada_previa.get("error") == descripcion
+            and entrada_previa.get("error_reportado") is True
+        )
+        entrada = {"error": descripcion, "error_reportado": ya_reportado}
+        errores_globales_actuales[clave] = entrada
+        cursor_cambio = cursor_cambio or entrada != entrada_previa
+        error_evento = f"global\0{clave}\0{descripcion}"
+        if not ya_reportado and f"error:{error_evento}" not in acciones_outbox:
+            resultado["procesadas"] += 1
+            resultado["errores"] += 1
+            errores_evento.add(error_evento)
+            errores_globales_a_marcar.add(clave)
+
+    errores_preloop: list[tuple[str, str]] = []
+    cierres = _cierres_existentes(VAULT, errores_preloop)
+    cierres_confiables = not errores_preloop
+    pendientes_resueltos_todos: set[Path] = set()
+    if cierres_confiables:
+        try:
+            pendientes_resueltos_todos = _resolver_pendientes_cerrados(
+                VAULT, cierres, errores_preloop
+            )
+        except (OSError, UnicodeError, json.JSONDecodeError, ValueError) as error:
+            errores_preloop.append(
+                (
+                    f"resolver:{(VAULT / 'Sistema' / 'Memoria').resolve()}",
+                    _descripcion_error(error),
+                )
+            )
+    for clave, descripcion in errores_preloop:
+        registrar_error_global(clave, descripcion)
+
+    pendientes_resueltos = {
+        path
+        for path in pendientes_resueltos_todos
+        if f"resuelto:{path.resolve()}" not in acciones_outbox
+    }
     resultado["resueltas"] = len(pendientes_resueltos)
 
     for fuente in fuentes:
@@ -87,13 +133,19 @@ def _correr_bloqueado(cfg: dict[str, str], token: str) -> dict[str, object]:
                     continue
                 sesion = _mensaje_desde_cursor(entrada_previa)
                 if (
-                    _esta_inactiva(stat.st_mtime_ns)
+                    cierres_confiables
+                    and _esta_inactiva(stat.st_mtime_ns)
                     and (sesion.host, sesion.thread_id) not in cierres
                 ):
                     pendiente, requiere_advertencia = _marcar_cierre_faltante(
                         almacen, fuente, firma, sesion
                     )
-                    if requiere_advertencia and pendiente not in pendientes_advertencia:
+                    accion_pendiente = f"pendiente:{pendiente.resolve()}"
+                    if (
+                        requiere_advertencia
+                        and accion_pendiente not in acciones_outbox
+                        and pendiente not in pendientes_advertencia
+                    ):
                         pendientes_advertencia.add(pendiente)
                         resultado["sin_cierre"] += 1
                         resultado["procesadas"] += 1
@@ -142,13 +194,19 @@ def _correr_bloqueado(cfg: dict[str, str], token: str) -> dict[str, object]:
                 raise OSError(f"La sesión cambió durante la persistencia: {fuente}")
 
             if (
-                _esta_inactiva(stat.st_mtime_ns)
+                cierres_confiables
+                and _esta_inactiva(stat.st_mtime_ns)
                 and (sesion.host, sesion.thread_id) not in cierres
             ):
                 pendiente, requiere_advertencia = _marcar_cierre_faltante(
                     almacen, fuente, firma, sesion
                 )
-                if requiere_advertencia and pendiente not in pendientes_advertencia:
+                accion_pendiente = f"pendiente:{pendiente.resolve()}"
+                if (
+                    requiere_advertencia
+                    and accion_pendiente not in acciones_outbox
+                    and pendiente not in pendientes_advertencia
+                ):
                     pendientes_advertencia.add(pendiente)
                     resultado["sin_cierre"] += 1
 
@@ -163,9 +221,11 @@ def _correr_bloqueado(cfg: dict[str, str], token: str) -> dict[str, object]:
             cursor_cambio = True
             resultado["procesadas"] += 1
             resultado["hosts"][sesion.host] += 1
-            respaldos_evento.add(
+            respaldo_evento = (
                 f"{clave_fuente}\0{firma['mtime_ns']}\0{firma['size']}"
             )
+            if f"respaldo:{respaldo_evento}" not in acciones_outbox:
+                respaldos_evento.add(respaldo_evento)
         except (OSError, UnicodeError, json.JSONDecodeError, ValueError) as error:
             descripcion = str(error)
             host = sesion.host if sesion is not None else None
@@ -188,11 +248,16 @@ def _correr_bloqueado(cfg: dict[str, str], token: str) -> dict[str, object]:
             sesiones_actuales[clave_fuente] = entrada_error
             cursor_cambio = cursor_cambio or entrada_error != entrada_previa
             if not error_ya_reportado:
-                resultado["procesadas"] += 1
-                resultado["errores"] += 1
-                errores_evento.add(f"{clave_fuente}\0{firma}\0{descripcion}")
-                errores_a_marcar.add(clave_fuente)
+                error_evento = f"{clave_fuente}\0{firma}\0{descripcion}"
+                if f"error:{error_evento}" not in acciones_outbox:
+                    resultado["procesadas"] += 1
+                    resultado["errores"] += 1
+                    errores_evento.add(error_evento)
+                    errores_a_marcar.add(clave_fuente)
             continue
+
+    if errores_globales_actuales != errores_globales_previos:
+        cursor_cambio = True
 
     hay_evento = bool(resultado["procesadas"] or resultado["resueltas"])
     if hay_evento:
@@ -208,7 +273,7 @@ def _correr_bloqueado(cfg: dict[str, str], token: str) -> dict[str, object]:
             errores_evento,
             pendientes_resueltos,
         )
-        if not _acciones_cubiertas_por_outbox(acciones_evento):
+        if acciones_evento:
             evento_id = _identidad_evento(
                 pendientes_advertencia,
                 respaldos_evento,
@@ -222,20 +287,19 @@ def _correr_bloqueado(cfg: dict[str, str], token: str) -> dict[str, object]:
                 pendientes_advertencia,
                 pendientes_resueltos,
                 errores_a_marcar,
+                errores_globales_a_marcar,
                 acciones_evento,
             )
 
-    cursor_postergado = cursor_cambio and bool(pendientes_advertencia)
-    if cursor_cambio and not cursor_postergado:
-        nuevo_cursor = {"version": 2, "sesiones": sesiones_actuales}
+    if cursor_cambio:
+        nuevo_cursor = {
+            "version": 2,
+            "sesiones": sesiones_actuales,
+        }
+        if errores_globales_actuales or "errores_globales" in cursor:
+            nuevo_cursor["errores_globales"] = errores_globales_actuales
         _escribir_cursor(CURSOR, nuevo_cursor)
     eventos_emitidos = _emitir_eventos_pendientes(cfg, token, almacen)
-    if cursor_postergado:
-        for clave_fuente in errores_a_marcar:
-            entrada = sesiones_actuales.get(clave_fuente)
-            if isinstance(entrada, dict) and entrada.get("estado") == "error":
-                entrada["error_reportado"] = True
-        _escribir_cursor(CURSOR, {"version": 2, "sesiones": sesiones_actuales})
     for evento_emitido in eventos_emitidos:
         evento_emitido.unlink(missing_ok=True)
     return resultado
@@ -340,19 +404,41 @@ def _mensaje_desde_cursor(entrada: dict[str, object]) -> Mensaje:
     )
 
 
-def _cierres_existentes(vault: Path) -> set[tuple[str, str]]:
+def _cierres_existentes(
+    vault: Path, errores: list[tuple[str, str]] | None = None
+) -> set[tuple[str, str]]:
     raiz = vault / "Conversaciones" / "cierres"
     if not raiz.exists():
         return set()
 
     cierres: set[tuple[str, str]] = set()
-    for path in raiz.rglob("*.md"):
-        campos = _leer_frontmatter(path)
+    try:
+        paths = list(raiz.rglob("*.md"))
+    except OSError as error:
+        _anotar_error_preloop(errores, f"cierres:{raiz.resolve()}", error)
+        return cierres
+    for path in paths:
+        try:
+            campos = _leer_frontmatter(path)
+        except (OSError, UnicodeError, json.JSONDecodeError, ValueError) as error:
+            _anotar_error_preloop(errores, f"cierre:{path.resolve()}", error)
+            continue
         host = campos.get("host")
         thread_id = campos.get("thread_id")
         if isinstance(host, str) and isinstance(thread_id, str):
             cierres.add((host, thread_id))
     return cierres
+
+
+def _descripcion_error(error: BaseException) -> str:
+    return f"{type(error).__name__}: {error}"
+
+
+def _anotar_error_preloop(
+    errores: list[tuple[str, str]] | None, clave: str, error: BaseException
+) -> None:
+    if errores is not None:
+        errores.append((clave, _descripcion_error(error)))
 
 
 def _leer_frontmatter(path: Path) -> dict[str, object]:
@@ -476,9 +562,7 @@ def _partes_evento(
     return set(partes)
 
 
-def _acciones_cubiertas_por_outbox(acciones: set[str]) -> bool:
-    if not acciones:
-        return False
+def _acciones_en_outbox() -> set[str]:
     directorio = CURSOR.parent / "memoria-eventos-pendientes"
     cubiertas: set[str] = set()
     if directorio.exists():
@@ -488,7 +572,7 @@ def _acciones_cubiertas_por_outbox(acciones: set[str]) -> bool:
             except (OSError, json.JSONDecodeError):
                 continue
             cubiertas.update(str(valor) for valor in evento.get("acciones", []))
-    return acciones <= cubiertas
+    return cubiertas
 
 
 def _guardar_evento_pendiente(
@@ -498,6 +582,7 @@ def _guardar_evento_pendiente(
     pendientes: set[Path],
     resueltos: set[Path],
     errores: set[str],
+    errores_globales: set[str],
     acciones: set[str],
 ) -> Path:
     directorio = CURSOR.parent / "memoria-eventos-pendientes"
@@ -510,6 +595,7 @@ def _guardar_evento_pendiente(
         "pendientes": sorted(str(path) for path in pendientes),
         "resueltos": sorted(str(path) for path in resueltos),
         "errores": sorted(errores),
+        "errores_globales": sorted(errores_globales),
         "acciones": sorted(acciones),
     }
     serializado = json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True) + "\n"
@@ -545,13 +631,19 @@ def _emitir_eventos_pendientes(
         _marcar_resoluciones_emitidas(
             almacen.vault, {Path(valor) for valor in evento.get("resueltos", [])}
         )
-        _marcar_errores_reportados(CURSOR, set(evento.get("errores", [])))
+        _marcar_errores_reportados(
+            CURSOR,
+            set(evento.get("errores", [])),
+            set(evento.get("errores_globales", [])),
+        )
         emitidos.append(path)
     return emitidos
 
 
-def _marcar_errores_reportados(path: Path, claves: set[str]) -> None:
-    if not claves or not path.exists():
+def _marcar_errores_reportados(
+    path: Path, claves: set[str], claves_globales: set[str]
+) -> None:
+    if (not claves and not claves_globales) or not path.exists():
         return
     cursor = _leer_cursor(path)
     sesiones = cursor.get("sesiones")
@@ -567,23 +659,46 @@ def _marcar_errores_reportados(path: Path, claves: set[str]) -> None:
         ):
             entrada["error_reportado"] = True
             cambio = True
+    errores_globales = cursor.get("errores_globales")
+    if isinstance(errores_globales, dict):
+        for clave in claves_globales:
+            entrada = errores_globales.get(clave)
+            if (
+                isinstance(entrada, dict)
+                and entrada.get("error_reportado") is not True
+            ):
+                entrada["error_reportado"] = True
+                cambio = True
     if cambio:
         _escribir_cursor(path, cursor)
 
 
 def _resolver_pendientes_cerrados(
-    vault: Path, cierres: set[tuple[str, str]]
+    vault: Path,
+    cierres: set[tuple[str, str]],
+    errores: list[tuple[str, str]] | None = None,
 ) -> set[Path]:
     pendientes = vault / "Sistema" / "Memoria" / "pendientes-escritura"
     directorio_resueltos = vault / "Sistema" / "Memoria" / "pendientes-resueltos"
 
     resueltos: set[Path] = set()
     with _bloquear_resolucion_pendientes(vault):
-        fuentes_pendientes = sorted(pendientes.glob("*.json")) if pendientes.exists() else []
+        try:
+            fuentes_pendientes = (
+                sorted(pendientes.glob("*.json")) if pendientes.exists() else []
+            )
+        except OSError as error:
+            _anotar_error_preloop(
+                errores, f"resolver-listado:{pendientes.resolve()}", error
+            )
+            fuentes_pendientes = []
         for path in fuentes_pendientes:
             try:
                 contenido = json.loads(path.read_text(encoding="utf-8"))
-            except (OSError, json.JSONDecodeError):
+            except (OSError, UnicodeError, json.JSONDecodeError, ValueError) as error:
+                _anotar_error_preloop(
+                    errores, f"resolver-pendiente:{path.resolve()}", error
+                )
                 continue
             detalle = contenido.get("detalle")
             if (
@@ -593,20 +708,47 @@ def _resolver_pendientes_cerrados(
             ):
                 continue
 
-            contenido["resuelto_at"] = datetime.now(timezone.utc).isoformat()
-            contenido["evento_emitido"] = False
-            serializado = json.dumps(contenido, ensure_ascii=False, indent=2) + "\n"
-            AlmacenMemoria._escribir_atomico(path, serializado)
-            destino = directorio_resueltos / path.name
-            destino.parent.mkdir(parents=True, exist_ok=True)
-            os.replace(path, destino)
-            if json.loads(_verificar_archivo(destino)).get("resuelto_at") is None:
-                raise OSError(f"No se pudo verificar el pendiente resuelto: {destino}")
+            try:
+                contenido["resuelto_at"] = datetime.now(timezone.utc).isoformat()
+                contenido["evento_emitido"] = False
+                serializado = (
+                    json.dumps(contenido, ensure_ascii=False, indent=2) + "\n"
+                )
+                AlmacenMemoria._escribir_atomico(path, serializado)
+                destino = directorio_resueltos / path.name
+                destino.parent.mkdir(parents=True, exist_ok=True)
+                os.replace(path, destino)
+                if json.loads(_verificar_archivo(destino)).get("resuelto_at") is None:
+                    raise OSError(
+                        f"No se pudo verificar el pendiente resuelto: {destino}"
+                    )
+            except (OSError, UnicodeError, json.JSONDecodeError, ValueError) as error:
+                _anotar_error_preloop(
+                    errores, f"resolver-pendiente:{path.resolve()}", error
+                )
+                continue
         if directorio_resueltos.exists():
-            for destino in directorio_resueltos.glob("*.json"):
+            try:
+                destinos_resueltos = list(directorio_resueltos.glob("*.json"))
+            except OSError as error:
+                _anotar_error_preloop(
+                    errores,
+                    f"resolver-listado:{directorio_resueltos.resolve()}",
+                    error,
+                )
+                destinos_resueltos = []
+            for destino in destinos_resueltos:
                 try:
                     contenido = json.loads(destino.read_text(encoding="utf-8"))
-                except (OSError, json.JSONDecodeError):
+                except (
+                    OSError,
+                    UnicodeError,
+                    json.JSONDecodeError,
+                    ValueError,
+                ) as error:
+                    _anotar_error_preloop(
+                        errores, f"resolver-resuelto:{destino.resolve()}", error
+                    )
                     continue
                 if (
                     contenido.get("operacion") == "cierre_estructurado_faltante"

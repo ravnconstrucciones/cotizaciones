@@ -6,6 +6,8 @@ Base original: `dd13853`
 
 Base de esta corrección: `1a7805e`
 
+Base de la corrección ronda 2: `c2fa83c`
+
 ## Resultado
 
 - Discovery excluye sólo los journals no-sesión conocidos por nombre y preserva
@@ -34,6 +36,14 @@ Base de esta corrección: `1a7805e`
   outbox local durable conserva su identidad y acciones: una falla de red, de
   marcado local o de cursor se reintenta sin releer snapshots ya confirmados ni
   duplicar el evento lógico.
+- La firma confirmada se escribe en el cursor antes de intentar el POST. Las
+  acciones ya reclamadas por un outbox se descuentan de forma granular: si una
+  sesión crece después de una caída de red, el evento nuevo contiene sólo el
+  snapshot nuevo y no vuelve a incluir el cierre pendiente anterior.
+- Los fallos al leer cierres o resolver/mover pendientes se aíslan antes del
+  loop de fuentes. Quedan en `errores_globales` del cursor, se reintentan en cada
+  corrida y sólo generan una advertencia hasta recuperarse. Mientras el listado
+  de cierres es incompleto no se crean falsos pendientes de cierre.
 
 ## Evidencia TDD
 
@@ -45,14 +55,28 @@ lectura y persistencia, retry transitorio sin spam, cursor corrupto, resolución
 con evento fallido, carreras al crear/mover pendientes, corridas concurrentes,
 outbox ante falla de red y POST exitoso seguido de falla del cursor.
 
-GREEN dirigido final: 40 tests OK.
+La ronda 2 agregó tres reproducciones RED: caída de red seguida por crecimiento
+de la sesión, `Operation not permitted` al leer un cierre y
+`Operation not permitted` al mover un pendiente resuelto. Las tres pasaron a
+GREEN y además ajustaron el contrato del resumen: una acción ya durable en el
+outbox no vuelve a contarse como `sin_cierre` o `resueltas` en el reintento.
+
+GREEN dirigido final: 43 tests OK.
 
 Fixtures agregados: `workflow-journal.jsonl` con un único registro `{"type":"started"}`. Todos los demás casos usan archivos temporales sintéticos.
 
 ## Verificación
 
-- `python3.13 -m unittest discover -s daemon/memoria/tests -p 'test_*.py'`: 116 OK.
-- `python3.13 -m unittest discover -s daemon/jobs/tests -p 'test_*.py'`: 153 OK.
+- `python3.13 -m unittest discover -s daemon/memoria/tests -p 'test_*.py'`:
+  temporalmente bloqueada por trabajo concurrente de Fix C. Una primera corrida
+  ejecutó 130 tests y tuvo cinco `IndexError` ajenos en `test_recuperar`; una
+  repetición mientras cambiaba el árbol ejecutó 132 y dejó un `AttributeError`
+  ajeno porque `daemon.memoria.cli` todavía no exponía `_crear_resolver_app`.
+- `python3.13 -m unittest discover -s daemon/jobs/tests -p 'test_*.py'`: 156 OK
+  antes de la siguiente expansión concurrente de Fix C. Una repetición posterior
+  descubrió 158 tests y quedó temporalmente bloqueada por dos `AttributeError`
+  ajenos en `test_jobslib`, mientras `crear_sincronizador_vault` todavía no
+  estaba disponible.
 - `npm test`: 57 archivos, 527 tests OK.
 - `npm run build`: OK.
 - `python3.13 -m py_compile ...`: OK.
