@@ -9,6 +9,7 @@ from unittest.mock import patch
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import jobslib
 import runner
+from daemon.memoria.graphify_batch import marcar_cierre
 
 SIEMPRE = lambda u, a: True
 NUNCA = lambda u, a: False
@@ -50,6 +51,10 @@ class TestJobsVencidos(unittest.TestCase):
             with (
                 patch.object(runner.job_cerebro, "VAULT", str(vault)),
                 patch.object(runner.job_cerebro, "GRAPHIFY", Path(tempdir) / "graphify"),
+                patch(
+                    "daemon.memoria.graphify_batch.STATE",
+                    Path(tempdir) / "graphify-state.json",
+                ),
             ):
                 resultado = runner.job_cerebro.correr_incremental({}, "token")
 
@@ -83,10 +88,52 @@ class TestJobsVencidos(unittest.TestCase):
                 patch.object(runner.job_cerebro, "push_vault"),
                 patch.object(runner.job_cerebro, "registrar_evento"),
                 patch.object(runner.job_cerebro, "log"),
+                patch(
+                    "daemon.memoria.graphify_batch.STATE",
+                    Path(tempdir) / "graphify-state.json",
+                ),
             ):
                 runner.job_cerebro.correr({}, "token")
 
             self.assertFalse(marker.exists())
+
+    def test_cerebro_full_no_borra_cierre_creado_justo_antes_de_limpiar(self):
+        with tempfile.TemporaryDirectory() as tempdir:
+            vault = Path(tempdir) / "vault"
+            marker = vault / "Sistema" / "Memoria" / ".graphify-pendiente"
+            snapshot = marker.with_name(".graphify-en-proceso")
+            marker.parent.mkdir(parents=True)
+            marker.touch()
+            unlink_real = Path.unlink
+
+            def unlink_con_cierre(path: Path, *args, **kwargs):
+                if path in {marker, snapshot}:
+                    marcar_cierre(vault)
+                return unlink_real(path, *args, **kwargs)
+
+            with (
+                patch.object(runner.job_cerebro, "VAULT", str(vault)),
+                patch.object(runner.job_cerebro, "GRAPHIFY_OUT", vault / "graphify-out"),
+                patch.object(runner.job_cerebro, "ORGANISMO", Path(tempdir) / "organismo"),
+                patch.object(runner.job_cerebro.subprocess, "run"),
+                patch.object(
+                    runner.job_cerebro,
+                    "_run",
+                    side_effect=["", "", '{"pregunta": null}'],
+                ),
+                patch.object(runner.job_cerebro.shutil, "copy2"),
+                patch.object(runner.job_cerebro, "push_vault"),
+                patch.object(runner.job_cerebro, "registrar_evento"),
+                patch.object(runner.job_cerebro, "log"),
+                patch(
+                    "daemon.memoria.graphify_batch.STATE",
+                    Path(tempdir) / "graphify-state.json",
+                ),
+                patch.object(Path, "unlink", autospec=True, side_effect=unlink_con_cierre),
+            ):
+                runner.job_cerebro.correr({}, "token")
+
+            self.assertTrue(marker.exists())
 
 
 class TestCorrerVencidos(unittest.TestCase):
