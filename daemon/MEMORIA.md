@@ -34,12 +34,17 @@ que contiene `daemon/memoria/`.
 2. `daemon/jobs/job_memoria.py` corre en cada tick. Respalda sesiones nuevas o
    modificadas, detecta sesiones inactivas sin cierre y publica el cursor sólo
    después de verificar escritura y evento.
-3. `ravn-memoria cerrar` valida el JSON contra el modelo canónico, escribe de
-   forma atómica el cierre y, si se indicó `--session-path`, el crudo. Reabre el
-   cierre y el índice antes de devolver `ok=true`.
-4. `ravn-memoria recuperar` consulta únicamente cierres validados, prioriza
-   entidades y coincidencias, incorpora vecinos derivados de Graphify cuando
-   existen y limita el paquete a 8 notas y 3.000 tokens por defecto.
+3. `ravn-memoria cerrar` valida antes de tocar disco y ejecuta pull, escritura,
+   stage allowlisted, commit y push bajo el lock común
+   `~/.ravn-jobs/vault-git.lock`. Reabre el cierre y el índice antes de declarar
+   persistencia; un fallo de red conserva el cierre local y registra un
+   pendiente sin confundirlo con sincronización completa.
+4. `ravn-memoria recuperar` consulta primero metadata operativa mínima y
+   read-only de App RAVN mediante la sesión autenticada de jobs. Después abre
+   sólo las rutas sembradas por `Sistema/Memoria/indices/entidades.json`, y
+   Graphify aporta únicamente vecinos derivados. El paquete tiene topes duros
+   de 8 notas y 3.000 tokens; un índice ausente o corrupto se declara y no
+   dispara un escaneo implícito del corpus.
 5. Cada cierre verificado marca `.graphify-pendiente`. El runner agrupa la
    actualización incremental durante 15 minutos y usa un lock compartido con
    la reconstrucción nocturna. Un fallo conserva el marcador para reintento.
@@ -56,7 +61,10 @@ Recuperar contexto antes de un trabajo material:
 ravn-memoria recuperar \
   --vault "/Users/ezeotero/Obsidian/RAVN" \
   --query "objetivo y entidades inequívocas" \
-  --entidad "obra, cliente o cotización"
+  --obra "nombre o UUID de obra" \
+  --cliente "nombre exacto del cliente" \
+  --cotizacion "título o UUID de cotización" \
+  --documento "título o UUID de documento"
 ```
 
 Cerrar una conversación. El archivo debe cumplir
@@ -85,8 +93,14 @@ Reconstruir el índice local sólo desde cierres válidos:
 ravn-memoria reindexar --vault "/Users/ezeotero/Obsidian/RAVN"
 ```
 
-`cerrar` devuelve código `2` ante validación inválida y `3` ante un fallo de
-persistencia. `estado` está reservado pero todavía no está implementado.
+`cerrar` devuelve código `0` sólo cuando verificó persistencia, índice y
+sincronización Git; `2` ante validación inválida; `3` ante un fallo de
+persistencia; y `4` cuando el cierre quedó durable e indexado localmente pero
+la sincronización remota quedó pendiente. La salida JSON separa
+`persistido_local`, `indexado`, `sincronizado`, `paso` y `pendiente`. Los flags
+`--sin-app` y `--sin-sincronizacion` existen sólo para pruebas o diagnóstico
+aislado, no para el flujo normal. `estado` está reservado pero todavía no está
+implementado.
 
 ## Verificación e instalación
 
@@ -181,9 +195,13 @@ otro runner si launchd ya administra `com.ravn.jobs`.
 - **Código `3` o pendiente de escritura:** conservar
   `Sistema/Memoria/pendientes-escritura/`; corregir permisos o almacenamiento y
   reintentar. No afirmar persistencia hasta obtener `ok=true`.
+- **Código `4` al cerrar:** la evidencia local y el índice sí fueron
+  verificados, pero Git no terminó. Revisar `paso`, `detalle` y `pendiente`,
+  resolver la causa y reintentar; no presentar el cierre como compartido hasta
+  que `sincronizado=true`.
 - **Recuperación vacía:** confirmar que existe un cierre estructurado, usar una
-  entidad inequívoca y ejecutar `reindexar`. El crudo no se consulta por
-  defecto.
+  entidad inequívoca y revisar `indice_estado`. Sólo ejecutar `reindexar` como
+  reparación explícita. El crudo no se consulta por defecto.
 - **Graphify no avanza:** revisar `.graphify-pendiente`,
   `~/.ravn-jobs/graphify-memoria.json`, el lock y el log del runner. No borrar
   el marcador ni lanzar un segundo proceso; un fallo debe quedar para reintento.
@@ -194,9 +212,9 @@ otro runner si launchd ya administra `com.ravn.jobs`.
 
 ## Evidencia de esta verificación
 
-En el worktree se verificaron 76 tests de memoria, 135 tests de jobs con Python
-3.13, 527 tests de aplicación y TypeScript sin errores. También pasaron los
-controles de shell, Python, plist, XML y diff. Una instalación completa bajo
+La evidencia histórica de rondas anteriores se conserva abajo; los conteos de
+la ronda vigente se registran en el reporte de Fix C y no deben reemplazarse por
+afirmaciones de instalación viva. Una instalación completa bajo
 `/private/tmp` fue idempotente; el segundo pase informó `changes=[]`. El smoke
 creó y recuperó un cierre Codex desde el lado Claude y un cierre Claude desde
 el lado Codex mediante el mismo wrapper, eliminó exactamente ambos cierres y
