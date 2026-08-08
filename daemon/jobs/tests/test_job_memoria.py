@@ -87,6 +87,75 @@ class JobMemoriaTests(unittest.TestCase):
         self.assertEqual(self.eventos[0]["contenido"]["nivel"], "warning")
         self.assertEqual(self.eventos[0]["contenido"]["sin_cierre"], 1)
 
+    def test_firma_igual_se_reevalua_al_superar_quince_minutos_una_sola_vez(self):
+        codex = self._copiar_fixture("codex-session.jsonl")
+        mtime_ns = 1_700_000_000_000_000_000
+        os.utime(codex, ns=(mtime_ns, mtime_ns))
+
+        with patch.object(job_memoria, "descubrir_sesiones", return_value=[codex]):
+            with patch.object(
+                job_memoria.time, "time_ns", return_value=mtime_ns + 300_000_000_000
+            ):
+                primera = job_memoria.correr({}, "token")
+            cursor_inicial = self.cursor.read_bytes()
+            crudo = next((self.vault / "Conversaciones" / "crudo").rglob("*.md"))
+            mtime_crudo = crudo.stat().st_mtime_ns
+
+            with patch.object(
+                job_memoria.time, "time_ns", return_value=mtime_ns + 901_000_000_000
+            ):
+                segunda = job_memoria.correr({}, "token")
+                tercera = job_memoria.correr({}, "token")
+
+        pendientes = list(
+            (self.vault / "Sistema" / "Memoria" / "pendientes-escritura").glob("*.json")
+        )
+        self.assertEqual(primera["archivadas"], 1)
+        self.assertEqual(primera["sin_cierre"], 0)
+        self.assertEqual(segunda["archivadas"], 0)
+        self.assertEqual(segunda["sin_cierre"], 1)
+        self.assertEqual(tercera["procesadas"], 0)
+        self.assertEqual(len(pendientes), 1)
+        self.assertEqual(len(self.eventos), 2)
+        self.assertEqual(self.eventos[-1]["contenido"]["nivel"], "warning")
+        self.assertEqual(self.cursor.read_bytes(), cursor_inicial)
+        self.assertEqual(crudo.stat().st_mtime_ns, mtime_crudo)
+
+    def test_advertencia_fallida_se_reintenta_sin_duplicar_el_pendiente(self):
+        codex = self._copiar_fixture("codex-session.jsonl")
+        mtime_ns = 1_700_000_000_000_000_000
+        os.utime(codex, ns=(mtime_ns, mtime_ns))
+
+        with patch.object(job_memoria, "descubrir_sesiones", return_value=[codex]):
+            with patch.object(
+                job_memoria.time, "time_ns", return_value=mtime_ns + 300_000_000_000
+            ):
+                job_memoria.correr({}, "token")
+            with (
+                patch.object(
+                    job_memoria.time, "time_ns", return_value=mtime_ns + 901_000_000_000
+                ),
+                patch.object(job_memoria, "registrar_evento", side_effect=OSError("red")),
+            ):
+                with self.assertRaises(OSError):
+                    job_memoria.correr({}, "token")
+            with patch.object(
+                job_memoria.time, "time_ns", return_value=mtime_ns + 901_000_000_000
+            ):
+                reintento = job_memoria.correr({}, "token")
+                final = job_memoria.correr({}, "token")
+
+        pendientes = list(
+            (self.vault / "Sistema" / "Memoria" / "pendientes-escritura").glob("*.json")
+        )
+        detalle = json.loads(pendientes[0].read_text(encoding="utf-8"))["detalle"]
+        self.assertEqual(reintento["sin_cierre"], 1)
+        self.assertEqual(final["procesadas"], 0)
+        self.assertEqual(len(pendientes), 1)
+        self.assertTrue(detalle["advertencia_emitida"])
+        self.assertEqual(len(self.eventos), 2)
+        self.assertEqual(self.eventos[-1]["contenido"]["nivel"], "warning")
+
     def test_sesion_sin_cierre_modificada_no_duplica_el_pendiente(self):
         codex = self._copiar_fixture("codex-session.jsonl", antiguedad_segundos=901)
 

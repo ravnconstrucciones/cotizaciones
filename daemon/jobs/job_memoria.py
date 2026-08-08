@@ -51,30 +51,39 @@ def correr(cfg: dict[str, str], token: str) -> dict[str, object]:
         "sin_cierre": 0,
         "hosts": {"codex": 0, "claude": 0},
     }
+    cursor_cambio = False
+    pendientes_advertencia: set[Path] = set()
 
     for fuente in fuentes:
         stat = fuente.stat()
         firma = {"mtime_ns": stat.st_mtime_ns, "size": stat.st_size}
         clave_fuente = str(fuente.resolve())
-        if firmas_previas.get(clave_fuente) == firma:
-            continue
-
+        firma_cambio = firmas_previas.get(clave_fuente) != firma
         mensajes = _completar_timestamps(leer_sesion(fuente), stat.st_mtime)
         if not mensajes:
             raise ValueError(f"La sesión no contiene mensajes archivables: {fuente}")
 
-        ruta_crudo = _guardar_crudo_completo(almacen, mensajes)
-
         sesion = mensajes[0]
-        resultado["procesadas"] += 1
-        resultado["archivadas"] += 1
-        resultado["hosts"][sesion.host] += 1
+        hubo_accion = False
+        if firma_cambio:
+            _guardar_crudo_completo(almacen, mensajes)
+            resultado["archivadas"] += 1
+            firmas_actuales[clave_fuente] = firma
+            cursor_cambio = True
+            hubo_accion = True
 
         if _esta_inactiva(stat.st_mtime_ns) and (sesion.host, sesion.thread_id) not in cierres:
-            _marcar_cierre_faltante(almacen, fuente, firma, sesion)
-            resultado["sin_cierre"] += 1
+            pendiente, requiere_advertencia = _marcar_cierre_faltante(
+                almacen, fuente, firma, sesion
+            )
+            if requiere_advertencia and pendiente not in pendientes_advertencia:
+                pendientes_advertencia.add(pendiente)
+                resultado["sin_cierre"] += 1
+                hubo_accion = True
 
-        firmas_actuales[clave_fuente] = firma
+        if hubo_accion:
+            resultado["procesadas"] += 1
+            resultado["hosts"][sesion.host] += 1
 
     if not resultado["procesadas"]:
         return resultado
@@ -91,9 +100,11 @@ def correr(cfg: dict[str, str], token: str) -> dict[str, object]:
         titulo,
         {**resultado, "nivel": nivel},
     )
+    _marcar_advertencias_emitidas(almacen, pendientes_advertencia)
 
-    nuevo_cursor = {"version": 1, "sesiones": firmas_actuales}
-    _escribir_cursor(CURSOR, nuevo_cursor)
+    if cursor_cambio:
+        nuevo_cursor = {"version": 1, "sesiones": firmas_actuales}
+        _escribir_cursor(CURSOR, nuevo_cursor)
     return resultado
 
 
@@ -202,12 +213,13 @@ def _marcar_cierre_faltante(
     fuente: Path,
     firma: dict[str, int],
     sesion: Mensaje,
-) -> Path:
+) -> tuple[Path, bool]:
     detalle: dict[str, object] = {
         "sesion": str(fuente.resolve()),
         "firma": firma,
         "host": sesion.host,
         "thread_id": sesion.thread_id,
+        "advertencia_emitida": False,
     }
     existente = _buscar_pendiente(almacen.vault, detalle)
     pendiente = existente or almacen.marcar_pendiente(
@@ -222,7 +234,23 @@ def _marcar_cierre_faltante(
         or detalle_guardado.get("thread_id") != sesion.thread_id
     ):
         raise OSError(f"No se pudo verificar el pendiente de memoria: {pendiente}")
-    return pendiente
+    return pendiente, not bool(detalle_guardado.get("advertencia_emitida"))
+
+
+def _marcar_advertencias_emitidas(
+    almacen: AlmacenMemoria, pendientes: set[Path]
+) -> None:
+    for pendiente in pendientes:
+        contenido = json.loads(_verificar_archivo(pendiente))
+        detalle = contenido.get("detalle")
+        if not isinstance(detalle, dict):
+            raise OSError(f"Pendiente de memoria inválido: {pendiente}")
+        detalle["advertencia_emitida"] = True
+        serializado = json.dumps(contenido, ensure_ascii=False, indent=2) + "\n"
+        almacen._escribir_atomico(pendiente, serializado)
+        verificado = json.loads(_verificar_archivo(pendiente))
+        if not verificado.get("detalle", {}).get("advertencia_emitida"):
+            raise OSError(f"No se pudo confirmar la advertencia: {pendiente}")
 
 
 def _buscar_pendiente(vault: Path, detalle: dict[str, object]) -> Path | None:
