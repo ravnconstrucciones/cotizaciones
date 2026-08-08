@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor
 import json
 import os
 from pathlib import Path
@@ -152,6 +153,33 @@ class JobMemoriaTests(unittest.TestCase):
             len(list((self.vault / "Conversaciones" / "crudo").rglob("*.md"))), 1
         )
 
+    def test_error_transitorio_se_reintenta_sin_repetir_evento(self):
+        codex = self._copiar_fixture("codex-session.jsonl")
+        leer_real = job_memoria.leer_sesion
+        intentos = 0
+
+        def leer(path):
+            nonlocal intentos
+            intentos += 1
+            if intentos <= 2:
+                raise OSError("bloqueo transitorio")
+            return leer_real(path)
+
+        with (
+            patch.object(job_memoria, "descubrir_sesiones", return_value=[codex]),
+            patch.object(job_memoria, "leer_sesion", side_effect=leer),
+        ):
+            primera = job_memoria.correr({}, "token")
+            segunda = job_memoria.correr({}, "token")
+            tercera = job_memoria.correr({}, "token")
+
+        self.assertEqual(intentos, 3)
+        self.assertEqual(primera["errores"], 1)
+        self.assertEqual(segunda["errores"], 0)
+        self.assertEqual(segunda["procesadas"], 0)
+        self.assertEqual(tercera["archivadas"], 1)
+        self.assertEqual(len(self.eventos), 2)
+
     def test_cursor_v1_migra_a_v2_con_metadata_de_sesion(self):
         codex = self._copiar_fixture("codex-session.jsonl")
         stat = codex.stat()
@@ -191,6 +219,37 @@ class JobMemoriaTests(unittest.TestCase):
             all("firma" in entrada_v2 for entrada_v2 in cursor["sesiones"].values())
         )
         self.assertEqual(resultado["archivadas"], 1)
+
+    def test_cursor_corrupto_se_preserva_y_reconstruye_conservadoramente(self):
+        codex = self._copiar_fixture("codex-session.jsonl")
+        self.cursor.parent.mkdir(parents=True)
+        self.cursor.write_text("{cursor roto", encoding="utf-8")
+
+        with patch.object(job_memoria, "descubrir_sesiones", return_value=[codex]):
+            resultado = job_memoria.correr({}, "token")
+
+        backups = list(self.cursor.parent.glob("memoria-cursor.json.corrupt-*"))
+        cursor = json.loads(self.cursor.read_text(encoding="utf-8"))
+        self.assertEqual(resultado["archivadas"], 1)
+        self.assertEqual(len(backups), 1)
+        self.assertEqual(backups[0].read_text(encoding="utf-8"), "{cursor roto")
+        self.assertEqual(cursor["version"], 2)
+        self.assertEqual(
+            cursor["sesiones"][str(codex.resolve())]["estado"], "archivada"
+        )
+
+    def test_cursor_corrupto_sin_fuentes_se_recrea_vacio(self):
+        self.cursor.parent.mkdir(parents=True)
+        self.cursor.write_text("[]", encoding="utf-8")
+
+        with patch.object(job_memoria, "descubrir_sesiones", return_value=[]):
+            resultado = job_memoria.correr({}, "token")
+
+        cursor = json.loads(self.cursor.read_text(encoding="utf-8"))
+        backups = list(self.cursor.parent.glob("memoria-cursor.json.corrupt-*"))
+        self.assertEqual(resultado["procesadas"], 0)
+        self.assertEqual(cursor, {"version": 2, "sesiones": {}})
+        self.assertEqual(len(backups), 1)
 
     def test_cierre_tardio_resuelve_solo_su_pendiente(self):
         codex = self._copiar_fixture("codex-session.jsonl", antiguedad_segundos=901)
@@ -235,6 +294,50 @@ class JobMemoriaTests(unittest.TestCase):
             "11111111-1111-1111-1111-111111111111",
         )
 
+    def test_evento_de_pendiente_resuelto_sobrevive_falla_de_red(self):
+        codex = self._copiar_fixture("codex-session.jsonl", antiguedad_segundos=901)
+
+        with patch.object(job_memoria, "descubrir_sesiones", return_value=[codex]):
+            job_memoria.correr({}, "token")
+            cierre = (
+                self.vault
+                / "Conversaciones"
+                / "cierres"
+                / "2026"
+                / "08"
+                / "cierre.md"
+            )
+            cierre.parent.mkdir(parents=True)
+            cierre.write_text(
+                "---\nhost: codex\n"
+                "thread_id: 11111111-1111-1111-1111-111111111111\n---\n",
+                encoding="utf-8",
+            )
+            with patch.object(
+                job_memoria, "registrar_evento", side_effect=OSError("red")
+            ):
+                with self.assertRaises(OSError):
+                    job_memoria.correr({}, "token")
+
+            resuelto = next(
+                (
+                    self.vault
+                    / "Sistema"
+                    / "Memoria"
+                    / "pendientes-resueltos"
+                ).glob("*.json")
+            )
+            pendiente_evento = json.loads(resuelto.read_text(encoding="utf-8"))
+            reintento = job_memoria.correr({}, "token")
+            final = job_memoria.correr({}, "token")
+
+        confirmado = json.loads(resuelto.read_text(encoding="utf-8"))
+        self.assertFalse(pendiente_evento["evento_emitido"])
+        self.assertEqual(reintento["resueltas"], 1)
+        self.assertEqual(final["resueltas"], 0)
+        self.assertTrue(confirmado["evento_emitido"])
+        self.assertEqual(len(self.eventos), 2)
+
     def test_sesion_inactiva_sin_cierre_deja_un_pendiente_y_una_advertencia(self):
         codex = self._copiar_fixture("codex-session.jsonl", antiguedad_segundos=901)
 
@@ -254,6 +357,99 @@ class JobMemoriaTests(unittest.TestCase):
         self.assertEqual(self.eventos[0]["tipo"], "job_memoria")
         self.assertEqual(self.eventos[0]["contenido"]["nivel"], "warning")
         self.assertEqual(self.eventos[0]["contenido"]["sin_cierre"], 1)
+
+    def test_creacion_concurrente_de_pendiente_es_idempotente(self):
+        fuente = self._copiar_fixture("codex-session.jsonl")
+        almacen = job_memoria.AlmacenMemoria(self.vault)
+        sesion = job_memoria.Mensaje(
+            host="codex",
+            thread_id="11111111-1111-1111-1111-111111111111",
+            timestamp="2026-08-08T12:00:00Z",
+            autor="user",
+            tipo="message",
+            texto="hola",
+            metadata={},
+        )
+        firma = {"mtime_ns": fuente.stat().st_mtime_ns, "size": fuente.stat().st_size}
+        buscar_real = job_memoria._buscar_pendiente
+
+        def buscar_lento(vault, detalle):
+            encontrado = buscar_real(vault, detalle)
+            time.sleep(0.02)
+            return encontrado
+
+        with patch.object(
+            job_memoria, "_buscar_pendiente", side_effect=buscar_lento
+        ):
+            with ThreadPoolExecutor(max_workers=8) as ejecutor:
+                resultados = list(
+                    ejecutor.map(
+                        lambda _: job_memoria._marcar_cierre_faltante(
+                            almacen, fuente, firma, sesion
+                        ),
+                        range(8),
+                    )
+                )
+
+        pendientes = list(
+            (self.vault / "Sistema" / "Memoria" / "pendientes-escritura").glob(
+                "*.json"
+            )
+        )
+        self.assertEqual(len({path for path, _ in resultados}), 1)
+        self.assertEqual(len(pendientes), 1)
+
+    def test_corridas_concurrentes_no_duplican_evento_ni_cursor(self):
+        codex = self._copiar_fixture("codex-session.jsonl")
+        leer_real = job_memoria.leer_sesion
+
+        def leer_lento(path):
+            time.sleep(0.03)
+            return leer_real(path)
+
+        with (
+            patch.object(job_memoria, "descubrir_sesiones", return_value=[codex]),
+            patch.object(job_memoria, "leer_sesion", side_effect=leer_lento),
+        ):
+            with ThreadPoolExecutor(max_workers=2) as ejecutor:
+                resultados = list(
+                    ejecutor.map(lambda _: job_memoria.correr({}, "token"), range(2))
+                )
+
+        cursor = json.loads(self.cursor.read_text(encoding="utf-8"))
+        self.assertEqual(
+            sorted(resultado["archivadas"] for resultado in resultados), [0, 1]
+        )
+        self.assertEqual(len(self.eventos), 1)
+        self.assertEqual(
+            cursor["sesiones"][str(codex.resolve())]["estado"], "archivada"
+        )
+
+    def test_marca_de_advertencia_sigue_al_pendiente_si_fue_resuelto(self):
+        fuente = self._copiar_fixture("codex-session.jsonl")
+        almacen = job_memoria.AlmacenMemoria(self.vault)
+        sesion = job_memoria.Mensaje(
+            host="codex",
+            thread_id="11111111-1111-1111-1111-111111111111",
+            timestamp="2026-08-08T12:00:00Z",
+            autor="user",
+            tipo="message",
+            texto="hola",
+            metadata={},
+        )
+        firma = {"mtime_ns": fuente.stat().st_mtime_ns, "size": fuente.stat().st_size}
+        pendiente, _ = job_memoria._marcar_cierre_faltante(
+            almacen, fuente, firma, sesion
+        )
+        resueltos = job_memoria._resolver_pendientes_cerrados(
+            self.vault,
+            {("codex", "11111111-1111-1111-1111-111111111111")},
+        )
+
+        job_memoria._marcar_advertencias_emitidas(almacen, {pendiente})
+
+        contenido = json.loads(next(iter(resueltos)).read_text(encoding="utf-8"))
+        self.assertTrue(contenido["detalle"]["advertencia_emitida"])
 
     def test_firma_igual_se_reevalua_al_superar_quince_minutos_una_sola_vez(self):
         codex = self._copiar_fixture("codex-session.jsonl")
@@ -363,6 +559,49 @@ class JobMemoriaTests(unittest.TestCase):
         self.assertEqual(len(posts), 1)
         self.assertTrue(detalle["advertencia_emitida"])
 
+    def test_post_exitoso_y_cursor_fallido_no_duplica_evento_al_reintentar(self):
+        codex = self._copiar_fixture("codex-session.jsonl", antiguedad_segundos=901)
+        filas: dict[str, dict[str, object]] = {}
+        posts: list[str] = []
+        escribir_real = job_memoria._escribir_cursor
+        fallo_cursor = False
+
+        def rest_falso(cfg, token, path, data=None, method="GET"):
+            if method == "GET":
+                evento_id = path.split("id=eq.", 1)[1].split("&", 1)[0]
+                return [{"id": evento_id}] if evento_id in filas else []
+            evento_id = data.get("id") or f"auto-{len(posts)}"
+            filas[evento_id] = data
+            posts.append(evento_id)
+            return [data]
+
+        def escribir(path, cursor):
+            nonlocal fallo_cursor
+            if not fallo_cursor:
+                fallo_cursor = True
+                raise OSError("cursor bloqueado")
+            return escribir_real(path, cursor)
+
+        with (
+            patch.object(job_memoria, "descubrir_sesiones", return_value=[codex]),
+            patch.object(job_memoria, "registrar_evento", jobslib.registrar_evento),
+            patch.object(jobslib, "rest", side_effect=rest_falso),
+        ):
+            with patch.object(job_memoria, "_escribir_cursor", side_effect=escribir):
+                with self.assertRaises(OSError):
+                    job_memoria.correr({}, "token")
+            reintento = job_memoria.correr({}, "token")
+
+        cursor = json.loads(self.cursor.read_text(encoding="utf-8"))
+        outbox = self.cursor.parent / "memoria-eventos-pendientes"
+        self.assertEqual(reintento["archivadas"], 1)
+        self.assertEqual(len(filas), 1)
+        self.assertEqual(len(posts), 1)
+        self.assertEqual(list(outbox.glob("*.json")), [])
+        self.assertEqual(
+            cursor["sesiones"][str(codex.resolve())]["estado"], "archivada"
+        )
+
     def test_sesion_sin_cierre_modificada_no_duplica_el_pendiente(self):
         codex = self._copiar_fixture("codex-session.jsonl", antiguedad_segundos=901)
 
@@ -393,6 +632,90 @@ class JobMemoriaTests(unittest.TestCase):
         crudo = next((self.vault / "Conversaciones" / "crudo").rglob("*.md"))
         self.assertIn("Segundo mensaje", crudo.read_text(encoding="utf-8"))
 
+    def test_crecimiento_durante_lectura_no_publica_snapshot_inconsistente(self):
+        codex = self._copiar_fixture("codex-session.jsonl")
+        leer_real = job_memoria.leer_sesion
+        crecio = False
+
+        def leer_y_crecer(path):
+            nonlocal crecio
+            mensajes = leer_real(path)
+            if path == codex and not crecio:
+                with path.open("a", encoding="utf-8") as archivo:
+                    archivo.write(
+                        '{"type":"message","payload":{"role":"user",'
+                        '"content":"Mensaje concurrente",'
+                        '"timestamp":"2026-08-08T12:00:05Z"}}\n'
+                    )
+                crecio = True
+            return mensajes
+
+        with (
+            patch.object(job_memoria, "descubrir_sesiones", return_value=[codex]),
+            patch.object(job_memoria, "leer_sesion", side_effect=leer_y_crecer),
+        ):
+            primera = job_memoria.correr({}, "token")
+
+        crudos_primera = list(
+            (self.vault / "Conversaciones" / "crudo").rglob("*.md")
+        )
+        self.assertEqual(primera["archivadas"], 0)
+        self.assertEqual(primera["errores"], 1)
+        self.assertEqual(crudos_primera, [])
+
+        with patch.object(job_memoria, "descubrir_sesiones", return_value=[codex]):
+            segunda = job_memoria.correr({}, "token")
+
+        crudo = next((self.vault / "Conversaciones" / "crudo").rglob("*.md"))
+        cursor = json.loads(self.cursor.read_text(encoding="utf-8"))
+        entrada = cursor["sesiones"][str(codex.resolve())]
+        self.assertEqual(segunda["archivadas"], 1)
+        self.assertIn("Mensaje concurrente", crudo.read_text(encoding="utf-8"))
+        self.assertEqual(entrada["firma"]["size"], codex.stat().st_size)
+
+    def test_crecimiento_durante_persistencia_no_publica_firma_vieja(self):
+        codex = self._copiar_fixture("codex-session.jsonl")
+        guardar_real = job_memoria._guardar_crudo_completo
+        crecio = False
+
+        def guardar_y_crecer(almacen, mensajes):
+            nonlocal crecio
+            destino = guardar_real(almacen, mensajes)
+            if not crecio:
+                with codex.open("a", encoding="utf-8") as archivo:
+                    archivo.write(
+                        '{"type":"message","payload":{"role":"user",'
+                        '"content":"Creció al persistir",'
+                        '"timestamp":"2026-08-08T12:00:06Z"}}\n'
+                    )
+                crecio = True
+            return destino
+
+        with (
+            patch.object(job_memoria, "descubrir_sesiones", return_value=[codex]),
+            patch.object(
+                job_memoria,
+                "_guardar_crudo_completo",
+                side_effect=guardar_y_crecer,
+            ),
+        ):
+            primera = job_memoria.correr({}, "token")
+
+        cursor_primero = json.loads(self.cursor.read_text(encoding="utf-8"))
+        self.assertEqual(primera["archivadas"], 0)
+        self.assertEqual(primera["errores"], 1)
+        self.assertEqual(
+            cursor_primero["sesiones"][str(codex.resolve())]["estado"], "error"
+        )
+        self.assertEqual(self.eventos[-1]["contenido"]["archivadas"], 0)
+
+        with patch.object(job_memoria, "descubrir_sesiones", return_value=[codex]):
+            segunda = job_memoria.correr({}, "token")
+
+        crudo = next((self.vault / "Conversaciones" / "crudo").rglob("*.md"))
+        self.assertEqual(segunda["archivadas"], 1)
+        self.assertIn("Creció al persistir", crudo.read_text(encoding="utf-8"))
+
     def test_sesion_inactiva_con_cierre_estructurado_no_genera_pendiente(self):
         codex = self._copiar_fixture("codex-session.jsonl", antiguedad_segundos=901)
         cierre = self.vault / "Conversaciones" / "cierres" / "2026" / "08" / "cierre.md"
@@ -411,26 +734,111 @@ class JobMemoriaTests(unittest.TestCase):
         )
         self.assertEqual(self.eventos[0]["contenido"]["nivel"], "info")
 
-    def test_fallo_de_persistencia_no_avanza_el_cursor_y_se_puede_reintentar(self):
+    def test_fallo_de_crudo_no_bloquea_otra_fuente_y_se_reintenta(self):
         codex = self._copiar_fixture("codex-session.jsonl")
+        claude = self._copiar_fixture("claude-session.jsonl")
+        guardar_real = job_memoria.AlmacenMemoria.guardar_crudo
+
+        def guardar(almacen, mensajes):
+            if mensajes[0].host == "codex":
+                raise OSError("disk")
+            return guardar_real(almacen, mensajes)
 
         with (
-            patch.object(job_memoria, "descubrir_sesiones", return_value=[codex]),
-            patch.object(job_memoria.AlmacenMemoria, "guardar_crudo", side_effect=OSError("disk")),
+            patch.object(
+                job_memoria, "descubrir_sesiones", return_value=[codex, claude]
+            ),
+            patch.object(job_memoria.AlmacenMemoria, "guardar_crudo", new=guardar),
         ):
-            with self.assertRaises(OSError):
-                job_memoria.correr({}, "token")
+            primera = job_memoria.correr({}, "token")
 
-        self.assertFalse(self.cursor.exists())
-        self.assertEqual(self.eventos, [])
+        cursor = json.loads(self.cursor.read_text(encoding="utf-8"))
+        self.assertEqual(primera["archivadas"], 1)
+        self.assertEqual(primera["errores"], 1)
+        self.assertEqual(cursor["sesiones"][str(codex.resolve())]["estado"], "error")
+        self.assertEqual(
+            cursor["sesiones"][str(claude.resolve())]["estado"], "archivada"
+        )
 
-        with patch.object(job_memoria, "descubrir_sesiones", return_value=[codex]):
+        with patch.object(
+            job_memoria, "descubrir_sesiones", return_value=[codex, claude]
+        ):
+            reintento = job_memoria.correr({}, "token")
+
+        self.assertEqual(reintento["archivadas"], 1)
+        self.assertEqual(
+            len(list((self.vault / "Conversaciones" / "crudo").rglob("*.md"))), 2
+        )
+
+    def test_error_de_validacion_de_crudo_no_bloquea_otra_fuente(self):
+        codex = self._copiar_fixture("codex-session.jsonl")
+        claude = self._copiar_fixture("claude-session.jsonl")
+        guardar_real = job_memoria._guardar_crudo_completo
+
+        def guardar(almacen, mensajes):
+            if mensajes[0].host == "codex":
+                raise ValueError("timestamp inválido")
+            return guardar_real(almacen, mensajes)
+
+        with (
+            patch.object(
+                job_memoria, "descubrir_sesiones", return_value=[codex, claude]
+            ),
+            patch.object(job_memoria, "_guardar_crudo_completo", side_effect=guardar),
+        ):
             resultado = job_memoria.correr({}, "token")
 
-        self.assertEqual(resultado["procesadas"], 1)
-        self.assertTrue(self.cursor.exists())
+        cursor = json.loads(self.cursor.read_text(encoding="utf-8"))
+        self.assertEqual(resultado["archivadas"], 1)
+        self.assertEqual(resultado["errores"], 1)
+        self.assertEqual(cursor["sesiones"][str(codex.resolve())]["estado"], "error")
+        self.assertEqual(
+            cursor["sesiones"][str(claude.resolve())]["estado"], "archivada"
+        )
 
-    def test_fallo_del_evento_resumido_tampoco_avanza_el_cursor(self):
+    def test_fallo_de_stat_no_bloquea_otra_fuente(self):
+        desaparecida = self.sesiones / "desaparecida.jsonl"
+        sana = self._copiar_fixture("codex-session.jsonl")
+
+        with patch.object(
+            job_memoria, "_descubrir_todas", return_value=[desaparecida, sana]
+        ):
+            resultado = job_memoria.correr({}, "token")
+
+        self.assertEqual(resultado["archivadas"], 1)
+        self.assertEqual(resultado["errores"], 1)
+        self.assertEqual(
+            len(list((self.vault / "Conversaciones" / "crudo").rglob("*.md"))), 1
+        )
+
+    def test_fallo_de_pendiente_no_bloquea_otra_fuente(self):
+        codex = self._copiar_fixture("codex-session.jsonl", antiguedad_segundos=901)
+        claude = self._copiar_fixture("claude-session.jsonl", antiguedad_segundos=901)
+        marcar_real = job_memoria._marcar_cierre_faltante
+
+        def marcar(almacen, fuente, firma, sesion):
+            if sesion.host == "codex":
+                raise OSError("pendiente bloqueado")
+            return marcar_real(almacen, fuente, firma, sesion)
+
+        with (
+            patch.object(
+                job_memoria, "descubrir_sesiones", return_value=[codex, claude]
+            ),
+            patch.object(job_memoria, "_marcar_cierre_faltante", side_effect=marcar),
+        ):
+            resultado = job_memoria.correr({}, "token")
+
+        cursor = json.loads(self.cursor.read_text(encoding="utf-8"))
+        self.assertEqual(resultado["archivadas"], 1)
+        self.assertEqual(resultado["errores"], 1)
+        self.assertEqual(resultado["sin_cierre"], 1)
+        self.assertEqual(cursor["sesiones"][str(codex.resolve())]["estado"], "error")
+        self.assertEqual(
+            cursor["sesiones"][str(claude.resolve())]["estado"], "archivada"
+        )
+
+    def test_fallo_del_evento_avanza_cursor_y_reintenta_desde_outbox(self):
         codex = self._copiar_fixture("codex-session.jsonl")
 
         with (
@@ -440,11 +848,28 @@ class JobMemoriaTests(unittest.TestCase):
             with self.assertRaises(OSError):
                 job_memoria.correr({}, "token")
 
-        self.assertFalse(self.cursor.exists())
+        cursor = json.loads(self.cursor.read_text(encoding="utf-8"))
+        outbox = self.cursor.parent / "memoria-eventos-pendientes"
+        self.assertEqual(
+            cursor["sesiones"][str(codex.resolve())]["estado"], "archivada"
+        )
+        self.assertEqual(len(list(outbox.glob("*.json"))), 1)
         self.assertEqual(
             len(list((self.vault / "Conversaciones" / "crudo").rglob("*.md"))),
             1,
         )
+
+        with (
+            patch.object(job_memoria, "descubrir_sesiones", return_value=[codex]),
+            patch.object(
+                job_memoria, "leer_sesion", side_effect=AssertionError("relectura")
+            ),
+        ):
+            reintento = job_memoria.correr({}, "token")
+
+        self.assertEqual(reintento["archivadas"], 0)
+        self.assertEqual(list(outbox.glob("*.json")), [])
+        self.assertEqual(len(self.eventos), 1)
 
     def test_descubre_tambien_sesiones_archivadas_de_codex(self):
         archivada = self.root / "archived_sessions" / "sesion.jsonl"

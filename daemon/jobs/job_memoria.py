@@ -2,8 +2,8 @@
 """Respalda sesiones Codex/Claude y señala cierres estructurados faltantes.
 
 Es un recolector determinístico: no invoca modelos ni interpreta el contenido
-de la conversación. El cursor se publica solamente después de verificar los
-archivos del Vault y registrar el único evento resumido de la corrida.
+de la conversación. Verifica cada snapshot antes de publicar su firma y usa un
+outbox durable para reintentar el único evento resumido de cada corrida.
 """
 
 from __future__ import annotations
@@ -12,6 +12,7 @@ from contextlib import contextmanager
 from dataclasses import replace
 from datetime import datetime, timezone
 import fcntl
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -38,6 +39,12 @@ INACTIVA_SEGUNDOS = 15 * 60
 
 
 def correr(cfg: dict[str, str], token: str) -> dict[str, object]:
+    """Serializa una corrida completa para proteger cursor, outbox y pendientes."""
+    with _bloquear_job(CURSOR):
+        return _correr_bloqueado(cfg, token)
+
+
+def _correr_bloqueado(cfg: dict[str, str], token: str) -> dict[str, object]:
     """Archiva sólo fuentes nuevas o modificadas y devuelve un resumen."""
     cursor = _leer_cursor(CURSOR)
     sesiones_previas = cursor.get("sesiones", {})
@@ -62,19 +69,78 @@ def correr(cfg: dict[str, str], token: str) -> dict[str, object]:
     pendientes_advertencia: set[Path] = set()
     respaldos_evento: set[str] = set()
     errores_evento: set[str] = set()
+    errores_a_marcar: set[str] = set()
 
     pendientes_resueltos = _resolver_pendientes_cerrados(VAULT, cierres)
     resultado["resueltas"] = len(pendientes_resueltos)
 
     for fuente in fuentes:
-        stat = fuente.stat()
-        firma = {"mtime_ns": stat.st_mtime_ns, "size": stat.st_size}
         clave_fuente = str(fuente.resolve())
         entrada_previa = sesiones_previas.get(clave_fuente)
-        if _entrada_v2_vigente(entrada_previa, firma):
-            if entrada_previa["estado"] != "archivada":
+        firma: dict[str, int] | None = None
+        sesion: Mensaje | None = None
+        try:
+            stat = fuente.stat()
+            firma = {"mtime_ns": stat.st_mtime_ns, "size": stat.st_size}
+            if _entrada_v2_vigente(entrada_previa, firma):
+                if entrada_previa["estado"] != "archivada":
+                    continue
+                sesion = _mensaje_desde_cursor(entrada_previa)
+                if (
+                    _esta_inactiva(stat.st_mtime_ns)
+                    and (sesion.host, sesion.thread_id) not in cierres
+                ):
+                    pendiente, requiere_advertencia = _marcar_cierre_faltante(
+                        almacen, fuente, firma, sesion
+                    )
+                    if requiere_advertencia and pendiente not in pendientes_advertencia:
+                        pendientes_advertencia.add(pendiente)
+                        resultado["sin_cierre"] += 1
+                        resultado["procesadas"] += 1
+                        resultado["hosts"][sesion.host] += 1
                 continue
-            sesion = _mensaje_desde_cursor(entrada_previa)
+
+            try:
+                mensajes = _completar_timestamps(leer_sesion(fuente), stat.st_mtime)
+                if not mensajes:
+                    raise ValueError(
+                        f"La sesión no contiene mensajes archivables: {fuente}"
+                    )
+            except (UnicodeError, json.JSONDecodeError, ValueError) as error:
+                descripcion = str(error)
+                sesiones_actuales[clave_fuente] = {
+                    "firma": firma,
+                    "host": None,
+                    "thread_id": None,
+                    "estado": "omitida",
+                    "error": descripcion,
+                }
+                cursor_cambio = True
+                resultado["procesadas"] += 1
+                resultado["omitidas"] += 1
+                resultado["errores"] += 1
+                errores_evento.add(
+                    f"{clave_fuente}\0{firma['mtime_ns']}\0{firma['size']}\0{descripcion}"
+                )
+                continue
+
+            sesion = mensajes[0]
+            stat_despues = fuente.stat()
+            firma_despues = {
+                "mtime_ns": stat_despues.st_mtime_ns,
+                "size": stat_despues.st_size,
+            }
+            if firma_despues != firma:
+                raise OSError(f"La sesión cambió durante la lectura: {fuente}")
+            _guardar_crudo_completo(almacen, mensajes)
+            stat_persistida = fuente.stat()
+            firma_persistida = {
+                "mtime_ns": stat_persistida.st_mtime_ns,
+                "size": stat_persistida.st_size,
+            }
+            if firma_persistida != firma:
+                raise OSError(f"La sesión cambió durante la persistencia: {fuente}")
+
             if (
                 _esta_inactiva(stat.st_mtime_ns)
                 and (sesion.host, sesion.thread_id) not in cierres
@@ -85,92 +151,93 @@ def correr(cfg: dict[str, str], token: str) -> dict[str, object]:
                 if requiere_advertencia and pendiente not in pendientes_advertencia:
                     pendientes_advertencia.add(pendiente)
                     resultado["sin_cierre"] += 1
-                    resultado["procesadas"] += 1
-                    resultado["hosts"][sesion.host] += 1
-            continue
 
-        try:
-            mensajes = _completar_timestamps(leer_sesion(fuente), stat.st_mtime)
-            if not mensajes:
-                raise ValueError(f"La sesión no contiene mensajes archivables: {fuente}")
-        except (OSError, UnicodeError, json.JSONDecodeError, ValueError) as error:
-            descripcion = str(error)
+            resultado["archivadas"] += 1
             sesiones_actuales[clave_fuente] = {
                 "firma": firma,
-                "host": None,
-                "thread_id": None,
-                "estado": "omitida",
-                "error": descripcion,
+                "host": sesion.host,
+                "thread_id": sesion.thread_id,
+                "estado": "archivada",
+                "error": None,
             }
             cursor_cambio = True
             resultado["procesadas"] += 1
-            resultado["omitidas"] += 1
-            resultado["errores"] += 1
-            errores_evento.add(
-                f"{clave_fuente}\0{firma['mtime_ns']}\0{firma['size']}\0{descripcion}"
+            resultado["hosts"][sesion.host] += 1
+            respaldos_evento.add(
+                f"{clave_fuente}\0{firma['mtime_ns']}\0{firma['size']}"
             )
+        except (OSError, UnicodeError, json.JSONDecodeError, ValueError) as error:
+            descripcion = str(error)
+            host = sesion.host if sesion is not None else None
+            thread_id = sesion.thread_id if sesion is not None else None
+            error_ya_reportado = (
+                isinstance(entrada_previa, dict)
+                and entrada_previa.get("estado") == "error"
+                and entrada_previa.get("firma") == firma
+                and entrada_previa.get("error") == descripcion
+                and entrada_previa.get("error_reportado") is True
+            )
+            entrada_error = {
+                "firma": firma,
+                "host": host,
+                "thread_id": thread_id,
+                "estado": "error",
+                "error": descripcion,
+                "error_reportado": error_ya_reportado,
+            }
+            sesiones_actuales[clave_fuente] = entrada_error
+            cursor_cambio = cursor_cambio or entrada_error != entrada_previa
+            if not error_ya_reportado:
+                resultado["procesadas"] += 1
+                resultado["errores"] += 1
+                errores_evento.add(f"{clave_fuente}\0{firma}\0{descripcion}")
+                errores_a_marcar.add(clave_fuente)
             continue
 
-        sesion = mensajes[0]
-        hubo_accion = False
-        _guardar_crudo_completo(almacen, mensajes)
-        resultado["archivadas"] += 1
-        sesiones_actuales[clave_fuente] = {
-            "firma": firma,
-            "host": sesion.host,
-            "thread_id": sesion.thread_id,
-            "estado": "archivada",
-            "error": None,
-        }
-        cursor_cambio = True
-        hubo_accion = True
-        respaldos_evento.add(
-            f"{clave_fuente}\0{firma['mtime_ns']}\0{firma['size']}"
-        )
-
-        if _esta_inactiva(stat.st_mtime_ns) and (sesion.host, sesion.thread_id) not in cierres:
-            pendiente, requiere_advertencia = _marcar_cierre_faltante(
-                almacen, fuente, firma, sesion
-            )
-            if requiere_advertencia and pendiente not in pendientes_advertencia:
-                pendientes_advertencia.add(pendiente)
-                resultado["sin_cierre"] += 1
-                hubo_accion = True
-
-        if hubo_accion:
-            resultado["procesadas"] += 1
-            resultado["hosts"][sesion.host] += 1
-
     hay_evento = bool(resultado["procesadas"] or resultado["resueltas"])
-    if not hay_evento:
-        if cursor_cambio:
-            _escribir_cursor(CURSOR, {"version": 2, "sesiones": sesiones_actuales})
-        return resultado
-
-    nivel = "warning" if resultado["sin_cierre"] or resultado["errores"] else "info"
-    titulo = (
-        f"memoria: {resultado['archivadas']} sesiones respaldadas, "
-        f"{resultado['sin_cierre']} sin cierre, {resultado['omitidas']} omitidas, "
-        f"{resultado['errores']} errores"
-    )
-    registrar_evento(
-        cfg,
-        token,
-        "job_memoria",
-        titulo,
-        {**resultado, "nivel": nivel},
-        evento_id=_identidad_evento(
+    if hay_evento:
+        nivel = "warning" if resultado["sin_cierre"] or resultado["errores"] else "info"
+        titulo = (
+            f"memoria: {resultado['archivadas']} sesiones respaldadas, "
+            f"{resultado['sin_cierre']} sin cierre, {resultado['omitidas']} omitidas, "
+            f"{resultado['errores']} errores"
+        )
+        acciones_evento = _partes_evento(
             pendientes_advertencia,
             respaldos_evento,
             errores_evento,
             pendientes_resueltos,
-        ),
-    )
-    _marcar_advertencias_emitidas(almacen, pendientes_advertencia)
+        )
+        if not _acciones_cubiertas_por_outbox(acciones_evento):
+            evento_id = _identidad_evento(
+                pendientes_advertencia,
+                respaldos_evento,
+                errores_evento,
+                pendientes_resueltos,
+            )
+            _guardar_evento_pendiente(
+                evento_id,
+                titulo,
+                {**resultado, "nivel": nivel},
+                pendientes_advertencia,
+                pendientes_resueltos,
+                errores_a_marcar,
+                acciones_evento,
+            )
 
-    if cursor_cambio:
+    cursor_postergado = cursor_cambio and bool(pendientes_advertencia)
+    if cursor_cambio and not cursor_postergado:
         nuevo_cursor = {"version": 2, "sesiones": sesiones_actuales}
         _escribir_cursor(CURSOR, nuevo_cursor)
+    eventos_emitidos = _emitir_eventos_pendientes(cfg, token, almacen)
+    if cursor_postergado:
+        for clave_fuente in errores_a_marcar:
+            entrada = sesiones_actuales.get(clave_fuente)
+            if isinstance(entrada, dict) and entrada.get("estado") == "error":
+                entrada["error_reportado"] = True
+        _escribir_cursor(CURSOR, {"version": 2, "sesiones": sesiones_actuales})
+    for evento_emitido in eventos_emitidos:
+        evento_emitido.unlink(missing_ok=True)
     return resultado
 
 
@@ -185,11 +252,25 @@ def _descubrir_todas() -> list[Path]:
 def _leer_cursor(path: Path) -> dict[str, object]:
     if not path.exists():
         return {"version": 2, "sesiones": {}}
-    with path.open(encoding="utf-8") as archivo:
-        cursor = json.load(archivo)
-    if not isinstance(cursor, dict):
-        raise ValueError(f"Cursor de memoria inválido: {path}")
+    bytes_cursor = path.read_bytes()
+    try:
+        cursor = json.loads(bytes_cursor.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError):
+        _preservar_cursor_corrupto(path, bytes_cursor)
+        return {"version": 0, "sesiones": {}}
+    if not isinstance(cursor, dict) or not isinstance(cursor.get("sesiones"), dict):
+        _preservar_cursor_corrupto(path, bytes_cursor)
+        return {"version": 0, "sesiones": {}}
     return cursor
+
+
+def _preservar_cursor_corrupto(path: Path, contenido: bytes) -> Path:
+    digest = hashlib.sha256(contenido).hexdigest()[:16]
+    respaldo = path.with_name(f"{path.name}.corrupt-{digest}")
+    os.replace(path, respaldo)
+    if respaldo.read_bytes() != contenido:
+        raise OSError(f"No se pudo preservar el cursor corrupto: {path}")
+    return respaldo
 
 
 def _escribir_cursor(path: Path, cursor: dict[str, object]) -> None:
@@ -305,6 +386,16 @@ def _marcar_cierre_faltante(
     firma: dict[str, int],
     sesion: Mensaje,
 ) -> tuple[Path, bool]:
+    with _bloquear_resolucion_pendientes(almacen.vault):
+        return _marcar_cierre_faltante_bloqueado(almacen, fuente, firma, sesion)
+
+
+def _marcar_cierre_faltante_bloqueado(
+    almacen: AlmacenMemoria,
+    fuente: Path,
+    firma: dict[str, int],
+    sesion: Mensaje,
+) -> tuple[Path, bool]:
     detalle: dict[str, object] = {
         "sesion": str(fuente.resolve()),
         "firma": firma,
@@ -331,17 +422,31 @@ def _marcar_cierre_faltante(
 def _marcar_advertencias_emitidas(
     almacen: AlmacenMemoria, pendientes: set[Path]
 ) -> None:
-    for pendiente in pendientes:
-        contenido = json.loads(_verificar_archivo(pendiente))
-        detalle = contenido.get("detalle")
-        if not isinstance(detalle, dict):
-            raise OSError(f"Pendiente de memoria inválido: {pendiente}")
-        detalle["advertencia_emitida"] = True
-        serializado = json.dumps(contenido, ensure_ascii=False, indent=2) + "\n"
-        almacen._escribir_atomico(pendiente, serializado)
-        verificado = json.loads(_verificar_archivo(pendiente))
-        if not verificado.get("detalle", {}).get("advertencia_emitida"):
-            raise OSError(f"No se pudo confirmar la advertencia: {pendiente}")
+    if not pendientes:
+        return
+    with _bloquear_resolucion_pendientes(almacen.vault):
+        for pendiente in pendientes:
+            ruta_actual = pendiente
+            if not ruta_actual.exists():
+                ruta_actual = (
+                    almacen.vault
+                    / "Sistema"
+                    / "Memoria"
+                    / "pendientes-resueltos"
+                    / pendiente.name
+                )
+            if not ruta_actual.exists():
+                continue
+            contenido = json.loads(_verificar_archivo(ruta_actual))
+            detalle = contenido.get("detalle")
+            if not isinstance(detalle, dict):
+                raise OSError(f"Pendiente de memoria inválido: {ruta_actual}")
+            detalle["advertencia_emitida"] = True
+            serializado = json.dumps(contenido, ensure_ascii=False, indent=2) + "\n"
+            almacen._escribir_atomico(ruta_actual, serializado)
+            verificado = json.loads(_verificar_archivo(ruta_actual))
+            if not verificado.get("detalle", {}).get("advertencia_emitida"):
+                raise OSError(f"No se pudo confirmar la advertencia: {ruta_actual}")
 
 
 def _identidad_evento(
@@ -351,26 +456,131 @@ def _identidad_evento(
     resueltos: set[Path] | None = None,
 ) -> str:
     """Identidad estable para reintentar el POST después de una falla local."""
-    partes = [f"pendiente:{path.resolve()}" for path in pendientes]
-    partes.extend(f"respaldo:{firma}" for firma in respaldos)
-    partes.extend(f"error:{error}" for error in errores or set())
-    partes.extend(f"resuelto:{path.resolve()}" for path in resueltos or set())
+    partes = _partes_evento(pendientes, respaldos, errores, resueltos)
     if not partes:
         raise ValueError("No hay acciones para identificar el evento de memoria.")
     nombre = "ravn:job_memoria\n" + "\n".join(sorted(partes))
     return str(uuid5(NAMESPACE_URL, nombre))
 
 
+def _partes_evento(
+    pendientes: set[Path],
+    respaldos: set[str],
+    errores: set[str] | None = None,
+    resueltos: set[Path] | None = None,
+) -> set[str]:
+    partes = [f"pendiente:{path.resolve()}" for path in pendientes]
+    partes.extend(f"respaldo:{firma}" for firma in respaldos)
+    partes.extend(f"error:{error}" for error in errores or set())
+    partes.extend(f"resuelto:{path.resolve()}" for path in resueltos or set())
+    return set(partes)
+
+
+def _acciones_cubiertas_por_outbox(acciones: set[str]) -> bool:
+    if not acciones:
+        return False
+    directorio = CURSOR.parent / "memoria-eventos-pendientes"
+    cubiertas: set[str] = set()
+    if directorio.exists():
+        for path in directorio.glob("*.json"):
+            try:
+                evento = json.loads(path.read_text(encoding="utf-8"))
+            except (OSError, json.JSONDecodeError):
+                continue
+            cubiertas.update(str(valor) for valor in evento.get("acciones", []))
+    return acciones <= cubiertas
+
+
+def _guardar_evento_pendiente(
+    evento_id: str,
+    titulo: str,
+    contenido: dict[str, object],
+    pendientes: set[Path],
+    resueltos: set[Path],
+    errores: set[str],
+    acciones: set[str],
+) -> Path:
+    directorio = CURSOR.parent / "memoria-eventos-pendientes"
+    destino = directorio / f"{evento_id}.json"
+    payload = {
+        "id": evento_id,
+        "tipo": "job_memoria",
+        "titulo": titulo,
+        "contenido": contenido,
+        "pendientes": sorted(str(path) for path in pendientes),
+        "resueltos": sorted(str(path) for path in resueltos),
+        "errores": sorted(errores),
+        "acciones": sorted(acciones),
+    }
+    serializado = json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True) + "\n"
+    if destino.exists() and destino.read_text(encoding="utf-8") != serializado:
+        raise OSError(f"Conflicto en outbox de memoria: {destino}")
+    if not destino.exists():
+        AlmacenMemoria._escribir_atomico(destino, serializado)
+    if json.loads(_verificar_archivo(destino)) != payload:
+        raise OSError(f"No se pudo verificar el outbox de memoria: {destino}")
+    return destino
+
+
+def _emitir_eventos_pendientes(
+    cfg: dict[str, str], token: str, almacen: AlmacenMemoria
+) -> list[Path]:
+    directorio = CURSOR.parent / "memoria-eventos-pendientes"
+    if not directorio.exists():
+        return []
+    emitidos: list[Path] = []
+    for path in sorted(directorio.glob("*.json")):
+        evento = json.loads(_verificar_archivo(path))
+        registrar_evento(
+            cfg,
+            token,
+            str(evento["tipo"]),
+            str(evento["titulo"]),
+            evento["contenido"],
+            evento_id=str(evento["id"]),
+        )
+        _marcar_advertencias_emitidas(
+            almacen, {Path(valor) for valor in evento.get("pendientes", [])}
+        )
+        _marcar_resoluciones_emitidas(
+            almacen.vault, {Path(valor) for valor in evento.get("resueltos", [])}
+        )
+        _marcar_errores_reportados(CURSOR, set(evento.get("errores", [])))
+        emitidos.append(path)
+    return emitidos
+
+
+def _marcar_errores_reportados(path: Path, claves: set[str]) -> None:
+    if not claves or not path.exists():
+        return
+    cursor = _leer_cursor(path)
+    sesiones = cursor.get("sesiones")
+    if not isinstance(sesiones, dict):
+        raise ValueError(f"Cursor de memoria inválido: {path}")
+    cambio = False
+    for clave in claves:
+        entrada = sesiones.get(clave)
+        if (
+            isinstance(entrada, dict)
+            and entrada.get("estado") == "error"
+            and entrada.get("error_reportado") is not True
+        ):
+            entrada["error_reportado"] = True
+            cambio = True
+    if cambio:
+        _escribir_cursor(path, cursor)
+
+
 def _resolver_pendientes_cerrados(
     vault: Path, cierres: set[tuple[str, str]]
 ) -> set[Path]:
     pendientes = vault / "Sistema" / "Memoria" / "pendientes-escritura"
-    if not cierres or not pendientes.exists():
-        return set()
+    directorio_resueltos = vault / "Sistema" / "Memoria" / "pendientes-resueltos"
 
     resueltos: set[Path] = set()
     with _bloquear_resolucion_pendientes(vault):
-        for path in sorted(pendientes.glob("*.json")):
+        fuentes_pendientes = sorted(pendientes.glob("*.json")) if pendientes.exists() else []
+        for path in fuentes_pendientes:
             try:
                 contenido = json.loads(path.read_text(encoding="utf-8"))
             except (OSError, json.JSONDecodeError):
@@ -384,21 +594,39 @@ def _resolver_pendientes_cerrados(
                 continue
 
             contenido["resuelto_at"] = datetime.now(timezone.utc).isoformat()
+            contenido["evento_emitido"] = False
             serializado = json.dumps(contenido, ensure_ascii=False, indent=2) + "\n"
             AlmacenMemoria._escribir_atomico(path, serializado)
-            destino = (
-                vault
-                / "Sistema"
-                / "Memoria"
-                / "pendientes-resueltos"
-                / path.name
-            )
+            destino = directorio_resueltos / path.name
             destino.parent.mkdir(parents=True, exist_ok=True)
             os.replace(path, destino)
             if json.loads(_verificar_archivo(destino)).get("resuelto_at") is None:
                 raise OSError(f"No se pudo verificar el pendiente resuelto: {destino}")
-            resueltos.add(destino)
+        if directorio_resueltos.exists():
+            for destino in directorio_resueltos.glob("*.json"):
+                try:
+                    contenido = json.loads(destino.read_text(encoding="utf-8"))
+                except (OSError, json.JSONDecodeError):
+                    continue
+                if (
+                    contenido.get("operacion") == "cierre_estructurado_faltante"
+                    and contenido.get("evento_emitido") is False
+                ):
+                    resueltos.add(destino)
     return resueltos
+
+
+def _marcar_resoluciones_emitidas(vault: Path, resueltos: set[Path]) -> None:
+    if not resueltos:
+        return
+    with _bloquear_resolucion_pendientes(vault):
+        for path in resueltos:
+            contenido = json.loads(_verificar_archivo(path))
+            contenido["evento_emitido"] = True
+            serializado = json.dumps(contenido, ensure_ascii=False, indent=2) + "\n"
+            AlmacenMemoria._escribir_atomico(path, serializado)
+            if json.loads(_verificar_archivo(path)).get("evento_emitido") is not True:
+                raise OSError(f"No se pudo confirmar el evento resuelto: {path}")
 
 
 @contextmanager
@@ -406,6 +634,18 @@ def _bloquear_resolucion_pendientes(vault: Path):
     directorio = vault / "Sistema" / "Memoria"
     directorio.mkdir(parents=True, exist_ok=True)
     lock = directorio / ".resolver-pendientes.lock"
+    with lock.open("a+", encoding="utf-8") as archivo:
+        fcntl.flock(archivo.fileno(), fcntl.LOCK_EX)
+        try:
+            yield
+        finally:
+            fcntl.flock(archivo.fileno(), fcntl.LOCK_UN)
+
+
+@contextmanager
+def _bloquear_job(cursor: Path):
+    cursor.parent.mkdir(parents=True, exist_ok=True)
+    lock = cursor.parent / ".memoria-job.lock"
     with lock.open("a+", encoding="utf-8") as archivo:
         fcntl.flock(archivo.fileno(), fcntl.LOCK_EX)
         try:

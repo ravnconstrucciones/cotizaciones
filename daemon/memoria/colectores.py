@@ -95,9 +95,8 @@ def _normalizar(
 
 
 def _es_artefacto_no_sesion(path: Path) -> bool:
-    partes = {parte.casefold() for parte in path.parts}
     nombre = path.name.casefold()
-    return bool(partes & {"subagents", "workflows", "journals"}) or "journal" in nombre
+    return nombre in {"journal.jsonl", "workflow-journal.jsonl"}
 
 
 def _cargar_registros(path: Path) -> tuple[list[dict[str, Any]], int]:

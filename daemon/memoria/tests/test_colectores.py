@@ -22,7 +22,7 @@ FIXTURES = Path(__file__).parent / "fixtures"
 
 
 class ColectoresTest(unittest.TestCase):
-    def test_descubrimiento_excluye_journals_workflows_y_subagents(self):
+    def test_descubrimiento_excluye_journal_conocido_y_preserva_sesiones_anidadas(self):
         with tempfile.TemporaryDirectory() as directorio:
             home = Path(directorio)
             proyecto = home / ".claude" / "projects" / "proyecto"
@@ -37,11 +37,17 @@ class ColectoresTest(unittest.TestCase):
             workflow = proyecto / "workflows" / "workflow.jsonl"
             workflow.parent.mkdir()
             shutil.copy2(FIXTURES / "claude-session.jsonl", workflow)
+            sesion_en_journals = proyecto / "journals" / "sesion-real.jsonl"
+            sesion_en_journals.parent.mkdir()
+            shutil.copy2(FIXTURES / "claude-session.jsonl", sesion_en_journals)
 
             with patch.object(colectores.Path, "home", return_value=home):
                 encontradas = descubrir_sesiones()
 
-        self.assertEqual(encontradas, [sesion])
+        self.assertEqual(
+            encontradas,
+            sorted([sesion, subagente, workflow, sesion_en_journals]),
+        )
 
     def test_leer_sesion_carga_el_jsonl_una_sola_vez(self):
         original = colectores._cargar_registros
