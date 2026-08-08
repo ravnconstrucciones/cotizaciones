@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from dataclasses import fields
+import importlib
 import json
 import os
 from pathlib import Path
@@ -7,6 +9,9 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
+
+from daemon.memoria.modelo import Cierre, ESTADOS, HOSTS, SENSIBILIDADES
 
 
 INICIO = "<!-- RAVN_MEMORIA_COMPARTIDA:START -->"
@@ -21,7 +26,7 @@ contenido nuevo
 class InstalarTests(unittest.TestCase):
     def setUp(self) -> None:
         self.temporal = tempfile.TemporaryDirectory()
-        self.base = Path(self.temporal.name)
+        self.base = Path(self.temporal.name).resolve()
         self.root = self.base / "raiz simulada"
         self.source = self.base / "fuente con espacios y 'comilla'"
         instrucciones = self.source / "daemon/memoria/instrucciones.md"
@@ -40,19 +45,21 @@ class InstalarTests(unittest.TestCase):
     def destino(self, absoluto: str) -> Path:
         return self.root / Path(absoluto).relative_to("/")
 
-    def ejecutar(self, *argumentos: str) -> dict[str, object]:
-        proceso = self.ejecutar_proceso(*argumentos)
+    def ejecutar(self, *argumentos: str, root: Path | None = None) -> dict[str, object]:
+        proceso = self.ejecutar_proceso(*argumentos, root=root)
         self.assertEqual(proceso.returncode, 0, proceso.stderr)
         return json.loads(proceso.stdout)
 
-    def ejecutar_proceso(self, *argumentos: str) -> subprocess.CompletedProcess[str]:
+    def ejecutar_proceso(
+        self, *argumentos: str, root: Path | None = None
+    ) -> subprocess.CompletedProcess[str]:
         return subprocess.run(
             [
                 sys.executable,
                 "-m",
                 "daemon.memoria.instalar",
                 "--root",
-                str(self.root),
+                str(self.root if root is None else root),
                 "--source",
                 str(self.source),
                 *argumentos,
@@ -144,6 +151,65 @@ class InstalarTests(unittest.TestCase):
         self.assertEqual(destino.read_text(encoding="utf-8"), original)
         self.assertFalse(self.destino("/Users/ezeotero/.claude/CLAUDE.md").exists())
 
+    def test_bloques_duplicados_fallan_sin_eliminar_ninguno(self) -> None:
+        destino = self.destino("/Users/ezeotero/.codex/AGENTS.md")
+        destino.parent.mkdir(parents=True)
+        original = f"cabecera\n{BLOQUE}contenido ajeno\n{BLOQUE}pie\n"
+        destino.write_text(original, encoding="utf-8")
+
+        proceso = self.ejecutar_proceso()
+
+        self.assertNotEqual(proceso.returncode, 0)
+        self.assertEqual(destino.read_text(encoding="utf-8"), original)
+        self.assertFalse(self.destino("/Users/ezeotero/.claude/CLAUDE.md").exists())
+
+    def test_root_con_dotdot_no_puede_tocar_sentinel_fuera_del_limite(self) -> None:
+        limite = self.base / "limite"
+        root_con_escape = limite / "raiz" / ".." / "afuera"
+        sentinel = self.base / "limite/afuera/Users/ezeotero/.codex/AGENTS.md"
+        sentinel.parent.mkdir(parents=True)
+        original = f"sentinel\n{INICIO}\nviejo\n{FIN}\n".encode()
+        sentinel.write_bytes(original)
+
+        proceso = self.ejecutar_proceso(root=root_con_escape)
+
+        self.assertNotEqual(proceso.returncode, 0)
+        self.assertEqual(sentinel.read_bytes(), original)
+
+    def test_symlink_intermedio_no_puede_tocar_sentinel_fuera_del_root(self) -> None:
+        self.root.mkdir()
+        afuera = self.base / "afuera"
+        sentinel = afuera / "Users/ezeotero/.codex/AGENTS.md"
+        sentinel.parent.mkdir(parents=True)
+        original = f"sentinel\n{INICIO}\nviejo\n{FIN}\n".encode()
+        sentinel.write_bytes(original)
+        (self.root / "Users").symlink_to(afuera / "Users", target_is_directory=True)
+
+        proceso = self.ejecutar_proceso()
+
+        self.assertNotEqual(proceso.returncode, 0)
+        self.assertEqual(sentinel.read_bytes(), original)
+
+    def test_root_vivo_mapea_destino_canonico_sin_rechazar_symlink_del_vault(self) -> None:
+        modulo = importlib.import_module("daemon.memoria.instalar")
+        canonico = Path("/Users/ezeotero/Obsidian/RAVN/CLAUDE.md")
+
+        mapeado = modulo._bajo_root(Path("/"), canonico)
+        modulo._validar_ruta_destino(Path("/"), mapeado)
+
+        self.assertEqual(mapeado, canonico)
+
+    def test_schema_divergente_falla_antes_de_crear_destinos(self) -> None:
+        ruta_schema = self.source / "daemon/memoria/cierre-conversacion.schema.json"
+        schema = json.loads(ruta_schema.read_text(encoding="utf-8"))
+        schema["required"].remove("tema")
+        ruta_schema.write_text(json.dumps(schema), encoding="utf-8")
+
+        proceso = self.ejecutar_proceso()
+
+        self.assertNotEqual(proceso.returncode, 0)
+        self.assertFalse(self.root.exists())
+
     def test_reemplazo_conserva_bytes_ajenos_con_finales_crlf(self) -> None:
         destino = self.destino("/Users/ezeotero/.codex/AGENTS.md")
         destino.parent.mkdir(parents=True)
@@ -185,46 +251,70 @@ class InstalarTests(unittest.TestCase):
     def test_schema_canonico_refleja_campos_y_enums_del_modelo(self) -> None:
         schema = json.loads(self.schema_texto)
 
+        campos_modelo = {campo.name for campo in fields(Cierre)}
+        self.assertEqual(set(schema["required"]), campos_modelo)
+        self.assertEqual(set(schema["properties"]), campos_modelo)
+        self.assertEqual(set(schema["properties"]["host"]["enum"]), HOSTS)
+        self.assertEqual(set(schema["properties"]["estado"]["enum"]), ESTADOS)
         self.assertEqual(
-            set(schema["required"]),
-            {
-                "id",
-                "host",
-                "thread_id",
-                "fecha_inicio",
-                "fecha_cierre",
-                "tema",
-                "estado",
-                "entidades",
-                "hechos",
-                "decisiones",
-                "metodos",
-                "cambios",
-                "pendientes",
-                "separaciones",
-                "enlaces",
-                "fuente_cruda",
-                "sensibilidad",
-            },
+            set(schema["properties"]["sensibilidad"]["enum"]), SENSIBILIDADES
         )
-        self.assertEqual(schema["properties"]["host"]["enum"], ["codex", "claude"])
-        self.assertEqual(
-            schema["properties"]["estado"]["enum"], ["completo", "parcial", "bloqueado"]
-        )
-        self.assertEqual(
-            schema["properties"]["sensibilidad"]["enum"], ["normal", "restringida"]
-        )
-        for campo in (
-            "entidades",
-            "hechos",
-            "decisiones",
-            "metodos",
-            "cambios",
-            "pendientes",
-            "separaciones",
-            "enlaces",
+
+    def test_fallo_a_mitad_del_commit_restaurar_todo_el_arbol(self) -> None:
+        modulo = importlib.import_module("daemon.memoria.instalar")
+        archivos = {
+            "/Users/ezeotero/.codex/AGENTS.md": ("codex previo\n", 0o640),
+            "/Users/ezeotero/.claude/CLAUDE.md": ("claude previo\n", 0o600),
+            "/Users/ezeotero/Obsidian/RAVN/CLAUDE.md": ("vault previo\n", 0o644),
+            "/Users/ezeotero/Obsidian/RAVN/.graphifyignore": ("Adjuntos/\n", 0o640),
+            (
+                "/Users/ezeotero/Obsidian/RAVN/Sistema/Memoria/esquemas/"
+                "cierre-conversacion.schema.json"
+            ): ('{"anterior":true}\n', 0o600),
+            "/Users/ezeotero/.local/bin/ravn-memoria": ("#!/bin/sh\nexit 9\n", 0o700),
+        }
+        for absoluto, (contenido, modo) in archivos.items():
+            ruta = self.destino(absoluto)
+            ruta.parent.mkdir(parents=True, exist_ok=True)
+            ruta.write_text(contenido, encoding="utf-8")
+            ruta.chmod(modo)
+        estado_inicial = self.snapshot_arbol(self.root)
+        wrapper = self.destino("/Users/ezeotero/.local/bin/ravn-memoria")
+        fallo_inyectado = False
+
+        def publicar_con_fallo(
+            origen: str | os.PathLike[str], destino: str | os.PathLike[str]
+        ) -> None:
+            nonlocal fallo_inyectado
+            if Path(destino) == wrapper and not fallo_inyectado:
+                fallo_inyectado = True
+                raise OSError("fallo inyectado al publicar wrapper")
+            os.replace(origen, destino)
+
+        with patch(
+            "daemon.memoria.instalar._publicar_archivo", side_effect=publicar_con_fallo
         ):
-            self.assertEqual(schema["properties"][campo], {"$ref": "#/$defs/listaTextos"})
+            with self.assertRaises(OSError):
+                modulo.instalar(root=self.root, source=self.source)
+
+        self.assertTrue(fallo_inyectado)
+        self.assertEqual(self.snapshot_arbol(self.root), estado_inicial)
+
+    @staticmethod
+    def snapshot_arbol(root: Path) -> dict[str, tuple[object, ...]]:
+        snapshot: dict[str, tuple[object, ...]] = {}
+        if not root.exists():
+            return snapshot
+        for ruta in (root, *sorted(root.rglob("*"))):
+            relativo = "." if ruta == root else ruta.relative_to(root).as_posix()
+            modo = ruta.lstat().st_mode & 0o777
+            if ruta.is_symlink():
+                snapshot[relativo] = ("symlink", os.readlink(ruta), modo)
+            elif ruta.is_dir():
+                snapshot[relativo] = ("dir", modo)
+            else:
+                snapshot[relativo] = ("file", ruta.read_bytes(), modo)
+        return snapshot
 
 
 if __name__ == "__main__":
