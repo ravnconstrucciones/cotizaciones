@@ -39,7 +39,14 @@ def detectar_host(path: Path) -> Host:
     for registro in _registros_validos(path):
         tipo = registro.get("type")
         payload = registro.get("payload")
-        if tipo in {"session_meta", "response_item", "event_msg", "function_call_output"}:
+        if tipo in {
+            "session_meta",
+            "response_item",
+            "event_msg",
+            "custom_tool_call_output",
+            "function_call_output",
+            "tool_search_output",
+        }:
             return "codex"
         if isinstance(payload, dict) and payload.get("type") == "message":
             return "codex"
@@ -67,9 +74,12 @@ def _leer(path: Path, host: Host) -> list[Mensaje]:
     mensajes: list[Mensaje] = []
 
     for registro in registros:
-        mensaje = _mensaje_codex(registro, thread_id, errores_parseo) if host == "codex" else _mensaje_claude(registro, thread_id, errores_parseo)
-        if mensaje is not None:
-            mensajes.append(mensaje)
+        if host == "codex":
+            mensaje = _mensaje_codex(registro, thread_id, errores_parseo)
+            if mensaje is not None:
+                mensajes.append(mensaje)
+        else:
+            mensajes.extend(_mensajes_claude(registro, thread_id, errores_parseo))
     return mensajes
 
 
@@ -137,21 +147,48 @@ def _mensaje_codex(registro: dict[str, Any], thread_id: str, errores: int) -> Me
             return None
         texto = _texto(cuerpo.get("content"))
         return _crear_mensaje("codex", thread_id, registro, autor, "message", texto, errores)
-    if tipo in {"function_call_output", "tool_result"}:
+    if tipo in {
+        "custom_tool_call_output",
+        "function_call_output",
+        "tool_search_output",
+        "tool_result",
+    }:
         texto = _texto(cuerpo.get("output", cuerpo.get("content", cuerpo.get("result"))))
         return _crear_mensaje("codex", thread_id, registro, "tool", "tool_output", texto, errores)
     return None
 
 
-def _mensaje_claude(registro: dict[str, Any], thread_id: str, errores: int) -> Mensaje | None:
+def _mensajes_claude(registro: dict[str, Any], thread_id: str, errores: int) -> list[Mensaje]:
     tipo = registro.get("type")
     if tipo in {"user", "assistant"}:
         message = registro.get("message")
         contenido = message.get("content") if isinstance(message, dict) else registro.get("content")
-        return _crear_mensaje("claude", thread_id, registro, tipo, "message", _texto(contenido), errores)
+        bloques = contenido if isinstance(contenido, list) else [contenido]
+        textos = [
+            _texto(bloque)
+            for bloque in bloques
+            if not (isinstance(bloque, dict) and bloque.get("type") == "tool_result")
+        ]
+        mensajes = [
+            _crear_mensaje(
+                "claude", thread_id, registro, tipo, "message", "\n".join(filter(None, textos)), errores
+            )
+        ] if any(textos) else []
+        mensajes.extend(
+            _crear_mensaje(
+                "claude", thread_id, registro, "tool", "tool_output", _texto(bloque.get("content")), errores
+            )
+            for bloque in bloques
+            if isinstance(bloque, dict) and bloque.get("type") == "tool_result"
+        )
+        return mensajes
     if tipo == "tool_result":
-        return _crear_mensaje("claude", thread_id, registro, "tool", "tool_output", _texto(registro.get("content")), errores)
-    return None
+        return [
+            _crear_mensaje(
+                "claude", thread_id, registro, "tool", "tool_output", _texto(registro.get("content")), errores
+            )
+        ]
+    return []
 
 
 def _crear_mensaje(

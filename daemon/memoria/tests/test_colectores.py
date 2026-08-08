@@ -31,6 +31,45 @@ class ColectoresTest(unittest.TestCase):
         ):
             self.assertTrue(all(isinstance(mensaje, Mensaje) for mensaje in leer_sesion(path)))
 
+    def test_codex_acepta_los_tres_tipos_de_tool_output(self):
+        path = self._crear_fixture_temporal(
+            '{"type":"session_meta","payload":{"id":"55555555-5555-5555-5555-555555555555"}}\n'
+            '{"type":"response_item","payload":{"type":"custom_tool_call_output","output":"custom"}}\n'
+            '{"type":"response_item","payload":{"type":"tool_search_output","output":"search"}}\n'
+            '{"type":"response_item","payload":{"type":"function_call_output","output":"function"}}\n'
+        )
+        self.addCleanup(path.unlink)
+
+        mensajes = leer_codex(path)
+
+        self.assertEqual([mensaje.autor for mensaje in mensajes], ["tool", "tool", "tool"])
+        self.assertEqual([mensaje.texto for mensaje in mensajes], ["custom", "search", "function"])
+
+    def test_claude_separa_tool_result_anidado_y_conserva_texto_de_usuario(self):
+        mensajes = leer_claude(FIXTURES / "claude-session.jsonl")
+
+        self.assertEqual([mensaje.autor for mensaje in mensajes], ["user", "tool", "assistant"])
+        self.assertEqual(
+            mensajes[0].texto,
+            "Necesito revisar API_KEY=[REDACTADO]\nConservar este texto de usuario.",
+        )
+        self.assertEqual(mensajes[1].texto, "Salida de herramienta anidada")
+
+    def test_claude_resume_tool_result_anidado_extenso(self):
+        texto_largo = "y" * 2_001
+        path = self._crear_fixture_temporal(
+            '{"type":"user","message":{"content":[{"type":"tool_result","content":"'
+            + texto_largo
+            + '"}]}}\n'
+        )
+        self.addCleanup(path.unlink)
+
+        mensajes = leer_claude(path)
+
+        self.assertEqual(mensajes[0].autor, "tool")
+        self.assertEqual(mensajes[0].texto[:1_500], "y" * 1_500)
+        self.assertRegex(mensajes[0].texto, r"\[TRUNCADO sha256=[0-9a-f]{64}\]$")
+
     def test_detectar_host_reconoce_los_dos_formatos(self):
         self.assertEqual(detectar_host(FIXTURES / "codex-session.jsonl"), "codex")
         self.assertEqual(detectar_host(FIXTURES / "claude-session.jsonl"), "claude")
