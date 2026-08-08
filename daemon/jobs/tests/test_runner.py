@@ -29,6 +29,17 @@ class TestJobsVencidos(unittest.TestCase):
         jobs = [("a", None, SIEMPRE)]
         self.assertEqual(runner.jobs_vencidos(estado, ahora, jobs), [])
 
+    def test_memoria_siempre_vence_y_corre_antes_de_cerebro(self):
+        ahora = datetime(2026, 6, 12, 9, 0)
+        estado = {"memoria": {"ultima_ok": "2026-06-12T08:59:59"}}
+
+        vencidos = runner.jobs_vencidos(estado, ahora)
+
+        self.assertIn("memoria", vencidos)
+        self.assertLess(vencidos.index("memoria"), vencidos.index("cerebro"))
+        nombres = [nombre for nombre, _, _ in runner.JOBS]
+        self.assertEqual(nombres[nombres.index("inbox") - 1], "memoria")
+
 
 class TestCorrerVencidos(unittest.TestCase):
     def setUp(self):

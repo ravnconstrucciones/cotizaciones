@@ -24,6 +24,7 @@ import job_dolar
 import job_foda
 import job_inbox
 import job_maestro
+import job_memoria
 import job_noticias
 import job_precios
 import job_resumen
@@ -51,6 +52,7 @@ JOBS = [
     ("top30",   job_top30.correr,   lambda u, a: vencio_semanal(u, a, hora_minima=8)),
     ("salud",   job_salud.correr,   lambda u, a: vencio_semanal(u, a, hora_minima=9)),
     ("auditoria", job_auditoria.correr, lambda u, a: vencio_dominical(u, a, hora_minima=8)),
+    ("memoria", job_memoria.correr, lambda u, a: True),
     ("inbox",   job_inbox.correr,   lambda u, a: vencio_diario(u, a, hora_minima=2)),
     # foda va ANTES que cerebro (mismo tick dominical): siembra su resumen como
     # la pregunta del domingo — cerebro ve que ya hay pregunta y no pisa.
