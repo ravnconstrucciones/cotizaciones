@@ -130,6 +130,11 @@ Un dato operativo con más de dos semanas es hipótesis hasta verificarlo.
   migraciones, pruebas, permisos, idempotencia y rollback; no edita el mismo
   alcance en paralelo. Claude Code es el implementador principal actual; Codex
   revisa y puede tomar módulos separados cuando se le asignen.
+- **Ninguna sesión termina con commits solo locales.** Al cerrar trabajo en un
+  repo de código, la rama de trabajo se pushea a `origin` (rama propia; el push
+  a `home-cards` solo genera Preview en Vercel, nunca toca prod). El cierre o
+  reporte final SIEMPRE nombra repo, rama y último hash. "Commiteado pero sin
+  push" no cuenta como compartido: el otro agente (o una sesión remota) no lo ve.
 - **No agregar infraestructura** (n8n, agentes, servicios) si Supabase y el
   código de la app resuelven el caso con menos piezas.
 - **No copiar, mover ni enlazar el vault dentro de este repositorio.**
