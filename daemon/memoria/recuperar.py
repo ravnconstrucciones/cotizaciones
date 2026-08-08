@@ -240,7 +240,7 @@ def _contenido_contexto(cierre: Cierre, cuerpo: str) -> str:
         valores = getattr(cierre, campo)
         if valores:
             lineas.append(f"## {titulo}")
-            lineas.extend(f"- {valor}" for valor in valores)
+            lineas.extend("- " + valor.replace("\n", "\n  ") for valor in valores)
     return "\n".join(lineas).rstrip() + "\n"
 
 

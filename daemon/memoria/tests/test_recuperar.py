@@ -209,23 +209,28 @@ class RecuperarTests(unittest.TestCase):
         self.assertLessEqual(paquete.tokens_estimados, 100)
         self.assertEqual(paquete.notas, [])
 
-    def test_round_trip_admite_item_multilinea_emitido_por_cierre_a_markdown(self) -> None:
+    def test_contexto_indenta_item_multilinea_y_respeta_presupuesto_json(self) -> None:
         self.almacen.guardar_cierre(
             _cierre(
                 cierre_id="multilinea",
                 tema="Garage",
                 entidades=["Glorietas"],
-                hechos=[
-                    "Primera línea.\n# Segunda línea emitida por el cierre.\n"
-                    "## Decisiones\n## Sección inyectada"
-                ],
+                hechos=["Primera\n## Decisiones\n## Sección inyectada"],
             )
         )
 
-        paquete = recuperar(ConsultaMemoria("garage", []), self.vault)
+        max_tokens = 300
+        paquete = recuperar(
+            ConsultaMemoria("garage", [], max_tokens=max_tokens), self.vault
+        )
+        serializado = json.dumps(paquete.a_dict(), ensure_ascii=False)
 
-        self.assertIn("# Segunda línea emitida por el cierre.", paquete.notas[0].contenido)
-        self.assertIn("## Decisiones\n## Sección inyectada", paquete.notas[0].contenido)
+        self.assertIn(
+            "## Hechos confirmados\n- Primera\n  ## Decisiones\n  ## Sección inyectada\n",
+            paquete.notas[0].contenido,
+        )
+        self.assertEqual(paquete.tokens_estimados, (len(serializado) + 3) // 4)
+        self.assertLessEqual(paquete.tokens_estimados, max_tokens)
 
     def test_contexto_conserva_los_encabezados_y_listas_canonicas(self) -> None:
         cierre = replace(
