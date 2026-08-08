@@ -142,3 +142,54 @@ GREEN final de la ronda:
   dentro del frontmatter restringido. La protección nueva evita su exposición en
   nombres de archivo y pendientes; no pretende convertir identificadores
   ordinarios en secretos.
+
+## Fix A — ronda de revisión 2/5
+
+Commit: `59fea30` (`fix(memoria): parsear encabezados en mappings flow`).
+
+### Hallazgos resueltos
+
+- Se reemplazó la acumulación de regex específicas de headers por un escáner
+  determinístico y acotado a `Authorization`, `Proxy-Authorization`, `Cookie` y
+  `Set-Cookie`.
+- Los cuatro encabezados se redactan también cuando el mapping flow comienza con
+  `[`. Se conservan claves y valores quoted/unquoted, además de los delimitadores
+  originales.
+- En valores flow sin comillas, una coma sólo cierra el secreto cuando introduce
+  una clave YAML/JSON válida; las comas internas de `Cookie` y `Set-Cookie` quedan
+  redactadas. Los campos vecinos y los cierres `}`/`]` se preservan.
+- El procesamiento de headers ya redactados es idempotente y no duplica el
+  corchete final de `[REDACTADO]`.
+
+### Evidencia RED/GREEN
+
+RED inicial de la ronda:
+
+`python3.13 -m unittest <3 regresiones focales> -v`
+
+- 3 métodos ejecutados, 3 fallos esperados.
+- El flow `[...]` dejaba `Authorization` sin redactar y filtraba segmentos de
+  cookies posteriores a comas internas; el flow `{...}` sufría la misma fuga.
+
+RED adicional de idempotencia:
+
+`python3.13 -m unittest <regresión de idempotencia flow> -v`
+
+- 1 prueba, 1 fallo esperado por duplicación de `]` en cada header reprocesado.
+
+GREEN final de la ronda:
+
+- Memoria: 96/96 pruebas, `OK`.
+- Jobs: 135/135 pruebas, `OK`.
+- Vitest: 57 archivos, 527/527 pruebas.
+- `py_compile` del núcleo de memoria: OK.
+- `git diff --check`: OK.
+- Total de la pasada final: 758 pruebas.
+
+### Compatibilidad y límites
+
+- El escáner interpreta como campo vecino una coma seguida por una clave válida y
+  `:`. En sintaxis flow esto coincide con el límite estructural; un valor literal
+  que contenga esa forma debe estar quoted para no ser ambiguo en YAML/JSON.
+- No se tocaron colectores, `daemon/jobs/job_memoria.py`, el Vault/estado vivo ni
+  `output/`.
