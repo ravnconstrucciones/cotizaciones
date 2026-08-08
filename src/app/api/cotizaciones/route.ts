@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
+import type { TotalesDesglose } from "@/lib/cotizador/tipos";
 
 export const dynamic = "force-dynamic";
 
@@ -18,6 +19,12 @@ type FilaLista = {
   presupuesto_id: string | null;
   trabajo_id: string | null;
   foto_portada_path: string | null;
+  precio_propuesta: number | null;
+  // Liviano a propósito (spec 08/08): solo `desglose->totales`, nunca el
+  // desglose completo (items) — la galería no necesita más que esto para
+  // los badges de COSTO/MO/MARGEN. Legacy (consola) puede traer un objeto
+  // parcial o vacío; por eso Partial acá y defensivo en el consumidor.
+  totales: Partial<TotalesDesglose> | null;
 };
 
 /**
@@ -31,7 +38,7 @@ export async function GET(req: NextRequest) {
   let q = sb
     .from("cotizaciones")
     .select(
-      "id, creado_at, titulo, zona, estado, total_min, total_max, presupuesto_id, trabajo_id, foto_portada_path"
+      "id, creado_at, titulo, zona, estado, total_min, total_max, presupuesto_id, trabajo_id, foto_portada_path, precio_propuesta, totales:desglose->totales"
     )
     .order("creado_at", { ascending: false })
     .limit(200);

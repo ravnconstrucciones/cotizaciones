@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
-import type { CotizacionArchivo, EstadoCotizacion } from "@/lib/cotizador/tipos";
+import type { CotizacionArchivo, EstadoCotizacion, TotalesDesglose } from "@/lib/cotizador/tipos";
 import { formatMoneyInt } from "@/lib/format-currency";
 import { MAX_SUBIDA_BYTES } from "@/lib/cotizador/subida-directa";
 import { subirDirecto } from "@/lib/subida-directa-cliente";
@@ -34,6 +34,10 @@ export type CotizacionFoto = {
   totalMax: number | null;
   fotoUrl: string | null;
   archivosCount: number;
+  /** Precio final de la propuesta, lo fija Eze (columna `precio_propuesta`). */
+  precioPropuesta: number | null;
+  /** `desglose->totales`, liviano — puede venir parcial (legacy de consola) o null. */
+  totales: Partial<TotalesDesglose> | null;
 };
 
 export const ESTADO_LABEL: Record<EstadoCotizacion, string> = {
@@ -71,6 +75,32 @@ function rangoTotal(c: CotizacionFoto): string {
     return `${formatMoneyInt(c.totalMin)} – ${formatMoneyInt(c.totalMax)}`;
   }
   return formatMoneyInt(c.totalMax ?? c.totalMin ?? 0);
+}
+
+/** Punto medio de un rango min/max — null si falta alguno de los dos. */
+function medio(min: number | undefined, max: number | undefined): number | null {
+  if (typeof min !== "number" || typeof max !== "number") return null;
+  return (min + max) / 2;
+}
+
+type Badge = { label: string; valor: string };
+
+/**
+ * Badges de costo (COSTO/MO/MARGEN) sobre la foto — spec 08/08. Nunca NaN:
+ * si `totales` viene vacío o parcial (desglose legacy de consola) directamente
+ * no hay badges, en vez de forzar un cálculo con datos a medias.
+ */
+function badgesCosto(c: CotizacionFoto): Badge[] {
+  const costoMedio = medio(c.totales?.total_min, c.totales?.total_max);
+  if (costoMedio == null) return [];
+  const moMedio = medio(c.totales?.mano_de_obra_min, c.totales?.mano_de_obra_max);
+  const badges: Badge[] = [{ label: "Costo", valor: formatMoneyInt(costoMedio) }];
+  if (moMedio != null) badges.push({ label: "MO", valor: formatMoneyInt(moMedio) });
+  if (c.precioPropuesta != null && c.precioPropuesta !== 0) {
+    const margenPct = Math.round(((c.precioPropuesta - costoMedio) / c.precioPropuesta) * 100);
+    badges.push({ label: "Margen", valor: `${margenPct}%` });
+  }
+  return badges;
 }
 
 function CamaraIcon({ className }: { className?: string }) {
@@ -289,6 +319,8 @@ function CotizacionFotoCard({
     );
   }
 
+  const badges = badgesCosto(c);
+
   return (
     <motion.article
       variants={{
@@ -418,6 +450,18 @@ function CotizacionFotoCard({
 
         {/* Título + zona sobre la foto */}
         <div className="pointer-events-none absolute inset-x-0 bottom-0 p-5 pr-14">
+          {badges.length > 0 && (
+            <div className="mb-2 flex flex-wrap gap-1.5">
+              {badges.map((b) => (
+                <span
+                  key={b.label}
+                  className="cdm-chip font-mono-hud inline-flex items-center gap-1 border border-white/30 px-2 py-0.5 text-[9px] font-semibold uppercase tracking-[0.12em] text-white/90"
+                >
+                  {b.label} {b.valor}
+                </span>
+              ))}
+            </div>
+          )}
           <h3 className="font-geist text-xl font-semibold leading-tight tracking-tight text-white line-clamp-2">
             {c.titulo}
           </h3>
@@ -430,12 +474,28 @@ function CotizacionFotoCard({
       {/* Pie: rango de precio + accesos CÁLCULO / PROPUESTA */}
       <div className="flex flex-col gap-3 bg-white px-5 py-4 dark:bg-zinc-900/70">
         <div>
-          <p className="font-mono-hud text-[10px] uppercase tracking-[0.16em] text-cdm-muted">
-            Total estimado
-          </p>
-          <p className="font-geist text-[15px] font-semibold tabular-nums text-cdm-fg">
-            {rangoTotal(c)}
-          </p>
+          {c.precioPropuesta != null ? (
+            <>
+              <p className="font-mono-hud text-[10px] uppercase tracking-[0.16em] text-cdm-muted">
+                Propuesta
+              </p>
+              <p className="font-geist text-[15px] font-semibold tabular-nums text-cdm-fg">
+                {formatMoneyInt(c.precioPropuesta)}
+              </p>
+              <p className="font-mono-hud mt-0.5 text-[10px] tabular-nums text-cdm-muted">
+                Costo: {rangoTotal(c)}
+              </p>
+            </>
+          ) : (
+            <>
+              <p className="font-mono-hud text-[10px] uppercase tracking-[0.16em] text-cdm-muted">
+                Total estimado
+              </p>
+              <p className="font-geist text-[15px] font-semibold tabular-nums text-cdm-fg">
+                {rangoTotal(c)}
+              </p>
+            </>
+          )}
         </div>
 
         <div className="relative flex gap-2">

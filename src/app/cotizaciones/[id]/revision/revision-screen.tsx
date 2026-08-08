@@ -156,6 +156,40 @@ export function RevisionScreen({ id }: { id: string }) {
     if (b.notas.length) setDocNotas((v) => (v === "VALIDEZ DE OFERTA: 10 DÍAS CORRIDOS" || !v ? b.notas.join("\n") : v));
   }, [detalle, docPrecargado]);
 
+  // Precio de la propuesta (spec 08/08): campo suelto, editable en cualquier
+  // estado — lo fija Eze, no lo calcula el motor. Solo se sincroniza desde el
+  // servidor mientras el campo no fue tocado, para no pisar una edición en
+  // curso cuando el realtime dispara un refresh silencioso.
+  const [precioPropuesta, setPrecioPropuesta] = useState("");
+  const [precioPropuestaTocado, setPrecioPropuestaTocado] = useState(false);
+  const [guardandoPropuesta, setGuardandoPropuesta] = useState(false);
+
+  useEffect(() => {
+    if (precioPropuestaTocado) return;
+    setPrecioPropuesta(detalle?.precio_propuesta != null ? String(detalle.precio_propuesta) : "");
+  }, [detalle?.precio_propuesta, precioPropuestaTocado]);
+
+  async function guardarPrecioPropuesta() {
+    setGuardandoPropuesta(true);
+    setError(null);
+    try {
+      const valor = precioPropuesta.trim() === "" ? null : Number(precioPropuesta);
+      const res = await fetch(`/api/cotizaciones/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ precio_propuesta: valor }),
+      });
+      const json = (await res.json().catch(() => null)) as { error?: string } | null;
+      if (!res.ok) throw new Error(json?.error ?? "Error al guardar la propuesta");
+      setPrecioPropuestaTocado(false);
+      await cargar();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Error al guardar la propuesta");
+    } finally {
+      setGuardandoPropuesta(false);
+    }
+  }
+
   // Selector de obra (loop de oro §6.2.5): opciones desde `presupuestos`.
   const [presupuestos, setPresupuestos] = useState<PresupuestoOpcion[]>([]);
   const [vinculando, setVinculando] = useState(false);
@@ -414,8 +448,36 @@ export function RevisionScreen({ id }: { id: string }) {
               <CifraHeroica className="text-[clamp(26px,2.4vw,40px)] leading-none">
                 {formatMoneyInt(detalle.total_min)} – {formatMoneyInt(detalle.total_max)}
               </CifraHeroica>
+              <span className="ml-2 font-mono-hud text-[10px] uppercase tracking-[0.16em] text-cdm-muted">
+                costo estimado
+              </span>
             </p>
           )}
+
+          {/* Precio de propuesta (spec 08/08): lo fija Eze, no el motor —
+              distinto del costo de arriba. Un campo, un botón, nada más. */}
+          <div className="mt-4 flex flex-wrap items-end gap-3">
+            <label className="text-xs text-cdm-muted">
+              Precio de propuesta (ARS)
+              <input
+                value={precioPropuesta}
+                onChange={(e) => {
+                  setPrecioPropuestaTocado(true);
+                  setPrecioPropuesta(e.target.value.replace(/[^\d]/g, ""));
+                }}
+                inputMode="numeric"
+                placeholder="Sin definir"
+                className={`${INPUT_CLS} w-44`}
+              />
+            </label>
+            <button
+              disabled={guardandoPropuesta}
+              onClick={() => void guardarPrecioPropuesta()}
+              className="cdm-chip cursor-pointer border border-cdm-accent/60 px-4 py-2 text-xs uppercase tracking-[0.14em] text-cdm-accent transition-colors hover:bg-cdm-accent/10 disabled:opacity-50"
+            >
+              {guardandoPropuesta ? "Guardando…" : "Guardar"}
+            </button>
+          </div>
         </header>
 
         {error && <p className="mb-4 text-sm text-red-400">{error}</p>}

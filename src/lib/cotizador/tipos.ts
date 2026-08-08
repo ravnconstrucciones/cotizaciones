@@ -326,6 +326,8 @@ export type CotizacionRow = {
   desglose: Desglose | Record<string, never>;
   total_min: number | null;
   total_max: number | null;
+  /** Precio final de la propuesta emitida — lo fija Eze, nunca el motor (spec 08/08). */
+  precio_propuesta: number | null;
   revision: Revision | null;
   motivo_rechazo: string | null;
   presupuesto_id: string | null;

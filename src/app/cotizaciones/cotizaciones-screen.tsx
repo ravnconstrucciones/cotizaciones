@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import type { EstadoCotizacion } from "@/lib/cotizador/tipos";
+import type { EstadoCotizacion, TotalesDesglose } from "@/lib/cotizador/tipos";
 import { SkeletonGlass } from "@/components/cockpit/skeleton-glass";
 import {
   GaleriaCotizaciones,
@@ -19,6 +19,8 @@ type CotizacionListada = {
   total_max: number | null;
   foto_portada_url: string | null;
   archivos_count: number;
+  precio_propuesta: number | null;
+  totales: Partial<TotalesDesglose> | null;
 };
 
 /**
@@ -63,6 +65,8 @@ function aFoto(c: CotizacionListada): CotizacionFoto {
     totalMax: c.total_max,
     fotoUrl: c.foto_portada_url,
     archivosCount: c.archivos_count,
+    precioPropuesta: c.precio_propuesta,
+    totales: c.totales,
   };
 }
 
