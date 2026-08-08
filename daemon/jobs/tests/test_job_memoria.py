@@ -66,6 +66,175 @@ class JobMemoriaTests(unittest.TestCase):
         self.assertEqual(self.cursor.read_bytes(), cursor_inicial)
         self.assertEqual(len(self.eventos), 1)
 
+    def test_segunda_corrida_con_529_firmas_no_relee_jsonl(self):
+        fuentes = []
+        sesiones = {}
+        ahora_ns = 1_700_000_000_000_000_000
+        for indice in range(529):
+            fuente = self.sesiones / f"sesion-{indice}.jsonl"
+            fuente.write_text("{}\n", encoding="utf-8")
+            os.utime(fuente, ns=(ahora_ns, ahora_ns))
+            firma = {
+                "mtime_ns": fuente.stat().st_mtime_ns,
+                "size": fuente.stat().st_size,
+            }
+            sesiones[str(fuente.resolve())] = {
+                "firma": firma,
+                "host": "codex",
+                "thread_id": f"thread-{indice}",
+                "estado": "archivada",
+                "error": None,
+            }
+            fuentes.append(fuente)
+        self.cursor.parent.mkdir(parents=True)
+        self.cursor.write_text(
+            json.dumps({"version": 2, "sesiones": sesiones}), encoding="utf-8"
+        )
+
+        with (
+            patch.object(job_memoria, "descubrir_sesiones", return_value=fuentes),
+            patch.object(
+                job_memoria, "leer_sesion", side_effect=AssertionError("relectura")
+            ),
+            patch.object(job_memoria.time, "time_ns", return_value=ahora_ns),
+        ):
+            resultado = job_memoria.correr({}, "token")
+
+        self.assertEqual(resultado["procesadas"], 0)
+        self.assertEqual(self.eventos, [])
+
+    def test_fuente_desconocida_no_aborta_fuente_sana_y_no_repite_error(self):
+        sana = self._copiar_fixture("codex-session.jsonl")
+        invalida = self.sesiones / "desconocida.jsonl"
+        shutil.copy2(FIXTURES / "workflow-journal.jsonl", invalida)
+
+        with patch.object(
+            job_memoria, "descubrir_sesiones", return_value=[invalida, sana]
+        ):
+            primera = job_memoria.correr({}, "token")
+            segunda = job_memoria.correr({}, "token")
+
+        crudos = list((self.vault / "Conversaciones" / "crudo").rglob("*.md"))
+        cursor = json.loads(self.cursor.read_text(encoding="utf-8"))
+        entrada_invalida = cursor["sesiones"][str(invalida.resolve())]
+        self.assertEqual(primera["archivadas"], 1)
+        self.assertEqual(primera["errores"], 1)
+        self.assertEqual(primera["omitidas"], 1)
+        self.assertEqual(segunda["procesadas"], 0)
+        self.assertEqual(len(crudos), 1)
+        self.assertEqual(len(self.eventos), 1)
+        self.assertEqual(cursor["version"], 2)
+        self.assertEqual(entrada_invalida["estado"], "omitida")
+        self.assertIn("detectar", entrada_invalida["error"].lower())
+
+    def test_error_de_lectura_no_impide_archivar_otra_fuente(self):
+        sana = self._copiar_fixture("codex-session.jsonl")
+        ilegible = self.sesiones / "ilegible.jsonl"
+        ilegible.write_text("{}\n", encoding="utf-8")
+        leer_real = job_memoria.leer_sesion
+
+        def leer(path):
+            if path == ilegible:
+                raise OSError("sin acceso")
+            return leer_real(path)
+
+        with (
+            patch.object(
+                job_memoria, "descubrir_sesiones", return_value=[ilegible, sana]
+            ),
+            patch.object(job_memoria, "leer_sesion", side_effect=leer),
+        ):
+            resultado = job_memoria.correr({}, "token")
+
+        self.assertEqual(resultado["archivadas"], 1)
+        self.assertEqual(resultado["errores"], 1)
+        self.assertEqual(
+            len(list((self.vault / "Conversaciones" / "crudo").rglob("*.md"))), 1
+        )
+
+    def test_cursor_v1_migra_a_v2_con_metadata_de_sesion(self):
+        codex = self._copiar_fixture("codex-session.jsonl")
+        stat = codex.stat()
+        self.cursor.parent.mkdir(parents=True)
+        self.cursor.write_text(
+            json.dumps(
+                {
+                    "version": 1,
+                    "sesiones": {
+                        str(codex.resolve()): {
+                            "mtime_ns": stat.st_mtime_ns,
+                            "size": stat.st_size,
+                        },
+                        str((self.sesiones / "ausente.jsonl").resolve()): {
+                            "mtime_ns": 1,
+                            "size": 2,
+                        },
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        with patch.object(job_memoria, "descubrir_sesiones", return_value=[codex]):
+            resultado = job_memoria.correr({}, "token")
+
+        cursor = json.loads(self.cursor.read_text(encoding="utf-8"))
+        entrada = cursor["sesiones"][str(codex.resolve())]
+        self.assertEqual(cursor["version"], 2)
+        self.assertEqual(entrada["firma"]["mtime_ns"], stat.st_mtime_ns)
+        self.assertEqual(entrada["host"], "codex")
+        self.assertEqual(
+            entrada["thread_id"], "11111111-1111-1111-1111-111111111111"
+        )
+        self.assertEqual(entrada["estado"], "archivada")
+        self.assertTrue(
+            all("firma" in entrada_v2 for entrada_v2 in cursor["sesiones"].values())
+        )
+        self.assertEqual(resultado["archivadas"], 1)
+
+    def test_cierre_tardio_resuelve_solo_su_pendiente(self):
+        codex = self._copiar_fixture("codex-session.jsonl", antiguedad_segundos=901)
+
+        with patch.object(job_memoria, "descubrir_sesiones", return_value=[codex]):
+            job_memoria.correr({}, "token")
+            pendientes_dir = (
+                self.vault / "Sistema" / "Memoria" / "pendientes-escritura"
+            )
+            otro = pendientes_dir / "otro.json"
+            otro.write_text(
+                json.dumps({"operacion": "guardar_crudo", "detalle": {"x": 1}}),
+                encoding="utf-8",
+            )
+            cierre = (
+                self.vault
+                / "Conversaciones"
+                / "cierres"
+                / "2026"
+                / "08"
+                / "cierre.md"
+            )
+            cierre.parent.mkdir(parents=True)
+            cierre.write_text(
+                "---\nhost: codex\n"
+                "thread_id: 11111111-1111-1111-1111-111111111111\n---\n",
+                encoding="utf-8",
+            )
+            resultado = job_memoria.correr({}, "token")
+
+        restantes = list(pendientes_dir.glob("*.json"))
+        resueltos = list(
+            (self.vault / "Sistema" / "Memoria" / "pendientes-resueltos").glob("*.json")
+        )
+        contenido_resuelto = json.loads(resueltos[0].read_text(encoding="utf-8"))
+        self.assertEqual(restantes, [otro])
+        self.assertEqual(len(resueltos), 1)
+        self.assertEqual(resultado["resueltas"], 1)
+        self.assertIn("resuelto_at", contenido_resuelto)
+        self.assertEqual(
+            contenido_resuelto["detalle"]["thread_id"],
+            "11111111-1111-1111-1111-111111111111",
+        )
+
     def test_sesion_inactiva_sin_cierre_deja_un_pendiente_y_una_advertencia(self):
         codex = self._copiar_fixture("codex-session.jsonl", antiguedad_segundos=901)
 

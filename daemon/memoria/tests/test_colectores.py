@@ -1,9 +1,15 @@
 from __future__ import annotations
 
 from pathlib import Path
+import json
+import shutil
+import tempfile
 import unittest
+from unittest.mock import patch
 
+import daemon.memoria.colectores as colectores
 from daemon.memoria.colectores import (
+    descubrir_sesiones,
     detectar_host,
     leer_claude,
     leer_codex,
@@ -16,6 +22,42 @@ FIXTURES = Path(__file__).parent / "fixtures"
 
 
 class ColectoresTest(unittest.TestCase):
+    def test_descubrimiento_excluye_journals_workflows_y_subagents(self):
+        with tempfile.TemporaryDirectory() as directorio:
+            home = Path(directorio)
+            proyecto = home / ".claude" / "projects" / "proyecto"
+            proyecto.mkdir(parents=True)
+            sesion = proyecto / "sesion.jsonl"
+            shutil.copy2(FIXTURES / "claude-session.jsonl", sesion)
+            journal = proyecto / "workflow-journal.jsonl"
+            shutil.copy2(FIXTURES / "workflow-journal.jsonl", journal)
+            subagente = proyecto / "subagents" / "agent.jsonl"
+            subagente.parent.mkdir()
+            shutil.copy2(FIXTURES / "claude-session.jsonl", subagente)
+            workflow = proyecto / "workflows" / "workflow.jsonl"
+            workflow.parent.mkdir()
+            shutil.copy2(FIXTURES / "claude-session.jsonl", workflow)
+
+            with patch.object(colectores.Path, "home", return_value=home):
+                encontradas = descubrir_sesiones()
+
+        self.assertEqual(encontradas, [sesion])
+
+    def test_leer_sesion_carga_el_jsonl_una_sola_vez(self):
+        original = colectores._cargar_registros
+        llamadas = 0
+
+        def contar(path):
+            nonlocal llamadas
+            llamadas += 1
+            return original(path)
+
+        with patch.object(colectores, "_cargar_registros", side_effect=contar):
+            mensajes = leer_sesion(FIXTURES / "claude-session.jsonl")
+
+        self.assertTrue(mensajes)
+        self.assertEqual(llamadas, 1)
+
     def test_codex_conserva_mensajes_y_resume_tool_output(self):
         mensajes = leer_codex(FIXTURES / "codex-session.jsonl")
 
@@ -69,6 +111,50 @@ class ColectoresTest(unittest.TestCase):
         self.assertEqual(mensajes[0].autor, "tool")
         self.assertEqual(mensajes[0].texto[:1_500], "y" * 1_500)
         self.assertRegex(mensajes[0].texto, r"\[TRUNCADO sha256=[0-9a-f]{64}\]$")
+
+    def test_claude_omite_thinking_y_acota_tool_use_con_metadata_segura(self):
+        entrada_grande = "API_KEY=secreto-" + "x" * 8_000
+        resultado_grande = "resultado-" + "y" * 8_000
+        registros = [
+            {
+                "type": "assistant",
+                "uuid": "66666666-6666-6666-6666-666666666666",
+                "timestamp": "2026-08-08T12:00:02Z",
+                "message": {
+                    "content": [
+                        {"type": "text", "text": "Respuesta visible"},
+                        {"type": "thinking", "thinking": "razonamiento secreto"},
+                        {
+                            "type": "tool_use",
+                            "id": "toolu_123",
+                            "name": "Bash",
+                            "input": {"command": entrada_grande},
+                        },
+                        {"type": "tool_result", "content": resultado_grande},
+                    ]
+                },
+            }
+        ]
+        path = self._crear_fixture_temporal(
+            "\n".join(json.dumps(registro) for registro in registros) + "\n"
+        )
+        self.addCleanup(path.unlink)
+
+        mensajes = leer_claude(path)
+
+        self.assertEqual(
+            [mensaje.autor for mensaje in mensajes], ["assistant", "tool", "tool"]
+        )
+        self.assertEqual(mensajes[0].texto, "Respuesta visible")
+        self.assertEqual(mensajes[1].tipo, "tool_use")
+        self.assertEqual(mensajes[1].metadata["tool_name"], "Bash")
+        self.assertRegex(mensajes[1].metadata["sha256"], r"^[0-9a-f]{64}$")
+        self.assertLessEqual(len(mensajes[1].texto), 256)
+        self.assertNotIn("secreto", mensajes[1].texto)
+        self.assertNotIn(
+            "razonamiento", "\n".join(mensaje.texto for mensaje in mensajes)
+        )
+        self.assertLess(len(mensajes[2].texto), 2_000)
 
     def test_detectar_host_reconoce_los_dos_formatos(self):
         self.assertEqual(detectar_host(FIXTURES / "codex-session.jsonl"), "codex")

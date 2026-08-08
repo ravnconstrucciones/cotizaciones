@@ -30,13 +30,18 @@ def leer_claude(path: Path) -> list[Mensaje]:
 
 
 def leer_sesion(path: Path) -> list[Mensaje]:
-    """Lee una sesión delegando el formato al detector de host."""
-    return _leer(path, detectar_host(path))
+    """Lee y normaliza una sesión con una única pasada sobre el JSONL."""
+    registros, errores_parseo = _cargar_registros(path)
+    return _normalizar(registros, errores_parseo, _detectar_host(registros, path), path)
 
 
 def detectar_host(path: Path) -> Host:
     """Identifica el host por las entradas JSONL, sin depender del nombre."""
-    for registro in _registros_validos(path):
+    return _detectar_host(_registros_validos(path), path)
+
+
+def _detectar_host(registros: list[dict[str, Any]], path: Path) -> Host:
+    for registro in registros:
         tipo = registro.get("type")
         payload = registro.get("payload")
         if tipo in {
@@ -63,13 +68,19 @@ def descubrir_sesiones() -> list[Path]:
         for raiz in raices
         if raiz.is_dir()
         for archivo in raiz.rglob("*.jsonl")
-        if archivo.is_file()
+        if archivo.is_file() and not _es_artefacto_no_sesion(archivo)
     }
     return sorted(sesiones)
 
 
 def _leer(path: Path, host: Host) -> list[Mensaje]:
     registros, errores_parseo = _cargar_registros(path)
+    return _normalizar(registros, errores_parseo, host, path)
+
+
+def _normalizar(
+    registros: list[dict[str, Any]], errores_parseo: int, host: Host, path: Path
+) -> list[Mensaje]:
     thread_id = _thread_id(registros, path)
     mensajes: list[Mensaje] = []
 
@@ -81,6 +92,12 @@ def _leer(path: Path, host: Host) -> list[Mensaje]:
         else:
             mensajes.extend(_mensajes_claude(registro, thread_id, errores_parseo))
     return mensajes
+
+
+def _es_artefacto_no_sesion(path: Path) -> bool:
+    partes = {parte.casefold() for parte in path.parts}
+    nombre = path.name.casefold()
+    return bool(partes & {"subagents", "workflows", "journals"}) or "journal" in nombre
 
 
 def _cargar_registros(path: Path) -> tuple[list[dict[str, Any]], int]:
@@ -164,16 +181,17 @@ def _mensajes_claude(registro: dict[str, Any], thread_id: str, errores: int) -> 
         message = registro.get("message")
         contenido = message.get("content") if isinstance(message, dict) else registro.get("content")
         bloques = contenido if isinstance(contenido, list) else [contenido]
-        textos = [
-            _texto(bloque)
-            for bloque in bloques
-            if not (isinstance(bloque, dict) and bloque.get("type") == "tool_result")
-        ]
+        textos = [_texto(bloque) for bloque in bloques if _es_bloque_texto(bloque)]
         mensajes = [
             _crear_mensaje(
                 "claude", thread_id, registro, tipo, "message", "\n".join(filter(None, textos)), errores
             )
         ] if any(textos) else []
+        mensajes.extend(
+            _mensaje_tool_use("claude", thread_id, registro, bloque, errores)
+            for bloque in bloques
+            if isinstance(bloque, dict) and bloque.get("type") == "tool_use"
+        )
         mensajes.extend(
             _crear_mensaje(
                 "claude", thread_id, registro, "tool", "tool_output", _texto(bloque.get("content")), errores
@@ -191,6 +209,41 @@ def _mensajes_claude(registro: dict[str, Any], thread_id: str, errores: int) -> 
     return []
 
 
+def _es_bloque_texto(bloque: Any) -> bool:
+    return isinstance(bloque, str) or (
+        isinstance(bloque, dict) and bloque.get("type") == "text"
+    )
+
+
+def _mensaje_tool_use(
+    host: Host,
+    thread_id: str,
+    registro: dict[str, Any],
+    bloque: dict[str, Any],
+    errores: int,
+) -> Mensaje:
+    nombre = _nombre_tool_seguro(bloque.get("name"))
+    entrada = json.dumps(
+        bloque.get("input"), ensure_ascii=False, sort_keys=True, separators=(",", ":")
+    )
+    digest = hashlib.sha256(entrada.encode("utf-8")).hexdigest()
+    return _crear_mensaje(
+        host,
+        thread_id,
+        registro,
+        "tool",
+        "tool_use",
+        f"{nombre} sha256={digest}",
+        errores,
+        metadata={"tool_name": nombre, "sha256": digest},
+    )
+
+
+def _nombre_tool_seguro(valor: Any) -> str:
+    nombre = redactar_secretos(valor if isinstance(valor, str) else "<sin-nombre>")
+    return re.sub(r"[\r\n\t]+", " ", nombre)[:128]
+
+
 def _crear_mensaje(
     host: Host,
     thread_id: str,
@@ -199,6 +252,7 @@ def _crear_mensaje(
     tipo: str,
     texto: str,
     errores_parseo: int,
+    metadata: dict[str, Any] | None = None,
 ) -> Mensaje:
     texto = redactar_secretos(texto)
     if autor == "tool":
@@ -210,7 +264,7 @@ def _crear_mensaje(
         autor=autor,
         tipo=tipo,
         texto=texto,
-        metadata={"errores_parseo": errores_parseo},
+        metadata={"errores_parseo": errores_parseo, **(metadata or {})},
     )
 
 
