@@ -325,6 +325,143 @@ class ModeloCanonicoTests(unittest.TestCase):
             r'"\u0041uthorization": "[REDACTADO]"',
         )
 
+    def test_fail_close_para_claves_explicitas_yaml_block_y_flow(self):
+        casos = (
+            (
+                "headers:\n"
+                "  ? Authorization\n"
+                "  : Basic secreto-explicito-bloque-r5\n"
+                "  obra: Las Glorietas",
+                "secreto-explicito-bloque-r5",
+            ),
+            (
+                "headers: {? Proxy-Authorization: "
+                "Digest secreto-explicito-flow-r5, obra: Las Glorietas}",
+                "secreto-explicito-flow-r5",
+            ),
+        )
+
+        for original, secreto in casos:
+            with self.subTest(original=original):
+                resultado = redactar_secretos(original)
+
+                self.assertEqual(resultado, "[CONTENIDO SENSIBLE REDACTADO]")
+                self.assertNotIn(secreto, resultado)
+
+    def test_fail_close_para_claves_explicitas_escapadas(self):
+        casos = (
+            (
+                "headers:\n"
+                r'  ? "\u0041uthorization"' "\n"
+                "  : Basic secreto-explicito-u-r5\n"
+                "  obra: Las Glorietas",
+                "secreto-explicito-u-r5",
+            ),
+            (
+                r'headers: {? "\x43ookie": sid=secreto-explicito-x-r5, '
+                "obra: Las Glorietas}",
+                "secreto-explicito-x-r5",
+            ),
+            (
+                "headers:\n"
+                r'  ? "\U00000053et-Cookie"' "\n"
+                "  : refresh=secreto-explicito-upper-r5\n"
+                "  obra: Las Glorietas",
+                "secreto-explicito-upper-r5",
+            ),
+        )
+
+        for original, secreto in casos:
+            with self.subTest(original=original):
+                resultado = redactar_secretos(original)
+
+                self.assertEqual(resultado, "[CONTENIDO SENSIBLE REDACTADO]")
+                self.assertNotIn(secreto, resultado)
+
+    def test_fail_close_para_headers_decorados_con_anchor_alias_o_tag(self):
+        casos = (
+            (
+                "headers:\n"
+                "  &header Authorization: Basic secreto-anchor-r5\n"
+                "  obra: Las Glorietas",
+                "secreto-anchor-r5",
+            ),
+            (
+                "headers: {*Cookie: secreto-alias-r5, obra: Las Glorietas}",
+                "secreto-alias-r5",
+            ),
+            (
+                "headers:\n"
+                "  !vault Set-Cookie: refresh=secreto-tag-r5\n"
+                "  obra: Las Glorietas",
+                "secreto-tag-r5",
+            ),
+        )
+
+        for original, secreto in casos:
+            with self.subTest(original=original):
+                resultado = redactar_secretos(original)
+
+                self.assertEqual(resultado, "[CONTENIDO SENSIBLE REDACTADO]")
+                self.assertNotIn(secreto, resultado)
+
+    def test_postcondicion_falla_cerrado_si_una_ocurrencia_queda_sin_mapear(self):
+        texto = (
+            "Authorization: Basic secreto-mapeado-r5\n"
+            "nota: Cookie aparece fuera de un mapping con secreto-postcondicion-r5"
+        )
+
+        resultado = redactar_secretos(texto)
+
+        self.assertEqual(resultado, "[CONTENIDO SENSIBLE REDACTADO]")
+        self.assertNotIn("secreto-mapeado-r5", resultado)
+        self.assertNotIn("secreto-postcondicion-r5", resultado)
+
+    def test_postcondicion_escanea_menciones_dentro_de_tokens_quoted(self):
+        casos = (
+            (
+                'nota: "se menciona Authorization junto a secreto-quoted-r5"',
+                "secreto-quoted-r5",
+            ),
+            (
+                r'nota: "se menciona \x43ookie junto a secreto-escaped-r5"',
+                "secreto-escaped-r5",
+            ),
+        )
+
+        for original, secreto in casos:
+            with self.subTest(original=original):
+                resultado = redactar_secretos(original)
+
+                self.assertEqual(resultado, "[CONTENIDO SENSIBLE REDACTADO]")
+                self.assertNotIn(secreto, resultado)
+
+    def test_postcondicion_no_sobrerredacta_mappings_comunes(self):
+        casos = (
+            (
+                "Authorization: Basic secreto-bloque-r5\nobra: Las Glorietas",
+                "Authorization: [REDACTADO]\nobra: Las Glorietas",
+            ),
+            (
+                "headers: {Cookie: sid=secreto-flow-r5, "
+                "obra: Las Glorietas}",
+                "headers: {Cookie: [REDACTADO], obra: Las Glorietas}",
+            ),
+            (
+                r'{"\u0050roxy-Authorization":"Basic secreto-json-r5",'
+                r'"vecino":"linea\u000Afin","ruta":"C:\\RAVN\\obra"}',
+                r'{"\u0050roxy-Authorization":"[REDACTADO]",'
+                r'"vecino":"linea\u000Afin","ruta":"C:\\RAVN\\obra"}',
+            ),
+        )
+
+        for original, esperado in casos:
+            with self.subTest(original=original):
+                resultado = redactar_secretos(original)
+
+                self.assertEqual(resultado, esperado)
+                self.assertNotEqual(resultado, "[CONTENIDO SENSIBLE REDACTADO]")
+
     def test_redacta_headers_en_escalares_yaml_block_y_folded_completos(self):
         texto = (
             "headers:\n"

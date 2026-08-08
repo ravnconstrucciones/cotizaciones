@@ -26,6 +26,8 @@ _HEADER_KEYS = frozenset(
     for clave in ("Authorization", "Proxy-Authorization", "Cookie", "Set-Cookie")
 )
 _QUOTED_KEY = r'''(?:"(?:\\.|[^"\\\r\n])*"|'(?:''|[^'\r\n])*')'''
+_QUOTED_TOKEN = re.compile(_QUOTED_KEY)
+_SAFE_REDACTION = "[CONTENIDO SENSIBLE REDACTADO]"
 SECRET_PATTERNS = (
     r"(?i)(SUPABASE_SERVICE_ROLE_KEY\s*=\s*)[^\s]+",
     r"(?i)(ANTHROPIC_API_KEY\s*=\s*)[^\s]+",
@@ -37,7 +39,7 @@ SECRET_PATTERNS = (
 )
 
 _HEADER_FIELD = re.compile(
-    rf"(?im)(?P<delimiter>^|[{{\[,])(?P<indent>[ \t]*)(?P<item>-\s*)?"
+    rf"(?im)(?P<delimiter>^|[{{\[,]|[ \t])(?P<indent>[ \t]*)(?P<item>-\s*)?"
     rf"(?P<key>{_QUOTED_KEY}|{_HEADER_KEY})(?P<separator>[ \t]*:[ \t]*)"
 )
 
@@ -119,7 +121,10 @@ class Cierre:
 
 def redactar_secretos(texto: str) -> str:
     """Reemplaza credenciales conocidas sin alterar el contexto restante."""
-    texto = _redactar_encabezados(texto)
+    ocurrencias = _buscar_encabezados_sensibles(texto)
+    texto, ocurrencias_manejadas = _redactar_encabezados(texto)
+    if not ocurrencias.issubset(ocurrencias_manejadas):
+        return _SAFE_REDACTION
     for patron in SECRET_PATTERNS:
         texto = re.sub(patron, _reemplazar_secreto, texto)
     return texto
@@ -214,9 +219,63 @@ def _decodificar_clave_double_quoted(contenido: str) -> str | None:
     return "".join(partes)
 
 
-def _redactar_encabezados(texto: str) -> str:
+def _buscar_encabezados_sensibles(texto: str) -> set[tuple[int, int]]:
+    """Ubica todo nombre de header sensible en el texto fuente sin inferir YAML."""
+    ocurrencias: set[tuple[int, int]] = set()
+    posicion = 0
+
+    while posicion < len(texto):
+        if texto[posicion] in "\"'":
+            coincidencia = _QUOTED_TOKEN.match(texto, posicion)
+            if coincidencia is not None:
+                token = coincidencia.group(0)
+                decodificado = _decodificar_clave_candidata(token)
+                if decodificado is not None and _contiene_header_sensible(
+                    decodificado
+                ):
+                    ocurrencias.add(coincidencia.span())
+                posicion = coincidencia.end()
+                continue
+
+        if _es_caracter_token_header(texto[posicion]):
+            fin = posicion + 1
+            while fin < len(texto) and _es_caracter_token_header(texto[fin]):
+                fin += 1
+            if texto[posicion:fin].casefold() in _HEADER_KEYS:
+                ocurrencias.add((posicion, fin))
+            posicion = fin
+            continue
+
+        posicion += 1
+
+    return ocurrencias
+
+
+def _contiene_header_sensible(texto: str) -> bool:
+    posicion = 0
+    while posicion < len(texto):
+        if not _es_caracter_token_header(texto[posicion]):
+            posicion += 1
+            continue
+        fin = posicion + 1
+        while fin < len(texto) and _es_caracter_token_header(texto[fin]):
+            fin += 1
+        if texto[posicion:fin].casefold() in _HEADER_KEYS:
+            return True
+        posicion = fin
+    return False
+
+
+def _es_caracter_token_header(caracter: str) -> bool:
+    return caracter.isascii() and (caracter.isalnum() or caracter in "_-")
+
+
+def _redactar_encabezados(
+    texto: str,
+) -> tuple[str, set[tuple[int, int]]]:
     """Redacta valores de headers en YAML/JSON sin cortar por comas internas."""
     partes: list[str] = []
+    ocurrencias_manejadas: set[tuple[int, int]] = set()
     inicio_pendiente = 0
     posicion_busqueda = 0
 
@@ -225,6 +284,11 @@ def _redactar_encabezados(texto: str) -> str:
         clave = _decodificar_clave_candidata(coincidencia.group("key"))
         if clave is None or clave.casefold() not in _HEADER_KEYS:
             continue
+        if coincidencia.group("delimiter") in " \t" and _tiene_decorador_yaml(
+            texto, coincidencia.start("delimiter")
+        ):
+            continue
+        ocurrencias_manejadas.add(coincidencia.span("key"))
 
         inicio_valor = coincidencia.end()
         partes.append(texto[inicio_pendiente:inicio_valor])
@@ -313,7 +377,19 @@ def _redactar_encabezados(texto: str) -> str:
         posicion_busqueda = inicio_pendiente
 
     partes.append(texto[inicio_pendiente:])
-    return "".join(partes)
+    return "".join(partes), ocurrencias_manejadas
+
+
+def _tiene_decorador_yaml(texto: str, fin_prefijo: int) -> bool:
+    inicio_linea = max(
+        texto.rfind("\n", 0, fin_prefijo),
+        texto.rfind("\r", 0, fin_prefijo),
+    ) + 1
+    prefijo = texto[inicio_linea:fin_prefijo].rstrip(" \t")
+    if not prefijo:
+        return False
+    token_anterior = prefijo.rsplit(maxsplit=1)[-1].lstrip("{[,")
+    return token_anterior.startswith(("?", "&", "*", "!"))
 
 
 def _fin_valor_entre_comillas(texto: str, inicio: int, comilla: str) -> int | None:
