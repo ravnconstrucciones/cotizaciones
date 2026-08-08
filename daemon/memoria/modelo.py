@@ -166,12 +166,18 @@ def cierre_a_markdown(cierre: Cierre) -> str:
         lineas.extend([f"## {titulo}"])
         valores = getattr(cierre, campo)
         if valores:
-            lineas.extend(f"- {redactar_secretos(valor)}" for valor in valores)
+            lineas.extend(_elemento_markdown(valor) for valor in valores)
         else:
             lineas.append("- Sin registros.")
         lineas.append("")
 
     return "\n".join(lineas).rstrip() + "\n"
+
+
+def _elemento_markdown(valor: str) -> str:
+    """Marca continuaciones para que el parser pueda distinguirlas de Markdown."""
+    lineas = redactar_secretos(valor).split("\n")
+    return "- " + lineas[0] + "".join(f"\n  {linea}" for linea in lineas[1:])
 
 
 def _yaml_valor(valor: str) -> str:

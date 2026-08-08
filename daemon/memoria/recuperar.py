@@ -250,28 +250,28 @@ def _listas_del_cierre(cuerpo: str) -> dict[str, list[str]]:
     actual: str | None = None
     vistos: set[str] = set()
     for linea in cuerpo.splitlines():
+        if linea.startswith("  "):
+            if actual is None or not listas[actual]:
+                raise ValueError("La continuación no pertenece a un bullet canónico.")
+            listas[actual][-1] += f"\n{linea[2:]}"
+            continue
         if linea.startswith("## "):
             siguiente = _SECCIONES_CIERRE.get(linea[3:])
-            if siguiente is not None:
-                actual = siguiente
-                if actual in vistos:
-                    raise ValueError("El cierre contiene secciones no canónicas o repetidas.")
-                vistos.add(actual)
-                continue
-            if actual is not None and listas[actual]:
-                listas[actual][-1] += f"\n{linea}"
-                continue
-            raise ValueError("El cierre contiene secciones no canónicas o repetidas.")
-        if actual is None or not linea:
+            if siguiente is None or siguiente in vistos:
+                raise ValueError("El cierre contiene secciones no canónicas o repetidas.")
+            actual = siguiente
+            vistos.add(actual)
             continue
+        if not linea:
+            continue
+        if actual is None:
+            raise ValueError("El cuerpo del cierre no respeta el formato canónico.")
         if linea.startswith("- "):
             valor = linea[2:]
             if valor != "Sin registros.":
                 listas[actual].append(valor)
             continue
-        if not listas[actual]:
-            raise ValueError("El cuerpo del cierre no respeta el formato canónico.")
-        listas[actual][-1] += f"\n{linea}"
+        raise ValueError("El cuerpo del cierre no respeta el formato canónico.")
     if vistos != set(listas):
         raise ValueError("El cierre no contiene todas las secciones canónicas.")
     return listas

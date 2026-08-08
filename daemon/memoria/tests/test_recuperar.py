@@ -215,13 +215,17 @@ class RecuperarTests(unittest.TestCase):
                 cierre_id="multilinea",
                 tema="Garage",
                 entidades=["Glorietas"],
-                hechos=["Primera línea.\n# Segunda línea emitida por el cierre."],
+                hechos=[
+                    "Primera línea.\n# Segunda línea emitida por el cierre.\n"
+                    "## Decisiones\n## Sección inyectada"
+                ],
             )
         )
 
         paquete = recuperar(ConsultaMemoria("garage", []), self.vault)
 
         self.assertIn("# Segunda línea emitida por el cierre.", paquete.notas[0].contenido)
+        self.assertIn("## Decisiones\n## Sección inyectada", paquete.notas[0].contenido)
 
     def test_contexto_conserva_los_encabezados_y_listas_canonicas(self) -> None:
         cierre = replace(
@@ -297,6 +301,31 @@ class RecuperarTests(unittest.TestCase):
         ruta.write_text(
             ruta.read_text(encoding="utf-8").replace(
                 "## Decisiones", "## Sección inyectada\n- dato no validado\n\n## Decisiones"
+            ),
+            encoding="utf-8",
+        )
+
+        with patch("sys.stdout", new_callable=io.StringIO):
+            codigo = cli.main(["reindexar", "--vault", str(self.vault)])
+
+        indice = json.loads(
+            (self.vault / "Sistema/Memoria/indices/entidades.json").read_text(encoding="utf-8")
+        )
+        self.assertEqual(codigo, 0)
+        self.assertNotIn("glorietas", indice["entidades"])
+
+    def test_reindexar_rechaza_heading_inyectado_sin_indentacion_dentro_de_bullet(self) -> None:
+        ruta = self.almacen.guardar_cierre(
+            _cierre(
+                cierre_id="alterado-con-bullet",
+                tema="Patio",
+                entidades=["Glorietas"],
+                hechos=["Hecho real."],
+            )
+        )
+        ruta.write_text(
+            ruta.read_text(encoding="utf-8").replace(
+                "\n\n## Decisiones", "\n## Sección inyectada\n- dato malicioso\n\n## Decisiones"
             ),
             encoding="utf-8",
         )

@@ -191,6 +191,19 @@ class ModeloCanonicoTests(unittest.TestCase):
         self.assertNotIn("secreto", markdown)
         self.assertIn("OPENAI_API_KEY=[REDACTADO]", markdown)
 
+    def test_markdown_indenta_cada_continuacion_multilinea(self):
+        datos = cierre_valido()
+        datos["hechos"] = [
+            "Primera línea.\n# Continuación.\n## Decisiones\n## Sección inyectada"
+        ]
+
+        markdown = cierre_a_markdown(validar_cierre(datos))
+
+        self.assertIn(
+            "- Primera línea.\n  # Continuación.\n  ## Decisiones\n  ## Sección inyectada",
+            markdown,
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
