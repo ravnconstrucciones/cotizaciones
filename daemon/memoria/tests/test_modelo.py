@@ -183,11 +183,11 @@ class ModeloCanonicoTests(unittest.TestCase):
 
         self.assertEqual(redactar_secretos(primera), primera)
 
-    def test_normaliza_escapes_json_antes_de_reconocer_headers_sensibles(self):
+    def test_redacta_claves_json_escapadas_sin_reescribir_el_documento(self):
         texto = (
             r'{"\u0041uthorization":"Bearer secret-auth",'
             r'"\u0050roxy-Authorization":"Basic secret-proxy",'
-            r'"\u0043ookie":"sid=secret-cookie",'
+            r'"\u0043\u006F\u006F\u006B\u0069\u0065":"sid=secret-cookie",'
             r'"\u0053et-Cookie":"refresh=secret-set",'
             r'"obra-\uD83D\uDEE0":"Glorietas"}'
         )
@@ -196,14 +196,134 @@ class ModeloCanonicoTests(unittest.TestCase):
 
         self.assertEqual(
             resultado,
-            '{"Authorization":"[REDACTADO]",'
-            '"Proxy-Authorization":"[REDACTADO]",'
-            '"Cookie":"[REDACTADO]",'
-            '"Set-Cookie":"[REDACTADO]",'
-            '"obra-🛠":"Glorietas"}',
+            r'{"\u0041uthorization":"[REDACTADO]",'
+            r'"\u0050roxy-Authorization":"[REDACTADO]",'
+            r'"\u0043\u006F\u006F\u006B\u0069\u0065":"[REDACTADO]",'
+            r'"\u0053et-Cookie":"[REDACTADO]",'
+            r'"obra-\uD83D\uDEE0":"Glorietas"}',
         )
         for secreto in ("secret-auth", "secret-proxy", "secret-cookie", "secret-set"):
             self.assertNotIn(secreto, resultado)
+
+    def test_matriz_json_preserva_bytes_parseabilidad_y_semantica_de_vecinos(self):
+        casos = (
+            (
+                r'{"\u0041uthorization":"Bearer secret-auth","salto":"linea\u000Afin"}',
+                r'{"\u0041uthorization":"[REDACTADO]","salto":"linea\u000Afin"}',
+                "Authorization",
+            ),
+            (
+                r'{"\u0050roxy-Authorization":"Basic secret-proxy","comillas":"inicio\u0022fin\u0022"}',
+                r'{"\u0050roxy-Authorization":"[REDACTADO]","comillas":"inicio\u0022fin\u0022"}',
+                "Proxy-Authorization",
+            ),
+            (
+                r'{"\u0043ookie":"sid=secret-cookie","ruta":"C:\\RAVN\\obra","literal":"\\u0041"}',
+                r'{"\u0043ookie":"[REDACTADO]","ruta":"C:\\RAVN\\obra","literal":"\\u0041"}',
+                "Cookie",
+            ),
+            (
+                r'{"\u0053et-Cookie":"refresh=secret-set","vecino":{"barra":"\\\\servidor\\obra","lista":["uno","dos"]}}',
+                r'{"\u0053et-Cookie":"[REDACTADO]","vecino":{"barra":"\\\\servidor\\obra","lista":["uno","dos"]}}',
+                "Set-Cookie",
+            ),
+        )
+
+        for original, esperado, clave_sensible in casos:
+            with self.subTest(clave_sensible=clave_sensible):
+                resultado = redactar_secretos(original)
+
+                self.assertEqual(resultado, esperado)
+                original_json = json.loads(original)
+                resultado_json = json.loads(resultado)
+                self.assertEqual(resultado_json[clave_sensible], "[REDACTADO]")
+                self.assertEqual(
+                    {
+                        clave: valor
+                        for clave, valor in resultado_json.items()
+                        if clave != clave_sensible
+                    },
+                    {
+                        clave: valor
+                        for clave, valor in original_json.items()
+                        if clave != clave_sensible
+                    },
+                )
+
+    def test_redacta_claves_yaml_escapadas_hex_y_unicode_upper(self):
+        texto = (
+            "headers:\n"
+            r'  "\x61UTHORIZATION": "Bearer secret-hex"' "\n"
+            r'  "\U00000050roxy-Authorization": "Basic secret-upper"' "\n"
+            r'  "\x43ookie": sid=secret-cookie' "\n"
+            r'  "\U00000053et-Cookie": refresh=secret-set' "\n"
+            "  'obra''detalle': 'Las Glorietas'"
+        )
+
+        self.assertEqual(
+            redactar_secretos(texto),
+            "headers:\n"
+            r'  "\x61UTHORIZATION": "[REDACTADO]"' "\n"
+            r'  "\U00000050roxy-Authorization": "[REDACTADO]"' "\n"
+            r'  "\x43ookie": [REDACTADO]' "\n"
+            r'  "\U00000053et-Cookie": [REDACTADO]' "\n"
+            "  'obra''detalle': 'Las Glorietas'",
+        )
+
+    def test_redacta_claves_escapadas_en_flow_arrays_y_objects(self):
+        texto = (
+            r'headers: [{"\u0041uthorization": "Bearer secret-object", obra: Glorietas}, '
+            r'["\x50roxy-Authorization": "Basic secret-array", cliente: RAVN], '
+            r'{"\U00000043ookie": sid=secret-cookie,theme=dark, estado: listo}, '
+            r'{"\u0053et-Cookie": "refresh=secret-set", documento: REM-0004}]'
+        )
+
+        self.assertEqual(
+            redactar_secretos(texto),
+            r'headers: [{"\u0041uthorization": "[REDACTADO]", obra: Glorietas}, '
+            r'["\x50roxy-Authorization": "[REDACTADO]", cliente: RAVN], '
+            r'{"\U00000043ookie": [REDACTADO], estado: listo}, '
+            r'{"\u0053et-Cookie": "[REDACTADO]", documento: REM-0004}]',
+        )
+
+    def test_redacta_claves_escapadas_con_valores_yaml_multilinea_y_block(self):
+        texto = (
+            "headers:\n"
+            r'  "\u0041uthorization": |2-' "\n"
+            "    Bearer secret-block\n"
+            "    segunda-secret-block\n"
+            r'  "\x50roxy-Authorization": "Digest secret-double\"quoted' "\n"
+            '    segunda-secret-double"\n'
+            r'  "\U00000053et-Cookie": >+2' "\n"
+            "    sid=secret-folded\n"
+            "    Path=/, HttpOnly\n"
+            "  obra: Las Glorietas"
+        )
+
+        self.assertEqual(
+            redactar_secretos(texto),
+            "headers:\n"
+            r'  "\u0041uthorization": [REDACTADO]' "\n"
+            r'  "\x50roxy-Authorization": "[REDACTADO]"' "\n"
+            r'  "\U00000053et-Cookie": [REDACTADO]' "\n"
+            "  obra: Las Glorietas",
+        )
+
+    def test_candidatos_quoted_ordinarios_preservan_escapes_y_doblez_yaml(self):
+        texto = (
+            r'"Authoriza\"tion": "dato-quote"' "\n"
+            r'"Authoriza\\tion": "dato-backslash"' "\n"
+            "'Authoriza''tion': dato-single\n"
+            r'"\u0041uthorization": "Bearer secret"'
+        )
+
+        self.assertEqual(
+            redactar_secretos(texto),
+            r'"Authoriza\"tion": "dato-quote"' "\n"
+            r'"Authoriza\\tion": "dato-backslash"' "\n"
+            "'Authoriza''tion': dato-single\n"
+            r'"\u0041uthorization": "[REDACTADO]"',
+        )
 
     def test_redacta_headers_en_escalares_yaml_block_y_folded_completos(self):
         texto = (
@@ -275,7 +395,7 @@ class ModeloCanonicoTests(unittest.TestCase):
         self.assertEqual(
             resultado,
             'documento: {headers: [Cookie: [REDACTADO], '
-            '"obra.detalle": Piso, Set-Cookie: [REDACTADO], '
+            r'"obra\u002Edetalle": Piso, Set-Cookie: [REDACTADO], '
             '🛠.estado: listo], área.obra: Cocina, cliente: RAVN}',
         )
         self.assertNotIn("secret-cookie", resultado)

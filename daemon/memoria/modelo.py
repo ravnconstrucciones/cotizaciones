@@ -21,6 +21,11 @@ _SENSITIVE_KEY = (
     r"CONNECTION_STRING|ENCRYPTION_KEY|SIGNING_KEY)"
 )
 _HEADER_KEY = r"(?:Authorization|Proxy-Authorization|Cookie|Set-Cookie)"
+_HEADER_KEYS = frozenset(
+    clave.casefold()
+    for clave in ("Authorization", "Proxy-Authorization", "Cookie", "Set-Cookie")
+)
+_QUOTED_KEY = r'''(?:"(?:\\.|[^"\\\r\n])*"|'(?:''|[^'\r\n])*')'''
 SECRET_PATTERNS = (
     r"(?i)(SUPABASE_SERVICE_ROLE_KEY\s*=\s*)[^\s]+",
     r"(?i)(ANTHROPIC_API_KEY\s*=\s*)[^\s]+",
@@ -33,7 +38,7 @@ SECRET_PATTERNS = (
 
 _HEADER_FIELD = re.compile(
     rf"(?im)(?P<delimiter>^|[{{\[,])(?P<indent>[ \t]*)(?P<item>-\s*)?"
-    rf"(?P<key>[\"']{_HEADER_KEY}[\"']|{_HEADER_KEY})(?P<separator>[ \t]*:[ \t]*)"
+    rf"(?P<key>{_QUOTED_KEY}|{_HEADER_KEY})(?P<separator>[ \t]*:[ \t]*)"
 )
 
 _CAMPO_TEXTO = (
@@ -114,78 +119,118 @@ class Cierre:
 
 def redactar_secretos(texto: str) -> str:
     """Reemplaza credenciales conocidas sin alterar el contexto restante."""
-    texto = _normalizar_escapes_unicode_json(texto)
     texto = _redactar_encabezados(texto)
     for patron in SECRET_PATTERNS:
         texto = re.sub(patron, _reemplazar_secreto, texto)
     return texto
 
 
-def _normalizar_escapes_unicode_json(texto: str) -> str:
-    """Decodifica escapes Unicode JSON válidos antes de clasificar sus claves."""
+def _decodificar_clave_candidata(clave: str) -> str | None:
+    """Decodifica sólo el token de clave; nunca modifica el documento fuente."""
+    if not clave or clave[0] not in "\"'":
+        return clave
+    if clave[0] == "'":
+        return clave[1:-1].replace("''", "'")
+    return _decodificar_clave_double_quoted(clave[1:-1])
+
+
+def _decodificar_clave_double_quoted(contenido: str) -> str | None:
+    escapes_simples = {
+        '"': '"',
+        "\\": "\\",
+        "/": "/",
+        "0": "\0",
+        "a": "\a",
+        "b": "\b",
+        "t": "\t",
+        "n": "\n",
+        "v": "\v",
+        "f": "\f",
+        "r": "\r",
+        "e": "\x1b",
+        " ": " ",
+        "N": "\x85",
+        "_": "\xa0",
+        "L": "\u2028",
+        "P": "\u2029",
+    }
     partes: list[str] = []
     posicion = 0
 
-    while posicion < len(texto):
-        if not _es_escape_unicode_json(texto, posicion):
-            partes.append(texto[posicion])
+    while posicion < len(contenido):
+        if contenido[posicion] != "\\":
+            partes.append(contenido[posicion])
             posicion += 1
             continue
 
-        unidad = int(texto[posicion + 2 : posicion + 6], 16)
-        if 0xD800 <= unidad <= 0xDBFF:
-            siguiente = posicion + 6
-            if _es_escape_unicode_json(texto, siguiente):
-                unidad_baja = int(texto[siguiente + 2 : siguiente + 6], 16)
-                if 0xDC00 <= unidad_baja <= 0xDFFF:
-                    codigo = (
-                        0x10000
-                        + ((unidad - 0xD800) << 10)
-                        + (unidad_baja - 0xDC00)
-                    )
-                    partes.append(chr(codigo))
-                    posicion = siguiente + 6
-                    continue
-            partes.append(texto[posicion : posicion + 6])
-            posicion += 6
+        if posicion + 1 >= len(contenido):
+            return None
+        escape = contenido[posicion + 1]
+        if escape in escapes_simples:
+            partes.append(escapes_simples[escape])
+            posicion += 2
             continue
+        if escape not in "xuU":
+            return None
 
-        if 0xDC00 <= unidad <= 0xDFFF:
-            partes.append(texto[posicion : posicion + 6])
-        else:
-            partes.append(chr(unidad))
-        posicion += 6
+        ancho = {"x": 2, "u": 4, "U": 8}[escape]
+        inicio_hex = posicion + 2
+        fin_hex = inicio_hex + ancho
+        if fin_hex > len(contenido):
+            return None
+        digitos = contenido[inicio_hex:fin_hex]
+        if any(caracter not in "0123456789abcdefABCDEF" for caracter in digitos):
+            return None
+
+        codigo = int(digitos, 16)
+        posicion = fin_hex
+        if escape == "u" and 0xD800 <= codigo <= 0xDBFF:
+            if contenido[posicion : posicion + 2] != "\\u":
+                return None
+            fin_bajo = posicion + 6
+            if fin_bajo > len(contenido):
+                return None
+            digitos_bajos = contenido[posicion + 2 : fin_bajo]
+            if any(
+                caracter not in "0123456789abcdefABCDEF"
+                for caracter in digitos_bajos
+            ):
+                return None
+            codigo_bajo = int(digitos_bajos, 16)
+            if not 0xDC00 <= codigo_bajo <= 0xDFFF:
+                return None
+            codigo = (
+                0x10000
+                + ((codigo - 0xD800) << 10)
+                + (codigo_bajo - 0xDC00)
+            )
+            posicion = fin_bajo
+        elif 0xD800 <= codigo <= 0xDFFF:
+            return None
+        if codigo > 0x10FFFF:
+            return None
+        partes.append(chr(codigo))
 
     return "".join(partes)
-
-
-def _es_escape_unicode_json(texto: str, posicion: int) -> bool:
-    if posicion + 6 > len(texto) or texto[posicion : posicion + 2] != "\\u":
-        return False
-    barras_previas = 0
-    anterior = posicion - 1
-    while anterior >= 0 and texto[anterior] == "\\":
-        barras_previas += 1
-        anterior -= 1
-    if barras_previas % 2:
-        return False
-    return all(
-        caracter in "0123456789abcdefABCDEF"
-        for caracter in texto[posicion + 2 : posicion + 6]
-    )
 
 
 def _redactar_encabezados(texto: str) -> str:
     """Redacta valores de headers en YAML/JSON sin cortar por comas internas."""
     partes: list[str] = []
-    posicion = 0
+    inicio_pendiente = 0
+    posicion_busqueda = 0
 
-    while coincidencia := _HEADER_FIELD.search(texto, posicion):
+    while coincidencia := _HEADER_FIELD.search(texto, posicion_busqueda):
+        posicion_busqueda = coincidencia.end()
+        clave = _decodificar_clave_candidata(coincidencia.group("key"))
+        if clave is None or clave.casefold() not in _HEADER_KEYS:
+            continue
+
         inicio_valor = coincidencia.end()
-        partes.append(texto[posicion:inicio_valor])
+        partes.append(texto[inicio_pendiente:inicio_valor])
 
         if inicio_valor >= len(texto):
-            posicion = inicio_valor
+            inicio_pendiente = inicio_valor
             continue
 
         delimitador = coincidencia.group("delimiter")
@@ -198,7 +243,8 @@ def _redactar_encabezados(texto: str) -> str:
 
         if valor.startswith("[REDACTADO]"):
             partes.append("[REDACTADO]")
-            posicion = inicio_valor + len("[REDACTADO]")
+            inicio_pendiente = inicio_valor + len("[REDACTADO]")
+            posicion_busqueda = inicio_pendiente
             continue
 
         if valor.startswith(("\"", "'")):
@@ -206,7 +252,8 @@ def _redactar_encabezados(texto: str) -> str:
             fin = _fin_valor_entre_comillas(texto, inicio_valor, comilla)
             if fin is not None:
                 partes.extend((comilla, "[REDACTADO]", comilla))
-                posicion = fin + 1
+                inicio_pendiente = fin + 1
+                posicion_busqueda = inicio_pendiente
                 continue
             if not es_flow:
                 inicio_cuerpo, salto = _inicio_linea_siguiente(texto, fin_linea)
@@ -216,7 +263,8 @@ def _redactar_encabezados(texto: str) -> str:
                 partes.append("[REDACTADO]")
                 if salto and fin_cuerpo < len(texto):
                     partes.append(salto)
-                posicion = fin_cuerpo
+                inicio_pendiente = fin_cuerpo
+                posicion_busqueda = inicio_pendiente
                 continue
 
         if not es_flow and _es_indicador_escalar_bloque(
@@ -229,27 +277,30 @@ def _redactar_encabezados(texto: str) -> str:
             partes.append("[REDACTADO]")
             if salto and fin_cuerpo < len(texto):
                 partes.append(salto)
-            posicion = fin_cuerpo
+            inicio_pendiente = fin_cuerpo
+            posicion_busqueda = inicio_pendiente
             continue
 
         if (
             not es_flow
             and coincidencia.group("item") is None
-            and coincidencia.group("key").lower() == "authorization"
+            and clave.casefold() == "authorization"
             and valor.lower().startswith("bearer ")
         ):
             inicio_token = inicio_valor + len("Bearer ")
             if texto.startswith("[REDACTADO]", inicio_token):
                 partes.append(texto[inicio_valor:inicio_token])
                 partes.append("[REDACTADO]")
-                posicion = inicio_token + len("[REDACTADO]")
+                inicio_pendiente = inicio_token + len("[REDACTADO]")
+                posicion_busqueda = inicio_pendiente
                 continue
             fin_token = inicio_token
             while fin_token < len(texto) and texto[fin_token] not in " \t\r\n,}]":
                 fin_token += 1
             partes.append(texto[inicio_valor:inicio_token])
             partes.append("[REDACTADO]")
-            posicion = fin_token
+            inicio_pendiente = fin_token
+            posicion_busqueda = inicio_pendiente
             continue
 
         fin_valor = (
@@ -258,9 +309,10 @@ def _redactar_encabezados(texto: str) -> str:
             else _fin_linea(texto, inicio_valor)
         )
         partes.append("[REDACTADO]")
-        posicion = fin_valor
+        inicio_pendiente = fin_valor
+        posicion_busqueda = inicio_pendiente
 
-    partes.append(texto[posicion:])
+    partes.append(texto[inicio_pendiente:])
     return "".join(partes)
 
 
