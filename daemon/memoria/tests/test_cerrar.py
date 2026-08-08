@@ -90,6 +90,21 @@ class CerrarCliTests(unittest.TestCase):
         self.assertIn("host: codex", cierre)
         self.assertIn("thread_id: thread-cli-1", cierre)
 
+    def test_cli_indexa_cierre_general_por_tema(self):
+        cierre_general = {**CIERRE_DICT, "entidades": []}
+
+        result = self._ejecutar(cierre_general)
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        evidencia = json.loads(result.stdout)
+        indice = json.loads(
+            (self.vault / "Sistema/Memoria/indices/entidades.json").read_text(encoding="utf-8")
+        )
+        entrada = indice["entidades"]["comando comun"][0]
+        self.assertTrue(evidencia["indexado"])
+        self.assertEqual(entrada["origen"], "tema")
+        self.assertEqual(entrada["ruta"], evidencia["cierre"])
+
     def test_datos_invalidos_salen_con_codigo_dos(self):
         result = self._ejecutar({"host": "codex"})
 

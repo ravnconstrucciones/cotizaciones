@@ -88,7 +88,7 @@ class AlmacenMemoria:
                 indice = _leer_indice(destino)
                 entidades = indice.setdefault("entidades", {})
                 ruta_relativa = _texto_indice(_ruta_relativa(self.vault, ruta_cierre))
-                entrada = {
+                entrada_base = {
                     "ruta": ruta_relativa,
                     "updated_at": _texto_indice(cierre.fecha_cierre),
                     "host": _texto_indice(cierre.host),
@@ -96,16 +96,10 @@ class AlmacenMemoria:
                     "tema": _texto_indice(cierre.tema),
                     "estado": _texto_indice(cierre.estado),
                 }
-                for entidad in {
-                    _normalizar_entidad(_texto_indice(valor))
-                    for valor in cierre.entidades
-                    if valor.strip()
-                }:
-                    if not entidad:
-                        continue
-                    notas = entidades.setdefault(entidad, [])
+                for clave, origen in claves_indice(cierre):
+                    notas = entidades.setdefault(clave, [])
                     notas[:] = [nota for nota in notas if nota.get("ruta") != ruta_relativa]
-                    notas.append(entrada)
+                    notas.append({**entrada_base, "origen": origen})
                     notas.sort(key=lambda nota: (nota["updated_at"], nota["ruta"]), reverse=True)
 
                 indice["updated_at"] = _texto_indice(cierre.fecha_cierre)
@@ -218,6 +212,18 @@ def _normalizar_entidad(entidad: str) -> str:
         if not unicodedata.combining(caracter)
     )
     return " ".join(sin_acentos.casefold().split())
+
+
+def claves_indice(cierre: Cierre) -> set[tuple[str, str]]:
+    """Devuelve claves recuperables y el campo que les dio origen."""
+    entidades = {
+        _normalizar_entidad(_texto_indice(valor))
+        for valor in cierre.entidades
+        if valor.strip()
+    }
+    if entidades:
+        return {(entidad, "entidad") for entidad in entidades}
+    return {(_normalizar_entidad(_texto_indice(cierre.tema)), "tema")}
 
 
 def _texto_indice(valor: str) -> str:

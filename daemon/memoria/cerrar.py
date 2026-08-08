@@ -7,7 +7,7 @@ from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
-from .almacen import AlmacenMemoria
+from .almacen import AlmacenMemoria, claves_indice
 from .colectores import leer_sesion
 from .modelo import Cierre, Mensaje, validar_cierre
 
@@ -91,13 +91,15 @@ def _verificar_indice(vault: Path, ruta_cierre: Path, cierre: Cierre) -> None:
         raise ValueError(f"Índice de entidades inválido: {indice_path}")
 
     ruta = _relativa(vault, ruta_cierre)
-    for entradas in entidades.values():
-        if isinstance(entradas, list) and any(
-            isinstance(entrada, dict) and entrada.get("ruta") == ruta for entrada in entradas
+    for clave, origen in claves_indice(cierre):
+        entradas = entidades.get(clave)
+        if not isinstance(entradas, list) or not any(
+            isinstance(entrada, dict)
+            and entrada.get("ruta") == ruta
+            and entrada.get("origen") == origen
+            for entrada in entradas
         ):
-            return
-    if cierre.entidades:
-        raise ValueError(f"El índice reabierto no contiene el cierre: {ruta}")
+            raise ValueError(f"El índice reabierto no contiene el cierre: {ruta}")
 
 
 def _reabrir(ruta: Path) -> str:
