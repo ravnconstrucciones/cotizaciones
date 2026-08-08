@@ -35,10 +35,6 @@ _HEADER_FIELD = re.compile(
     rf"(?im)(?P<delimiter>^|[{{\[,])(?P<indent>[ \t]*)(?P<item>-\s*)?"
     rf"(?P<key>[\"']{_HEADER_KEY}[\"']|{_HEADER_KEY})(?P<separator>[ \t]*:[ \t]*)"
 )
-_NEXT_FLOW_FIELD = re.compile(
-    r"\s*(?:\"(?:\\.|[^\"\\])*\"|'(?:\\.|[^'\\])*'|"
-    r"[A-Za-z_][A-Za-z0-9_-]*)\s*:"
-)
 
 _CAMPO_TEXTO = (
     "id",
@@ -118,10 +114,65 @@ class Cierre:
 
 def redactar_secretos(texto: str) -> str:
     """Reemplaza credenciales conocidas sin alterar el contexto restante."""
+    texto = _normalizar_escapes_unicode_json(texto)
     texto = _redactar_encabezados(texto)
     for patron in SECRET_PATTERNS:
         texto = re.sub(patron, _reemplazar_secreto, texto)
     return texto
+
+
+def _normalizar_escapes_unicode_json(texto: str) -> str:
+    """Decodifica escapes Unicode JSON válidos antes de clasificar sus claves."""
+    partes: list[str] = []
+    posicion = 0
+
+    while posicion < len(texto):
+        if not _es_escape_unicode_json(texto, posicion):
+            partes.append(texto[posicion])
+            posicion += 1
+            continue
+
+        unidad = int(texto[posicion + 2 : posicion + 6], 16)
+        if 0xD800 <= unidad <= 0xDBFF:
+            siguiente = posicion + 6
+            if _es_escape_unicode_json(texto, siguiente):
+                unidad_baja = int(texto[siguiente + 2 : siguiente + 6], 16)
+                if 0xDC00 <= unidad_baja <= 0xDFFF:
+                    codigo = (
+                        0x10000
+                        + ((unidad - 0xD800) << 10)
+                        + (unidad_baja - 0xDC00)
+                    )
+                    partes.append(chr(codigo))
+                    posicion = siguiente + 6
+                    continue
+            partes.append(texto[posicion : posicion + 6])
+            posicion += 6
+            continue
+
+        if 0xDC00 <= unidad <= 0xDFFF:
+            partes.append(texto[posicion : posicion + 6])
+        else:
+            partes.append(chr(unidad))
+        posicion += 6
+
+    return "".join(partes)
+
+
+def _es_escape_unicode_json(texto: str, posicion: int) -> bool:
+    if posicion + 6 > len(texto) or texto[posicion : posicion + 2] != "\\u":
+        return False
+    barras_previas = 0
+    anterior = posicion - 1
+    while anterior >= 0 and texto[anterior] == "\\":
+        barras_previas += 1
+        anterior -= 1
+    if barras_previas % 2:
+        return False
+    return all(
+        caracter in "0123456789abcdefABCDEF"
+        for caracter in texto[posicion + 2 : posicion + 6]
+    )
 
 
 def _redactar_encabezados(texto: str) -> str:
@@ -140,6 +191,10 @@ def _redactar_encabezados(texto: str) -> str:
         delimitador = coincidencia.group("delimiter")
         es_flow = bool(delimitador) and delimitador in "{[,"
         valor = texto[inicio_valor:]
+        indentacion_clave = _ancho_indentacion(coincidencia.group("indent"))
+        if coincidencia.group("item") is not None:
+            indentacion_clave += _ancho_indentacion(coincidencia.group("item"))
+        fin_linea = _fin_linea(texto, inicio_valor)
 
         if valor.startswith("[REDACTADO]"):
             partes.append("[REDACTADO]")
@@ -153,6 +208,29 @@ def _redactar_encabezados(texto: str) -> str:
                 partes.extend((comilla, "[REDACTADO]", comilla))
                 posicion = fin + 1
                 continue
+            if not es_flow:
+                inicio_cuerpo, salto = _inicio_linea_siguiente(texto, fin_linea)
+                fin_cuerpo = _fin_escalar_por_indentacion(
+                    texto, inicio_cuerpo, indentacion_clave
+                )
+                partes.append("[REDACTADO]")
+                if salto and fin_cuerpo < len(texto):
+                    partes.append(salto)
+                posicion = fin_cuerpo
+                continue
+
+        if not es_flow and _es_indicador_escalar_bloque(
+            texto[inicio_valor:fin_linea]
+        ):
+            inicio_cuerpo, salto = _inicio_linea_siguiente(texto, fin_linea)
+            fin_cuerpo = _fin_escalar_por_indentacion(
+                texto, inicio_cuerpo, indentacion_clave
+            )
+            partes.append("[REDACTADO]")
+            if salto and fin_cuerpo < len(texto):
+                partes.append(salto)
+            posicion = fin_cuerpo
+            continue
 
         if (
             not es_flow
@@ -198,22 +276,120 @@ def _fin_valor_entre_comillas(texto: str, inicio: int, comilla: str) -> int | No
                 posicion += 2
                 continue
             return posicion
-        if caracter in "\r\n":
-            return None
         posicion += 1
     return None
 
 
 def _fin_valor_flow(texto: str, inicio: int) -> int:
     posicion = inicio
+    anidados: list[str] = []
     while posicion < len(texto):
         caracter = texto[posicion]
-        if caracter in "\r\n}]":
+        if caracter in "\"'":
+            fin = _fin_valor_entre_comillas(texto, posicion, caracter)
+            if fin is None:
+                return len(texto)
+            posicion = fin + 1
+            continue
+        if caracter in "[{":
+            anidados.append("]" if caracter == "[" else "}")
+            posicion += 1
+            continue
+        if caracter in "]}":
+            if anidados and caracter == anidados[-1]:
+                anidados.pop()
+                posicion += 1
+                continue
+            if anidados:
+                posicion += 1
+                continue
             return posicion
-        if caracter == "," and _NEXT_FLOW_FIELD.match(texto, posicion + 1):
+        if (
+            caracter == ","
+            and not anidados
+            and _comienza_campo_flow(texto, posicion + 1)
+        ):
             return posicion
         posicion += 1
     return posicion
+
+
+def _comienza_campo_flow(texto: str, inicio: int) -> bool:
+    posicion = inicio
+    while posicion < len(texto) and texto[posicion].isspace():
+        posicion += 1
+    if posicion >= len(texto):
+        return False
+
+    if texto[posicion] in "\"'":
+        fin = _fin_valor_entre_comillas(texto, posicion, texto[posicion])
+        if fin is None:
+            return False
+        posicion = fin + 1
+        while posicion < len(texto) and texto[posicion].isspace():
+            posicion += 1
+        return posicion < len(texto) and texto[posicion] == ":"
+
+    fin = posicion
+    while fin < len(texto) and texto[fin] not in ":,{}[]\r\n":
+        fin += 1
+    if fin >= len(texto) or texto[fin] != ":":
+        return False
+    clave = texto[posicion:fin].strip()
+    return _es_clave_flow_simple(clave)
+
+
+def _es_clave_flow_simple(clave: str) -> bool:
+    if not clave:
+        return False
+    if clave[0] in "-?:,[]{}#&*!|>'\"%@`":
+        return False
+    if any(
+        caracter in "=,[]{}\r\n" or not caracter.isprintable()
+        for caracter in clave
+    ):
+        return False
+    return True
+
+
+def _es_indicador_escalar_bloque(valor: str) -> bool:
+    indicador = valor.strip()
+    if not indicador or indicador[0] not in "|>":
+        return False
+    sufijo = indicador[1:].split("#", 1)[0].strip()
+    if len(sufijo) > 2 or any(caracter not in "+-123456789" for caracter in sufijo):
+        return False
+    return sum(caracter in "+-" for caracter in sufijo) <= 1 and sum(
+        caracter.isdigit() for caracter in sufijo
+    ) <= 1
+
+
+def _inicio_linea_siguiente(texto: str, fin_linea: int) -> tuple[int, str]:
+    if texto.startswith("\r\n", fin_linea):
+        return fin_linea + 2, "\r\n"
+    if fin_linea < len(texto) and texto[fin_linea] in "\r\n":
+        return fin_linea + 1, texto[fin_linea]
+    return fin_linea, ""
+
+
+def _fin_escalar_por_indentacion(texto: str, inicio: int, base: int) -> int:
+    posicion = inicio
+    while posicion < len(texto):
+        fin = _fin_linea(texto, posicion)
+        linea = texto[posicion:fin]
+        if linea.strip():
+            prefijo = linea[: len(linea) - len(linea.lstrip(" \t"))]
+            if _ancho_indentacion(prefijo) <= base:
+                return posicion
+        siguiente, _ = _inicio_linea_siguiente(texto, fin)
+        if siguiente == fin:
+            return len(texto)
+        posicion = siguiente
+    return posicion
+
+
+def _ancho_indentacion(valor: str) -> int:
+    return len(valor.expandtabs(8))
 
 
 def _fin_linea(texto: str, inicio: int) -> int:

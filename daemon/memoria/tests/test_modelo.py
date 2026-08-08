@@ -183,6 +183,127 @@ class ModeloCanonicoTests(unittest.TestCase):
 
         self.assertEqual(redactar_secretos(primera), primera)
 
+    def test_normaliza_escapes_json_antes_de_reconocer_headers_sensibles(self):
+        texto = (
+            r'{"\u0041uthorization":"Bearer secret-auth",'
+            r'"\u0050roxy-Authorization":"Basic secret-proxy",'
+            r'"\u0043ookie":"sid=secret-cookie",'
+            r'"\u0053et-Cookie":"refresh=secret-set",'
+            r'"obra-\uD83D\uDEE0":"Glorietas"}'
+        )
+
+        resultado = redactar_secretos(texto)
+
+        self.assertEqual(
+            resultado,
+            '{"Authorization":"[REDACTADO]",'
+            '"Proxy-Authorization":"[REDACTADO]",'
+            '"Cookie":"[REDACTADO]",'
+            '"Set-Cookie":"[REDACTADO]",'
+            '"obra-🛠":"Glorietas"}',
+        )
+        for secreto in ("secret-auth", "secret-proxy", "secret-cookie", "secret-set"):
+            self.assertNotIn(secreto, resultado)
+
+    def test_redacta_headers_en_escalares_yaml_block_y_folded_completos(self):
+        texto = (
+            "headers:\n"
+            "  Authorization: |2-\n"
+            "    Bearer secret-block\n"
+            "    segunda-secret-block\n"
+            "  obra: Las Glorietas\n"
+            "  Set-Cookie: >+2\n"
+            "    sid=secret-folded\n"
+            "    Path=/, HttpOnly\n"
+            "  cliente: RAVN\n"
+            "lista:\n"
+            "  - Cookie: |-2\n"
+            "      sid=secret-lista\n"
+            "    obra.detalle: Piso\n"
+            "  - cliente: RAVN"
+        )
+
+        resultado = redactar_secretos(texto)
+
+        self.assertEqual(
+            resultado,
+            "headers:\n"
+            "  Authorization: [REDACTADO]\n"
+            "  obra: Las Glorietas\n"
+            "  Set-Cookie: [REDACTADO]\n"
+            "  cliente: RAVN\n"
+            "lista:\n"
+            "  - Cookie: [REDACTADO]\n"
+            "    obra.detalle: Piso\n"
+            "  - cliente: RAVN",
+        )
+        self.assertNotIn("secret-block", resultado)
+        self.assertNotIn("secret-folded", resultado)
+        self.assertNotIn("secret-lista", resultado)
+
+    def test_redacta_headers_quoted_multiline_hasta_la_comilla_de_cierre(self):
+        texto = (
+            'Proxy-Authorization: "Digest secret-double\\"quoted\n'
+            '  segunda-secret-double"\n'
+            "obra: Las Glorietas\n"
+            "Cookie: 'sid=secret-single\n"
+            "  theme=segunda-secret-single'\n"
+            "cliente: RAVN"
+        )
+
+        resultado = redactar_secretos(texto)
+
+        self.assertEqual(
+            resultado,
+            'Proxy-Authorization: "[REDACTADO]"\n'
+            "obra: Las Glorietas\n"
+            "Cookie: '[REDACTADO]'\n"
+            "cliente: RAVN",
+        )
+        for secreto in ("secret-double", "segunda-secret-double", "secret-single"):
+            self.assertNotIn(secreto, resultado)
+
+    def test_flow_anidado_preserva_claves_dotted_unicode_y_quoted_escapadas(self):
+        texto = (
+            r'documento: {headers: [Cookie: sid=secret-cookie,a=b:c, '
+            r'"obra\u002Edetalle": Piso, Set-Cookie: refresh=secret-set,x=y:z, '
+            r'🛠.estado: listo], área.obra: Cocina, cliente: RAVN}'
+        )
+
+        resultado = redactar_secretos(texto)
+
+        self.assertEqual(
+            resultado,
+            'documento: {headers: [Cookie: [REDACTADO], '
+            '"obra.detalle": Piso, Set-Cookie: [REDACTADO], '
+            '🛠.estado: listo], área.obra: Cocina, cliente: RAVN}',
+        )
+        self.assertNotIn("secret-cookie", resultado)
+        self.assertNotIn("secret-set", resultado)
+
+    def test_flow_ambiguo_redacta_hasta_el_cierre_sin_filtrar_fragmentos(self):
+        texto = "headers: {Cookie: sid=secret-cookie, fragmento, secreto-restante}"
+
+        resultado = redactar_secretos(texto)
+
+        self.assertEqual(resultado, "headers: {Cookie: [REDACTADO]}")
+        self.assertNotIn("secret", resultado)
+
+    def test_quote_block_sin_cierre_falla_cerrado_hasta_el_siguiente_sibling(self):
+        texto = (
+            'Authorization: "Bearer secret-abierto\n'
+            "  continuacion-secret-abierto\n"
+            "obra: Las Glorietas"
+        )
+
+        resultado = redactar_secretos(texto)
+
+        self.assertEqual(
+            resultado,
+            "Authorization: [REDACTADO]\nobra: Las Glorietas",
+        )
+        self.assertNotIn("secret-abierto", resultado)
+
     def test_redacta_claves_genericas_sensibles_habituales(self):
         texto = (
             "JWT_SECRET=jwt-123 STRIPE_SECRET_KEY=stripe-123 "
