@@ -98,6 +98,30 @@ class ModeloCanonicoTests(unittest.TestCase):
             "precio estimado 100",
         )
 
+    def test_redacta_clave_y_valor_quoted_en_json_sin_ocultar_campos_ordinarios(self):
+        texto = '{"OPENAI_API_KEY":"secreto-json","obra":"Glorietas","precio":100}'
+
+        self.assertEqual(
+            redactar_secretos(texto),
+            '{"OPENAI_API_KEY":"[REDACTADO]","obra":"Glorietas","precio":100}',
+        )
+
+    def test_redacta_familias_sensibles_en_yaml_y_conserva_texto_ordinario(self):
+        texto = (
+            "AWS_SECRET_ACCESS_KEY: aws-secret+/==\n"
+            "PRIVATE_KEY: clave-privada\n"
+            "obra: Glorietas\n"
+            "precio: 100"
+        )
+
+        self.assertEqual(
+            redactar_secretos(texto),
+            "AWS_SECRET_ACCESS_KEY: [REDACTADO]\n"
+            "PRIVATE_KEY: [REDACTADO]\n"
+            "obra: Glorietas\n"
+            "precio: 100",
+        )
+
     def test_cierre_exige_fuente_y_estado_valido(self):
         with self.assertRaises(ValueError):
             validar_cierre({"host": "codex", "thread_id": "t-1", "estado": "inventado"})

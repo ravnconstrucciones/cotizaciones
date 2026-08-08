@@ -17,6 +17,7 @@ SECRET_PATTERNS = (
     r"(?i)(OPENAI_API_KEY\s*=\s*)[^\s]+",
     r"(?i)(Authorization:\s*Bearer\s+)\S+",
     r"(?im)(^\s*(?:Set-)?Cookie\s*:\s*)[^\r\n]+",
+    r"(?i)([\"'](?:[A-Za-z][A-Za-z0-9_-]*?(?:API[_-]?KEY|TOKEN|SECRET(?:[_-]?KEY)?|PASSWORD|PASSWD|PRIVATE[_-]?KEY|ACCESS[_-]?KEY|CLIENT[_-]?SECRET(?:[_-]?KEY)?)|API[_-]?KEY|TOKEN|SECRET(?:[_-]?KEY)?|PASSWORD|PASSWD|PRIVATE[_-]?KEY|ACCESS[_-]?KEY|CLIENT[_-]?SECRET(?:[_-]?KEY)?|DATABASE_(?:URL|URI)|REDIS_URL|CONNECTION_STRING|ENCRYPTION_KEY|SIGNING_KEY)[\"']\s*:\s*[\"'])[^\"'\r\n]*([\"'])",
     r"(?i)(\b(?:[A-Za-z][A-Za-z0-9_-]*?(?:API[_-]?KEY|TOKEN|SECRET(?:[_-]?KEY)?|PASSWORD|PASSWD|PRIVATE[_-]?KEY|ACCESS[_-]?KEY|CLIENT[_-]?SECRET(?:[_-]?KEY)?)|API[_-]?KEY|TOKEN|SECRET(?:[_-]?KEY)?|PASSWORD|PASSWD|PRIVATE[_-]?KEY|ACCESS[_-]?KEY|CLIENT[_-]?SECRET(?:[_-]?KEY)?|DATABASE_(?:URL|URI)|REDIS_URL|CONNECTION_STRING|ENCRYPTION_KEY|SIGNING_KEY)\s*[:=]\s*)(?:\"[^\"\r\n]*\"|'[^'\r\n]*'|[^\s\r\n]+)",
     r"(?im)(^\s*(?:Authorization|Proxy-Authorization)\s*:\s*)(?!\s*Bearer\s+\[REDACTADO\])[^\r\n]+",
 )
@@ -101,8 +102,14 @@ class Cierre:
 def redactar_secretos(texto: str) -> str:
     """Reemplaza credenciales conocidas sin alterar el contexto restante."""
     for patron in SECRET_PATTERNS:
-        texto = re.sub(patron, r"\1[REDACTADO]", texto)
+        texto = re.sub(patron, _reemplazar_secreto, texto)
     return texto
+
+
+def _reemplazar_secreto(coincidencia: re.Match[str]) -> str:
+    if coincidencia.lastindex == 2:
+        return f"{coincidencia.group(1)}[REDACTADO]{coincidencia.group(2)}"
+    return f"{coincidencia.group(1)}[REDACTADO]"
 
 
 def validar_cierre(data: dict) -> Cierre:
