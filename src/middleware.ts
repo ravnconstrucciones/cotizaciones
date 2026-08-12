@@ -1,6 +1,98 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
+const AUTH_NETWORK_TIMEOUT_MS = 2_500;
+
+type ResultadoClaims = {
+  data: { claims: { sub?: unknown } | null } | null;
+  error: { name?: string; status?: number } | null;
+};
+
+export type EstadoAutenticacion =
+  | { tipo: "autenticado" }
+  | { tipo: "no_autenticado" }
+  | { tipo: "no_disponible" };
+
+/**
+ * Supabase Auth no puede retener el middleware hasta el timeout de Vercel.
+ * El aborto también corta el fetch subyacente: un Promise.race solo devolvería
+ * antes, pero dejaría la renovación de token golpeando Auth en segundo plano.
+ */
+export function crearFetchConTimeout(
+  fetchBase: typeof fetch,
+  timeoutMs: number
+): typeof fetch {
+  return async (input, init) => {
+    const controller = new AbortController();
+    const signalOriginal = init?.signal;
+    const propagarAborto = () => controller.abort(signalOriginal?.reason);
+
+    if (signalOriginal?.aborted) {
+      propagarAborto();
+    } else {
+      signalOriginal?.addEventListener("abort", propagarAborto, { once: true });
+    }
+
+    const timeout = setTimeout(
+      () => controller.abort(new DOMException("Supabase Auth timeout", "AbortError")),
+      timeoutMs
+    );
+
+    try {
+      return await fetchBase(input, { ...init, signal: controller.signal });
+    } finally {
+      clearTimeout(timeout);
+      signalOriginal?.removeEventListener("abort", propagarAborto);
+    }
+  };
+}
+
+/**
+ * `getClaims()` valida localmente los JWT ES256 de RAVN. Solo toca la red para
+ * obtener JWKS (cacheado) o renovar una sesión próxima a vencer. Una falla de
+ * infraestructura no se confunde con logout para no borrar una sesión válida.
+ */
+export async function obtenerEstadoAutenticacion(
+  getClaims: () => Promise<ResultadoClaims>
+): Promise<EstadoAutenticacion> {
+  try {
+    const { data, error } = await getClaims();
+
+    if (data?.claims?.sub) return { tipo: "autenticado" };
+    if (!error) return { tipo: "no_autenticado" };
+
+    const transitorio =
+      error.status === 409 ||
+      error.status === 429 ||
+      (typeof error.status === "number" && error.status >= 500) ||
+      error.name === "AuthRetryableFetchError" ||
+      error.name === "AbortError";
+
+    return { tipo: transitorio ? "no_disponible" : "no_autenticado" };
+  } catch {
+    return { tipo: "no_disponible" };
+  }
+}
+
+function respuestaAuthNoDisponible(request: NextRequest): NextResponse {
+  const headers = {
+    "Cache-Control": "no-store",
+    "Retry-After": "3",
+  };
+
+  if (request.nextUrl.pathname.startsWith("/api/")) {
+    return NextResponse.json(
+      { ok: false, error: "RAVN está reconectando. Reintentá en unos segundos." },
+      { status: 503, headers }
+    );
+  }
+
+  return new NextResponse(
+    "RAVN está reconectando con la base. Reintentá en unos segundos.",
+    { status: 503, headers: { ...headers, "Content-Type": "text/plain; charset=utf-8" } }
+  );
+}
+
 /**
  * Rutas de la mesa de cotización que el bypass x-ravn-agente puede tocar
  * (fix ronda final finding 3). La ley "el chat jamás emite/aprueba" vivía
@@ -44,6 +136,9 @@ export async function middleware(request: NextRequest) {
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
+      global: {
+        fetch: crearFetchConTimeout(globalThis.fetch, AUTH_NETWORK_TIMEOUT_MS),
+      },
       cookies: {
         getAll() {
           return request.cookies.getAll();
@@ -61,13 +156,20 @@ export async function middleware(request: NextRequest) {
     }
   );
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const auth = await obtenerEstadoAutenticacion(() => supabase.auth.getClaims());
+
+  if (auth.tipo === "no_disponible") {
+    console.warn("[middleware] Supabase Auth no disponible", {
+      pathname: request.nextUrl.pathname,
+    });
+    return respuestaAuthNoDisponible(request);
+  }
+
+  const autenticado = auth.tipo === "autenticado";
 
   const isLoginPage = request.nextUrl.pathname.startsWith("/login");
 
-  if (!user && !isLoginPage) {
+  if (!autenticado && !isLoginPage) {
     // Fetch de API sin sesión: 401 JSON, nunca redirect a /login (revisión
     // 31/07). Un POST redirigido a la page de login termina en 405/HTML y el
     // cliente solo puede mostrar un error genérico; con 401 el cliente
@@ -102,7 +204,7 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  if (user && isLoginPage) {
+  if (autenticado && isLoginPage) {
     const url = request.nextUrl.clone();
     url.pathname = "/";
     return NextResponse.redirect(url);
