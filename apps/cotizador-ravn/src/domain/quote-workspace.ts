@@ -6,6 +6,8 @@ import type {
   OrigenPrecio,
   PrecioFechado,
   Revision,
+  TipoItem,
+  Unidad,
 } from "../../../../src/lib/cotizador/tipos";
 
 export type AutorMensaje = "eze" | "sistema" | "fable" | "codex";
@@ -61,19 +63,56 @@ export type QuoteEvidence = {
 
 export type BatchJobState = "not_instrumented";
 
+/** Detalle persistido de un ítem del rubro, para el alcance expandible. */
+export type BatchItem = {
+  name: string;
+  tipo: TipoItem;
+  unidad: Unidad;
+  cantidad: number;
+  subtotalMin: number;
+  subtotalMax: number;
+  priced: boolean;
+  /** Orígenes de precio persistidos (sismat/internet/retail/eze). */
+  origins: OrigenPrecio[];
+  /** true = decisión fechada de Eze o doble fuente SISMAT + internet. */
+  corroborated: boolean;
+  manual: boolean;
+};
+
 export type QuoteBatch = {
   id: string;
   etapa: string;
   itemCount: number;
   itemNames: string[];
+  items: BatchItem[];
   responsibility: string;
   evidence: QuoteEvidence[];
   priceRange: MoneyRange;
+  /** Subtotales persistidos solo de mano de obra del rubro. */
+  laborRange: MoneyRange;
+  /** Subtotales persistidos solo de materiales del rubro. */
+  materialsRange: MoneyRange;
   sourceCoverage: SourceCoverage;
   confidence: QuoteConfidence;
   blockers: string[];
   currentBlocker: string | null;
   jobState: BatchJobState;
+};
+
+/** Composición del costo directo tal como la persistió el motor en desglose.totales. */
+export type CostComposition = {
+  laborMin: number;
+  laborMax: number;
+  materialsMin: number;
+  materialsMax: number;
+  extrasMin: number;
+  extrasMax: number;
+  subtotalMin: number;
+  subtotalMax: number;
+  imprevistosPct: number;
+  factorZonaMin: number;
+  factorZonaMax: number;
+  basis: "persisted_desglose_totales";
 };
 
 export type QuoteBlockerCode =
@@ -180,6 +219,8 @@ export type QuoteWorkspaceSnapshot = {
     stage: QuoteStage;
     confidence: QuoteConfidence;
     blockers: QuoteBlocker[];
+    /** null cuando la cotización no persiste desglose.totales. */
+    composition: CostComposition | null;
   };
   batches: QuoteBatch[];
   roles: QuoteRole[];
@@ -410,6 +451,58 @@ function batchPriceRange(items: readonly ItemDesglose[]): MoneyRange {
   };
 }
 
+function typedPriceRange(items: readonly ItemDesglose[], tipo: TipoItem): MoneyRange {
+  return batchPriceRange(items.filter((item) => item.tipo === tipo));
+}
+
+function itemCorroborated(item: ItemDesglose): boolean {
+  return Boolean(item.precios.eze) || Boolean(item.precios.sismat && item.precios.internet);
+}
+
+function batchItems(items: readonly ItemDesglose[]): BatchItem[] {
+  return items.map((item) => ({
+    name: item.nombre,
+    tipo: item.tipo,
+    unidad: item.unidad,
+    cantidad: item.cantidad,
+    subtotalMin: isFiniteNumber(item.subtotal_min) ? item.subtotal_min : 0,
+    subtotalMax: isFiniteNumber(item.subtotal_max) ? item.subtotal_max : 0,
+    priced: hasCalculatedPrice(item),
+    origins: SOURCE_ORDER.filter((origin) => Boolean(item.precios[origin])),
+    corroborated: hasCalculatedPrice(item) && itemCorroborated(item),
+    manual: item.manual === true,
+  }));
+}
+
+function costComposition(desglose: Desglose | null): CostComposition | null {
+  const totals = desglose?.totales;
+  if (
+    !totals ||
+    !isFiniteNumber(totals.materiales_min) ||
+    !isFiniteNumber(totals.materiales_max) ||
+    !isFiniteNumber(totals.mano_de_obra_min) ||
+    !isFiniteNumber(totals.mano_de_obra_max) ||
+    !isFiniteNumber(totals.subtotal_min) ||
+    !isFiniteNumber(totals.subtotal_max)
+  ) {
+    return null;
+  }
+  return {
+    laborMin: totals.mano_de_obra_min,
+    laborMax: totals.mano_de_obra_max,
+    materialsMin: totals.materiales_min,
+    materialsMax: totals.materiales_max,
+    extrasMin: isFiniteNumber(totals.extras_min) ? totals.extras_min : 0,
+    extrasMax: isFiniteNumber(totals.extras_max) ? totals.extras_max : 0,
+    subtotalMin: totals.subtotal_min,
+    subtotalMax: totals.subtotal_max,
+    imprevistosPct: isFiniteNumber(totals.imprevistos_pct) ? totals.imprevistos_pct : 0,
+    factorZonaMin: isFiniteNumber(totals.factor_zona_min) ? totals.factor_zona_min : 1,
+    factorZonaMax: isFiniteNumber(totals.factor_zona_max) ? totals.factor_zona_max : 1,
+    basis: "persisted_desglose_totales",
+  };
+}
+
 type ReviewState = "absent" | "incomplete" | "complete";
 
 function reviewState(revision: Revision | null): ReviewState {
@@ -472,9 +565,7 @@ function batchConfidence(args: {
     return { level: "baja", basis: ["Hay divergencias de fuente que requieren revisión."] };
   }
 
-  const independentlyCorroborated = items.every(
-    (item) => Boolean(item.precios.eze) || Boolean(item.precios.sismat && item.precios.internet)
-  );
+  const independentlyCorroborated = items.every(itemCorroborated);
   if (coverage.percent === 100 && independentlyCorroborated) {
     return {
       level: "alta",
@@ -554,9 +645,12 @@ function groupedBatches(items: readonly ItemDesglose[], revision: Revision | nul
       etapa,
       itemCount: group.length,
       itemNames: group.map((item) => item.nombre),
+      items: batchItems(group),
       responsibility,
       evidence: evidenceForItems(etapa, group),
       priceRange: batchPriceRange(group),
+      laborRange: typedPriceRange(group, "mano_de_obra"),
+      materialsRange: typedPriceRange(group, "material"),
       sourceCoverage: sourceCoverage(group),
       confidence: batchConfidence({
         items: group,
@@ -1118,6 +1212,7 @@ export function projectQuoteWorkspace(input: ProjectQuoteWorkspaceInput): QuoteW
       stage: stageFromLegacyState(input.quote.estado),
       confidence: coreConfidence({ costRange, batches, blockers }),
       blockers,
+      composition: costComposition(desglose),
     },
     batches,
     roles: roles({

@@ -30,6 +30,7 @@ import {
   type RefObject,
 } from "react";
 import type {
+  BatchItem,
   QuoteBatch,
   QuoteEvent,
   QuoteRole,
@@ -677,6 +678,7 @@ function TeamWorkspace({
   active: boolean;
   reduceMotion: boolean;
 }) {
+  const [sourcesOpen, setSourcesOpen] = useState(false);
   const codexBatchIds = modelBatchIds(snapshot, "codex");
   const fableBatchIds = modelBatchIds(snapshot, "fable");
   const modelCoverage = unique([...codexBatchIds, ...fableBatchIds]);
@@ -711,9 +713,32 @@ function TeamWorkspace({
             selectedBatch={selectedBatch}
             onSelectBatch={onSelectBatch}
             reduceMotion={reduceMotion}
+            expand={
+              station.id === "sources" && station.evidenceCount > 0
+                ? {
+                    open: sourcesOpen,
+                    count: station.evidenceCount,
+                    onToggle: () => setSourcesOpen((current) => !current),
+                  }
+                : undefined
+            }
           />
         ))}
       </div>
+
+      <AnimatePresence initial={false}>
+        {sourcesOpen ? (
+          <motion.div
+            id="qz-sources-panel"
+            initial={reduceMotion ? false : { height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={reduceMotion ? undefined : { height: 0, opacity: 0 }}
+            transition={{ duration: reduceMotion ? 0 : 0.24, ease: [0.16, 1, 0.3, 1] }}
+          >
+            <SourcesPanel snapshot={snapshot} />
+          </motion.div>
+        ) : null}
+      </AnimatePresence>
 
       <div className="qz-model-comparison" aria-label="Cruce entre los dos modelos">
         <div>
@@ -763,12 +788,14 @@ function WorkstationCard({
   selectedBatch,
   onSelectBatch,
   reduceMotion,
+  expand,
 }: {
   snapshot: QuoteWorkspaceSnapshot;
   station: Workstation;
   selectedBatch: QuoteBatch | null;
   onSelectBatch: (id: string) => void;
   reduceMotion: boolean;
+  expand?: { open: boolean; count: number; onToggle: () => void };
 }) {
   const linkedToSelected = Boolean(selectedBatch && station.batchIds.includes(selectedBatch.id));
   return (
@@ -788,6 +815,18 @@ function WorkstationCard({
         <span>{station.status}</span>
       </header>
       <p className="qz-station__action">{station.action}</p>
+      {expand ? (
+        <button
+          type="button"
+          className="qz-station__expand"
+          aria-expanded={expand.open}
+          aria-controls="qz-sources-panel"
+          onClick={expand.onToggle}
+        >
+          {expand.open ? "Ocultar el detalle" : `Ver los ${expand.count} precios con fuente`}
+          <ChevronDown size={14} aria-hidden="true" data-open={expand.open} />
+        </button>
+      ) : null}
       <footer>
         <span>
           <FileCheck2 size={14} aria-hidden="true" />
@@ -811,6 +850,110 @@ function WorkstationCard({
         )}
       </div>
     </motion.article>
+  );
+}
+
+function itemSourceFlag(item: BatchItem): string | null {
+  if (!item.priced) return "Sin precio de costo";
+  if (item.corroborated) return null;
+  if (item.origins.length === 1 && item.origins[0] === "sismat") {
+    return "Solo SISMAT · falta contraste en internet";
+  }
+  return "Una sola fuente · falta contraste";
+}
+
+function SourcesPanel({ snapshot }: { snapshot: QuoteWorkspaceSnapshot }) {
+  const extras = snapshot.events.filter(
+    (event): event is Extract<QuoteEvent, { type: "source_evidence" }> =>
+      event.type === "source_evidence" && event.evidence.origin === "extra"
+  );
+
+  return (
+    <section className="qz-sources" aria-label="Todos los precios con fuente y fecha">
+      {snapshot.batches.map((batch) => {
+        if (batch.evidence.length === 0) return null;
+        return (
+          <div className="qz-sources__group" key={batch.id}>
+            <h3>
+              {batch.etapa}
+              <span>{batch.evidence.length} precio(s)</span>
+            </h3>
+            {batch.items
+              .filter((item) => item.origins.length > 0)
+              .map((item) => {
+                const rows = batch.evidence.filter((entry) => entry.item === item.name);
+                const flag = itemSourceFlag(item);
+                return (
+                  <div className="qz-sources__item" key={item.name}>
+                    <div className="qz-sources__item-head">
+                      <strong>{item.name}</strong>
+                      {flag ? <span className="qz-sources__flag">{flag}</span> : null}
+                    </div>
+                    <ul>
+                      {rows.map((evidence) => {
+                        const href = sourceUrl(evidence.source);
+                        return (
+                          <li key={evidence.id}>
+                            <span className="qz-sources__origin">
+                              {ORIGIN_LABELS[evidence.origin] ?? evidence.origin}
+                            </span>
+                            <p>{evidence.source}</p>
+                            <span className="qz-sources__value">
+                              {money(evidence.value)} · {dateTime(evidence.date)}
+                            </span>
+                            {href ? (
+                              <a href={href} target="_blank" rel="noreferrer">
+                                Abrir <ArrowUp size={12} aria-hidden="true" />
+                              </a>
+                            ) : (
+                              <span className="qz-sources__nolink">Sin link</span>
+                            )}
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  </div>
+                );
+              })}
+          </div>
+        );
+      })}
+
+      {extras.length > 0 ? (
+        <div className="qz-sources__group">
+          <h3>
+            Extras fuera de receta
+            <span>{extras.length} precio(s)</span>
+          </h3>
+          {extras.map((event) => {
+            const href = sourceUrl(event.evidence.source);
+            return (
+              <div className="qz-sources__item" key={event.id}>
+                <div className="qz-sources__item-head">
+                  <strong>{event.evidence.item}</strong>
+                </div>
+                <ul>
+                  <li>
+                    <span className="qz-sources__origin">Extra</span>
+                    <p>{event.evidence.source}</p>
+                    <span className="qz-sources__value">
+                      {money(event.evidence.value)} · {dateTime(event.evidence.date)}
+                    </span>
+                    {href ? (
+                      <a href={href} target="_blank" rel="noreferrer">
+                        Abrir <ArrowUp size={12} aria-hidden="true" />
+                      </a>
+                    ) : (
+                      <span className="qz-sources__nolink">Sin link</span>
+                    )}
+                  </li>
+                </ul>
+              </div>
+            );
+          })}
+        </div>
+      ) : null}
+    </section>
   );
 }
 
@@ -864,20 +1007,7 @@ function FormationBoard({
           </small>
         </article>
 
-        <article
-          className="qz-kpi qz-kpi--coverage"
-          aria-label={`Fuentes cubiertas: ${coverage} por ciento`}
-        >
-          <span className="qz-kpi__label">Fuentes cubiertas</span>
-          <div className="qz-gauge-wrap">
-            <Gauge percent={coverage} reduceMotion={reduceMotion} />
-            <strong>
-              {coverage}
-              <i>%</i>
-            </strong>
-          </div>
-          <small>del costo con fuente y fecha</small>
-        </article>
+        <CompositionCard snapshot={snapshot} reduceMotion={reduceMotion} />
 
         <div className="qz-kpi-stack">
           <article
@@ -892,6 +1022,7 @@ function FormationBoard({
               <span />
               <span />
             </i>
+            <small>{coverage}% del costo con fuente y fecha</small>
           </article>
           <article className="qz-kpi" aria-label={`Rubros listos: ${ready} de ${snapshot.batches.length}`}>
             <span className="qz-kpi__label">Rubros listos</span>
@@ -909,25 +1040,70 @@ function FormationBoard({
             <span>{snapshot.batches.length}</span>
           </div>
           <div className="qz-rubro-board__list">
-            {snapshot.batches.map((batch) => (
-              <button
-                type="button"
-                key={batch.id}
-                data-state={batch.currentBlocker ? "warn" : "ok"}
-                aria-pressed={selectedBatch?.id === batch.id}
-                onClick={() => onSelectBatch(batch.id)}
-              >
-                <div>
-                  <strong>{batch.etapa}</strong>
-                  <span>{batch.evidence.length} evidencias</span>
+            {snapshot.batches.map((batch) => {
+              const expanded = selectedBatch?.id === batch.id;
+              return (
+                <div className="qz-rubro" key={batch.id}>
+                  <button
+                    type="button"
+                    data-state={batch.currentBlocker ? "warn" : "ok"}
+                    aria-pressed={expanded}
+                    aria-expanded={expanded}
+                    onClick={() => onSelectBatch(batch.id)}
+                  >
+                    <div>
+                      <strong>{batch.etapa}</strong>
+                      <span>
+                        {batch.itemCount} ítem(s) · {batch.evidence.length} evidencias
+                      </span>
+                    </div>
+                    <span className="qz-rubro-board__pct">{batch.sourceCoverage.percent}%</span>
+                    <i aria-hidden="true">
+                      <span style={{ "--qz-progress": `${batch.sourceCoverage.percent}%` } as CSSProperties} />
+                    </i>
+                    <small>{batch.currentBlocker ?? "Costo cubierto con fuentes persistidas."}</small>
+                  </button>
+                  <AnimatePresence initial={false}>
+                    {expanded ? (
+                      <motion.div
+                        className="qz-rubro-items"
+                        role="region"
+                        aria-label={`Qué contempla ${batch.etapa}`}
+                        initial={reduceMotion ? false : { height: 0, opacity: 0 }}
+                        animate={{ height: "auto", opacity: 1 }}
+                        exit={reduceMotion ? undefined : { height: 0, opacity: 0 }}
+                        transition={{ duration: reduceMotion ? 0 : 0.22, ease: [0.16, 1, 0.3, 1] }}
+                      >
+                        <ul>
+                          {batch.items.map((item) => (
+                            <li key={item.name} data-priced={item.priced}>
+                              <div className="qz-rubro-items__head">
+                                <strong>{item.name}</strong>
+                                <span>
+                                  {item.priced
+                                    ? rangeMoney(item.subtotalMin, item.subtotalMax)
+                                    : "Sin precio"}
+                                </span>
+                              </div>
+                              <small>
+                                {item.tipo === "mano_de_obra" ? "Mano de obra" : "Material"} ·{" "}
+                                {item.cantidad} {item.unidad}
+                                {item.manual ? " · agregado en la mesa" : ""}
+                                {item.origins.length > 0
+                                  ? ` · ${item.origins
+                                      .map((origin) => ORIGIN_LABELS[origin] ?? origin)
+                                      .join(" + ")}`
+                                  : ""}
+                              </small>
+                            </li>
+                          ))}
+                        </ul>
+                      </motion.div>
+                    ) : null}
+                  </AnimatePresence>
                 </div>
-                <span className="qz-rubro-board__pct">{batch.sourceCoverage.percent}%</span>
-                <i aria-hidden="true">
-                  <span style={{ "--qz-progress": `${batch.sourceCoverage.percent}%` } as CSSProperties} />
-                </i>
-                <small>{batch.currentBlocker ?? "Costo cubierto con fuentes persistidas."}</small>
-              </button>
-            ))}
+              );
+            })}
             {snapshot.batches.length === 0 ? <p>No hay rubros guardados para formar el costo.</p> : null}
           </div>
         </section>
@@ -986,21 +1162,208 @@ function FormationBoard({
   );
 }
 
-function Gauge({ percent, reduceMotion }: { percent: number; reduceMotion: boolean }) {
-  const fraction = Math.max(0, Math.min(100, percent)) / 100;
+type CompositionMeasure = "todo" | "solo_mo";
+
+/**
+ * Paleta categórica RAVN para rubros, validada (dataviz) sobre #0a0a0a:
+ * banda L dark, croma ≥ 0.10, ΔE adyacente CVD ≥ 8, contraste ≥ 3:1.
+ * Orden fijo por rubro; los acentos de estado (salvia/ámbar/óxido) quedan reservados.
+ */
+const RUBRO_SLICE_COLORS = ["#3f72b3", "#c9739a", "#118066", "#8d78cf", "#8f9440"] as const;
+const FOLD_SLICE_COLOR = "#918e87";
+const EXTRA_SLICE_COLOR = "#5c5952";
+const MAX_RUBRO_SLICES = RUBRO_SLICE_COLORS.length;
+
+type CompositionSlice = {
+  key: string;
+  label: string;
+  min: number;
+  max: number;
+  color: string;
+};
+
+function compositionSlices(
+  snapshot: QuoteWorkspaceSnapshot,
+  measure: CompositionMeasure
+): CompositionSlice[] {
+  const rubros = snapshot.batches.map((batch, index) => {
+    const range = measure === "todo" ? batch.priceRange : batch.laborRange;
+    return {
+      key: batch.id,
+      label: batch.etapa,
+      min: range.min ?? 0,
+      max: range.max ?? 0,
+      color: index < MAX_RUBRO_SLICES ? RUBRO_SLICE_COLORS[index] : FOLD_SLICE_COLOR,
+      folded: index >= MAX_RUBRO_SLICES,
+    };
+  });
+  const slices: CompositionSlice[] = rubros.filter((rubro) => !rubro.folded && rubro.max > 0);
+  const folded = rubros.filter((rubro) => rubro.folded && rubro.max > 0);
+  if (folded.length > 0) {
+    slices.push({
+      key: "fold",
+      label: `Otros (${folded.length} rubros)`,
+      min: folded.reduce((sum, rubro) => sum + rubro.min, 0),
+      max: folded.reduce((sum, rubro) => sum + rubro.max, 0),
+      color: FOLD_SLICE_COLOR,
+    });
+  }
+  const composition = snapshot.core.composition;
+  if (measure === "todo" && composition && composition.extrasMax > 0) {
+    slices.push({
+      key: "extras",
+      label: "Extras",
+      min: composition.extrasMin,
+      max: composition.extrasMax,
+      color: EXTRA_SLICE_COLOR,
+    });
+  }
+  return slices;
+}
+
+function rangeMoney(min: number, max: number): string {
+  return min === max ? compactMoney(max) : `${compactMoney(min)} — ${compactMoney(max)}`;
+}
+
+function Donut({
+  slices,
+  total,
+  reduceMotion,
+}: {
+  slices: CompositionSlice[];
+  total: number;
+  reduceMotion: boolean;
+}) {
+  const gap = slices.length > 1 ? 1.4 : 0;
+  let start = 0;
   return (
-    <svg className="qz-gauge" viewBox="0 0 100 54" aria-hidden="true">
-      <path className="qz-gauge__track" d="M 8 50 A 42 42 0 0 1 92 50" pathLength={1} />
-      <motion.path
-        className="qz-gauge__value"
-        d="M 8 50 A 42 42 0 0 1 92 50"
-        pathLength={1}
-        strokeDasharray="1 1"
-        initial={reduceMotion ? false : { strokeDashoffset: 1 }}
-        animate={{ strokeDashoffset: 1 - fraction }}
-        transition={{ duration: reduceMotion ? 0 : 0.7, ease: [0.16, 1, 0.3, 1] }}
-      />
+    <svg className="qz-donut" viewBox="0 0 120 120" aria-hidden="true">
+      <g transform="rotate(-90 60 60)">
+        {slices.map((slice) => {
+          const percent = (slice.max / total) * 100;
+          const length = Math.max(percent - gap, 0.4);
+          const offset = -(start + gap / 2);
+          start += percent;
+          return (
+            <motion.circle
+              key={slice.key}
+              cx={60}
+              cy={60}
+              r={48}
+              pathLength={100}
+              fill="none"
+              stroke={slice.color}
+              strokeWidth={13}
+              initial={false}
+              animate={{
+                strokeDasharray: `${length} ${100 - length}`,
+                strokeDashoffset: offset,
+              }}
+              transition={{ duration: reduceMotion ? 0 : 0.5, ease: [0.16, 1, 0.3, 1] }}
+            />
+          );
+        })}
+      </g>
     </svg>
+  );
+}
+
+function CompositionCard({
+  snapshot,
+  reduceMotion,
+}: {
+  snapshot: QuoteWorkspaceSnapshot;
+  reduceMotion: boolean;
+}) {
+  const [measure, setMeasure] = useState<CompositionMeasure>("todo");
+  const slices = compositionSlices(snapshot, measure);
+  const total = slices.reduce((sum, slice) => sum + slice.max, 0);
+  const composition = snapshot.core.composition;
+  const splitTotal = composition ? composition.laborMax + composition.materialsMax : 0;
+
+  return (
+    <article className="qz-kpi qz-kpi--mix" aria-label="Composición del costo">
+      <header className="qz-mix-head">
+        <span className="qz-kpi__label">Composición del costo</span>
+        <div className="qz-mix-toggle" role="group" aria-label="Medida de la composición">
+          <button
+            type="button"
+            aria-pressed={measure === "todo"}
+            onClick={() => setMeasure("todo")}
+          >
+            MO + materiales
+          </button>
+          <button
+            type="button"
+            aria-pressed={measure === "solo_mo"}
+            onClick={() => setMeasure("solo_mo")}
+          >
+            Solo MO
+          </button>
+        </div>
+      </header>
+
+      {slices.length > 0 ? (
+        <div className="qz-mix-body">
+          <div className="qz-donut-wrap">
+            <Donut slices={slices} total={total} reduceMotion={reduceMotion} />
+            <div className="qz-donut-center">
+              <strong>{compactMoney(total)}</strong>
+              <small>techo del rango</small>
+            </div>
+          </div>
+          <ul className="qz-mix-legend">
+            {slices.map((slice) => (
+              <li key={slice.key}>
+                <i style={{ background: slice.color }} aria-hidden="true" />
+                <span className="qz-mix-legend__name">{slice.label}</span>
+                <span className="qz-mix-legend__val">
+                  {rangeMoney(slice.min, slice.max)} ·{" "}
+                  <b>{Math.round((slice.max / total) * 100)}%</b>
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : (
+        <p className="qz-mix-empty">
+          {measure === "solo_mo"
+            ? "No hay mano de obra con subtotal persistido."
+            : "Sin desglose persistido para componer el costo."}
+        </p>
+      )}
+
+      {composition && splitTotal > 0 ? (
+        <div
+          className="qz-mix-split"
+          role="img"
+          aria-label={`Mano de obra ${rangeMoney(composition.laborMin, composition.laborMax)}, materiales ${rangeMoney(composition.materialsMin, composition.materialsMax)}`}
+        >
+          <i aria-hidden="true">
+            <span
+              className="qz-mix-split__mo"
+              style={{ width: `${(composition.laborMax / splitTotal) * 100}%` }}
+            />
+            <span className="qz-mix-split__mat" />
+          </i>
+          <div>
+            <span>
+              <b>Mano de obra</b> {rangeMoney(composition.laborMin, composition.laborMax)} ·{" "}
+              {Math.round((composition.laborMax / splitTotal) * 100)}%
+            </span>
+            <span>
+              <b>Materiales</b> {rangeMoney(composition.materialsMin, composition.materialsMax)} ·{" "}
+              {Math.round((composition.materialsMax / splitTotal) * 100)}%
+            </span>
+          </div>
+        </div>
+      ) : null}
+
+      <small className="qz-mix-note">
+        Costo directo persistido, antes de imprevistos y zona; participación sobre el techo del
+        rango.
+      </small>
+    </article>
   );
 }
 

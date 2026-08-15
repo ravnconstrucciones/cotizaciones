@@ -136,6 +136,94 @@ describe("projectQuoteWorkspace", () => {
     ]);
   });
 
+  it("projects labor/material split, item detail and persisted cost composition", () => {
+    const labour: ItemDesglose = {
+      ...BASE_ITEM,
+      nombre: "Colocación",
+      tipo: "mano_de_obra",
+      unidad: "m2",
+      cantidad: 10,
+      precios: {
+        eze: { valor: 30, fuente: "Eze · cuadrilla", fecha: "2026-08-15" },
+      },
+      precio_min: 30,
+      precio_max: 30,
+      subtotal_min: 300,
+      subtotal_max: 300,
+      divergencia_pct: null,
+    };
+    const singleSource: ItemDesglose = {
+      ...BASE_ITEM,
+      nombre: "Pastina",
+      precios: {
+        sismat: { valor: 50, fuente: "SISMAT 05.02", fecha: "2026-08-14" },
+      },
+      precio_min: 50,
+      precio_max: 50,
+      subtotal_min: 50,
+      subtotal_max: 50,
+      divergencia_pct: null,
+    };
+    const input = quote({
+      desglose: {
+        ...quote().desglose,
+        items: [BASE_ITEM, labour, singleSource],
+      } as CotizacionRow["desglose"],
+    });
+
+    const result = projectQuoteWorkspace({ quote: input });
+
+    expect(result.batches).toHaveLength(1);
+    expect(result.batches[0].laborRange).toMatchObject({ min: 300, max: 300 });
+    expect(result.batches[0].materialsRange).toMatchObject({ min: 150, max: 170 });
+    expect(result.batches[0].items).toEqual([
+      expect.objectContaining({
+        name: BASE_ITEM.nombre,
+        tipo: "material",
+        priced: true,
+        origins: ["sismat", "internet"],
+        corroborated: true,
+        manual: false,
+      }),
+      expect.objectContaining({
+        name: "Colocación",
+        tipo: "mano_de_obra",
+        cantidad: 10,
+        unidad: "m2",
+        subtotalMin: 300,
+        subtotalMax: 300,
+        origins: ["eze"],
+        corroborated: true,
+      }),
+      expect.objectContaining({
+        name: "Pastina",
+        origins: ["sismat"],
+        corroborated: false,
+      }),
+    ]);
+    expect(result.core.composition).toEqual({
+      laborMin: 0,
+      laborMax: 0,
+      materialsMin: 100,
+      materialsMax: 120,
+      extrasMin: 0,
+      extrasMax: 0,
+      subtotalMin: 100,
+      subtotalMax: 120,
+      imprevistosPct: 0,
+      factorZonaMin: 1,
+      factorZonaMax: 1,
+      basis: "persisted_desglose_totales",
+    });
+  });
+
+  it("returns a null composition when the quote persists no desglose totals", () => {
+    const result = projectQuoteWorkspace({
+      quote: quote({ desglose: {}, receta_id: null, total_min: null, total_max: null }),
+    });
+    expect(result.core.composition).toBeNull();
+  });
+
   it("exposes every required blocker without inferring margin approval", () => {
     const missing: ItemDesglose = {
       ...BASE_ITEM,

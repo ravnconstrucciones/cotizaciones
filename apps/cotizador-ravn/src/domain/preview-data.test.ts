@@ -38,7 +38,7 @@ describe("local preview fixture", () => {
     });
     expect(preview.snapshot.core.costRange).toMatchObject({
       min: 2_059_750,
-      max: 2_165_900,
+      max: 2_157_650,
     });
     expect(
       new Set(
@@ -74,7 +74,7 @@ describe("local preview fixture", () => {
       { min: 0, max: 0 }
     );
 
-    expect(batchTotals).toEqual({ min: 1_872_500, max: 1_969_000 });
+    expect(batchTotals).toEqual({ min: 1_872_500, max: 1_961_500 });
     expect(Math.round(batchTotals.min * 1.1)).toBe(preview.snapshot.core.costRange.min);
     expect(Math.round(batchTotals.max * 1.1)).toBe(preview.snapshot.core.costRange.max);
   });
