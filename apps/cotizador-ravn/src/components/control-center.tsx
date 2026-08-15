@@ -495,25 +495,27 @@ export function ControlCenter({
           reduceMotion={Boolean(reduceMotion)}
         />
 
-        <TeamWorkspace
-          snapshot={snapshot}
-          stations={workstations}
-          events={events}
-          selectedBatch={selectedBatch}
-          onSelectBatch={setSelectedBatchId}
-          active={mobileTab === "equipo"}
-          reduceMotion={Boolean(reduceMotion)}
-        />
+        <div className="qz-deck">
+          <FormationBoard
+            snapshot={snapshot}
+            selectedBatch={selectedBatch}
+            onSelectBatch={setSelectedBatchId}
+            onAnswer={focusConversation}
+            active={mobileTab === "cotizacion"}
+            preview={preview}
+            reduceMotion={Boolean(reduceMotion)}
+          />
 
-        <FormationBoard
-          snapshot={snapshot}
-          selectedBatch={selectedBatch}
-          onSelectBatch={setSelectedBatchId}
-          onAnswer={focusConversation}
-          active={mobileTab === "cotizacion"}
-          preview={preview}
-          reduceMotion={Boolean(reduceMotion)}
-        />
+          <TeamWorkspace
+            snapshot={snapshot}
+            stations={workstations}
+            events={events}
+            selectedBatch={selectedBatch}
+            onSelectBatch={setSelectedBatchId}
+            active={mobileTab === "equipo"}
+            reduceMotion={Boolean(reduceMotion)}
+          />
+        </div>
       </main>
 
       <TechnicalDetails snapshot={snapshot} selectedBatch={selectedBatch} events={events} />
@@ -675,13 +677,6 @@ function TeamWorkspace({
   active: boolean;
   reduceMotion: boolean;
 }) {
-  const visibleBatches = snapshot.batches.slice(0, 5);
-  const modelStations = stations.filter(
-    (station): station is Workstation => station.id === "codex" || station.id === "fable"
-  );
-  const validationStations = stations.filter(
-    (station): station is Workstation => station.id === "sources" || station.id === "verification"
-  );
   const codexBatchIds = modelBatchIds(snapshot, "codex");
   const fableBatchIds = modelBatchIds(snapshot, "fable");
   const modelCoverage = unique([...codexBatchIds, ...fableBatchIds]);
@@ -691,10 +686,7 @@ function TeamWorkspace({
   const sharedNames = sharedBatchIds
     .map((id) => snapshot.batches.find((batch) => batch.id === id)?.etapa)
     .filter((name): name is string => Boolean(name));
-  const modelContributionCount = modelStations.reduce(
-    (sum, station) => sum + station.evidenceCount,
-    0
-  );
+  const modelContributionCount = stations.reduce((sum, station) => sum + station.evidenceCount, 0);
 
   return (
     <section
@@ -702,118 +694,43 @@ function TeamWorkspace({
       data-mobile-active={active}
       aria-labelledby="team-title"
     >
-      <header className="qz-column-header qz-column-header--row">
+      <header className="qz-section-bar">
         <div>
           <h2 id="team-title">Codex + Fable contrastan el mismo pedido</h2>
           <p>Sus aportes se cruzan por rubro; fuentes y controles validan qué entra al costo.</p>
         </div>
-        <span className="qz-column-state">{modelContributionCount} aportes de modelos</span>
+        <span className="qz-column-state">{modelContributionCount} aportes</span>
       </header>
 
-      <div className="qz-team-map">
-        <svg className="qz-team-links" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
-          {[
-            "M 24 18 C 34 18, 38 29, 50 35",
-            "M 76 18 C 66 18, 62 29, 50 35",
-            "M 24 64 C 34 64, 40 47, 50 40",
-            "M 76 64 C 66 64, 60 47, 50 40",
-          ].map((path, index) => (
-            <motion.path
-              key={path}
-              d={path}
-              initial={false}
-                animate={{ opacity: stations[index]?.observed ? 0.55 : 0.14 }}
-              transition={{ duration: reduceMotion ? 0 : 0.2 }}
-            />
-          ))}
-          {visibleBatches.map((batch, index) => {
-            const x = ((index + 0.5) / visibleBatches.length) * 100;
-            return (
-              <motion.path
-                key={batch.id}
-                d={`M 50 41 C 50 69, ${x} 70, ${x} 82`}
-                initial={false}
-                animate={{ opacity: selectedBatch?.id === batch.id ? 0.78 : 0.2 }}
-                transition={{ duration: reduceMotion ? 0 : 0.2 }}
-              />
-            );
-          })}
-        </svg>
+      <div className="qz-team-grid" aria-label="Aportes de modelos, fuentes y controles">
+        {stations.map((station) => (
+          <WorkstationCard
+            key={station.id}
+            snapshot={snapshot}
+            station={station}
+            selectedBatch={selectedBatch}
+            onSelectBatch={onSelectBatch}
+            reduceMotion={reduceMotion}
+          />
+        ))}
+      </div>
 
-        <div className="qz-model-grid" aria-label="Aportes comparados de Codex y Fable">
-          {modelStations.map((station) => (
-            <WorkstationCard
-              key={station.id}
-              snapshot={snapshot}
-              station={station}
-              selectedBatch={selectedBatch}
-              onSelectBatch={onSelectBatch}
-              reduceMotion={reduceMotion}
-            />
-          ))}
+      <div className="qz-model-comparison" aria-label="Cruce entre los dos modelos">
+        <div>
+          <span>Cruces por rubro</span>
+          <strong>{sharedNames.length > 0 ? sharedNames.join(" · ") : "Ninguno guardado"}</strong>
         </div>
-
-        <div className="qz-coordinator" aria-label="Coordinación de rubros">
-          <span>R</span>
-          <strong>Sintetiza</strong>
-          <small>
-            {snapshot.orchestration.readyToConsolidateBatchIds.length} listos ·{" "}
-            {snapshot.orchestration.blockedBatchIds.length} esperan
-          </small>
+        <div>
+          <span>Se complementan</span>
+          <strong>{complementaryBatchIds.length} rubro(s)</strong>
         </div>
-
-        <div className="qz-model-comparison" aria-label="Cruce entre los dos modelos">
-          <div>
-            <span>Cruces por rubro</span>
-            <strong>{sharedNames.length > 0 ? sharedNames.join(" · ") : "Ninguno guardado"}</strong>
-          </div>
-          <div>
-            <span>Se complementan</span>
-            <strong>{complementaryBatchIds.length} rubro(s)</strong>
-          </div>
-          <div>
-            <span>Divergencias</span>
-            <strong>Sin comparación persistida</strong>
-          </div>
-          <div>
-            <span>Huecos de ambos</span>
-            <strong>{untouchedBatches.length} rubro(s)</strong>
-          </div>
+        <div>
+          <span>Divergencias</span>
+          <strong>Sin comparación persistida</strong>
         </div>
-
-        <div className="qz-validation-grid" aria-label="Fuentes y controles de validación">
-          {validationStations.map((station) => (
-            <WorkstationCard
-              key={station.id}
-              snapshot={snapshot}
-              station={station}
-              selectedBatch={selectedBatch}
-              onSelectBatch={onSelectBatch}
-              reduceMotion={reduceMotion}
-              compact
-            />
-          ))}
-        </div>
-
-        <div className="qz-batch-rail" aria-label="Rubros de la cotización">
-          {visibleBatches.map((batch) => (
-            <button
-              key={batch.id}
-              type="button"
-              aria-pressed={selectedBatch?.id === batch.id}
-              onClick={() => onSelectBatch(batch.id)}
-            >
-              <span>{batch.etapa}</span>
-              <strong>{batch.sourceCoverage.percent}%</strong>
-              <i aria-hidden="true">
-                <span style={{ "--qz-progress": `${batch.sourceCoverage.percent}%` } as CSSProperties} />
-              </i>
-              <small>{batch.currentBlocker ? "Necesita revisión" : "Costo cubierto"}</small>
-            </button>
-          ))}
-          {snapshot.batches.length > 5 ? (
-            <span className="qz-more-batches">+{snapshot.batches.length - 5} rubros</span>
-          ) : null}
+        <div>
+          <span>Huecos de ambos</span>
+          <strong>{untouchedBatches.length} rubro(s)</strong>
         </div>
       </div>
 
@@ -846,14 +763,12 @@ function WorkstationCard({
   selectedBatch,
   onSelectBatch,
   reduceMotion,
-  compact = false,
 }: {
   snapshot: QuoteWorkspaceSnapshot;
   station: Workstation;
   selectedBatch: QuoteBatch | null;
   onSelectBatch: (id: string) => void;
   reduceMotion: boolean;
-  compact?: boolean;
 }) {
   const linkedToSelected = Boolean(selectedBatch && station.batchIds.includes(selectedBatch.id));
   return (
@@ -861,7 +776,6 @@ function WorkstationCard({
       className="qz-station"
       data-observed={station.observed}
       data-linked={linkedToSelected}
-      data-compact={compact}
       layout
       transition={{ duration: reduceMotion ? 0 : 0.2 }}
     >
@@ -883,7 +797,7 @@ function WorkstationCard({
       </footer>
       <div className="qz-station__rubros">
         {station.batchIds.length > 0 ? (
-          station.batchIds.slice(0, compact ? 3 : 2).map((id) => {
+          station.batchIds.slice(0, 2).map((id) => {
             const batch = snapshot.batches.find((item) => item.id === id);
             if (!batch) return null;
             return (
@@ -919,126 +833,174 @@ function FormationBoard({
 }) {
   const question = snapshot.decision.questions[0] ?? selectedBatch?.currentBlocker ?? null;
   const ready = snapshot.orchestration.readyToConsolidateBatchIds.length;
+  const waiting = snapshot.orchestration.blockedBatchIds.length;
   const blockedBatches = snapshot.batches.filter((batch) => batch.currentBlocker);
   const questionBatch = blockedBatches.length === 1 ? blockedBatches[0] : null;
+  const coverage = snapshot.core.sourceCoverage.percent;
+  const confidence = snapshot.core.confidence.level;
 
   return (
-    <aside
-      className="qz-formation qz-mobile-panel"
+    <section
+      className="qz-board qz-mobile-panel"
       data-mobile-active={active}
       aria-labelledby="formation-title"
     >
-      <header className="qz-formation__header">
+      <header className="qz-section-bar">
         <div>
           <h2 id="formation-title">Cotización en formación</h2>
           <p>{snapshot.quote.title}</p>
         </div>
-        <span>{STAGE_LABELS[snapshot.core.stage]}</span>
+        <span className="qz-column-state">{STAGE_LABELS[snapshot.core.stage]}</span>
       </header>
 
-      <section className="qz-cost" aria-label="Rango de costo">
-        <span>Rango estimado</span>
-        <strong>
-          {compactMoney(snapshot.core.costRange.min)} — {compactMoney(snapshot.core.costRange.max)}
-        </strong>
-        <small>
-          {money(snapshot.core.costRange.min)} — {money(snapshot.core.costRange.max)}
-        </small>
-      </section>
+      <div className="qz-board-grid">
+        <article className="qz-kpi qz-kpi--cost" aria-label="Rango de costo">
+          <span className="qz-kpi__label">Rango estimado</span>
+          <strong>
+            {compactMoney(snapshot.core.costRange.min)} — {compactMoney(snapshot.core.costRange.max)}
+          </strong>
+          <small>
+            {money(snapshot.core.costRange.min)} — {money(snapshot.core.costRange.max)}
+          </small>
+        </article>
 
-      <dl className="qz-formation-stats">
-        <div>
-          <dt>Confianza</dt>
-          <dd>{CONFIDENCE_LABELS[snapshot.core.confidence.level]}</dd>
-        </div>
-        <div>
-          <dt>Fuentes cubiertas</dt>
-          <dd>{snapshot.core.sourceCoverage.percent}%</dd>
-        </div>
-        <div>
-          <dt>Rubros listos</dt>
-          <dd>
-            {ready}/{snapshot.batches.length}
-          </dd>
-        </div>
-      </dl>
+        <article
+          className="qz-kpi qz-kpi--coverage"
+          aria-label={`Fuentes cubiertas: ${coverage} por ciento`}
+        >
+          <span className="qz-kpi__label">Fuentes cubiertas</span>
+          <div className="qz-gauge-wrap">
+            <Gauge percent={coverage} reduceMotion={reduceMotion} />
+            <strong>
+              {coverage}
+              <i>%</i>
+            </strong>
+          </div>
+          <small>del costo con fuente y fecha</small>
+        </article>
 
-      <section className="qz-rubro-board" aria-labelledby="rubro-board-title">
-        <div className="qz-rubro-board__heading">
-          <h3 id="rubro-board-title">Rubros</h3>
-          <span>{snapshot.batches.length}</span>
-        </div>
-        <div className="qz-rubro-board__list">
-          {snapshot.batches.map((batch) => (
-            <button
-              type="button"
-              key={batch.id}
-              aria-pressed={selectedBatch?.id === batch.id}
-              onClick={() => onSelectBatch(batch.id)}
-            >
-              <div>
-                <strong>{batch.etapa}</strong>
-                <span>{batch.evidence.length} evidencias</span>
-              </div>
-              <span>{batch.sourceCoverage.percent}%</span>
-              <i aria-hidden="true">
-                <span style={{ "--qz-progress": `${batch.sourceCoverage.percent}%` } as CSSProperties} />
-              </i>
-              <small>{batch.currentBlocker ?? "Costo cubierto con fuentes persistidas."}</small>
-            </button>
-          ))}
-          {snapshot.batches.length === 0 ? <p>No hay rubros guardados para formar el costo.</p> : null}
-        </div>
-      </section>
-
-      <AnimatePresence mode="wait" initial={false}>
-        {question ? (
-          <motion.section
-            className="qz-question"
-            key={question}
-            initial={reduceMotion ? false : { opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: reduceMotion ? 0 : 0.18 }}
-            aria-labelledby="question-title"
+        <div className="qz-kpi-stack">
+          <article
+            className="qz-kpi qz-kpi--confidence"
+            data-level={confidence}
+            aria-label={`Confianza del costo: ${CONFIDENCE_LABELS[confidence]}`}
           >
-            <CircleHelp size={20} strokeWidth={1.5} aria-hidden="true" />
-            <div>
-              <h3 id="question-title">Necesitamos tu respuesta</h3>
-              <p>{question}</p>
-              <small>{questionBatch ? `Afecta ${questionBatch.etapa}` : "Afecta la cotización"}</small>
-            </div>
-            <button type="button" onClick={onAnswer}>
-              {preview ? "Responder en conversación" : "Ver conversación"}
-              <ArrowUp size={15} aria-hidden="true" />
-            </button>
-          </motion.section>
-        ) : (
-          <motion.section
-            className="qz-question qz-question--ready"
-            key="ready"
-            initial={reduceMotion ? false : { opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: reduceMotion ? 0 : 0.18 }}
-          >
-            <CheckCircle2 size={20} strokeWidth={1.5} aria-hidden="true" />
-            <div>
-              <h3>Costo listo para decidir</h3>
-              <p>No quedan respuestas de Eze registradas como pendientes.</p>
-            </div>
-          </motion.section>
-        )}
-      </AnimatePresence>
-
-      <footer className="qz-decision-lock">
-        <LockKeyhole size={18} strokeWidth={1.5} aria-hidden="true" />
-        <div>
-          <strong>Propuesta todavía no habilitada</strong>
-          <span>Primero se confirma el número final y el margen.</span>
+            <span className="qz-kpi__label">Confianza</span>
+            <strong>{CONFIDENCE_LABELS[confidence]}</strong>
+            <i className="qz-meter" aria-hidden="true">
+              <span />
+              <span />
+              <span />
+            </i>
+          </article>
+          <article className="qz-kpi" aria-label={`Rubros listos: ${ready} de ${snapshot.batches.length}`}>
+            <span className="qz-kpi__label">Rubros listos</span>
+            <strong>
+              {ready}
+              <i>/{snapshot.batches.length}</i>
+            </strong>
+            <small>{waiting > 0 ? `${waiting} esperan respuesta` : "ninguno espera respuesta"}</small>
+          </article>
         </div>
-      </footer>
-    </aside>
+
+        <section className="qz-rubro-board" aria-labelledby="rubro-board-title">
+          <div className="qz-rubro-board__heading">
+            <h3 id="rubro-board-title">Rubros</h3>
+            <span>{snapshot.batches.length}</span>
+          </div>
+          <div className="qz-rubro-board__list">
+            {snapshot.batches.map((batch) => (
+              <button
+                type="button"
+                key={batch.id}
+                data-state={batch.currentBlocker ? "warn" : "ok"}
+                aria-pressed={selectedBatch?.id === batch.id}
+                onClick={() => onSelectBatch(batch.id)}
+              >
+                <div>
+                  <strong>{batch.etapa}</strong>
+                  <span>{batch.evidence.length} evidencias</span>
+                </div>
+                <span className="qz-rubro-board__pct">{batch.sourceCoverage.percent}%</span>
+                <i aria-hidden="true">
+                  <span style={{ "--qz-progress": `${batch.sourceCoverage.percent}%` } as CSSProperties} />
+                </i>
+                <small>{batch.currentBlocker ?? "Costo cubierto con fuentes persistidas."}</small>
+              </button>
+            ))}
+            {snapshot.batches.length === 0 ? <p>No hay rubros guardados para formar el costo.</p> : null}
+          </div>
+        </section>
+
+        <div className="qz-decision-cell">
+          <AnimatePresence mode="wait" initial={false}>
+            {question ? (
+              <motion.section
+                className="qz-question"
+                key={question}
+                initial={reduceMotion ? false : { opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: reduceMotion ? 0 : 0.18 }}
+                aria-labelledby="question-title"
+              >
+                <CircleHelp size={20} strokeWidth={1.5} aria-hidden="true" />
+                <div>
+                  <h3 id="question-title">Necesitamos tu respuesta</h3>
+                  <p>{question}</p>
+                  <small>{questionBatch ? `Afecta ${questionBatch.etapa}` : "Afecta la cotización"}</small>
+                </div>
+                <button type="button" onClick={onAnswer}>
+                  {preview ? "Responder en conversación" : "Ver conversación"}
+                  <ArrowUp size={15} aria-hidden="true" />
+                </button>
+              </motion.section>
+            ) : (
+              <motion.section
+                className="qz-question qz-question--ready"
+                key="ready"
+                initial={reduceMotion ? false : { opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: reduceMotion ? 0 : 0.18 }}
+              >
+                <CheckCircle2 size={20} strokeWidth={1.5} aria-hidden="true" />
+                <div>
+                  <h3>Costo listo para decidir</h3>
+                  <p>No quedan respuestas de Eze registradas como pendientes.</p>
+                </div>
+              </motion.section>
+            )}
+          </AnimatePresence>
+
+          <footer className="qz-decision-lock">
+            <LockKeyhole size={18} strokeWidth={1.5} aria-hidden="true" />
+            <div>
+              <strong>Propuesta todavía no habilitada</strong>
+              <span>Primero se confirma el número final y el margen.</span>
+            </div>
+          </footer>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function Gauge({ percent, reduceMotion }: { percent: number; reduceMotion: boolean }) {
+  const fraction = Math.max(0, Math.min(100, percent)) / 100;
+  return (
+    <svg className="qz-gauge" viewBox="0 0 100 54" aria-hidden="true">
+      <path className="qz-gauge__track" d="M 8 50 A 42 42 0 0 1 92 50" pathLength={1} />
+      <motion.path
+        className="qz-gauge__value"
+        d="M 8 50 A 42 42 0 0 1 92 50"
+        pathLength={1}
+        strokeDasharray="1 1"
+        initial={reduceMotion ? false : { strokeDashoffset: 1 }}
+        animate={{ strokeDashoffset: 1 - fraction }}
+        transition={{ duration: reduceMotion ? 0 : 0.7, ease: [0.16, 1, 0.3, 1] }}
+      />
+    </svg>
   );
 }
 
