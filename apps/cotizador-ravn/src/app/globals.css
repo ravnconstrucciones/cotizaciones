@@ -34,13 +34,24 @@
   --qz-edge: inset 0 1px 0 rgb(242 239 232 / 0.06);
   --qz-elev-1: 0 18px 30px -26px rgb(0 0 0 / 0.95);
   --qz-elev-2: 0 34px 60px -34px rgb(0 0 0 / 1);
+  /* relieve: el módulo se lee levantado del chasis — canto de luz arriba,
+     sombra dura abajo y caída afuera. Todo estático. */
+  --qz-relief:
+    inset 0 1px 0 rgb(242 239 232 / 0.1),
+    inset 1px 0 0 rgb(242 239 232 / 0.035),
+    inset -1px 0 0 rgb(0 0 0 / 0.7),
+    inset 0 -2px 0 rgb(0 0 0 / 0.9),
+    0 12px 22px -14px rgb(0 0 0 / 0.95);
+  --qz-well:
+    inset 0 2px 4px rgb(0 0 0 / 0.85),
+    inset 0 -1px 0 rgb(242 239 232 / 0.06);
   --qz-glow-fg: 0 0 12px rgb(242 239 232 / 0.45);
   --qz-glow-ok: 0 0 12px rgb(143 187 166 / 0.5);
   --qz-glow-warn: 0 0 12px rgb(211 168 98 / 0.5);
   --qz-glow-alert: 0 0 12px rgb(207 125 104 / 0.5);
 
-  --qz-font: var(--font-raleway), Raleway, "Helvetica Neue", Arial, sans-serif;
   --qz-rail-h: 52px;
+  --qz-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 
 * {
@@ -52,11 +63,14 @@ html {
   background: var(--qz-ground);
 }
 
+/* OJO: `--font-raleway` la define next/font en la CLASE DEL BODY, no en :root.
+   Si la referencia sale desde :root el var() queda inválido y toda la app cae a
+   la serif por defecto del navegador (pasó el 16/08). Se resuelve acá. */
 body {
   margin: 0;
   background: var(--qz-ground);
   color: var(--qz-fg);
-  font-family: var(--qz-font);
+  font-family: var(--font-raleway), Raleway, "Helvetica Neue", Arial, sans-serif;
   font-size: 15px;
   line-height: 1.45;
   text-rendering: optimizeLegibility;
@@ -576,6 +590,15 @@ code {
   background: var(--qz-ground);
 }
 
+/* módulos levantados del chasis: la lectura y los instrumentos son piezas
+   montadas, no rectángulos pintados */
+.qz-readout,
+.qz-gauge,
+.qz-wave {
+  background: linear-gradient(180deg, #161615, #0d0d0c 58%, #101010);
+  box-shadow: var(--qz-relief);
+}
+
 /* lectura principal: el número manda la composición */
 .qz-readout {
   display: grid;
@@ -771,13 +794,17 @@ code {
 }
 
 /* dial de cobertura */
+/* el dial va hundido en el panel: pozo con sombra propia */
 .qz-dial {
   position: relative;
   display: grid;
   place-items: center;
-  width: 62px;
-  height: 62px;
+  width: 64px;
+  height: 64px;
   flex: 0 0 auto;
+  border-radius: 50%;
+  background: radial-gradient(circle at 50% 34%, #131312, #070707 72%);
+  box-shadow: var(--qz-well);
 }
 
 .qz-dial svg {
@@ -906,8 +933,8 @@ code {
   display: grid;
   grid-template-columns: 3px minmax(0, 1fr) auto auto;
   align-items: center;
-  gap: 12px;
-  padding: 9px 20px;
+  gap: 14px;
+  padding: 13px 24px;
   background: linear-gradient(180deg, #131312, #0e0e0d);
   border-bottom: 1px solid var(--qz-line);
   box-shadow: var(--qz-elev-1);
@@ -920,7 +947,7 @@ code {
 
 .qz-rubro__head h3 {
   margin: 0;
-  font-size: 0.8rem;
+  font-size: 0.9rem;
   font-weight: 500;
   letter-spacing: 0.01em;
   white-space: nowrap;
@@ -942,8 +969,8 @@ code {
 }
 
 .qz-item {
-  padding: 11px 20px 12px;
-  border-bottom: 1px solid rgb(242 239 232 / 0.05);
+  padding: 17px 24px 18px;
+  border-bottom: 1px solid rgb(242 239 232 / 0.06);
 }
 
 .qz-item[data-severity="blocking"] {
@@ -963,19 +990,20 @@ code {
 
 .qz-item__head strong {
   display: block;
-  font-size: 0.82rem;
+  font-size: 0.95rem;
   font-weight: 500;
+  letter-spacing: -0.005em;
 }
 
 .qz-item__head small {
   display: block;
-  margin-top: 2px;
-  font-size: 0.66rem;
+  margin-top: 4px;
+  font-size: 0.73rem;
   color: var(--qz-dim);
 }
 
 .qz-item__subtotal {
-  font-size: 0.86rem;
+  font-size: 0.98rem;
   font-weight: 300;
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
@@ -989,8 +1017,8 @@ code {
 .qz-offers {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
-  margin: 9px 0 0;
+  gap: 8px;
+  margin: 13px 0 0;
   padding: 0;
   list-style: none;
 }
@@ -998,36 +1026,36 @@ code {
 .qz-offer {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  padding: 4px 9px;
-  background: var(--qz-inset);
+  gap: 10px;
+  padding: 7px 12px;
+  background: linear-gradient(180deg, #131312, #0b0b0a);
   border: 1px solid var(--qz-line);
-  box-shadow: var(--qz-edge);
+  box-shadow: inset 0 1px 0 rgb(242 239 232 / 0.06), 0 6px 12px -10px rgb(0 0 0 / 0.9);
 }
 
 .qz-offer__origin {
-  font-size: 0.55rem;
+  font-size: 0.6rem;
   letter-spacing: 0.16em;
   text-transform: uppercase;
   color: var(--qz-dim);
 }
 
 .qz-offer__value {
-  font-size: 0.78rem;
+  font-size: 0.88rem;
   font-weight: 400;
   font-variant-numeric: tabular-nums;
 }
 
 .qz-offer__delta {
-  font-size: 0.68rem;
+  font-size: 0.75rem;
   color: var(--qz-warn);
   font-variant-numeric: tabular-nums;
 }
 
 .qz-offer__flag,
 .qz-offer__note {
-  font-size: 0.6rem;
-  letter-spacing: 0.06em;
+  font-size: 0.68rem;
+  letter-spacing: 0.03em;
   color: var(--qz-dim);
 }
 
@@ -1067,9 +1095,10 @@ code {
 .qz-item__verdict {
   display: flex;
   align-items: center;
-  gap: 6px;
-  margin: 8px 0 0;
-  font-size: 0.7rem;
+  gap: 7px;
+  margin: 12px 0 0;
+  font-size: 0.78rem;
+  line-height: 1.5;
   color: var(--qz-dim);
 }
 
@@ -1180,13 +1209,13 @@ code {
 
 .qz-terminal__body {
   flex: 1;
-  min-height: 84px;
+  min-height: 96px;
   max-height: 26vh;
   overflow-y: auto;
-  padding: 8px 12px;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 0.66rem;
-  line-height: 1.55;
+  padding: 12px 15px 14px;
+  font-family: var(--qz-mono);
+  font-size: 0.76rem;
+  line-height: 1.75;
   color: var(--qz-muted);
 }
 
@@ -1196,12 +1225,34 @@ code {
   word-break: break-word;
 }
 
-.qz-terminal__body p[data-kind="error"] {
-  color: var(--qz-alert);
+/* Cada tipo de línea con su color: lo que la ola busca se distingue de lo que
+   informa y de lo que devuelve. Los tonos son los mismos de estado del tablero. */
+.qz-terminal__body p[data-kind="status"] {
+  color: var(--qz-dim);
+  letter-spacing: 0.02em;
+}
+
+.qz-terminal__body p[data-kind="tool"] {
+  color: var(--qz-ok);
+}
+
+.qz-terminal__body p[data-kind="text"] {
+  color: var(--qz-muted);
+}
+
+.qz-terminal__body p[data-kind="raw"] {
+  color: #7f8c9e;
 }
 
 .qz-terminal__body p[data-kind="result"] {
+  margin: 6px 0;
+  padding-left: 9px;
+  border-left: 1px solid var(--qz-line-strong);
   color: var(--qz-fg);
+}
+
+.qz-terminal__body p[data-kind="error"] {
+  color: var(--qz-alert);
 }
 
 .qz-terminal__idle {
