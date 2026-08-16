@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { verifyBasicAuthorization } from "./src/auth/basic-auth";
+import { verifyBasicAuthorization } from "./auth/basic-auth";
 
 export function middleware(request: NextRequest) {
   const username = process.env.COTIZADOR_BASIC_USER;
@@ -29,6 +29,11 @@ export function middleware(request: NextRequest) {
   return NextResponse.next();
 }
 
+/**
+ * `manifest.webmanifest` queda afuera igual que el favicon: el navegador lo pide
+ * SIN credenciales y con auth devolvía 401 en cada carga. No expone nada — sólo
+ * el nombre y los colores de la app.
+ */
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"],
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|manifest.webmanifest).*)"],
 };

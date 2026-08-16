@@ -46,6 +46,14 @@ import {
   type MarginBand,
 } from "../domain/margin";
 import { decisionRank } from "../domain/price-decision";
+import { localTaller, remoteTaller, type TallerPersistence } from "../taller/persistence";
+import {
+  manualSubtotal,
+  manualTotal as sumManual,
+  type Decision,
+  type ManualDraft,
+  type ManualItem,
+} from "../taller/types";
 import { formatObservedDate as dateTime } from "./format-observed-date";
 import {
   LiveTerminals,
@@ -76,35 +84,10 @@ type QueueEntry = {
 };
 
 /**
- * Ítem que Eze agrega a mano en la mesa (pedido del 16/08). El visor es
- * READ-ONLY contra App RAVN: esto vive en SU navegador, por cotización, y se
- * muestra siempre marcado. Nunca se mezcla con el rango que cerró el motor —
- * se suma aparte, para que el número persistido no quede contaminado.
+ * El ancho de las columnas es preferencia de ESTE navegador, no dato del
+ * negocio: se queda en `localStorage` a propósito. Los ítems a mano y las
+ * decisiones, en cambio, ya viven en las tablas del taller (`src/taller/`).
  */
-type ManualItem = {
-  id: string;
-  batchId: string;
-  name: string;
-  tipo: "material" | "mano_de_obra";
-  cantidad: number;
-  unidad: string;
-  precioUnit: number;
-};
-
-/**
- * Decisión tomada por Eze DESDE la tarjeta: eligió cuál de los precios usa y el
- * ítem sale de la cola. Igual que los ítems a mano, vive en su navegador — el
- * visor no escribe en App RAVN. Lo que cambia es el flujo: la cola avanza sola
- * a medida que él decide, en vez de quedarse esperando que escriba.
- */
-type LocalDecision = {
-  origin: string;
-  value: number | null;
-  at: string;
-};
-
-const MANUAL_KEY = (quoteId: string) => `qz:manual:${quoteId}`;
-const DECIDED_KEY = (quoteId: string) => `qz:decidido:${quoteId}`;
 const LAYOUT_KEY = "qz:layout";
 
 const CHAT_MIN = 280;
@@ -115,30 +98,6 @@ const RAIL_FOLDED = 46;
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, Math.round(value)));
-}
-
-function manualSubtotal(item: ManualItem): number {
-  return item.cantidad * item.precioUnit;
-}
-
-function readManualItems(quoteId: string): ManualItem[] {
-  try {
-    const raw = window.localStorage.getItem(MANUAL_KEY(quoteId));
-    const parsed: unknown = raw ? JSON.parse(raw) : null;
-    if (!Array.isArray(parsed)) return [];
-    return parsed.filter(
-      (entry): entry is ManualItem =>
-        Boolean(entry) &&
-        typeof entry === "object" &&
-        typeof (entry as ManualItem).id === "string" &&
-        typeof (entry as ManualItem).batchId === "string" &&
-        typeof (entry as ManualItem).name === "string" &&
-        Number.isFinite((entry as ManualItem).cantidad) &&
-        Number.isFinite((entry as ManualItem).precioUnit)
-    );
-  } catch {
-    return [];
-  }
 }
 
 const MONEY = new Intl.NumberFormat("es-AR", {
@@ -240,17 +199,6 @@ function queueEntries(snapshot: QuoteWorkspaceSnapshot): QueueEntry[] {
     });
 }
 
-function readDecided(quoteId: string): Record<string, LocalDecision> {
-  try {
-    const raw = window.localStorage.getItem(DECIDED_KEY(quoteId));
-    const parsed: unknown = raw ? JSON.parse(raw) : null;
-    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return {};
-    return parsed as Record<string, LocalDecision>;
-  } catch {
-    return {};
-  }
-}
-
 function isControlCenterData(value: unknown): value is ControlCenterData {
   if (!value || typeof value !== "object") return false;
   const candidate = value as Partial<ControlCenterData>;
@@ -281,7 +229,7 @@ export function ControlCenter({
   const requestInFlight = useRef(false);
   const composerRef = useRef<HTMLTextAreaElement>(null);
   const snapshot = data.snapshot;
-  const [decided, setDecided] = useState<Record<string, LocalDecision>>({});
+  const [decided, setDecided] = useState<Record<string, Decision>>({});
   const queue = useMemo(
     () => queueEntries(snapshot).filter((entry) => !decided[`${entry.batch.id}:${entry.item.name}`]),
     [snapshot, decided]
@@ -333,25 +281,146 @@ export function ControlCenter({
     if (pending > 0) autoFolded.current = false;
   }, [pending]);
 
-  // --- ítems agregados a mano, por cotización ---
+  /**
+   * --- la mesa: ítems a mano y decisiones (16/08, PASO 1) ---
+   *
+   * Antes vivían en `localStorage` y se perdían al cambiar de máquina. Ahora van
+   * a las tablas del cotizador. El preview sintético sigue en el navegador: esa
+   * cotización no existe en la base y la escritura rebotaría contra la FK.
+   *
+   * Regla anti-slop: la pantalla NUNCA muestra como guardado algo que la base
+   * rechazó. Cada escritura es optimista y, si no entra, se revierte y se avisa.
+   */
   const [manualItems, setManualItems] = useState<ManualItem[]>([]);
-  const manualLoaded = useRef<string | null>(null);
+  const [tallerError, setTallerError] = useState<string | null>(null);
+  const [tallerLoading, setTallerLoading] = useState(true);
+  const tallerRef = useRef<TallerPersistence | null>(null);
 
-  useEffect(() => {
-    setManualItems(readManualItems(snapshot.quote.id));
-    setDecided(readDecided(snapshot.quote.id));
-    manualLoaded.current = snapshot.quote.id;
-  }, [snapshot.quote.id]);
-
-  useEffect(() => {
-    if (manualLoaded.current !== snapshot.quote.id) return;
-    try {
-      window.localStorage.setItem(MANUAL_KEY(snapshot.quote.id), JSON.stringify(manualItems));
-      window.localStorage.setItem(DECIDED_KEY(snapshot.quote.id), JSON.stringify(decided));
-    } catch {
-      /* sin localStorage lo de la mesa vive sólo en esta pestaña */
+  const taller = useCallback((): TallerPersistence => {
+    if (!tallerRef.current) {
+      tallerRef.current = preview ? localTaller(window.localStorage) : remoteTaller();
     }
-  }, [manualItems, decided, snapshot.quote.id]);
+    return tallerRef.current;
+  }, [preview]);
+
+  const quoteId = snapshot.quote.id;
+
+  useEffect(() => {
+    let cancelled = false;
+    setTallerLoading(true);
+    setManualItems([]);
+    setDecided({});
+
+    taller()
+      .load(quoteId)
+      .then((state) => {
+        if (cancelled) return;
+        setManualItems(state.manual);
+        setDecided(state.decided);
+        setTallerError(null);
+      })
+      .catch((error: unknown) => {
+        if (cancelled) return;
+        setTallerError(
+          error instanceof Error ? error.message : "No se pudo leer lo que dejaste en la mesa."
+        );
+      })
+      .finally(() => {
+        if (!cancelled) setTallerLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [quoteId, taller]);
+
+  /** Escritura optimista: si la base la rechaza, se deshace y queda dicho. */
+  const persist = useCallback(
+    async (apply: () => void, revert: () => void, write: () => Promise<void>) => {
+      apply();
+      setTallerError(null);
+      try {
+        await write();
+      } catch (error: unknown) {
+        revert();
+        setTallerError(
+          error instanceof Error ? error.message : "El cambio no se pudo guardar."
+        );
+      }
+    },
+    []
+  );
+
+  const addManual = useCallback(
+    async (draft: ManualDraft) => {
+      const provisional: ManualItem = { id: `pendiente:${draft.name}:${draft.batchId}`, ...draft };
+      await persist(
+        () => setManualItems((current) => [...current, provisional]),
+        () => setManualItems((current) => current.filter((item) => item.id !== provisional.id)),
+        async () => {
+          const saved = await taller().addManual(quoteId, draft);
+          setManualItems((current) =>
+            current.map((item) => (item.id === provisional.id ? saved : item))
+          );
+        }
+      );
+    },
+    [persist, quoteId, taller]
+  );
+
+  const dropManual = useCallback(
+    async (id: string) => {
+      const removed = manualItems.find((item) => item.id === id);
+      await persist(
+        () => setManualItems((current) => current.filter((item) => item.id !== id)),
+        () => setManualItems((current) => (removed ? [...current, removed] : current)),
+        () => taller().dropManual(quoteId, id)
+      );
+    },
+    [manualItems, persist, quoteId, taller]
+  );
+
+  const decide = useCallback(
+    async (key: string, origin: string, value: number | null) => {
+      const previous = decided[key];
+      await persist(
+        () =>
+          setDecided((current) => ({
+            ...current,
+            [key]: { origin, value, at: new Date().toISOString() },
+          })),
+        () =>
+          setDecided((current) => {
+            const next = { ...current };
+            if (previous) next[key] = previous;
+            else delete next[key];
+            return next;
+          }),
+        async () => {
+          const saved = await taller().decide(quoteId, key, origin, value);
+          setDecided((current) => ({ ...current, [key]: saved }));
+        }
+      );
+    },
+    [decided, persist, quoteId, taller]
+  );
+
+  const reopen = useCallback(
+    async (key: string) => {
+      const previous = decided[key];
+      await persist(
+        () =>
+          setDecided((current) => {
+            const next = { ...current };
+            delete next[key];
+            return next;
+          }),
+        () => setDecided((current) => (previous ? { ...current, [key]: previous } : current)),
+        () => taller().reopen(quoteId, key)
+      );
+    },
+    [decided, persist, quoteId, taller]
+  );
 
   const loadQuote = useCallback(
     async (quoteId: string, announce = true) => {
@@ -553,18 +622,13 @@ export function ControlCenter({
           onHealth={setHealth}
           focusedItem={focusedItem}
           manualItems={manualItems}
-          onAddManual={(item) => setManualItems((current) => [...current, item])}
-          onDropManual={(id) =>
-            setManualItems((current) => current.filter((entry) => entry.id !== id))
-          }
+          onAddManual={addManual}
+          onDropManual={dropManual}
           decided={decided}
-          onReopen={(key) =>
-            setDecided((current) => {
-              const next = { ...current };
-              delete next[key];
-              return next;
-            })
-          }
+          onReopen={reopen}
+          tallerError={tallerError}
+          tallerLoading={tallerLoading}
+          tallerKind={preview ? "local" : "remota"}
         />
 
         <Splitter
@@ -587,12 +651,7 @@ export function ControlCenter({
           onFocusItem={setFocusedItem}
           focusedItem={focusedItem}
           onFold={() => setRailOpen(false)}
-          onDecide={(key, origin, value) =>
-            setDecided((current) => ({
-              ...current,
-              [key]: { origin, value, at: new Date().toISOString() },
-            }))
-          }
+          onDecide={decide}
         />
 
         <button
@@ -867,6 +926,9 @@ function BoardColumn({
   onDropManual,
   decided,
   onReopen,
+  tallerError,
+  tallerLoading,
+  tallerKind,
 }: {
   snapshot: QuoteWorkspaceSnapshot;
   queue: QueueEntry[];
@@ -877,10 +939,13 @@ function BoardColumn({
   onHealth: (health: BridgeHealth) => void;
   focusedItem: string | null;
   manualItems: ManualItem[];
-  onAddManual: (item: ManualItem) => void;
+  onAddManual: (draft: ManualDraft) => void;
   onDropManual: (id: string) => void;
-  decided: Record<string, LocalDecision>;
+  decided: Record<string, Decision>;
   onReopen: (key: string) => void;
+  tallerError: string | null;
+  tallerLoading: boolean;
+  tallerKind: "remota" | "local";
 }) {
   const itemRefs = useRef(new Map<string, HTMLDivElement>());
 
@@ -912,6 +977,9 @@ function BoardColumn({
         onDropManual={onDropManual}
         decided={decided}
         onReopen={onReopen}
+        tallerError={tallerError}
+        tallerLoading={tallerLoading}
+        tallerKind={tallerKind}
         registerItem={(key, node) => {
           if (node) itemRefs.current.set(key, node);
           else itemRefs.current.delete(key);
@@ -938,7 +1006,7 @@ function Readout({
   const width = rangeWidthPct(min, max);
   const itemCount = snapshot.batches.reduce((sum, batch) => sum + batch.itemCount, 0);
   const blocking = queue.filter((entry) => entry.item.decision.severity === "blocking").length;
-  const manualTotal = manualItems.reduce((sum, item) => sum + manualSubtotal(item), 0);
+  const manualTotal = sumManual(manualItems);
 
   return (
     <section className="qz-readout qz-panel" aria-label="Rango de costo">
@@ -1010,7 +1078,7 @@ function MarginConsole({
   reduceMotion: boolean;
   manualItems: ManualItem[];
 }) {
-  const manualTotal = manualItems.reduce((sum, item) => sum + manualSubtotal(item), 0);
+  const manualTotal = sumManual(manualItems);
   /**
    * El ítem a mano lo cargás justo cuando el motor se quedó corto: ahí querés
    * ver el margen CON eso adentro. El interruptor lo suma al costo (las dos
@@ -1377,6 +1445,53 @@ function CoverageDial({ percent }: { percent: number }) {
 
 /* ----------------------------------------------------------------- rubros */
 
+/**
+ * Dónde está guardado lo que Eze arma. Es un instrumento, no un adorno: si la
+ * base rechaza una escritura, la consola lo dice en vez de mostrar el cambio
+ * como si hubiera entrado.
+ */
+function TallerState({
+  error,
+  loading,
+  kind,
+}: {
+  error: string | null;
+  loading: boolean;
+  kind: "remota" | "local";
+}) {
+  if (error) {
+    return (
+      <span className="qz-taller-state" data-tone="alert" role="status">
+        <TriangleAlert size={12} aria-hidden="true" />
+        {error}
+      </span>
+    );
+  }
+
+  if (loading) {
+    return (
+      <span className="qz-taller-state" data-tone="wait" role="status">
+        Abriendo la mesa
+      </span>
+    );
+  }
+
+  return (
+    <span
+      className="qz-taller-state"
+      data-tone={kind === "remota" ? "ok" : "local"}
+      role="status"
+      title={
+        kind === "remota"
+          ? "Los ítems a mano y las decisiones quedan guardados en la base"
+          : "Preview sintético: la mesa vive sólo en este navegador"
+      }
+    >
+      {kind === "remota" ? "Mesa guardada" : "Mesa local (preview)"}
+    </span>
+  );
+}
+
 function RubroLedger({
   snapshot,
   reduceMotion,
@@ -1387,16 +1502,22 @@ function RubroLedger({
   onDropManual,
   decided,
   onReopen,
+  tallerError,
+  tallerLoading,
+  tallerKind,
 }: {
   snapshot: QuoteWorkspaceSnapshot;
   reduceMotion: boolean;
   focusedItem: string | null;
   registerItem: (key: string, node: HTMLDivElement | null) => void;
   manualItems: ManualItem[];
-  onAddManual: (item: ManualItem) => void;
+  onAddManual: (draft: ManualDraft) => void;
   onDropManual: (id: string) => void;
-  decided: Record<string, LocalDecision>;
+  decided: Record<string, Decision>;
   onReopen: (key: string) => void;
+  tallerError: string | null;
+  tallerLoading: boolean;
+  tallerKind: "remota" | "local";
 }) {
   const totalMax = snapshot.batches.reduce((sum, batch) => sum + (batch.priceRange.max ?? 0), 0);
   const [openForm, setOpenForm] = useState<string | null>(null);
@@ -1407,13 +1528,14 @@ function RubroLedger({
       <header className="qz-ledger__head">
         <h2>Rubros y precios por ítem</h2>
         <span>Cada precio contra la más barata del ítem</span>
+        <TallerState error={tallerError} loading={tallerLoading} kind={tallerKind} />
       </header>
 
       <div className="qz-ledger__scroll">
         {snapshot.batches.map((batch, index) => {
           const share = totalMax > 0 ? Math.round(((batch.priceRange.max ?? 0) / totalMax) * 100) : 0;
           const mine = manualItems.filter((item) => item.batchId === batch.id);
-          const mineTotal = mine.reduce((sum, item) => sum + manualSubtotal(item), 0);
+          const mineTotal = sumManual(mine);
           const shut = collapsed.includes(batch.id);
           const openIssues = batch.items.filter(
             (item) =>
@@ -1469,8 +1591,8 @@ function RubroLedger({
                 <ManualItemForm
                   batchId={batch.id}
                   onCancel={() => setOpenForm(null)}
-                  onAdd={(item) => {
-                    onAddManual(item);
+                  onAdd={(draft) => {
+                    onAddManual(draft);
                     setOpenForm(null);
                   }}
                 />
@@ -1523,7 +1645,7 @@ function ItemRow({
   focused: boolean;
   reduceMotion: boolean;
   registerItem: (key: string, node: HTMLDivElement | null) => void;
-  decision?: LocalDecision;
+  decision?: Decision;
   onReopen: () => void;
 }) {
   const key = `${batchId}:${item.name}`;
@@ -1598,7 +1720,7 @@ function ManualItemForm({
   onCancel,
 }: {
   batchId: string;
-  onAdd: (item: ManualItem) => void;
+  onAdd: (draft: ManualDraft) => void;
   onCancel: () => void;
 }) {
   const [name, setName] = useState("");
@@ -1623,10 +1745,6 @@ function ManualItemForm({
         event.preventDefault();
         if (!valid) return;
         onAdd({
-          id:
-            typeof crypto !== "undefined" && "randomUUID" in crypto
-              ? crypto.randomUUID()
-              : `manual:${Date.now()}`,
           batchId,
           name: name.trim(),
           tipo,
