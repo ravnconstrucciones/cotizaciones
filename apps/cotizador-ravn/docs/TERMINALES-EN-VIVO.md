@@ -1,6 +1,27 @@
 # Propuesta — Dos terminales Codex + Fable en vivo (pedido 7, 15/08/2026)
 
-**Estado: PROPUESTA. No se construye sin aprobación explícita de Eze.**
+**Estado: F1 CONSTRUIDA (16/08, aprobada por Eze de palabra: "vamos por F1").**
+F2 y F3 siguen esperando veredicto sobre F1.
+
+## Cómo se corre la F1
+
+1. `cd apps/cotizador-ravn && npm run bridge` — levanta el bridge en `127.0.0.1:3011`
+   (necesita `COTIZADOR_BRIDGE_TOKEN` en `.env.local`; sin token no arranca).
+   Se apaga solo tras 30 min sin ola ni clientes: no es un daemon.
+2. `npm run dev` y abrir el visor: la sección **Terminales en vivo** (pestaña Equipo)
+   detecta el bridge sola, con estados Bridge apagado · N/D / listo / corriendo.
+3. Escribir el pedido y **Lanzar ola**: spawnea `codex exec --json --sandbox read-only`
+   y `claude -p --output-format stream-json --allowedTools WebSearch WebFetch`, una
+   sesión por suscripción, y streamea ambas por SSE. **Cortar ola** mata las sesiones;
+   hay corte automático a los 10 min.
+
+Decisión 1 tomada con la recomendación: el visor **lanza** las sesiones. Decisiones
+2 (qué skill/prompt corre cada CLI en una ola real) y 3 (consumo de las dos
+suscripciones por default) quedan para definir con Eze antes de F2.
+
+Piezas: `bridge/server.mjs` (Node puro, sin deps; importa el formatter TS por
+type-stripping de Node ≥ 24), `src/bridge/stream-format.ts` (+ tests),
+`src/components/live-terminals.tsx`.
 
 ## Qué pidió Eze (por voz, 15/08 noche)
 

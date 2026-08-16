@@ -38,6 +38,7 @@ import type {
   QuoteWorkspaceSnapshot,
 } from "../domain";
 import { formatObservedDate as dateTime } from "./format-observed-date";
+import { LiveTerminals, type BridgeConfig } from "./live-terminals";
 import { RavnIso } from "./ravn-iso";
 
 type ControlCenterData = {
@@ -309,9 +310,11 @@ function isControlCenterData(value: unknown): value is ControlCenterData {
 export function ControlCenter({
   initialData,
   preview,
+  bridge,
 }: {
   initialData: ControlCenterData;
   preview: boolean;
+  bridge: BridgeConfig | null;
 }) {
   const reduceMotion = useReducedMotion();
   const [data, setData] = useState(initialData);
@@ -517,6 +520,7 @@ export function ControlCenter({
             onSelectBatch={setSelectedBatchId}
             active={mobileTab === "equipo"}
             reduceMotion={Boolean(reduceMotion)}
+            bridge={bridge}
           />
         </div>
       </main>
@@ -671,6 +675,7 @@ function TeamWorkspace({
   onSelectBatch,
   active,
   reduceMotion,
+  bridge,
 }: {
   snapshot: QuoteWorkspaceSnapshot;
   stations: Workstation[];
@@ -679,6 +684,7 @@ function TeamWorkspace({
   onSelectBatch: (id: string) => void;
   active: boolean;
   reduceMotion: boolean;
+  bridge: BridgeConfig | null;
 }) {
   const [sourcesOpen, setSourcesOpen] = useState(false);
   const codexBatchIds = modelBatchIds(snapshot, "codex");
@@ -705,6 +711,8 @@ function TeamWorkspace({
         </div>
         <span className="qz-column-state">{modelContributionCount} aportes</span>
       </header>
+
+      <LiveTerminals bridge={bridge} />
 
       <div className="qz-team-grid" aria-label="Aportes de modelos, fuentes y controles">
         {stations.map((station) => (

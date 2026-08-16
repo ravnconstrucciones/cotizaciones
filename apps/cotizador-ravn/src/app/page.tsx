@@ -1,6 +1,7 @@
 import { loadQuoteWorkspace, QuoteReadError } from "../adapters";
 import { createPreviewData } from "../domain";
 import { ControlCenter } from "../components/control-center";
+import type { BridgeConfig } from "../components/live-terminals";
 
 export const dynamic = "force-dynamic";
 
@@ -19,12 +20,17 @@ export default async function CotizadorPage({ searchParams }: PageProps) {
     process.env.COTIZADOR_PREVIEW_ENABLED === "1" &&
     first(query.preview) === "1";
 
+  const bridgeToken = process.env.COTIZADOR_BRIDGE_TOKEN;
+  const bridge: BridgeConfig | null = bridgeToken
+    ? { url: process.env.COTIZADOR_BRIDGE_URL ?? "http://127.0.0.1:3011", token: bridgeToken }
+    : null;
+
   try {
     const data = preview
       ? createPreviewData()
       : await loadQuoteWorkspace(first(query.quote));
 
-    return <ControlCenter initialData={data} preview={preview} />;
+    return <ControlCenter initialData={data} preview={preview} bridge={bridge} />;
   } catch (error) {
     const message =
       error instanceof QuoteReadError
