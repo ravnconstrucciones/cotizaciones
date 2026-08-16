@@ -4,10 +4,19 @@
 cotizador está en la nube (https://ravn-cotizador.vercel.app, usuario `eze`) y
 ahora **deja el número y el extracto en App RAVN con un botón**.
 
-**EL PASE ESTÁ EN PRODUCCIÓN Y VERIFICADO.** Para retomar: ir a
-**"⏭️ PEDIDOS NUEVOS DE EZE"** — tres pedidos frescos del 16/08 noche (consolas
-apretadas, conversación que se queda corta abajo, y **MO como ítem aparte con
-contraste a tres puntas**, que es el grande).
+**EL PASE ESTÁ EN PRODUCCIÓN Y VERIFICADO.** De los tres pedidos nuevos del
+16/08 noche, **los dos de layout están HECHOS, COMMITEADOS Y EN PRODUCCIÓN**
+(consolas apretadas y conversación cortada abajo — ver "⏭️ PEDIDOS NUEVOS DE
+EZE"). Commit `c8da187`, pusheado a `origin/home-cards` y deployado a prod por
+API contra ese ref.
+
+**⏭️ POR ACÁ SE SIGUE: el pedido 3, MO como RUBRO APARTE con postulantes.** Eze
+corrigió el alcance en persona y es bastante más grande de lo que decía este
+handoff: no son tres puntas fijas, es una lista abierta de postulantes por rubro
+(proveedores con nombre) contra dos investigaciones (SISMAT e internet), con el
+desvío narrado. **La versión buena está escrita entera en el pedido 3 y NO
+queda nada por preguntar** — el elegido pisa el costo y recalcula al toque, sin
+confirmación. Se puede arrancar a construir de una.
 
 ## Lo último: EL PASE DEL EXPEDIENTE (16/08 noche)
 
@@ -115,27 +124,94 @@ la base. El pase los conecta por una puerta de UNA ruta, no los fusiona.
 Veredicto: *"igual quedó muy muy bien, me encanta"*. Tres pedidos, ninguno
 empezado. **El 3 es el más grande y es de producto, no de diseño.**
 
-1. **Las consolas del final siguen apretadas.** Textual: *"sigue todo medio
-   apretado lo de las consolas al final, que sea más extenso, que se vea más"*.
-   Es la `InstrumentRow` (Confianza · Decisiones cerradas · MO vs materiales ·
-   Tiempo de obra · Dispersión máxima): las cinco cards entran comprimidas y el
-   texto de apoyo queda en dos líneas apretadas. Dirección: darles alto y aire
-   de verdad, o pasarlas a dos filas. Ojo: no romper la vara de performance ni
-   meter relleno — cada instrumento tiene que seguir midiendo algo real.
-2. **El panel de conversación se queda corto abajo.** Textual: *"ahí se queda
-   corto, ¿ves que abajo no se ve?"* — con la captura del monolito cortado por
-   el borde inferior de la columna izquierda. El contenido (monolito de fondo +
-   composer) no llega al pie de la región.
-3. **Mano de obra como ítem aparte, con contraste de tres puntas.** Textual:
-   *"mano de obra tiene que ser un ítem aparte donde yo la cargue a mano contra
-   mano de obra sugerida SISMAT y mano de obra encontrada en web"*. O sea: la MO
-   deja de ser un ítem más del rubro y pasa a tener su propia estación donde se
-   ven **las tres**: la que él carga a mano, la sugerida por SISMAT y la
-   encontrada en internet. **Antes de construir, cerrar con él:** ¿es por rubro
-   o una sola MO de toda la obra? ¿la de él pisa el costo como hoy hace
-   `precio_eze`? Hoy el contrato ya trae `precios.{sismat,internet}` por ítem y
-   `desglose.tiempo` con jornales — el dato está, falta la vista y el lugar
-   donde él la carga.
+1. ~~**Las consolas del final siguen apretadas.**~~ **HECHO** (16/08 noche, sólo
+   CSS). Medido, no estimado: a 1470 px de ancho los cinco instrumentos entraban
+   a **137 px** cada uno y las etiquetas se partían en **27 y 40 px de alto**
+   (dos y tres renglones), con el texto de apoyo en cuatro. Ahora la base es
+   232 px: la fila se corta en **3 + 2** a cualquier ancho de tablero, los cinco
+   rótulos quedan en **13 px (un renglón)**, cada instrumento mide 158 px de
+   alto con padding 18/20 y el texto de apoyo subió a 0.7rem/1.55. La última
+   fila sigue creciendo y no deja hueco. Cero datos nuevos: los mismos cinco
+   instrumentos, con aire.
+2. ~~**El panel de conversación se queda corto abajo.**~~ **HECHO** (16/08
+   noche, sólo CSS). **La causa no era el composer: era el escenario.** El
+   `.qz-chat__backdrop` iba con `inset: 0`, así que el monolito se centraba
+   contra el panel ENTERO — composer incluido. Al achicarse la ventana la banda
+   opaca del composer le subía encima y **le cortaba la base**: reproducido a
+   1470×720, la pieza partida al medio, que es exactamente la captura que
+   mandó Eze. Ahora el escenario es una región propia (`grid-area: 1 / 1 / 3 /
+   2`, sólo cabecera + conversación) y la pieza no la puede pisar nadie.
+   Verificado en el navegador: `monolitoTapadoPorComposer: false`,
+   `monolitoDentroDeLaBanda: true`, y el composer termina **a 0 px** del pie del
+   panel.
+   - **Dos cosas para no volver a romper:** (a) las cuatro regiones del chat se
+     colocan EXPLÍCITAMENTE — si sólo se coloca el escenario, el auto-placement
+     saltea la celda ocupada y la cabecera se va a la fila del composer; (b) el
+     piso de 300 px de legibilidad ahora se mide contra la banda con una
+     `@container qz-stage (max-height: 356px)` que **esconde** el núcleo en vez
+     de achicarlo (por debajo de ~603 px de ventana). Achicarlo sería mostrar
+     una cuña, y con `display: none` el IntersectionObserver del núcleo ni abre
+     el loop de render.
+
+   Verificación de los dos: **125 tests verdes · lint limpio · typecheck
+   limpio**. `npm run build` NO se corrió en local a propósito — pisa el `.next`
+   del dev server y el cambio es CSS puro; el build de Vercel fue la
+   verificación real. Capturas del antes y el después en `.impeccable/finish/`:
+   `antes-720.png` (la pieza cortada) vs `despues-720.png`, más
+   `antes-desktop.png` y `antes-laptop.png`.
+
+   **Cerrados el 16/08 noche:** commit `c8da187` → `origin/home-cards` → deploy
+   de producción `dpl_FTxv51oLLj41QNz6jZC7BUtbVJgu` sobre el sha `c8da187`.
+   Recordatorio que no cambia: **el push solo NO deploya a prod** en este
+   proyecto (`productionBranch` es `main`), el disparo va por
+   `POST /v13/deployments` con `target: production` y
+   `gitSource {repoId: 1200117728, ref: "home-cards"}`.
+3. **Mano de obra = RUBRO APARTE con postulantes.** ⚠️ **ALCANCE CERRADO CON EZE
+   EL 16/08 NOCHE — el pedido es más grande que "tres puntas" y esta es la
+   versión que manda.** Textual: *"yo puedo poner mano de obra 1, mano de obra 2,
+   mano de obra 3, porque yo puedo hacer una investigación entre 3 proveedores y
+   ver cuál es el que me cobra más o menos… como que haya varios"*. Y: *"la que
+   vale es la que yo voy a poner como la que me cobran a mí"*.
+
+   **La forma:** la MO sale de ser un ítem más del rubro y pasa a ser un **rubro
+   propio**, con una lista ABIERTA de contendientes por rubro de obra:
+
+   - `postulante 1`, `postulante 2`, `postulante 3`… — presupuestos reales de
+     proveedores, **con nombre** (Fran, el que sea) y su precio. Los carga él.
+     No son tres fijos: son los que haya.
+   - `investigación SISMAT` — la del tarifario.
+   - `investigación internet` — la que encuentra la ola.
+
+   **Quién manda:** el que él marca como "el que me cobran a mí" es el que entra
+   al costo y recalcula margen. SISMAT e internet **nunca** entran al costo: son
+   la vara contra la que se mide. (Queda por confirmar si el elegido calibra
+   `precios_items` como hoy hace `precio_eze` — por la regla del pase, el precio
+   tipeado por él SÍ calibra.)
+
+   **El desvío es el producto, y tiene que hablar.** Textual: *"recitás el
+   análisis… fijate que SISMAT está un 10% abajo de lo que te está cobrando
+   Fran"*. O sea: no una tabla de números, una LECTURA — cada postulante contra
+   los otros y contra las dos investigaciones, en %, con la frase que lo dice.
+   Es el mismo criterio que ya corre `price-decision.ts` para materiales
+   (umbrales del motor: 25% / 100%), aplicado a MO. **Reusar ese módulo, no
+   escribir un criterio paralelo.**
+
+   **Qué falta de datos:** hoy el contrato trae `precios.{sismat,internet}` por
+   ítem y `desglose.tiempo` con jornales, pero **no existe la tabla de
+   postulantes de MO** (proveedor, rubro, precio, fecha, de dónde salió). Va en
+   el esquema propio del cotizador, al lado de `cotizador_taller_items` — es
+   dato del TALLER, no de la oficina. Al pasar el expediente, lo que viaja a App
+   RAVN es el elegido, no los descartados.
+
+   **CONTESTADO por Eze (16/08 noche) — no queda nada abierto:** el postulante
+   elegido **pisa el costo y recalcula el precio AL TOQUE, sin confirmación ni
+   freno por desvío**. Textual: *"pisa el costo y recalcula el precio al toque,
+   yo de última lo miro y sé cómo manejarlo y ver de buscar otras opciones"*.
+   O sea: **nada de modal de confirmación arriba del 25%** — el desvío se
+   MUESTRA (es el producto), pero no interrumpe. El criterio de Eze es que él
+   lee el desvío y decide si sale a buscar otro postulante; la herramienta no
+   lo tutela. Esto vale también contra la tentación de meter un guard: sería
+   fricción en el único lugar donde él ya sabe qué está haciendo.
 
 ## Lo último: el cotizador vive en la nube (PASO 3, 16/08 noche)
 
