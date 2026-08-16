@@ -575,6 +575,11 @@ textarea:disabled {
   flex-direction: column;
   padding: 1.25rem 1.4rem 1.15rem;
   background: var(--qz-lift), var(--qz-panel);
+  /* pedido 13 v1 — profundidad real: canto de luz arriba + caída abajo,
+     el panel deja de ser un plano y pasa a ser una pieza con volumen */
+  box-shadow:
+    inset 0 1px 0 rgb(242 239 232 / 0.05),
+    0 18px 34px -22px rgb(0 0 0 / 0.85);
 }
 
 /* marcas de registro: firma de instrumento de los paneles de datos */
@@ -618,13 +623,14 @@ textarea:disabled {
   text-transform: uppercase;
 }
 
+/* pedido 16: el rango es UN número — celda angosta; la composición manda */
 .qz-kpi--cost {
-  grid-column: span 5;
+  grid-column: span 4;
 }
 
 .qz-kpi--cost strong {
   margin-top: 0.9rem;
-  font-size: clamp(2.1rem, 3vw, 3.3rem);
+  font-size: clamp(1.8rem, 2.4vw, 2.6rem);
   font-weight: 200;
   font-variant-numeric: tabular-nums;
   letter-spacing: -0.035em;
@@ -656,10 +662,12 @@ textarea:disabled {
   bottom: 4px;
   min-width: 2px;
   background: var(--qz-fg);
+  /* glow monocromo: la lectura viva del instrumento emite luz */
+  box-shadow: 0 0 9px rgb(242 239 232 / 0.55);
 }
 
 .qz-kpi--mix {
-  grid-column: span 4;
+  grid-column: span 5;
   gap: 0.85rem;
 }
 
@@ -709,6 +717,11 @@ textarea:disabled {
   position: relative;
   flex: 0 0 118px;
   width: 118px;
+  transform: perspective(560px) rotateX(10deg);
+}
+
+.qz-donut circle {
+  filter: drop-shadow(0 0 3px rgb(0 0 0 / 0.6));
 }
 
 .qz-donut {
@@ -886,6 +899,12 @@ textarea:disabled {
   position: relative;
   width: 84px;
   flex: 0 0 84px;
+  /* el instrumento se recuesta como consola de mando, no como plano */
+  transform: perspective(560px) rotateX(12deg);
+}
+
+.qz-dial line[data-on="true"] {
+  filter: drop-shadow(0 0 3px currentColor);
 }
 
 .qz-dial svg {
@@ -944,10 +963,12 @@ textarea:disabled {
 
 .qz-segments span[data-state="ok"] {
   background: var(--qz-ok);
+  box-shadow: 0 0 7px rgb(143 187 166 / 0.5);
 }
 
 .qz-segments span[data-state="warn"] {
   background: var(--qz-warn);
+  box-shadow: 0 0 7px rgb(199 160 92 / 0.5);
 }
 
 /* ------------------------------------------------------------- rubros */
@@ -1618,6 +1639,13 @@ textarea:disabled {
   min-width: 0;
   flex-direction: column;
   background: var(--qz-lift), var(--qz-panel);
+  box-shadow:
+    inset 0 1px 0 rgb(242 239 232 / 0.05),
+    0 18px 34px -22px rgb(0 0 0 / 0.85);
+}
+
+.qz-terminal[data-running="true"] > header h3::after {
+  box-shadow: 0 0 8px rgb(143 187 166 / 0.7);
 }
 
 .qz-terminal > header {
