@@ -4,8 +4,10 @@
 cotizador está en la nube (https://ravn-cotizador.vercel.app, usuario `eze`) y
 ahora **deja el número y el extracto en App RAVN con un botón**.
 
-**Para retomar: ir a "⏭️ POR ACÁ SE SIGUE". Lo único que falta del pase es
-provisionar el secreto en Vercel y que Eze lo pruebe.**
+**EL PASE ESTÁ EN PRODUCCIÓN Y VERIFICADO.** Para retomar: ir a
+**"⏭️ PEDIDOS NUEVOS DE EZE"** — tres pedidos frescos del 16/08 noche (consolas
+apretadas, conversación que se queda corta abajo, y **MO como ítem aparte con
+contraste a tres puntas**, que es el grande).
 
 ## Lo último: EL PASE DEL EXPEDIENTE (16/08 noche)
 
@@ -91,10 +93,49 @@ receta**), borradas después por el mismo camino:
 569 tests App RAVN · 125 cotizador (eran 116) · lint limpio · build OK ·
 **First Load JS 167 kB** (era 166).
 
-**⚠️ Lo único que falta y necesita a Eze:** `RAVN_COTIZADOR_WRITE_SECRET` en
-Vercel, en los DOS proyectos (`ravn-app-one` y `ravn-cotizador`), Production y
-Preview, con el MISMO valor y distinto del de lectura. Después promote de App
-RAVN y deploy del cotizador. Sin eso el botón falla cerrado y lo dice.
+### DESPLEGADO A PRODUCCIÓN (16/08 noche) — Eze aprobó el deploy
+
+`RAVN_COTIZADOR_WRITE_SECRET` cargado en los DOS proyectos (`ravn-app-one` y
+`ravn-cotizador`), Production y Preview, mismo valor. Deploys disparados por API
+contra `home-cards` con `target: production` (el push solo NO dispara deploy en
+estos proyectos: `productionBranch` es `main`).
+
+- App RAVN: `ravn-app-1j19li4hp-…` · Cotizador: `ravn-cotizador-qs8o0eibk-…`
+- Verificado en prod: cotizador sin credenciales **401** · App RAVN `/` 307 →
+  login, `/login` 200 · **el pase con la credencial de escritura da 404** sobre
+  un id inexistente (o sea: pasó el middleware y llegó a la ruta) · **`/aprobar`
+  con esa MISMA credencial sigue dando 401**. La frontera aguanta en la nube.
+
+**El cotizador sigue siendo app aparte** (regla de Eze, reafirmada al aprobar el
+deploy): dos proyectos Vercel, dos dominios, dos deploys. Lo único compartido es
+la base. El pase los conecta por una puerta de UNA ruta, no los fusiona.
+
+### ⏭️ PEDIDOS NUEVOS DE EZE (16/08, viendo la consola en prod) — ARRANCAR POR ACÁ
+
+Veredicto: *"igual quedó muy muy bien, me encanta"*. Tres pedidos, ninguno
+empezado. **El 3 es el más grande y es de producto, no de diseño.**
+
+1. **Las consolas del final siguen apretadas.** Textual: *"sigue todo medio
+   apretado lo de las consolas al final, que sea más extenso, que se vea más"*.
+   Es la `InstrumentRow` (Confianza · Decisiones cerradas · MO vs materiales ·
+   Tiempo de obra · Dispersión máxima): las cinco cards entran comprimidas y el
+   texto de apoyo queda en dos líneas apretadas. Dirección: darles alto y aire
+   de verdad, o pasarlas a dos filas. Ojo: no romper la vara de performance ni
+   meter relleno — cada instrumento tiene que seguir midiendo algo real.
+2. **El panel de conversación se queda corto abajo.** Textual: *"ahí se queda
+   corto, ¿ves que abajo no se ve?"* — con la captura del monolito cortado por
+   el borde inferior de la columna izquierda. El contenido (monolito de fondo +
+   composer) no llega al pie de la región.
+3. **Mano de obra como ítem aparte, con contraste de tres puntas.** Textual:
+   *"mano de obra tiene que ser un ítem aparte donde yo la cargue a mano contra
+   mano de obra sugerida SISMAT y mano de obra encontrada en web"*. O sea: la MO
+   deja de ser un ítem más del rubro y pasa a tener su propia estación donde se
+   ven **las tres**: la que él carga a mano, la sugerida por SISMAT y la
+   encontrada en internet. **Antes de construir, cerrar con él:** ¿es por rubro
+   o una sola MO de toda la obra? ¿la de él pisa el costo como hoy hace
+   `precio_eze`? Hoy el contrato ya trae `precios.{sismat,internet}` por ítem y
+   `desglose.tiempo` con jornales — el dato está, falta la vista y el lugar
+   donde él la carga.
 
 ## Lo último: el cotizador vive en la nube (PASO 3, 16/08 noche)
 
