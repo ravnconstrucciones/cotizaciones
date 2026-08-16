@@ -3,13 +3,17 @@
 import {
   ArrowUp,
   ChevronDown,
+  ChevronsLeft,
+  ChevronsRight,
   CircleSlash2,
   LockKeyhole,
   MessageSquare,
   Paperclip,
+  Plus,
   RefreshCw,
   SlidersHorizontal,
   TriangleAlert,
+  X,
 } from "lucide-react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import Link from "next/link";
@@ -19,7 +23,9 @@ import {
   useMemo,
   useRef,
   useState,
+  type CSSProperties,
   type FormEvent,
+  type PointerEvent as ReactPointerEvent,
   type RefObject,
 } from "react";
 import type {
@@ -67,6 +73,59 @@ type QueueEntry = {
   batch: QuoteBatch;
   item: BatchItem;
 };
+
+/**
+ * Ítem que Eze agrega a mano en la mesa (pedido del 16/08). El visor es
+ * READ-ONLY contra App RAVN: esto vive en SU navegador, por cotización, y se
+ * muestra siempre marcado. Nunca se mezcla con el rango que cerró el motor —
+ * se suma aparte, para que el número persistido no quede contaminado.
+ */
+type ManualItem = {
+  id: string;
+  batchId: string;
+  name: string;
+  tipo: "material" | "mano_de_obra";
+  cantidad: number;
+  unidad: string;
+  precioUnit: number;
+};
+
+const MANUAL_KEY = (quoteId: string) => `qz:manual:${quoteId}`;
+const LAYOUT_KEY = "qz:layout";
+
+const CHAT_MIN = 280;
+const CHAT_MAX = 620;
+const RAIL_MIN = 280;
+const RAIL_MAX = 560;
+const RAIL_FOLDED = 46;
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, Math.round(value)));
+}
+
+function manualSubtotal(item: ManualItem): number {
+  return item.cantidad * item.precioUnit;
+}
+
+function readManualItems(quoteId: string): ManualItem[] {
+  try {
+    const raw = window.localStorage.getItem(MANUAL_KEY(quoteId));
+    const parsed: unknown = raw ? JSON.parse(raw) : null;
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter(
+      (entry): entry is ManualItem =>
+        Boolean(entry) &&
+        typeof entry === "object" &&
+        typeof (entry as ManualItem).id === "string" &&
+        typeof (entry as ManualItem).batchId === "string" &&
+        typeof (entry as ManualItem).name === "string" &&
+        Number.isFinite((entry as ManualItem).cantidad) &&
+        Number.isFinite((entry as ManualItem).precioUnit)
+    );
+  } catch {
+    return [];
+  }
+}
 
 const MONEY = new Intl.NumberFormat("es-AR", {
   style: "currency",
@@ -198,6 +257,70 @@ export function ControlCenter({
   const composerRef = useRef<HTMLTextAreaElement>(null);
   const snapshot = data.snapshot;
   const queue = useMemo(() => queueEntries(snapshot), [snapshot]);
+  const pending = queue.length + snapshot.decision.questions.length;
+
+  // --- ventanas manipulables (pedido 4): anchos arrastrados y recordados ---
+  const [chatWidth, setChatWidth] = useState(360);
+  const [railWidth, setRailWidth] = useState(356);
+  const [railOpen, setRailOpen] = useState(true);
+  const autoFolded = useRef(false);
+
+  useEffect(() => {
+    try {
+      const raw = window.localStorage.getItem(LAYOUT_KEY);
+      const saved: unknown = raw ? JSON.parse(raw) : null;
+      if (!saved || typeof saved !== "object") return;
+      const { chat, rail } = saved as { chat?: number; rail?: number };
+      if (Number.isFinite(chat)) setChatWidth(clamp(chat!, CHAT_MIN, CHAT_MAX));
+      if (Number.isFinite(rail)) setRailWidth(clamp(rail!, RAIL_MIN, RAIL_MAX));
+    } catch {
+      /* sin layout guardado se abre con el de fábrica */
+    }
+  }, []);
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(
+        LAYOUT_KEY,
+        JSON.stringify({ chat: chatWidth, rail: railWidth })
+      );
+    } catch {
+      /* si el navegador no deja guardar, la consola sigue funcionando */
+    }
+  }, [chatWidth, railWidth]);
+
+  /**
+   * "Una vez que respondí todo, que aparezca el tablero completo": cuando no
+   * queda nada por decidir el rail se pliega solo UNA vez y el tablero se queda
+   * con la pantalla. Si vuelve a haber pendientes, el pliegue automático se
+   * rearma; si él lo abre a mano, no se le vuelve a cerrar.
+   */
+  useEffect(() => {
+    if (pending === 0 && !autoFolded.current) {
+      autoFolded.current = true;
+      setRailOpen(false);
+      return;
+    }
+    if (pending > 0) autoFolded.current = false;
+  }, [pending]);
+
+  // --- ítems agregados a mano, por cotización ---
+  const [manualItems, setManualItems] = useState<ManualItem[]>([]);
+  const manualLoaded = useRef<string | null>(null);
+
+  useEffect(() => {
+    setManualItems(readManualItems(snapshot.quote.id));
+    manualLoaded.current = snapshot.quote.id;
+  }, [snapshot.quote.id]);
+
+  useEffect(() => {
+    if (manualLoaded.current !== snapshot.quote.id) return;
+    try {
+      window.localStorage.setItem(MANUAL_KEY(snapshot.quote.id), JSON.stringify(manualItems));
+    } catch {
+      /* sin localStorage el ítem vive sólo en esta pestaña */
+    }
+  }, [manualItems, snapshot.quote.id]);
 
   const loadQuote = useCallback(
     async (quoteId: string, announce = true) => {
@@ -341,7 +464,7 @@ export function ControlCenter({
           [
             ["conversar", "Conversar", MessageSquare],
             ["tablero", "Tablero", SlidersHorizontal],
-            ["decidir", `Decidir · ${queue.length}`, TriangleAlert],
+            ["decidir", `Decidir · ${pending}`, TriangleAlert],
           ] as const
         ).map(([id, label, Icon]) => (
           <button
@@ -356,7 +479,16 @@ export function ControlCenter({
         ))}
       </nav>
 
-      <main className="qz-body">
+      <main
+        className="qz-body"
+        data-rail={railOpen ? "open" : "closed"}
+        style={
+          {
+            "--qz-chat-w": `${chatWidth}px`,
+            "--qz-rail-w": railOpen ? `${railWidth}px` : `${RAIL_FOLDED}px`,
+          } as CSSProperties
+        }
+      >
         <ConversationColumn
           snapshot={snapshot}
           preview={preview}
@@ -371,6 +503,15 @@ export function ControlCenter({
           reduceMotion={reduceMotion}
         />
 
+        <Splitter
+          side="chat"
+          width={chatWidth}
+          min={CHAT_MIN}
+          max={CHAT_MAX}
+          onWidth={setChatWidth}
+          label="Ancho de la conversación"
+        />
+
         <BoardColumn
           snapshot={snapshot}
           queue={queue}
@@ -380,19 +521,138 @@ export function ControlCenter({
           wave={wave}
           onHealth={setHealth}
           focusedItem={focusedItem}
+          manualItems={manualItems}
+          onAddManual={(item) => setManualItems((current) => [...current, item])}
+          onDropManual={(id) =>
+            setManualItems((current) => current.filter((entry) => entry.id !== id))
+          }
+        />
+
+        <Splitter
+          side="rail"
+          width={railWidth}
+          min={RAIL_MIN}
+          max={RAIL_MAX}
+          onWidth={setRailWidth}
+          disabled={!railOpen}
+          label="Ancho del rail de decisión"
         />
 
         <DecisionColumn
           snapshot={snapshot}
           queue={queue}
+          pending={pending}
           active={mobileTab === "decidir"}
           reduceMotion={reduceMotion}
           onAnswer={answerInConversation}
           onFocusItem={setFocusedItem}
           focusedItem={focusedItem}
+          onFold={() => setRailOpen(false)}
         />
+
+        <button
+          type="button"
+          className="qz-spine"
+          onClick={() => setRailOpen(true)}
+          aria-label={
+            pending > 0
+              ? `Abrir lo que falta decidir: ${pending} pendientes`
+              : "Abrir lo que falta decidir"
+          }
+          title={pending > 0 ? `${pending} sin decidir` : "Nada pendiente"}
+        >
+          <ChevronsLeft size={15} aria-hidden="true" />
+          {pending > 0 ? (
+            <>
+              <span className="qz-spine__bang" aria-hidden="true">
+                !
+              </span>
+              <span className="qz-spine__count">{pending}</span>
+            </>
+          ) : null}
+          <span
+            className={pending > 0 ? "qz-spine__label" : "qz-spine__label qz-spine__clear"}
+          >
+            {pending > 0 ? "Lo que falta decidir" : "Todo decidido"}
+          </span>
+        </button>
       </main>
     </div>
+  );
+}
+
+/* ------------------------------------------------------------ separadores */
+
+/**
+ * Barra movible entre regiones (pedido 4). Se ve siempre, se agarra con el
+ * mouse y también se mueve con el teclado — es un `separator` enfocable, que es
+ * lo que ARIA define para un divisor de ventanas.
+ */
+function Splitter({
+  side,
+  width,
+  min,
+  max,
+  onWidth,
+  disabled = false,
+  label,
+}: {
+  side: "chat" | "rail";
+  width: number;
+  min: number;
+  max: number;
+  onWidth: (value: number) => void;
+  disabled?: boolean;
+  label: string;
+}) {
+  const [dragging, setDragging] = useState(false);
+  const origin = useRef({ x: 0, width: 0 });
+
+  const start = (event: ReactPointerEvent<HTMLButtonElement>) => {
+    if (disabled) return;
+    event.preventDefault();
+    origin.current = { x: event.clientX, width };
+    setDragging(true);
+    event.currentTarget.setPointerCapture(event.pointerId);
+  };
+
+  const move = (event: ReactPointerEvent<HTMLButtonElement>) => {
+    if (!dragging) return;
+    const delta = event.clientX - origin.current.x;
+    // el rail crece hacia la izquierda: el mismo gesto, el signo invertido
+    onWidth(clamp(origin.current.width + (side === "chat" ? delta : -delta), min, max));
+  };
+
+  const stop = (event: ReactPointerEvent<HTMLButtonElement>) => {
+    if (!dragging) return;
+    setDragging(false);
+    event.currentTarget.releasePointerCapture(event.pointerId);
+  };
+
+  return (
+    <button
+      type="button"
+      className={`qz-splitter qz-splitter--${side}`}
+      role="separator"
+      aria-orientation="vertical"
+      aria-label={label}
+      aria-valuenow={width}
+      aria-valuemin={min}
+      aria-valuemax={max}
+      data-dragging={dragging}
+      disabled={disabled}
+      onPointerDown={start}
+      onPointerMove={move}
+      onPointerUp={stop}
+      onPointerCancel={stop}
+      onDoubleClick={() => onWidth(side === "chat" ? 360 : 356)}
+      onKeyDown={(event) => {
+        const step = event.shiftKey ? 48 : 16;
+        const towards = side === "chat" ? 1 : -1;
+        if (event.key === "ArrowLeft") onWidth(clamp(width - step * towards, min, max));
+        if (event.key === "ArrowRight") onWidth(clamp(width + step * towards, min, max));
+      }}
+    />
   );
 }
 
@@ -557,6 +817,9 @@ function BoardColumn({
   wave,
   onHealth,
   focusedItem,
+  manualItems,
+  onAddManual,
+  onDropManual,
 }: {
   snapshot: QuoteWorkspaceSnapshot;
   queue: QueueEntry[];
@@ -566,6 +829,9 @@ function BoardColumn({
   wave: WaveRequest | null;
   onHealth: (health: BridgeHealth) => void;
   focusedItem: string | null;
+  manualItems: ManualItem[];
+  onAddManual: (item: ManualItem) => void;
+  onDropManual: (id: string) => void;
 }) {
   const itemRefs = useRef(new Map<string, HTMLDivElement>());
 
@@ -576,13 +842,21 @@ function BoardColumn({
 
   return (
     <section className="qz-board" data-mobile-active={active} aria-label="Tablero del costo">
-      <Readout snapshot={snapshot} queue={queue} reduceMotion={reduceMotion} />
+      <Readout
+        snapshot={snapshot}
+        queue={queue}
+        reduceMotion={reduceMotion}
+        manualItems={manualItems}
+      />
       <MarginConsole snapshot={snapshot} reduceMotion={reduceMotion} />
       <InstrumentRow snapshot={snapshot} queue={queue} />
       <RubroLedger
         snapshot={snapshot}
         reduceMotion={reduceMotion}
         focusedItem={focusedItem}
+        manualItems={manualItems}
+        onAddManual={onAddManual}
+        onDropManual={onDropManual}
         registerItem={(key, node) => {
           if (node) itemRefs.current.set(key, node);
           else itemRefs.current.delete(key);
@@ -597,16 +871,19 @@ function Readout({
   snapshot,
   queue,
   reduceMotion,
+  manualItems,
 }: {
   snapshot: QuoteWorkspaceSnapshot;
   queue: QueueEntry[];
   reduceMotion: boolean;
+  manualItems: ManualItem[];
 }) {
   const { min, max } = snapshot.core.costRange;
   const composition = snapshot.core.composition;
   const width = rangeWidthPct(min, max);
   const itemCount = snapshot.batches.reduce((sum, batch) => sum + batch.itemCount, 0);
   const blocking = queue.filter((entry) => entry.item.decision.severity === "blocking").length;
+  const manualTotal = manualItems.reduce((sum, item) => sum + manualSubtotal(item), 0);
 
   return (
     <section className="qz-readout qz-panel" aria-label="Rango de costo">
@@ -646,6 +923,16 @@ function Readout({
           <dd data-tone={blocking > 0 ? "alert" : "ok"}>{blocking}</dd>
           <small>{queue.length} decisiones abiertas</small>
         </div>
+        {manualTotal > 0 ? (
+          <div>
+            <dt>Agregado a mano</dt>
+            <dd>{compact(manualTotal)}</dd>
+            <small>
+              {max != null ? `techo con lo tuyo ${compact(max + manualTotal)}` : "sin techo"} ·
+              no está en App RAVN
+            </small>
+          </div>
+        ) : null}
       </dl>
     </section>
   );
@@ -1012,13 +1299,20 @@ function RubroLedger({
   reduceMotion,
   focusedItem,
   registerItem,
+  manualItems,
+  onAddManual,
+  onDropManual,
 }: {
   snapshot: QuoteWorkspaceSnapshot;
   reduceMotion: boolean;
   focusedItem: string | null;
   registerItem: (key: string, node: HTMLDivElement | null) => void;
+  manualItems: ManualItem[];
+  onAddManual: (item: ManualItem) => void;
+  onDropManual: (id: string) => void;
 }) {
   const totalMax = snapshot.batches.reduce((sum, batch) => sum + (batch.priceRange.max ?? 0), 0);
+  const [openForm, setOpenForm] = useState<string | null>(null);
 
   return (
     <section className="qz-ledger qz-panel" aria-label="Rubros del costo">
@@ -1030,18 +1324,43 @@ function RubroLedger({
       <div className="qz-ledger__scroll">
         {snapshot.batches.map((batch, index) => {
           const share = totalMax > 0 ? Math.round(((batch.priceRange.max ?? 0) / totalMax) * 100) : 0;
+          const mine = manualItems.filter((item) => item.batchId === batch.id);
+          const mineTotal = mine.reduce((sum, item) => sum + manualSubtotal(item), 0);
           return (
             <section className="qz-rubro" key={batch.id}>
               <header className="qz-rubro__head">
                 <i style={{ background: rubroColor(index) }} aria-hidden="true" />
                 <h3>{batch.etapa}</h3>
                 <span className="qz-rubro__share">{share}% del costo</span>
+                {mineTotal > 0 ? (
+                  <span className="qz-rubro__manual">+ {compact(mineTotal)} a mano</span>
+                ) : null}
                 <strong className="qz-rubro__money">
                   {batch.priceRange.min === batch.priceRange.max
                     ? compact(batch.priceRange.max)
                     : `${compact(batch.priceRange.min)} — ${compact(batch.priceRange.max)}`}
                 </strong>
+                <button
+                  type="button"
+                  className="qz-rubro__add"
+                  aria-expanded={openForm === batch.id}
+                  onClick={() => setOpenForm((current) => (current === batch.id ? null : batch.id))}
+                >
+                  <Plus size={13} aria-hidden="true" />
+                  Ítem
+                </button>
               </header>
+
+              {openForm === batch.id ? (
+                <ManualItemForm
+                  batchId={batch.id}
+                  onCancel={() => setOpenForm(null)}
+                  onAdd={(item) => {
+                    onAddManual(item);
+                    setOpenForm(null);
+                  }}
+                />
+              ) : null}
 
               <div className="qz-rubro__items">
                 {batch.items.map((item) => (
@@ -1053,6 +1372,9 @@ function RubroLedger({
                     reduceMotion={reduceMotion}
                     registerItem={registerItem}
                   />
+                ))}
+                {mine.map((item) => (
+                  <ManualItemRow key={item.id} item={item} onDrop={() => onDropManual(item.id)} />
                 ))}
               </div>
             </section>
@@ -1124,6 +1446,134 @@ function ItemRow({
         {item.decision.headline}
       </p>
     </motion.div>
+  );
+}
+
+/**
+ * Alta de un ítem a mano dentro del rubro. Cinco campos y nada más: lo que hace
+ * falta para que la línea sea una línea de costo de verdad (qué, de qué tipo,
+ * cuánto, en qué unidad y a cuánto). El subtotal lo hace la multiplicación, no
+ * se pide.
+ */
+function ManualItemForm({
+  batchId,
+  onAdd,
+  onCancel,
+}: {
+  batchId: string;
+  onAdd: (item: ManualItem) => void;
+  onCancel: () => void;
+}) {
+  const [name, setName] = useState("");
+  const [tipo, setTipo] = useState<ManualItem["tipo"]>("material");
+  const [cantidad, setCantidad] = useState("1");
+  const [unidad, setUnidad] = useState("u");
+  const [precio, setPrecio] = useState("");
+
+  const cantidadNum = Number(cantidad.replace(",", "."));
+  const precioNum = Number(precio.replace(/\./g, "").replace(",", "."));
+  const valid =
+    name.trim().length > 0 &&
+    Number.isFinite(cantidadNum) &&
+    cantidadNum > 0 &&
+    Number.isFinite(precioNum) &&
+    precioNum > 0;
+
+  return (
+    <form
+      className="qz-manual-form"
+      onSubmit={(event) => {
+        event.preventDefault();
+        if (!valid) return;
+        onAdd({
+          id:
+            typeof crypto !== "undefined" && "randomUUID" in crypto
+              ? crypto.randomUUID()
+              : `manual:${Date.now()}`,
+          batchId,
+          name: name.trim(),
+          tipo,
+          cantidad: cantidadNum,
+          unidad: unidad.trim() || "u",
+          precioUnit: precioNum,
+        });
+      }}
+    >
+      <label>
+        <span>Qué agregás</span>
+        <input
+          value={name}
+          autoFocus
+          onChange={(event) => setName(event.target.value)}
+          placeholder="Ej.: Bacha de apoyo"
+        />
+      </label>
+      <label>
+        <span>Tipo</span>
+        <select
+          value={tipo}
+          onChange={(event) => setTipo(event.target.value as ManualItem["tipo"])}
+        >
+          <option value="material">Material</option>
+          <option value="mano_de_obra">Mano de obra</option>
+        </select>
+      </label>
+      <label>
+        <span>Cantidad</span>
+        <input inputMode="decimal" value={cantidad} onChange={(event) => setCantidad(event.target.value)} />
+      </label>
+      <label>
+        <span>Unidad</span>
+        <input value={unidad} onChange={(event) => setUnidad(event.target.value)} />
+      </label>
+      <label>
+        <span>Precio unitario</span>
+        <input
+          inputMode="numeric"
+          value={precio}
+          onChange={(event) => setPrecio(event.target.value)}
+          placeholder="0"
+        />
+      </label>
+      <button type="submit" disabled={!valid}>
+        Agregar
+      </button>
+      <button type="button" className="qz-manual-form__cancel" onClick={onCancel}>
+        Cancelar
+      </button>
+    </form>
+  );
+}
+
+function ManualItemRow({ item, onDrop }: { item: ManualItem; onDrop: () => void }) {
+  return (
+    <div className="qz-item" data-manual="true">
+      <div className="qz-item__head">
+        <div>
+          <strong>{item.name}</strong>
+          <span className="qz-item__flag">A mano</span>
+          <small>
+            {item.tipo === "mano_de_obra" ? "Mano de obra" : "Material"} ·{" "}
+            {item.cantidad.toLocaleString("es-AR")} {item.unidad} × {money(item.precioUnit)}
+          </small>
+        </div>
+        <span className="qz-item__subtotal">
+          {money(manualSubtotal(item))}
+          <button
+            type="button"
+            className="qz-item__drop"
+            onClick={onDrop}
+            aria-label={`Sacar ${item.name} de la mesa`}
+            title="Sacar de la mesa"
+          >
+            <X size={13} aria-hidden="true" />
+          </button>
+        </span>
+      </div>
+      <p className="qz-item__verdict">
+        Lo pusiste vos en la mesa: queda en este navegador y no entra al costo que cerró el motor.
+      </p>
+    </div>
   );
 }
 
@@ -1240,21 +1690,26 @@ function ControlsDrawer({ snapshot }: { snapshot: QuoteWorkspaceSnapshot }) {
 function DecisionColumn({
   snapshot,
   queue,
+  pending,
   active,
   reduceMotion,
   onAnswer,
   onFocusItem,
   focusedItem,
+  onFold,
 }: {
   snapshot: QuoteWorkspaceSnapshot;
   queue: QueueEntry[];
+  pending: number;
   active: boolean;
   reduceMotion: boolean;
   onAnswer: (question: string) => void;
   onFocusItem: (key: string | null) => void;
   focusedItem: string | null;
+  onFold: () => void;
 }) {
   const questions = snapshot.decision.questions;
+  const blocking = queue.filter((entry) => entry.item.decision.severity === "blocking").length;
 
   return (
     <section
@@ -1263,8 +1718,19 @@ function DecisionColumn({
       aria-labelledby="decisions-title"
     >
       <header className="qz-decisions__head">
+        <button
+          type="button"
+          className="qz-decisions__fold"
+          onClick={onFold}
+          aria-label="Plegar lo que falta decidir"
+          title="Plegar y dejarle la pantalla al tablero"
+        >
+          <ChevronsRight size={14} aria-hidden="true" />
+        </button>
         <h2 id="decisions-title">Lo que falta decidir</h2>
-        <span>{queue.length}</span>
+        <span className="qz-decisions__count" data-alert={blocking > 0}>
+          {pending}
+        </span>
       </header>
 
       <div className="qz-decisions__scroll">

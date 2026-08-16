@@ -26,11 +26,22 @@ import { RavnIso } from "./ravn-iso";
 
 type CoreState = "off" | "ready" | "running";
 
+/**
+ * Piso de PERCEPCIÓN, no sólo de estado (Eze, 16/08: "el logo dejó de moverse,
+ * me gustaba que se moviera"). A 40 s por vuelta la pieza giraba de verdad —
+ * 9°/s — pero contra el fondo negro y detrás del velo se leía quieta. La
+ * velocidad sigue codificando el estado real del bridge; lo que subió es el
+ * piso, para que "apagado" también se vea vivo.
+ */
 const TURN_SECONDS: Record<CoreState, number> = {
-  off: 40,
-  ready: 18,
-  running: 6,
+  off: 20,
+  ready: 11,
+  running: 5,
 };
+
+/** Cabeceo lento sobre el eje X: el giro se lee aunque la cara quede de frente. */
+const WOBBLE_RAD = 0.07;
+const WOBBLE_TURNS = 0.5;
 
 /** Contorno de la R trazado del isotipo (px, y hacia abajo, bbox 596 × 624). */
 const OUTLINE: ReadonlyArray<readonly [number, number]> = [
@@ -208,6 +219,7 @@ export function RavnMark3D({ state, size = 300 }: { state: CoreState; size?: num
           angle += (pending * Math.PI * 2) / TURN_SECONDS[stateRef.current];
           pending = 0;
           monolith.rotation.y = angle;
+          monolith.rotation.x = Math.sin(angle * WOBBLE_TURNS) * WOBBLE_RAD;
           renderer.render(scene, camera);
         };
         tick();

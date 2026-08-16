@@ -50,8 +50,51 @@
   --qz-glow-warn: 0 0 12px rgb(211 168 98 / 0.5);
   --qz-glow-alert: 0 0 12px rgb(207 125 104 / 0.5);
 
+  /* cantos: Eze pidió sacarle las puntas cuadradas a todo (16/08). El DS de la
+     firma es cero radio; adentro del visor no gobierna. Tres pasos, no más:
+     plano, pieza y control. */
+  --qz-r-panel: 14px;
+  --qz-r-card: 10px;
+  --qz-r-control: 8px;
+
   --qz-rail-h: 52px;
+  --qz-split-w: 10px;
   --qz-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+/* ------------------------------------------------------------- barras
+   Las barras de scroll son parte del instrumento: se ven, se agarran y saben
+   dónde están (pedido de Eze: "que las barras movibles se vean más"). */
+
+* {
+  scrollbar-color: rgb(242 239 232 / 0.34) rgb(242 239 232 / 0.05);
+  scrollbar-width: auto;
+}
+
+*::-webkit-scrollbar {
+  width: 12px;
+  height: 12px;
+}
+
+*::-webkit-scrollbar-track {
+  background: rgb(242 239 232 / 0.05);
+  border-radius: 99px;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, rgb(242 239 232 / 0.42), rgb(242 239 232 / 0.24));
+  border: 3px solid transparent;
+  background-clip: padding-box;
+  border-radius: 99px;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, rgb(242 239 232 / 0.7), rgb(242 239 232 / 0.45));
+  background-clip: padding-box;
+}
+
+*::-webkit-scrollbar-corner {
+  background: transparent;
 }
 
 * {
@@ -141,6 +184,7 @@ code {
   position: relative;
   background: linear-gradient(180deg, var(--qz-panel-top), var(--qz-panel-bottom));
   box-shadow: var(--qz-edge), var(--qz-elev-1);
+  border-radius: var(--qz-r-panel);
 }
 
 /* Marcas de registro: la firma de instrumento de los planos de lectura. */
@@ -148,7 +192,7 @@ code {
 .qz-gauge::after {
   content: "";
   position: absolute;
-  inset: 9px;
+  inset: 12px;
   pointer-events: none;
   background-image:
     linear-gradient(var(--qz-line-strong), var(--qz-line-strong)),
@@ -200,11 +244,13 @@ code {
   height: 20px;
 }
 
+/* Raleway light: el wordmark de la firma NUNCA va grueso (Eze, 16/08: "está
+   demasiado gruesa"). El peso lo da el tracking, no el trazo. */
 .qz-brand__mark {
-  font-size: 0.95rem;
-  font-weight: 600;
-  letter-spacing: 0.35em;
-  padding-left: 0.35em;
+  font-size: 0.92rem;
+  font-weight: 300;
+  letter-spacing: 0.38em;
+  padding-left: 0.38em;
 }
 
 .qz-brand__product {
@@ -238,6 +284,7 @@ code {
   letter-spacing: 0.01em;
   text-overflow: ellipsis;
   box-shadow: var(--qz-edge);
+  border-radius: var(--qz-r-control);
 }
 
 .qz-rail__quote > svg {
@@ -269,8 +316,9 @@ code {
 .qz-tag {
   font-size: 0.55rem;
   letter-spacing: 0.2em;
-  padding: 4px 8px;
+  padding: 4px 9px;
   border: 1px solid var(--qz-line-strong);
+  border-radius: 99px;
   color: var(--qz-muted);
 }
 
@@ -329,6 +377,7 @@ code {
   height: 30px;
   background: var(--qz-inset);
   border: 1px solid var(--qz-line);
+  border-radius: 50%;
   color: var(--qz-muted);
   cursor: pointer;
   box-shadow: var(--qz-edge);
@@ -345,6 +394,7 @@ code {
   border-bottom: 1px solid var(--qz-line);
   color: var(--qz-fg);
   font-size: 0.8rem;
+  border-radius: var(--qz-r-control);
 }
 
 .qz-mobile-tabs {
@@ -353,12 +403,104 @@ code {
 
 /* ------------------------------------------------------------------ body */
 
+/* Tres regiones y dos separadores que se arrastran (pedido 4). El ancho de cada
+   columna vive en variables que escribe React y se guardan en localStorage: la
+   consola queda como el usuario la dejó. */
 .qz-body {
   display: grid;
-  grid-template-columns: minmax(320px, 360px) minmax(0, 1fr) minmax(312px, 356px);
-  gap: 1px;
+  grid-template-columns:
+    var(--qz-chat-w, 360px)
+    var(--qz-split-w)
+    minmax(0, 1fr)
+    var(--qz-split-w)
+    var(--qz-rail-w, 356px);
+  gap: 0;
   min-height: 0;
+  padding: 8px;
   background: var(--qz-ground);
+}
+
+/* Cada región tiene su columna fija: el lomo y el rail comparten la última, así
+   plegar no reacomoda la grilla. */
+.qz-body > .qz-chat {
+  grid-area: 1 / 1;
+}
+
+.qz-body > .qz-splitter--chat {
+  grid-area: 1 / 2;
+}
+
+.qz-body > .qz-board {
+  grid-area: 1 / 3;
+}
+
+.qz-body > .qz-splitter--rail {
+  grid-area: 1 / 4;
+}
+
+.qz-body > .qz-decisions,
+.qz-body > .qz-spine {
+  grid-area: 1 / 5;
+}
+
+.qz-body[data-rail="closed"] > .qz-decisions,
+.qz-body[data-rail="open"] > .qz-spine {
+  display: none;
+}
+
+/* la barra movible: se ve, se agarra y dice para dónde va */
+.qz-splitter {
+  position: relative;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: col-resize;
+  touch-action: none;
+}
+
+.qz-splitter::before {
+  content: "";
+  width: 4px;
+  height: 100%;
+  border-radius: 99px;
+  background: rgb(242 239 232 / 0.2);
+  transition: background 0.16s ease;
+}
+
+/* el grip: tres marcas al medio, como la manija de un panel */
+.qz-splitter::after {
+  content: "";
+  position: absolute;
+  width: 4px;
+  height: 34px;
+  border-radius: 99px;
+  background:
+    linear-gradient(var(--qz-fg), var(--qz-fg)) 50% 4px / 2px 10px no-repeat,
+    linear-gradient(var(--qz-fg), var(--qz-fg)) 50% 16px / 2px 10px no-repeat,
+    linear-gradient(var(--qz-fg), var(--qz-fg)) 50% 28px / 2px 2px no-repeat;
+  opacity: 0.72;
+  transition: opacity 0.16s ease;
+}
+
+.qz-splitter:hover::before,
+.qz-splitter[data-dragging="true"]::before {
+  background: rgb(242 239 232 / 0.34);
+}
+
+.qz-splitter:hover::after,
+.qz-splitter[data-dragging="true"]::after {
+  opacity: 1;
+}
+
+.qz-splitter[data-dragging="true"]::before {
+  box-shadow: var(--qz-glow-fg);
+}
+
+.qz-splitter:disabled {
+  cursor: default;
+  visibility: hidden;
 }
 
 /* --------------------------------------------------------- conversación */
@@ -477,6 +619,7 @@ code {
   border: 1px solid var(--qz-line);
   box-shadow: var(--qz-edge), var(--qz-elev-1);
   backdrop-filter: blur(3px);
+  border-radius: var(--qz-r-card);
 }
 
 .qz-message[data-author="eze"] {
@@ -519,6 +662,7 @@ code {
   line-height: 1.5;
   resize: none;
   box-shadow: var(--qz-edge);
+  border-radius: var(--qz-r-control);
 }
 
 .qz-composer textarea::placeholder {
@@ -547,6 +691,7 @@ code {
   color: var(--qz-dim);
   font-size: 0.68rem;
   letter-spacing: 0.06em;
+  border-radius: 99px;
 }
 
 .qz-send {
@@ -560,6 +705,7 @@ code {
   color: #070707;
   cursor: pointer;
   box-shadow: 0 0 18px rgb(242 239 232 / 0.16);
+  border-radius: 50%;
 }
 
 .qz-send:disabled {
@@ -587,11 +733,12 @@ code {
 .qz-board {
   display: grid;
   grid-auto-rows: max-content;
-  gap: 1px;
+  gap: 8px;
   min-height: 0;
   overflow-y: auto;
   overscroll-behavior: contain;
   background: var(--qz-ground);
+  scroll-padding-top: 8px;
 }
 
 /* módulos levantados del chasis: la lectura y los instrumentos son piezas
@@ -602,12 +749,17 @@ code {
 .qz-wave {
   background: linear-gradient(180deg, #161615, #0d0d0c 58%, #101010);
   box-shadow: var(--qz-relief);
+  border-radius: var(--qz-r-panel);
+  border-radius: var(--qz-r-panel);
+  overflow: hidden;
 }
 
 /* lectura principal: el número manda la composición */
+/* La lectura manda: la columna de deltas queda ACOTADA y envuelve. Con `auto`
+   se comía el número cuando aparecía el cuarto dato (lo agregado a mano). */
 .qz-readout {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1.15fr) minmax(210px, 0.85fr);
   align-items: stretch;
   gap: 28px;
   padding: 20px 24px 18px;
@@ -623,9 +775,11 @@ code {
   color: var(--qz-dim);
 }
 
+/* la escala baja al pie del plano: sin aire muerto abajo del número */
 .qz-readout__figure {
   display: flex;
   flex-direction: column;
+  justify-content: space-between;
   gap: 6px;
   min-width: 0;
 }
@@ -691,19 +845,20 @@ code {
 }
 
 .qz-readout__deltas {
-  display: grid;
-  grid-auto-flow: column;
-  gap: 26px;
+  display: flex;
+  flex-wrap: wrap;
+  align-content: center;
+  gap: 16px 24px;
   margin: 0;
   padding-left: 26px;
   border-left: 1px solid var(--qz-line);
-  align-content: center;
 }
 
 .qz-readout__deltas div {
   display: flex;
   flex-direction: column;
   gap: 3px;
+  flex: 1 1 92px;
   min-width: 92px;
 }
 
@@ -830,6 +985,7 @@ code {
   font-weight: 300;
   font-variant-numeric: tabular-nums;
   letter-spacing: -0.01em;
+  border-radius: var(--qz-r-control);
 }
 
 .qz-margin__field input:focus-visible {
@@ -898,6 +1054,7 @@ code {
   letter-spacing: 0.04em;
   cursor: pointer;
   transition: color 0.16s ease, border-color 0.16s ease;
+  border-radius: 99px;
 }
 
 .qz-margin__presets button:hover {
@@ -961,9 +1118,15 @@ code {
 /* fila de instrumentos */
 .qz-instruments {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(148px, 1fr));
-  gap: 1px;
+  grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
+  gap: 8px;
   background: var(--qz-ground);
+}
+
+/* nada de aire muerto: si el último instrumento cae solo en una fila nueva,
+   se estira hasta el final en vez de dejar el hueco (Eze, 16/08). */
+.qz-instruments > .qz-gauge:last-child {
+  grid-column: auto / -1;
 }
 
 .qz-gauge {
@@ -1084,6 +1247,7 @@ code {
   flex: 1;
   height: 16px;
   background: rgb(242 239 232 / 0.1);
+  border-radius: 3px;
 }
 
 .qz-gauge__track span[data-state="ok"] {
@@ -1106,6 +1270,7 @@ code {
   height: 16px;
   background: rgb(242 239 232 / 0.14);
   overflow: hidden;
+  border-radius: 99px;
 }
 
 .qz-split span {
@@ -1120,6 +1285,9 @@ code {
   display: flex;
   flex-direction: column;
   min-height: 0;
+  /* `clip` y no `hidden`: hidden crearía un scrollport propio y los encabezados
+     de rubro dejarían de pegarse al scroll del tablero. */
+  overflow: clip;
 }
 
 .qz-ledger__head {
@@ -1156,8 +1324,7 @@ code {
   position: sticky;
   top: 0;
   z-index: 2;
-  display: grid;
-  grid-template-columns: 3px minmax(0, 1fr) auto auto;
+  display: flex;
   align-items: center;
   gap: 14px;
   padding: 13px 24px;
@@ -1172,6 +1339,8 @@ code {
 }
 
 .qz-rubro__head h3 {
+  flex: 1;
+  min-width: 0;
   margin: 0;
   font-size: 0.9rem;
   font-weight: 500;
@@ -1256,6 +1425,7 @@ code {
   padding: 7px 12px;
   background: linear-gradient(180deg, #131312, #0b0b0a);
   border: 1px solid var(--qz-line);
+  border-radius: 99px;
   box-shadow: inset 0 1px 0 rgb(242 239 232 / 0.06), 0 6px 12px -10px rgb(0 0 0 / 0.9);
 }
 
@@ -1336,6 +1506,157 @@ code {
   color: var(--qz-alert);
 }
 
+/* ------------------------------------------------- ítems agregados a mano
+
+   El visor es READ-ONLY contra App RAVN: lo que Eze agrega acá vive en su
+   navegador (localStorage, por cotización) y se muestra SIEMPRE marcado como
+   "a mano". No se mezcla con el rango que cerró el motor — se suma aparte,
+   así el número persistido nunca queda contaminado. */
+
+.qz-rubro__add {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  background: none;
+  border: 1px dashed var(--qz-line-strong);
+  border-radius: 99px;
+  color: var(--qz-muted);
+  font: inherit;
+  font-size: 0.62rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: color 0.16s ease, border-color 0.16s ease;
+}
+
+.qz-rubro__add:hover {
+  color: var(--qz-fg);
+  border-color: var(--qz-fg);
+}
+
+.qz-manual-form {
+  display: grid;
+  grid-template-columns:
+    minmax(0, 2fr) minmax(0, 1.1fr) minmax(0, 0.75fr)
+    minmax(0, 0.75fr) minmax(0, 1.2fr) auto auto;
+  align-items: end;
+  gap: 8px;
+  padding: 14px 24px 16px;
+  background: rgb(242 239 232 / 0.035);
+  border-bottom: 1px solid var(--qz-line);
+}
+
+.qz-manual-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+}
+
+.qz-manual-form span {
+  font-size: 0.54rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--qz-dim);
+}
+
+.qz-manual-form input,
+.qz-manual-form select {
+  width: 100%;
+  padding: 7px 9px;
+  background: var(--qz-inset);
+  border: 1px solid var(--qz-line-strong);
+  border-radius: var(--qz-r-control);
+  box-shadow: var(--qz-well);
+  color: var(--qz-fg);
+  font: inherit;
+  font-size: 0.82rem;
+}
+
+.qz-manual-form select {
+  appearance: none;
+}
+
+.qz-manual-form button {
+  padding: 8px 14px;
+  border: 1px solid var(--qz-line-strong);
+  border-radius: var(--qz-r-control);
+  background: none;
+  color: var(--qz-fg);
+  font: inherit;
+  font-size: 0.66rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.qz-manual-form button[type="submit"]:not(:disabled):hover {
+  background: var(--qz-fg);
+  border-color: var(--qz-fg);
+  color: #070707;
+}
+
+.qz-manual-form button:disabled {
+  color: var(--qz-dim);
+  border-color: var(--qz-line);
+}
+
+.qz-manual-form__cancel {
+  color: var(--qz-dim) !important;
+}
+
+.qz-item[data-manual="true"] {
+  background: rgb(242 239 232 / 0.02);
+  box-shadow: inset 2px 0 0 var(--qz-line-strong);
+}
+
+/* el nombre y su marca van en el mismo renglón */
+.qz-item[data-manual="true"] .qz-item__head strong {
+  display: inline;
+}
+
+.qz-item__flag {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-left: 8px;
+  padding: 2px 8px;
+  border: 1px solid var(--qz-line-strong);
+  border-radius: 99px;
+  font-size: 0.56rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--qz-muted);
+  vertical-align: 1px;
+}
+
+.qz-item__drop {
+  display: inline-grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  margin-left: 10px;
+  background: none;
+  border: 1px solid var(--qz-line);
+  border-radius: 50%;
+  color: var(--qz-dim);
+  cursor: pointer;
+}
+
+.qz-item__drop:hover {
+  color: var(--qz-alert);
+  border-color: var(--qz-alert);
+}
+
+.qz-rubro__manual {
+  font-size: 0.62rem;
+  letter-spacing: 0.04em;
+  color: var(--qz-muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
 /* ------------------------------------------------------------- la ola */
 
 .qz-wave {
@@ -1397,6 +1718,8 @@ code {
   flex-direction: column;
   min-height: 0;
   background: #070707;
+  border-radius: var(--qz-r-control);
+  overflow: hidden;
 }
 
 .qz-terminal header {
@@ -1491,12 +1814,12 @@ code {
   display: flex;
   flex-direction: column;
   min-height: 0;
+  overflow: hidden;
 }
 
 .qz-decisions__head {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   gap: 12px;
   padding: 14px 18px 12px;
   border-bottom: 1px solid var(--qz-line);
@@ -1506,10 +1829,91 @@ code {
   margin: 0;
 }
 
-.qz-decisions__head span {
+.qz-decisions__count {
+  margin-left: auto;
   font-size: 1.35rem;
   font-weight: 200;
   font-variant-numeric: tabular-nums;
+}
+
+.qz-decisions__count[data-alert="true"] {
+  color: var(--qz-alert);
+}
+
+.qz-decisions__fold {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  background: none;
+  border: 1px solid var(--qz-line);
+  border-radius: 50%;
+  color: var(--qz-dim);
+  cursor: pointer;
+}
+
+.qz-decisions__fold:hover {
+  color: var(--qz-fg);
+  border-color: var(--qz-line-strong);
+}
+
+/* --------------------------------------------- rail plegado (lomo)
+
+   Plegado, el rail queda como el lomo de un cajón: el título vertical, cuántas
+   decisiones esperan y —si hay alguna— el signo de admisión en rojo. Se pliega
+   solo cuando la cola llega a cero: ahí el tablero se queda con la pantalla. */
+
+.qz-spine {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 0;
+  background: linear-gradient(180deg, var(--qz-panel-top), var(--qz-panel-bottom));
+  border: none;
+  border-radius: var(--qz-r-panel);
+  box-shadow: var(--qz-edge), var(--qz-elev-1);
+  color: var(--qz-dim);
+  cursor: pointer;
+  transition: color 0.16s ease;
+}
+
+.qz-spine:hover {
+  color: var(--qz-fg);
+}
+
+.qz-spine__bang {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: var(--qz-alert);
+  box-shadow: var(--qz-glow-alert);
+  color: #0a0a0a;
+  font-size: 0.8rem;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.qz-spine__count {
+  font-size: 0.95rem;
+  font-weight: 300;
+  font-variant-numeric: tabular-nums;
+  color: var(--qz-fg);
+}
+
+.qz-spine__label {
+  writing-mode: vertical-rl;
+  font-size: 0.58rem;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.qz-spine__clear {
+  color: var(--qz-ok);
 }
 
 .qz-decisions__scroll {
@@ -1528,6 +1932,7 @@ code {
   background: linear-gradient(180deg, #151514, #0e0e0d);
   border: 1px solid var(--qz-line);
   box-shadow: var(--qz-edge), var(--qz-elev-2);
+  border-radius: var(--qz-r-card);
 }
 
 .qz-decision[data-severity="blocking"] {
@@ -1584,6 +1989,8 @@ code {
   list-style: none;
   background: var(--qz-line);
   border: 1px solid var(--qz-line);
+  border-radius: var(--qz-r-control);
+  overflow: hidden;
 }
 
 .qz-decision__offers li {
@@ -1707,6 +2114,7 @@ code {
   padding: 10px 11px;
   background: var(--qz-inset);
   border: 1px solid var(--qz-line);
+  border-radius: var(--qz-r-control);
 }
 
 .qz-questions p {
@@ -1722,6 +2130,8 @@ code {
   gap: 1px;
   background: var(--qz-line);
   border: 1px solid var(--qz-line);
+  border-radius: var(--qz-r-control);
+  overflow: hidden;
 }
 
 .qz-drawers details {
@@ -1825,6 +2235,7 @@ code {
   padding: 11px 12px;
   border: 1px solid var(--qz-line);
   color: var(--qz-dim);
+  border-radius: var(--qz-r-control);
 }
 
 .qz-decisions__lock strong {
@@ -1853,6 +2264,7 @@ code {
   background: linear-gradient(180deg, var(--qz-panel-top), var(--qz-panel-bottom));
   border: 1px solid var(--qz-line);
   box-shadow: var(--qz-edge), var(--qz-elev-2);
+  border-radius: var(--qz-r-panel);
 }
 
 .qz-empty-page h1 {
@@ -1968,12 +2380,24 @@ code {
 
   .qz-body {
     display: block;
+    padding: 8px;
+  }
+
+  /* en el celular manda la solapa, no el plegado del escritorio */
+  .qz-splitter,
+  .qz-spine,
+  .qz-decisions__fold {
+    display: none !important;
   }
 
   .qz-chat,
   .qz-board,
   .qz-decisions {
     display: none;
+  }
+
+  .qz-body[data-rail="closed"] > .qz-decisions[data-mobile-active="true"] {
+    display: flex;
   }
 
   .qz-chat[data-mobile-active="true"],
@@ -2046,17 +2470,17 @@ code {
   }
 
   .qz-rubro__head {
-    grid-template-columns: 3px minmax(0, 1fr) auto;
-    row-gap: 2px;
+    flex-wrap: wrap;
+    row-gap: 6px;
   }
 
-  .qz-rubro__share {
-    grid-column: 2;
+  .qz-rubro__head h3 {
+    flex: 1 0 60%;
   }
 
-  .qz-rubro__money {
-    grid-column: 3;
-    grid-row: 1;
+  .qz-manual-form {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    padding: 14px;
   }
 
   .qz-item__head {
