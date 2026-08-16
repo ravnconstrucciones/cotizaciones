@@ -6,8 +6,18 @@ import "./globals.css";
 const raleway = localFont({
   src: [
     {
+      path: "../../../../src/fonts/raleway/raleway-latin-200-normal.woff2",
+      weight: "200",
+      style: "normal",
+    },
+    {
       path: "../../../../src/fonts/raleway/raleway-latin-300-normal.woff2",
       weight: "300",
+      style: "normal",
+    },
+    {
+      path: "../../../../src/fonts/raleway/raleway-latin-500-normal.woff2",
+      weight: "500",
       style: "normal",
     },
     {

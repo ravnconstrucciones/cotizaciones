@@ -38,6 +38,7 @@ import type {
   QuoteWorkspaceSnapshot,
 } from "../domain";
 import { formatObservedDate as dateTime } from "./format-observed-date";
+import { RavnIso } from "./ravn-iso";
 
 type ControlCenterData = {
   quotes: QuoteSummary[];
@@ -412,7 +413,8 @@ export function ControlCenter({
     <div className="qz-shell">
       <header className="qz-header">
         <Link className="qz-brand" href="/" aria-label="Cotizador RAVN, inicio">
-          <span className="qz-brand__mark">RAVN</span>
+          <RavnIso className="qz-brand__iso" drawing={busy} />
+          <span className="qz-brand__mark">RAVN.</span>
           <span className="qz-brand__product">COTIZADOR</span>
         </Link>
 
@@ -733,7 +735,7 @@ function TeamWorkspace({
             initial={reduceMotion ? false : { height: 0, opacity: 0 }}
             animate={{ height: "auto", opacity: 1 }}
             exit={reduceMotion ? undefined : { height: 0, opacity: 0 }}
-            transition={{ duration: reduceMotion ? 0 : 0.24, ease: [0.16, 1, 0.3, 1] }}
+            transition={{ duration: reduceMotion ? 0 : 0.24, ease: [0.22, 1, 0.36, 1] }}
           >
             <SourcesPanel snapshot={snapshot} />
           </motion.div>
@@ -1072,7 +1074,7 @@ function FormationBoard({
                         initial={reduceMotion ? false : { height: 0, opacity: 0 }}
                         animate={{ height: "auto", opacity: 1 }}
                         exit={reduceMotion ? undefined : { height: 0, opacity: 0 }}
-                        transition={{ duration: reduceMotion ? 0 : 0.22, ease: [0.16, 1, 0.3, 1] }}
+                        transition={{ duration: reduceMotion ? 0 : 0.22, ease: [0.22, 1, 0.36, 1] }}
                       >
                         <ul>
                           {batch.items.map((item) => (
@@ -1259,7 +1261,7 @@ function Donut({
                 strokeDasharray: `${length} ${100 - length}`,
                 strokeDashoffset: offset,
               }}
-              transition={{ duration: reduceMotion ? 0 : 0.5, ease: [0.16, 1, 0.3, 1] }}
+              transition={{ duration: reduceMotion ? 0 : 0.5, ease: [0.22, 1, 0.36, 1] }}
             />
           );
         })}
