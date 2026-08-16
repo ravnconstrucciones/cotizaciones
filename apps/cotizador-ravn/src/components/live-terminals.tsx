@@ -2,6 +2,7 @@
 
 import { Square, TerminalSquare } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { highlight } from "../bridge/highlight";
 import type { BridgeAgent, TerminalLineKind } from "../bridge/stream-format";
 
 export type BridgeConfig = {
@@ -298,7 +299,12 @@ function TerminalPane({
         ) : (
           events.map((event) => (
             <p key={event.seq} data-kind={event.kind}>
-              {event.text}
+              {/* el kind pinta el fondo de la línea; el tokenizador pinta adentro */}
+              {highlight(event.text, event.kind === "tool").map((piece, index) => (
+                <span key={index} data-tk={piece.token}>
+                  {piece.text}
+                </span>
+              ))}
             </p>
           ))
         )}

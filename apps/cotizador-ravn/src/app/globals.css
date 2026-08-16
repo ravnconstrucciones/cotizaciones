@@ -1117,16 +1117,16 @@ code {
 
 /* fila de instrumentos */
 .qz-instruments {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
+  /* flex y no grid: en la última fila los instrumentos CRECEN para llenarla.
+     Con auto-fit quedaba un hueco cuando el quinto caía solo. */
+  display: flex;
+  flex-wrap: wrap;
   gap: 8px;
   background: var(--qz-ground);
 }
 
-/* nada de aire muerto: si el último instrumento cae solo en una fila nueva,
-   se estira hasta el final en vez de dejar el hueco (Eze, 16/08). */
-.qz-instruments > .qz-gauge:last-child {
-  grid-column: auto / -1;
+.qz-instruments > .qz-gauge {
+  flex: 1 1 132px;
 }
 
 .qz-gauge {
@@ -1808,6 +1808,177 @@ code {
   color: var(--qz-dim);
 }
 
+/* Resaltado de sintaxis adentro de la línea (pedido 2). Paleta de editor
+   validada sobre #070707: todos los tonos pasan 4.5:1 contra el fondo. El
+   `data-kind` sigue mandando el color base; esto pinta lo que se reconoce. */
+.qz-terminal__body span[data-tk="command"] {
+  color: #e5c76b;
+  font-weight: 500;
+}
+
+.qz-terminal__body span[data-tk="path"],
+.qz-terminal__body span[data-tk="file"] {
+  color: #7fb4e3;
+}
+
+.qz-terminal__body span[data-tk="flag"] {
+  color: #c99bda;
+}
+
+.qz-terminal__body span[data-tk="string"] {
+  color: #9ecf8a;
+}
+
+.qz-terminal__body span[data-tk="number"] {
+  color: #e0a37a;
+  font-variant-numeric: tabular-nums;
+}
+
+.qz-terminal__body span[data-tk="url"] {
+  color: #6fc7c0;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+/* ---------------------------------------------- decidir desde la tarjeta */
+
+.qz-decision__offers li {
+  position: relative;
+}
+
+.qz-decision .qz-decision__use {
+  padding: 3px 9px;
+  border: 1px solid var(--qz-line-strong);
+  border-radius: 99px;
+  background: none;
+  color: var(--qz-muted);
+  font: inherit;
+  font-size: 0.58rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.qz-decision .qz-decision__use:hover {
+  background: var(--qz-fg);
+  border-color: var(--qz-fg);
+  color: #070707;
+}
+
+.qz-decision__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.qz-decision__actions small {
+  font-size: 0.62rem;
+  line-height: 1.4;
+  color: var(--qz-dim);
+}
+
+.qz-decision .qz-decision__skip {
+  border-style: dashed;
+  color: var(--qz-dim);
+}
+
+.qz-decision .qz-decision__skip:hover {
+  color: #070707;
+}
+
+.qz-item[data-decided="true"] {
+  box-shadow: inset 2px 0 0 var(--qz-ok);
+}
+
+.qz-item__closed {
+  color: var(--qz-ok) !important;
+}
+
+.qz-item__closed button {
+  margin-left: 8px;
+  padding: 2px 9px;
+  background: none;
+  border: 1px solid var(--qz-line-strong);
+  border-radius: 99px;
+  color: var(--qz-dim);
+  font: inherit;
+  font-size: 0.6rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.qz-item__closed button:hover {
+  color: var(--qz-fg);
+  border-color: var(--qz-fg);
+}
+
+/* -------------------------------------------------- rubro que se colapsa */
+
+.qz-rubro__fold {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  flex: 0 0 auto;
+  background: none;
+  border: 1px solid var(--qz-line);
+  border-radius: 50%;
+  color: var(--qz-dim);
+  cursor: pointer;
+}
+
+.qz-rubro__fold:hover {
+  color: var(--qz-fg);
+  border-color: var(--qz-line-strong);
+}
+
+.qz-rubro[data-collapsed="true"] .qz-rubro__fold svg {
+  rotate: -90deg;
+}
+
+.qz-rubro[data-collapsed="true"] .qz-rubro__head {
+  position: static;
+  box-shadow: none;
+}
+
+/* ------------------------------------------- margen con lo agregado a mano */
+
+.qz-margin__switch {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  margin-top: 10px;
+  padding: 9px 11px;
+  border: 1px solid var(--qz-line);
+  border-radius: var(--qz-r-control);
+  background: rgb(242 239 232 / 0.03);
+  cursor: pointer;
+}
+
+.qz-margin__switch input {
+  width: 15px;
+  height: 15px;
+  margin: 2px 0 0;
+  accent-color: var(--qz-fg);
+  cursor: pointer;
+}
+
+.qz-margin__switch span {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 0.72rem;
+  line-height: 1.4;
+}
+
+.qz-margin__switch small {
+  font-size: 0.64rem;
+  color: var(--qz-dim);
+  font-variant-numeric: tabular-nums;
+}
+
 /* ------------------------------------------------------------ decisiones */
 
 .qz-decisions {
@@ -1995,8 +2166,8 @@ code {
 
 .qz-decision__offers li {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
-  align-items: baseline;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  align-items: center;
   gap: 10px;
   padding: 6px 9px;
   background: var(--qz-inset);
@@ -2442,13 +2613,13 @@ code {
   }
 
   .qz-decision__offers li {
-    grid-template-columns: auto minmax(0, 1fr) auto;
+    grid-template-columns: auto minmax(0, 1fr) auto auto;
   }
 }
 
 @media (max-width: 680px) {
-  .qz-instruments {
-    grid-template-columns: minmax(0, 1fr);
+  .qz-instruments > .qz-gauge {
+    flex-basis: 100%;
   }
 
   .qz-margin {

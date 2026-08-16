@@ -3,6 +3,7 @@
 import {
   ArrowUp,
   ChevronDown,
+  Check,
   ChevronsLeft,
   ChevronsRight,
   CircleSlash2,
@@ -90,7 +91,20 @@ type ManualItem = {
   precioUnit: number;
 };
 
+/**
+ * Decisión tomada por Eze DESDE la tarjeta: eligió cuál de los precios usa y el
+ * ítem sale de la cola. Igual que los ítems a mano, vive en su navegador — el
+ * visor no escribe en App RAVN. Lo que cambia es el flujo: la cola avanza sola
+ * a medida que él decide, en vez de quedarse esperando que escriba.
+ */
+type LocalDecision = {
+  origin: string;
+  value: number | null;
+  at: string;
+};
+
 const MANUAL_KEY = (quoteId: string) => `qz:manual:${quoteId}`;
+const DECIDED_KEY = (quoteId: string) => `qz:decidido:${quoteId}`;
 const LAYOUT_KEY = "qz:layout";
 
 const CHAT_MIN = 280;
@@ -226,6 +240,17 @@ function queueEntries(snapshot: QuoteWorkspaceSnapshot): QueueEntry[] {
     });
 }
 
+function readDecided(quoteId: string): Record<string, LocalDecision> {
+  try {
+    const raw = window.localStorage.getItem(DECIDED_KEY(quoteId));
+    const parsed: unknown = raw ? JSON.parse(raw) : null;
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return {};
+    return parsed as Record<string, LocalDecision>;
+  } catch {
+    return {};
+  }
+}
+
 function isControlCenterData(value: unknown): value is ControlCenterData {
   if (!value || typeof value !== "object") return false;
   const candidate = value as Partial<ControlCenterData>;
@@ -256,7 +281,11 @@ export function ControlCenter({
   const requestInFlight = useRef(false);
   const composerRef = useRef<HTMLTextAreaElement>(null);
   const snapshot = data.snapshot;
-  const queue = useMemo(() => queueEntries(snapshot), [snapshot]);
+  const [decided, setDecided] = useState<Record<string, LocalDecision>>({});
+  const queue = useMemo(
+    () => queueEntries(snapshot).filter((entry) => !decided[`${entry.batch.id}:${entry.item.name}`]),
+    [snapshot, decided]
+  );
   const pending = queue.length + snapshot.decision.questions.length;
 
   // --- ventanas manipulables (pedido 4): anchos arrastrados y recordados ---
@@ -310,6 +339,7 @@ export function ControlCenter({
 
   useEffect(() => {
     setManualItems(readManualItems(snapshot.quote.id));
+    setDecided(readDecided(snapshot.quote.id));
     manualLoaded.current = snapshot.quote.id;
   }, [snapshot.quote.id]);
 
@@ -317,10 +347,11 @@ export function ControlCenter({
     if (manualLoaded.current !== snapshot.quote.id) return;
     try {
       window.localStorage.setItem(MANUAL_KEY(snapshot.quote.id), JSON.stringify(manualItems));
+      window.localStorage.setItem(DECIDED_KEY(snapshot.quote.id), JSON.stringify(decided));
     } catch {
-      /* sin localStorage el ítem vive sólo en esta pestaña */
+      /* sin localStorage lo de la mesa vive sólo en esta pestaña */
     }
-  }, [manualItems, snapshot.quote.id]);
+  }, [manualItems, decided, snapshot.quote.id]);
 
   const loadQuote = useCallback(
     async (quoteId: string, announce = true) => {
@@ -526,6 +557,14 @@ export function ControlCenter({
           onDropManual={(id) =>
             setManualItems((current) => current.filter((entry) => entry.id !== id))
           }
+          decided={decided}
+          onReopen={(key) =>
+            setDecided((current) => {
+              const next = { ...current };
+              delete next[key];
+              return next;
+            })
+          }
         />
 
         <Splitter
@@ -548,6 +587,12 @@ export function ControlCenter({
           onFocusItem={setFocusedItem}
           focusedItem={focusedItem}
           onFold={() => setRailOpen(false)}
+          onDecide={(key, origin, value) =>
+            setDecided((current) => ({
+              ...current,
+              [key]: { origin, value, at: new Date().toISOString() },
+            }))
+          }
         />
 
         <button
@@ -820,6 +865,8 @@ function BoardColumn({
   manualItems,
   onAddManual,
   onDropManual,
+  decided,
+  onReopen,
 }: {
   snapshot: QuoteWorkspaceSnapshot;
   queue: QueueEntry[];
@@ -832,6 +879,8 @@ function BoardColumn({
   manualItems: ManualItem[];
   onAddManual: (item: ManualItem) => void;
   onDropManual: (id: string) => void;
+  decided: Record<string, LocalDecision>;
+  onReopen: (key: string) => void;
 }) {
   const itemRefs = useRef(new Map<string, HTMLDivElement>());
 
@@ -848,7 +897,11 @@ function BoardColumn({
         reduceMotion={reduceMotion}
         manualItems={manualItems}
       />
-      <MarginConsole snapshot={snapshot} reduceMotion={reduceMotion} />
+      <MarginConsole
+        snapshot={snapshot}
+        reduceMotion={reduceMotion}
+        manualItems={manualItems}
+      />
       <InstrumentRow snapshot={snapshot} queue={queue} />
       <RubroLedger
         snapshot={snapshot}
@@ -857,6 +910,8 @@ function BoardColumn({
         manualItems={manualItems}
         onAddManual={onAddManual}
         onDropManual={onDropManual}
+        decided={decided}
+        onReopen={onReopen}
         registerItem={(key, node) => {
           if (node) itemRefs.current.set(key, node);
           else itemRefs.current.delete(key);
@@ -949,11 +1004,24 @@ function Readout({
 function MarginConsole({
   snapshot,
   reduceMotion,
+  manualItems,
 }: {
   snapshot: QuoteWorkspaceSnapshot;
   reduceMotion: boolean;
+  manualItems: ManualItem[];
 }) {
-  const { min: costMin, max: costMax } = snapshot.core.costRange;
+  const manualTotal = manualItems.reduce((sum, item) => sum + manualSubtotal(item), 0);
+  /**
+   * El ítem a mano lo cargás justo cuando el motor se quedó corto: ahí querés
+   * ver el margen CON eso adentro. El interruptor lo suma al costo (las dos
+   * puntas) y deja dicho que el número ya no es sólo el del motor.
+   */
+  const [withManual, setWithManual] = useState(true);
+  const addOn = manualTotal > 0 && withManual ? manualTotal : 0;
+  const costMin =
+    snapshot.core.costRange.min == null ? null : snapshot.core.costRange.min + addOn;
+  const costMax =
+    snapshot.core.costRange.max == null ? null : snapshot.core.costRange.max + addOn;
   const persisted = snapshot.quote.finalNumber;
   const opening = useMemo(
     () => openingPrice({ persistedPrice: persisted, costMax }),
@@ -1008,6 +1076,21 @@ function MarginConsole({
           <strong>{band.verdict.headline}</strong>
           <small>{band.verdict.criterion}</small>
         </p>
+        {manualTotal > 0 ? (
+          <label className="qz-margin__switch">
+            <input
+              type="checkbox"
+              checked={withManual}
+              onChange={(event) => setWithManual(event.target.checked)}
+            />
+            <span>
+              Contra el costo {withManual ? "con" : "sin"} lo que agregaste a mano
+              <small>
+                {money(manualTotal)} · {withManual ? "está sumado al costo" : "está afuera"}
+              </small>
+            </span>
+          </label>
+        ) : null}
       </div>
 
       <div className="qz-margin__control">
@@ -1302,6 +1385,8 @@ function RubroLedger({
   manualItems,
   onAddManual,
   onDropManual,
+  decided,
+  onReopen,
 }: {
   snapshot: QuoteWorkspaceSnapshot;
   reduceMotion: boolean;
@@ -1310,9 +1395,12 @@ function RubroLedger({
   manualItems: ManualItem[];
   onAddManual: (item: ManualItem) => void;
   onDropManual: (id: string) => void;
+  decided: Record<string, LocalDecision>;
+  onReopen: (key: string) => void;
 }) {
   const totalMax = snapshot.batches.reduce((sum, batch) => sum + (batch.priceRange.max ?? 0), 0);
   const [openForm, setOpenForm] = useState<string | null>(null);
+  const [collapsed, setCollapsed] = useState<string[]>([]);
 
   return (
     <section className="qz-ledger qz-panel" aria-label="Rubros del costo">
@@ -1326,11 +1414,37 @@ function RubroLedger({
           const share = totalMax > 0 ? Math.round(((batch.priceRange.max ?? 0) / totalMax) * 100) : 0;
           const mine = manualItems.filter((item) => item.batchId === batch.id);
           const mineTotal = mine.reduce((sum, item) => sum + manualSubtotal(item), 0);
+          const shut = collapsed.includes(batch.id);
+          const openIssues = batch.items.filter(
+            (item) =>
+              item.decision.kind !== "cerrado" && !decided[`${batch.id}:${item.name}`]
+          ).length;
           return (
-            <section className="qz-rubro" key={batch.id}>
+            <section className="qz-rubro" key={batch.id} data-collapsed={shut}>
               <header className="qz-rubro__head">
+                <button
+                  type="button"
+                  className="qz-rubro__fold"
+                  aria-expanded={!shut}
+                  aria-label={shut ? `Abrir ${batch.etapa}` : `Cerrar ${batch.etapa}`}
+                  onClick={() =>
+                    setCollapsed((current) =>
+                      current.includes(batch.id)
+                        ? current.filter((id) => id !== batch.id)
+                        : [...current, batch.id]
+                    )
+                  }
+                >
+                  <ChevronDown size={14} aria-hidden="true" />
+                </button>
                 <i style={{ background: rubroColor(index) }} aria-hidden="true" />
                 <h3>{batch.etapa}</h3>
+                {shut ? (
+                  <span className="qz-rubro__share">
+                    {batch.items.length} ítems
+                    {openIssues > 0 ? ` · ${openIssues} sin cerrar` : " · todos cerrados"}
+                  </span>
+                ) : null}
                 <span className="qz-rubro__share">{share}% del costo</span>
                 {mineTotal > 0 ? (
                   <span className="qz-rubro__manual">+ {compact(mineTotal)} a mano</span>
@@ -1351,7 +1465,7 @@ function RubroLedger({
                 </button>
               </header>
 
-              {openForm === batch.id ? (
+              {openForm === batch.id && !shut ? (
                 <ManualItemForm
                   batchId={batch.id}
                   onCancel={() => setOpenForm(null)}
@@ -1362,21 +1476,28 @@ function RubroLedger({
                 />
               ) : null}
 
-              <div className="qz-rubro__items">
-                {batch.items.map((item) => (
-                  <ItemRow
-                    key={item.name}
-                    batchId={batch.id}
-                    item={item}
-                    focused={focusedItem === `${batch.id}:${item.name}`}
-                    reduceMotion={reduceMotion}
-                    registerItem={registerItem}
-                  />
-                ))}
-                {mine.map((item) => (
-                  <ManualItemRow key={item.id} item={item} onDrop={() => onDropManual(item.id)} />
-                ))}
-              </div>
+              {shut ? null : (
+                <div className="qz-rubro__items">
+                  {batch.items.map((item) => {
+                    const key = `${batch.id}:${item.name}`;
+                    return (
+                      <ItemRow
+                        key={item.name}
+                        batchId={batch.id}
+                        item={item}
+                        focused={focusedItem === key}
+                        reduceMotion={reduceMotion}
+                        registerItem={registerItem}
+                        decision={decided[key]}
+                        onReopen={() => onReopen(key)}
+                      />
+                    );
+                  })}
+                  {mine.map((item) => (
+                    <ManualItemRow key={item.id} item={item} onDrop={() => onDropManual(item.id)} />
+                  ))}
+                </div>
+              )}
             </section>
           );
         })}
@@ -1394,18 +1515,23 @@ function ItemRow({
   focused,
   reduceMotion,
   registerItem,
+  decision,
+  onReopen,
 }: {
   batchId: string;
   item: BatchItem;
   focused: boolean;
   reduceMotion: boolean;
   registerItem: (key: string, node: HTMLDivElement | null) => void;
+  decision?: LocalDecision;
+  onReopen: () => void;
 }) {
   const key = `${batchId}:${item.name}`;
   return (
     <motion.div
       className="qz-item"
-      data-severity={item.decision.severity}
+      data-decided={Boolean(decision)}
+      data-severity={decision ? "ok" : item.decision.severity}
       data-focused={focused}
       ref={(node) => registerItem(key, node)}
       animate={
@@ -1441,10 +1567,21 @@ function ItemRow({
         </ul>
       ) : null}
 
-      <p className="qz-item__verdict" data-severity={item.decision.severity}>
-        {item.decision.severity !== "ok" ? <TriangleAlert size={13} aria-hidden="true" /> : null}
-        {item.decision.headline}
-      </p>
+      {decision ? (
+        <p className="qz-item__verdict qz-item__closed">
+          <Check size={13} aria-hidden="true" />
+          Lo cerraste vos con {ORIGIN_LABELS[decision.origin] ?? decision.origin}
+          {decision.value != null ? ` · ${money(decision.value)}` : ""}
+          <button type="button" onClick={onReopen}>
+            Reabrir
+          </button>
+        </p>
+      ) : (
+        <p className="qz-item__verdict" data-severity={item.decision.severity}>
+          {item.decision.severity !== "ok" ? <TriangleAlert size={13} aria-hidden="true" /> : null}
+          {item.decision.headline}
+        </p>
+      )}
     </motion.div>
   );
 }
@@ -1697,6 +1834,7 @@ function DecisionColumn({
   onFocusItem,
   focusedItem,
   onFold,
+  onDecide,
 }: {
   snapshot: QuoteWorkspaceSnapshot;
   queue: QueueEntry[];
@@ -1707,6 +1845,7 @@ function DecisionColumn({
   onFocusItem: (key: string | null) => void;
   focusedItem: string | null;
   onFold: () => void;
+  onDecide: (key: string, origin: string, value: number | null) => void;
 }) {
   const questions = snapshot.decision.questions;
   const blocking = queue.filter((entry) => entry.item.decision.severity === "blocking").length;
@@ -1777,6 +1916,15 @@ function DecisionColumn({
                                   ? signedPct(offer.deltaPct)
                                   : "más barata"}
                         </em>
+                        {/* la decisión se toma acá: un clic y el ítem sale de la cola */}
+                        <button
+                          type="button"
+                          className="qz-decision__use"
+                          onClick={() => onDecide(key, offer.origin, offer.value)}
+                          aria-label={`Usar ${ORIGIN_LABELS[offer.origin] ?? offer.origin} para ${entry.item.name}`}
+                        >
+                          Usar
+                        </button>
                       </li>
                     ))}
                   </ul>
@@ -1789,13 +1937,28 @@ function DecisionColumn({
 
                 <p className="qz-decision__criterion">{entry.item.decision.criterion}</p>
 
-                <button
-                  type="button"
-                  onClick={() => onAnswer(`${entry.item.name}: `)}
-                >
-                  Resolver en la conversación
-                  <ArrowUp size={13} aria-hidden="true" />
-                </button>
+                <div className="qz-decision__actions">
+                  <button
+                    type="button"
+                    onClick={() => onAnswer(`${entry.item.name}: `)}
+                  >
+                    Resolver en la conversación
+                    <ArrowUp size={13} aria-hidden="true" />
+                  </button>
+                  {entry.item.offers.length === 0 ? (
+                    <small>
+                      Sin fuente persistida: cargalo a mano en el rubro o definilo acá.
+                    </small>
+                  ) : (
+                    <button
+                      type="button"
+                      className="qz-decision__skip"
+                      onClick={() => onDecide(key, "eze", null)}
+                    >
+                      Lo dejo cerrado igual
+                    </button>
+                  )}
+                </div>
               </motion.article>
             );
           })}
