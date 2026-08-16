@@ -380,17 +380,13 @@ code {
   pointer-events: none;
 }
 
-/* retícula + vignette: van DEBAJO de la pieza, nunca encima */
+/* Fondo del escenario: sólo luz. Eze pidió sacar la cuadrícula de atrás del
+   monolito (16/08) — la pieza se lee sola contra el negro. */
 .qz-chat__backdrop::before {
   content: "";
   position: absolute;
   inset: 0;
-  background-image:
-    linear-gradient(var(--qz-line) 1px, transparent 1px),
-    linear-gradient(90deg, var(--qz-line) 1px, transparent 1px),
-    radial-gradient(115% 58% at 50% 44%, rgb(0 0 0 / 0), rgb(0 0 0 / 0.62) 72%);
-  background-size: 38px 38px, 38px 38px, 100% 100%;
-  opacity: 0.9;
+  background: radial-gradient(105% 55% at 50% 46%, rgb(242 239 232 / 0.045), rgb(0 0 0 / 0.55) 68%);
 }
 
 .qz-chat__monolith {
