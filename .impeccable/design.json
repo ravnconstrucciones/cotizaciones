@@ -1,0 +1,136 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-08-15T13:42:13-03:00",
+  "title": "Design System: Cotizador RAVN",
+  "extensions": {
+    "colorMeta": {
+      "raven-black": {
+        "role": "primary",
+        "displayName": "Raven Black",
+        "canonical": "#070707",
+        "tonalRamp": ["#070707", "#151515", "#2b2b2a", "#474643", "#66645f", "#918e87", "#c4c0b8", "#f2efe8"]
+      },
+      "warm-white": {
+        "role": "primary",
+        "displayName": "Warm White",
+        "canonical": "#f2efe8",
+        "tonalRamp": ["#24231f", "#3c3a34", "#57534b", "#746f65", "#918c81", "#b2ada3", "#d3cfc6", "#f2efe8"]
+      },
+      "quiet-steel": {
+        "role": "neutral",
+        "displayName": "Quiet Steel",
+        "canonical": "#b7b3ab",
+        "tonalRamp": ["#252421", "#3c3b37", "#55534e", "#706d67", "#8b8881", "#a7a39b", "#c5c1b9", "#e7e3dc"]
+      }
+    },
+    "typographyMeta": {
+      "display": {
+        "displayName": "Decision Display",
+        "purpose": "Cost ranges and the strongest current decision."
+      },
+      "headline": {
+        "displayName": "Matter Headline",
+        "purpose": "Human work prompts and operational questions."
+      },
+      "label": {
+        "displayName": "Instrument Label",
+        "purpose": "States, modes, timestamps, and compact controls."
+      }
+    },
+    "shadows": [],
+    "motion": [
+      {
+        "name": "state-change",
+        "value": "180ms-200ms opacity and transform",
+        "purpose": "Selection, message insertion, and real persisted state changes only."
+      },
+      {
+        "name": "reduced-motion",
+        "value": "0ms",
+        "purpose": "All optional motion resolves to a static state when requested."
+      }
+    ],
+    "breakpoints": [
+      { "name": "compact-desktop", "value": "1259px" },
+      { "name": "mobile-tabs", "value": "899px" },
+      { "name": "narrow-mobile", "value": "560px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Inverse Action",
+      "kind": "button",
+      "refersTo": "action-inverse",
+      "description": "The rare available decision or selected action.",
+      "html": "<button class=\"ds-action-inverse\">CONFIRMAR</button>",
+      "css": ".ds-action-inverse { min-height: 44px; padding: 12px 16px; border: 1px solid #f2efe8; border-radius: 0; background: #f2efe8; color: #070707; font: 600 12px/1.2 Raleway, Arial, sans-serif; letter-spacing: .12em; transition: opacity .18s, transform .18s; } .ds-action-inverse:hover { opacity: .88; } .ds-action-inverse:focus-visible { outline: 2px solid #f2efe8; outline-offset: 2px; } .ds-action-inverse:active { transform: translateY(1px); }"
+    },
+    {
+      "name": "Ghost Action",
+      "kind": "button",
+      "refersTo": "action-ghost",
+      "description": "Secondary actions held inside the steel grid.",
+      "html": "<button class=\"ds-action-ghost\">VER EVIDENCIA</button>",
+      "css": ".ds-action-ghost { min-height: 44px; padding: 12px 16px; border: 1px solid rgb(242 239 232 / .28); border-radius: 0; background: transparent; color: #f2efe8; font: 600 12px/1.2 Raleway, Arial, sans-serif; letter-spacing: .1em; transition: background .18s, color .18s; } .ds-action-ghost:hover { background: #f2efe8; color: #070707; } .ds-action-ghost:focus-visible { outline: 2px solid #f2efe8; outline-offset: -2px; }"
+    },
+    {
+      "name": "Status Chip",
+      "kind": "chip",
+      "refersTo": "status-chip",
+      "description": "A compact truthful mode or state label.",
+      "html": "<span class=\"ds-status-chip\">PREVIEW</span>",
+      "css": ".ds-status-chip { display: inline-flex; min-height: 28px; align-items: center; padding: 6px 10px; border: 1px solid rgb(242 239 232 / .28); border-radius: 0; background: transparent; color: #f2efe8; font: 600 10px/1.2 Raleway, Arial, sans-serif; letter-spacing: .14em; }"
+    },
+    {
+      "name": "Matter Field",
+      "kind": "input",
+      "description": "The conversational entry point for a job or answer.",
+      "html": "<textarea class=\"ds-matter-field\" placeholder=\"Describí el trabajo…\"></textarea>",
+      "css": ".ds-matter-field { width: 100%; min-height: 112px; padding: 16px; resize: vertical; border: 1px solid rgb(242 239 232 / .28); border-radius: 0; background: #0e0e0d; color: #f2efe8; font: 400 15px/1.45 Raleway, Arial, sans-serif; } .ds-matter-field::placeholder { color: #918e87; } .ds-matter-field:focus-visible { outline: 2px solid #f2efe8; outline-offset: -2px; }"
+    },
+    {
+      "name": "Steel Panel",
+      "kind": "card",
+      "refersTo": "panel",
+      "description": "A planar work region divided by hairlines rather than elevation.",
+      "html": "<section class=\"ds-steel-panel\"><strong>Rubro</strong><p>Evidencia y estado vinculados.</p></section>",
+      "css": ".ds-steel-panel { padding: 16px; border: 1px solid rgb(242 239 232 / .12); border-radius: 0; background: #0a0a0a; color: #f2efe8; font: 400 15px/1.45 Raleway, Arial, sans-serif; } .ds-steel-panel strong { font-weight: 600; } .ds-steel-panel p { margin: 8px 0 0; color: #b7b3ab; }"
+    },
+    {
+      "name": "Synthesis Node",
+      "kind": "custom",
+      "description": "The circular junction where persisted Codex and Fable contributions are compared.",
+      "html": "<div class=\"ds-synthesis-node\"><strong>R</strong><span>SINTETIZA</span></div>",
+      "css": ".ds-synthesis-node { display: grid; width: 112px; aspect-ratio: 1; place-content: center; gap: 6px; border: 1px solid rgb(242 239 232 / .28); border-radius: 50%; background: #070707; color: #f2efe8; text-align: center; font-family: Raleway, Arial, sans-serif; } .ds-synthesis-node strong { font-size: 24px; } .ds-synthesis-node span { font-size: 9px; font-weight: 600; letter-spacing: .12em; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Precision Matter Desk",
+    "overview": "Cotizador RAVN is a calm operational surface made from raven black, warm white, steel planes, and exact hairlines. It feels advanced because relationships and state are legible, not because the interface performs science fiction. Conversation is the front door; Codex and Fable visibly examine the same request; evidence attaches to rubros; the cost forms at the edge of the same workspace. The system is dense but disciplined. A three-column desktop field holds the conversation, comparison, and forming quote at once. Inversion is rare and meaningful: warm white on black identifies the current decision or active control. Motion is short, event-driven, and removable.",
+    "keyCharacteristics": [
+      "Square steel planes divided by hairlines rather than floating cards.",
+      "Raleway throughout, with tabular numerals for money and telemetry.",
+      "One unmistakable RAVN wordmark and one subtle preview marker.",
+      "Visible connections represent persisted relationships, never ambient activity.",
+      "Technical caveats remain available but quiet and secondary."
+    ],
+    "rules": [
+      { "name": "The One Inversion Rule", "body": "Warm-white fill is reserved for the selected control or the decision that needs Eze; it must not become general decoration.", "section": "colors" },
+      { "name": "The Truth Has No Glow Rule", "body": "State is expressed with words, line weight, fill, and shape. Never add colored status glows or animated energy.", "section": "colors" },
+      { "name": "The Human First Rule", "body": "The largest language describes the job, question, or money decision. Internal system terminology never earns headline scale.", "section": "typography" },
+      { "name": "The Planes Not Cards Rule", "body": "Build hierarchy by subdividing one operational field. Do not scatter rounded, elevated cards over the canvas.", "section": "elevation" }
+    ],
+    "dos": [
+      "Do make the first viewport answer where Eze speaks, what Codex and Fable contributed, what needs him, and how the quote is forming.",
+      "Do attach every visible contribution and evidence item to a real persisted rubro when the contract provides that relationship.",
+      "Do use Framer Motion only for selection, insertion, and real state transitions, and resolve all durations to zero for reduced motion.",
+      "Do keep unavailable instrumentation concise and expandable."
+    ],
+    "donts": [
+      "Don't show private chain-of-thought, fake terminal output, fake progress, decorative agent motion, or invented comparison results.",
+      "Don't use blue sci-fi color, colored glows, glassmorphism, gradients, novelty techno fonts, rounded dashboard cards, or perpetual orbit animation.",
+      "Don't let implementation labels replace job, rubro, evidence, question, and cost language.",
+      "Don't repeat the Preview warning; mark the synthetic world once at product level."
+    ]
+  }
+}

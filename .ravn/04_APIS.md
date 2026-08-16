@@ -10,6 +10,8 @@
 
 **Bypass de agente local (2026-07-25, spec mesa conversacional):** antes de la guardia de sesión, el middleware chequea el header `x-ravn-agente`. Si coincide con `process.env.RAVN_AGENTE_SECRET` **y (path, método) está en la allowlist `RUTAS_BYPASS_AGENTE`**, deja pasar sin exigir cookie de sesión — es el mecanismo que usa `daemon/puente-cotizador/` (Fable/Codex corriendo local en la Mac de Eze) para leer/escribir la mesa como si fuera un usuario logueado. La allowlist cubre SOLO la mesa: `GET /api/cotizaciones`, `GET /api/cotizaciones/[id]`, `GET/POST …/mensajes`, `PATCH …/desglose`, `PATCH …/documento-borrador`, `GET/POST …/archivos` y `PATCH …/archivos/[archivoId]`. `aprobar`/`rechazar`/`emitir`/`estado` y todo el resto de `/api/*` (dinero, retiros, papelera…) quedan FUERA tenga el secret que tenga la request — la ley "el chat jamás emite/aprueba" la impone el código, no el prompt. Sin `RAVN_AGENTE_SECRET` configurado en el entorno, el bypass no existe (no hay fallback ni valor default).
 
+**Lectura del Cotizador standalone (2026-08-15):** el header `x-ravn-cotizador-read` usa una credencial independiente, `RAVN_COTIZADOR_READ_SECRET`, y una allowlist GET-only. Autoriza exclusivamente `GET /api/cotizaciones`, `GET /api/cotizaciones/[id]` y `GET /api/cotizaciones/[id]/mensajes`. No autoriza mensajes POST, desglose, propuesta, archivos, aprobación, emisión ni ninguna otra API. Sin la variable configurada no existe bypass; si coincide con `RAVN_AGENTE_SECRET`, el middleware falla cerrado. El secreto permanece server-side en el Cotizador.
+
 ---
 
 ## Tabla resumen

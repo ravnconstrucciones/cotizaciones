@@ -111,12 +111,58 @@ const RUTAS_BYPASS_AGENTE: Array<{ patron: RegExp; metodos: string[] }> = [
   { patron: /^\/api\/cotizaciones\/[^/]+\/archivos\/[^/]+$/, metodos: ["PATCH"] },
 ];
 
+/**
+ * Frontera exclusiva de lectura para el producto Cotizador RAVN.
+ * Se mantiene separada del secreto del puente legacy: esta credencial no
+ * puede escribir mensajes, desglose, propuesta ni archivos aunque se filtre.
+ */
+const RUTAS_BYPASS_COTIZADOR_READ: Array<{ patron: RegExp; metodos: string[] }> = [
+  { patron: /^\/api\/cotizaciones$/, metodos: ["GET"] },
+  { patron: /^\/api\/cotizaciones\/[^/]+$/, metodos: ["GET"] },
+  { patron: /^\/api\/cotizaciones\/[^/]+\/mensajes$/, metodos: ["GET"] },
+];
+
 /** true si `metodo` sobre `pathname` está en la allowlist de arriba. */
 export function bypassAgentePermitido(pathname: string, metodo: string): boolean {
   return RUTAS_BYPASS_AGENTE.some((r) => r.patron.test(pathname) && r.metodos.includes(metodo));
 }
 
+/** true sólo para las lecturas que consume el Cotizador standalone. */
+export function bypassCotizadorReadPermitido(pathname: string, metodo: string): boolean {
+  return RUTAS_BYPASS_COTIZADOR_READ.some(
+    (ruta) => ruta.patron.test(pathname) && ruta.metodos.includes(metodo)
+  );
+}
+
+/**
+ * La credencial read-only debe existir y ser distinta del secreto con
+ * permisos de escritura del puente legacy. Una mala provisión falla cerrada.
+ */
+export function credencialCotizadorReadValida(
+  presentada: string | null,
+  lectura: string | undefined,
+  agenteLegacy: string | undefined
+): boolean {
+  return Boolean(
+    presentada && lectura && lectura !== agenteLegacy && presentada === lectura
+  );
+}
+
 export async function middleware(request: NextRequest) {
+  // El Cotizador standalone recibe una credencial distinta, incapaz de usar
+  // las escrituras que el puente conversacional legacy todavía necesita.
+  const claveCotizadorRead = request.headers.get("x-ravn-cotizador-read");
+  if (
+    credencialCotizadorReadValida(
+      claveCotizadorRead,
+      process.env.RAVN_COTIZADOR_READ_SECRET,
+      process.env.RAVN_AGENTE_SECRET
+    ) &&
+    bypassCotizadorReadPermitido(request.nextUrl.pathname, request.method)
+  ) {
+    return NextResponse.next({ request });
+  }
+
   // Agentes locales (puente-cotizador): secret compartido SOLO para la
   // allowlist de la mesa de cotización — no para /api/* entero.
   // Sin secret configurado en el entorno, el bypass no existe.

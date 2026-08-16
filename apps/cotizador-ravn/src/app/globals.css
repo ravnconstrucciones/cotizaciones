@@ -1,0 +1,2699 @@
+/*
+  Cotizador RAVN — piel de consola.
+
+  Eze levantó explícitamente el Design System de la firma DENTRO del visor
+  (16/08): acá hay profundidad, capas y glow. La vara es un tablero de
+  instrumentos, no un dashboard. Dos reglas siguen firmes:
+  1) performance: las sombras son ESTÁTICAS (nada las anima, el compositor no
+     repinta) y el único WebGL es el monolito, a 30 fps y pausado fuera de vista;
+  2) anti-slop: cada instrumento mide un dato persistido. Lo que no se instrumenta
+     se muestra como N/D, nunca simulado.
+*/
+
+:root {
+  color-scheme: dark;
+
+  /* chasis y planos */
+  --qz-ground: #030303;
+  --qz-panel-top: #101010;
+  --qz-panel-bottom: #0a0a0a;
+  --qz-inset: #0c0c0b;
+  --qz-fg: #f2efe8;
+  --qz-muted: #b5b1a9;
+  --qz-dim: #86837d;
+  --qz-line: rgb(242 239 232 / 0.1);
+  --qz-line-strong: rgb(242 239 232 / 0.26);
+  --qz-focus: #f2efe8;
+
+  /* estado — nunca decorativo */
+  --qz-ok: #8fbba6;
+  --qz-warn: #d3a862;
+  --qz-alert: #cf7d68;
+
+  /* profundidad */
+  --qz-edge: inset 0 1px 0 rgb(242 239 232 / 0.06);
+  --qz-elev-1: 0 18px 30px -26px rgb(0 0 0 / 0.95);
+  --qz-elev-2: 0 34px 60px -34px rgb(0 0 0 / 1);
+  /* relieve: el módulo se lee levantado del chasis — canto de luz arriba,
+     sombra dura abajo y caída afuera. Todo estático. */
+  --qz-relief:
+    inset 0 1px 0 rgb(242 239 232 / 0.1),
+    inset 1px 0 0 rgb(242 239 232 / 0.035),
+    inset -1px 0 0 rgb(0 0 0 / 0.7),
+    inset 0 -2px 0 rgb(0 0 0 / 0.9),
+    0 12px 22px -14px rgb(0 0 0 / 0.95);
+  --qz-well:
+    inset 0 2px 4px rgb(0 0 0 / 0.85),
+    inset 0 -1px 0 rgb(242 239 232 / 0.06);
+  --qz-glow-fg: 0 0 12px rgb(242 239 232 / 0.45);
+  --qz-glow-ok: 0 0 12px rgb(143 187 166 / 0.5);
+  --qz-glow-warn: 0 0 12px rgb(211 168 98 / 0.5);
+  --qz-glow-alert: 0 0 12px rgb(207 125 104 / 0.5);
+
+  /* cantos: Eze pidió sacarle las puntas cuadradas a todo (16/08). El DS de la
+     firma es cero radio; adentro del visor no gobierna. Tres pasos, no más:
+     plano, pieza y control. */
+  --qz-r-panel: 14px;
+  --qz-r-card: 10px;
+  --qz-r-control: 8px;
+
+  --qz-rail-h: 52px;
+  --qz-split-w: 10px;
+  --qz-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+/* ------------------------------------------------------------- barras
+   Las barras de scroll son parte del instrumento: se ven, se agarran y saben
+   dónde están (pedido de Eze: "que las barras movibles se vean más"). */
+
+* {
+  scrollbar-color: rgb(242 239 232 / 0.34) rgb(242 239 232 / 0.05);
+  scrollbar-width: auto;
+}
+
+*::-webkit-scrollbar {
+  width: 12px;
+  height: 12px;
+}
+
+*::-webkit-scrollbar-track {
+  background: rgb(242 239 232 / 0.05);
+  border-radius: 99px;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, rgb(242 239 232 / 0.42), rgb(242 239 232 / 0.24));
+  border: 3px solid transparent;
+  background-clip: padding-box;
+  border-radius: 99px;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, rgb(242 239 232 / 0.7), rgb(242 239 232 / 0.45));
+  background-clip: padding-box;
+}
+
+*::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  min-width: 320px;
+  background: var(--qz-ground);
+}
+
+/* OJO: `--font-raleway` la define next/font en la CLASE DEL BODY, no en :root.
+   Si la referencia sale desde :root el var() queda inválido y toda la app cae a
+   la serif por defecto del navegador (pasó el 16/08). Se resuelve acá. */
+body {
+  margin: 0;
+  background: var(--qz-ground);
+  color: var(--qz-fg);
+  font-family: var(--font-raleway), Raleway, "Helvetica Neue", Arial, sans-serif;
+  font-size: 15px;
+  line-height: 1.45;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+}
+
+button,
+select,
+textarea,
+input {
+  font: inherit;
+  color: inherit;
+}
+
+button,
+a,
+select,
+textarea {
+  -webkit-tap-highlight-color: transparent;
+}
+
+button:focus-visible,
+a:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+summary:focus-visible {
+  outline: 2px solid var(--qz-focus);
+  outline-offset: -2px;
+}
+
+button:disabled,
+select:disabled,
+textarea:disabled {
+  cursor: not-allowed;
+}
+
+code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.86em;
+  color: var(--qz-muted);
+}
+
+.qz-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* --------------------------------------------------------------- chasis */
+
+.qz-console {
+  display: grid;
+  grid-template-rows: var(--qz-rail-h) minmax(0, 1fr);
+  height: 100dvh;
+  background: var(--qz-ground);
+  overflow: hidden;
+}
+
+/* Material de panel: un plano montado sobre el chasis, con canto de luz y
+   caída. Estático — nada de esto se anima. */
+.qz-panel {
+  position: relative;
+  background: linear-gradient(180deg, var(--qz-panel-top), var(--qz-panel-bottom));
+  box-shadow: var(--qz-edge), var(--qz-elev-1);
+  border-radius: var(--qz-r-panel);
+}
+
+/* Marcas de registro: la firma de instrumento de los planos de lectura. */
+.qz-readout::after,
+.qz-gauge::after {
+  content: "";
+  position: absolute;
+  inset: 12px;
+  pointer-events: none;
+  background-image:
+    linear-gradient(var(--qz-line-strong), var(--qz-line-strong)),
+    linear-gradient(var(--qz-line-strong), var(--qz-line-strong)),
+    linear-gradient(var(--qz-line-strong), var(--qz-line-strong)),
+    linear-gradient(var(--qz-line-strong), var(--qz-line-strong)),
+    linear-gradient(var(--qz-line-strong), var(--qz-line-strong)),
+    linear-gradient(var(--qz-line-strong), var(--qz-line-strong)),
+    linear-gradient(var(--qz-line-strong), var(--qz-line-strong)),
+    linear-gradient(var(--qz-line-strong), var(--qz-line-strong));
+  background-size:
+    8px 1px, 1px 8px,
+    8px 1px, 1px 8px,
+    8px 1px, 1px 8px,
+    8px 1px, 1px 8px;
+  background-position:
+    left top, left top,
+    right top, right top,
+    left bottom, left bottom,
+    right bottom, right bottom;
+  background-repeat: no-repeat;
+  opacity: 0.5;
+}
+
+/* ------------------------------------------------------------------ rail */
+
+.qz-rail {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 20px;
+  padding: 0 16px;
+  background: linear-gradient(180deg, #121211, #0b0b0a);
+  border-bottom: 1px solid var(--qz-line);
+  box-shadow: var(--qz-elev-1);
+  z-index: 20;
+}
+
+.qz-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  text-decoration: none;
+  color: var(--qz-fg);
+}
+
+.qz-brand__iso {
+  width: 20px;
+  height: 20px;
+}
+
+/* Raleway light: el wordmark de la firma NUNCA va grueso (Eze, 16/08: "está
+   demasiado gruesa"). El peso lo da el tracking, no el trazo. */
+.qz-brand__mark {
+  font-size: 0.92rem;
+  font-weight: 300;
+  letter-spacing: 0.38em;
+  padding-left: 0.38em;
+}
+
+.qz-brand__product {
+  font-size: 0.58rem;
+  letter-spacing: 0.22em;
+  color: var(--qz-dim);
+  padding-left: 10px;
+  margin-left: 2px;
+  border-left: 1px solid var(--qz-line);
+}
+
+.qz-rail__quote {
+  display: grid;
+  grid-template-columns: auto auto;
+  justify-content: start;
+  align-items: center;
+  min-width: 0;
+}
+
+.qz-rail__quote select {
+  appearance: none;
+  grid-column: 1;
+  grid-row: 1;
+  min-width: 0;
+  width: min(320px, 30vw);
+  padding: 5px 26px 5px 10px;
+  background: var(--qz-inset);
+  border: 1px solid var(--qz-line);
+  color: var(--qz-fg);
+  font-size: 0.82rem;
+  letter-spacing: 0.01em;
+  text-overflow: ellipsis;
+  box-shadow: var(--qz-edge);
+  border-radius: var(--qz-r-control);
+}
+
+.qz-rail__quote > svg {
+  grid-column: 1;
+  grid-row: 1;
+  justify-self: end;
+  margin-right: 8px;
+  pointer-events: none;
+  color: var(--qz-dim);
+}
+
+.qz-rail__stage {
+  grid-column: 2;
+  grid-row: 1;
+  font-size: 0.6rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--qz-dim);
+  white-space: nowrap;
+  margin-left: 14px;
+}
+
+.qz-rail__state {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.qz-tag {
+  font-size: 0.55rem;
+  letter-spacing: 0.2em;
+  padding: 4px 9px;
+  border: 1px solid var(--qz-line-strong);
+  border-radius: 99px;
+  color: var(--qz-muted);
+}
+
+.qz-tag--preview {
+  color: var(--qz-fg);
+  box-shadow: var(--qz-edge);
+}
+
+.qz-lamp {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 0.62rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--qz-dim);
+  white-space: nowrap;
+}
+
+.qz-lamp i {
+  width: 6px;
+  height: 6px;
+  background: var(--qz-dim);
+  border-radius: 50%;
+}
+
+.qz-lamp[data-state="fresh"],
+.qz-lamp[data-state="ready"] {
+  color: var(--qz-muted);
+}
+
+.qz-lamp[data-state="fresh"] i,
+.qz-lamp[data-state="ready"] i {
+  background: var(--qz-ok);
+  box-shadow: var(--qz-glow-ok);
+}
+
+.qz-lamp[data-state="running"] {
+  color: var(--qz-fg);
+}
+
+.qz-lamp[data-state="running"] i {
+  background: var(--qz-fg);
+  box-shadow: var(--qz-glow-fg);
+}
+
+.qz-lamp[data-state="stale_or_absent"] i {
+  background: var(--qz-warn);
+  box-shadow: var(--qz-glow-warn);
+}
+
+.qz-icon-action {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  background: var(--qz-inset);
+  border: 1px solid var(--qz-line);
+  border-radius: 50%;
+  color: var(--qz-muted);
+  cursor: pointer;
+  box-shadow: var(--qz-edge);
+}
+
+.qz-icon-action:hover:not(:disabled) {
+  color: var(--qz-fg);
+  border-color: var(--qz-line-strong);
+}
+
+.qz-inline-error {
+  padding: 8px 16px;
+  background: rgb(207 125 104 / 0.12);
+  border-bottom: 1px solid var(--qz-line);
+  color: var(--qz-fg);
+  font-size: 0.8rem;
+  border-radius: var(--qz-r-control);
+}
+
+.qz-mobile-tabs {
+  display: none;
+}
+
+/* ------------------------------------------------------------------ body */
+
+/* Tres regiones y dos separadores que se arrastran (pedido 4). El ancho de cada
+   columna vive en variables que escribe React y se guardan en localStorage: la
+   consola queda como el usuario la dejó. */
+.qz-body {
+  display: grid;
+  grid-template-columns:
+    var(--qz-chat-w, 360px)
+    var(--qz-split-w)
+    minmax(0, 1fr)
+    var(--qz-split-w)
+    var(--qz-rail-w, 356px);
+  gap: 0;
+  min-height: 0;
+  padding: 8px;
+  background: var(--qz-ground);
+}
+
+/* Cada región tiene su columna fija: el lomo y el rail comparten la última, así
+   plegar no reacomoda la grilla. */
+.qz-body > .qz-chat {
+  grid-area: 1 / 1;
+}
+
+.qz-body > .qz-splitter--chat {
+  grid-area: 1 / 2;
+}
+
+.qz-body > .qz-board {
+  grid-area: 1 / 3;
+}
+
+.qz-body > .qz-splitter--rail {
+  grid-area: 1 / 4;
+}
+
+.qz-body > .qz-decisions,
+.qz-body > .qz-spine {
+  grid-area: 1 / 5;
+}
+
+.qz-body[data-rail="closed"] > .qz-decisions,
+.qz-body[data-rail="open"] > .qz-spine {
+  display: none;
+}
+
+/* la barra movible: se ve, se agarra y dice para dónde va */
+.qz-splitter {
+  position: relative;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: col-resize;
+  touch-action: none;
+}
+
+.qz-splitter::before {
+  content: "";
+  width: 4px;
+  height: 100%;
+  border-radius: 99px;
+  background: rgb(242 239 232 / 0.2);
+  transition: background 0.16s ease;
+}
+
+/* el grip: tres marcas al medio, como la manija de un panel */
+.qz-splitter::after {
+  content: "";
+  position: absolute;
+  width: 4px;
+  height: 34px;
+  border-radius: 99px;
+  background:
+    linear-gradient(var(--qz-fg), var(--qz-fg)) 50% 4px / 2px 10px no-repeat,
+    linear-gradient(var(--qz-fg), var(--qz-fg)) 50% 16px / 2px 10px no-repeat,
+    linear-gradient(var(--qz-fg), var(--qz-fg)) 50% 28px / 2px 2px no-repeat;
+  opacity: 0.72;
+  transition: opacity 0.16s ease;
+}
+
+.qz-splitter:hover::before,
+.qz-splitter[data-dragging="true"]::before {
+  background: rgb(242 239 232 / 0.34);
+}
+
+.qz-splitter:hover::after,
+.qz-splitter[data-dragging="true"]::after {
+  opacity: 1;
+}
+
+.qz-splitter[data-dragging="true"]::before {
+  box-shadow: var(--qz-glow-fg);
+}
+
+.qz-splitter:disabled {
+  cursor: default;
+  visibility: hidden;
+}
+
+/* --------------------------------------------------------- conversación */
+
+.qz-chat {
+  position: relative;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* Pedido 6: el monolito es el fondo vivo de la conversación. Va detrás de
+   todo, con retícula y velo para que los mensajes sigan leyéndose. */
+.qz-chat__backdrop {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+/* Fondo del escenario: sólo luz. Eze pidió sacar la cuadrícula de atrás del
+   monolito (16/08) — la pieza se lee sola contra el negro. */
+.qz-chat__backdrop::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(105% 55% at 50% 46%, rgb(242 239 232 / 0.045), rgb(0 0 0 / 0.55) 68%);
+}
+
+.qz-chat__monolith {
+  position: absolute;
+  top: 47%;
+  left: 50%;
+  translate: -50% -50%;
+  display: grid;
+  place-items: center;
+  /* la pieza se disuelve hacia los bordes de la columna */
+  mask-image: radial-gradient(62% 58% at 50% 46%, #000 55%, transparent 100%);
+}
+
+/* piso: el horizonte contra el que apoya la pieza */
+.qz-chat__monolith::after {
+  content: "";
+  position: absolute;
+  bottom: 46px;
+  width: 300px;
+  height: 90px;
+  background: radial-gradient(50% 50% at 50% 50%, rgb(242 239 232 / 0.1), transparent 70%);
+}
+
+.qz-core__mark {
+  position: relative;
+  z-index: 1;
+}
+
+.qz-core__mark--flat {
+  display: grid;
+  place-items: center;
+  opacity: 0.4;
+}
+
+.qz-core__iso {
+  width: 42%;
+  height: 42%;
+}
+
+.qz-chat__head,
+.qz-thread,
+.qz-composer {
+  position: relative;
+  z-index: 1;
+}
+
+.qz-chat__head {
+  padding: 18px 20px 14px;
+  border-bottom: 1px solid var(--qz-line);
+  background: linear-gradient(180deg, rgb(14 14 13 / 0.92), rgb(10 10 10 / 0.6));
+  backdrop-filter: blur(2px);
+}
+
+.qz-chat__head h1 {
+  margin: 0 0 6px;
+  font-size: 1.02rem;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+}
+
+.qz-chat__head p {
+  margin: 0;
+  font-size: 0.76rem;
+  line-height: 1.5;
+  color: var(--qz-dim);
+}
+
+.qz-thread {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 18px 20px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.qz-thread__empty {
+  margin: auto 0;
+  font-size: 0.8rem;
+  color: var(--qz-dim);
+  text-align: center;
+}
+
+.qz-message {
+  max-width: 92%;
+  padding: 11px 13px;
+  background: linear-gradient(180deg, rgb(20 20 19 / 0.92), rgb(13 13 12 / 0.92));
+  border: 1px solid var(--qz-line);
+  box-shadow: var(--qz-edge), var(--qz-elev-1);
+  backdrop-filter: blur(3px);
+  border-radius: var(--qz-r-card);
+}
+
+.qz-message[data-author="eze"] {
+  align-self: flex-end;
+  border-color: var(--qz-line-strong);
+}
+
+.qz-message__meta {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 6px;
+  font-size: 0.55rem;
+  letter-spacing: 0.2em;
+  color: var(--qz-dim);
+}
+
+.qz-message p {
+  margin: 0;
+  font-size: 0.83rem;
+  line-height: 1.55;
+  color: var(--qz-fg);
+}
+
+.qz-composer {
+  padding: 12px 16px 14px;
+  border-top: 1px solid var(--qz-line);
+  background: linear-gradient(180deg, rgb(12 12 11 / 0.7), rgb(10 10 10 / 0.96));
+  backdrop-filter: blur(3px);
+}
+
+.qz-composer textarea {
+  width: 100%;
+  padding: 9px 10px;
+  background: var(--qz-inset);
+  border: 1px solid var(--qz-line);
+  color: var(--qz-fg);
+  font-size: 0.83rem;
+  line-height: 1.5;
+  resize: none;
+  box-shadow: var(--qz-edge);
+  border-radius: var(--qz-r-control);
+}
+
+.qz-composer textarea::placeholder {
+  color: var(--qz-dim);
+}
+
+.qz-composer textarea:focus {
+  border-color: var(--qz-line-strong);
+  outline: none;
+}
+
+.qz-composer__footer {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 9px;
+}
+
+.qz-attach {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 9px;
+  background: none;
+  border: 1px solid var(--qz-line);
+  color: var(--qz-dim);
+  font-size: 0.68rem;
+  letter-spacing: 0.06em;
+  border-radius: 99px;
+}
+
+.qz-send {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  margin-left: auto;
+  background: var(--qz-fg);
+  border: none;
+  color: #070707;
+  cursor: pointer;
+  box-shadow: 0 0 18px rgb(242 239 232 / 0.16);
+  border-radius: 50%;
+}
+
+.qz-send:disabled {
+  background: var(--qz-inset);
+  border: 1px solid var(--qz-line);
+  color: var(--qz-dim);
+  box-shadow: none;
+}
+
+.qz-composer__notice {
+  margin: 8px 0 0;
+  font-size: 0.66rem;
+  line-height: 1.5;
+  color: var(--qz-dim);
+}
+
+/* --------------------------------------------------------------- tablero */
+
+/* El tablero va para ABAJO y scrollea entero (pedido de Eze, 16/08). Antes era
+   una grilla de 100dvh con el ledger como única fila elástica: al sumar la
+   consola de margen esa fila se comía a cero y el rubro no entraba. Ahora las
+   filas toman su alto natural, el ledger muestra todos sus ítems y el que
+   scrollea es esta columna — no la página, y el rail de decisión de la derecha
+   queda quieto a la vista, que era el punto del rediseño. */
+.qz-board {
+  display: grid;
+  grid-auto-rows: max-content;
+  gap: 8px;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  background: var(--qz-ground);
+  scroll-padding-top: 8px;
+}
+
+/* módulos levantados del chasis: la lectura y los instrumentos son piezas
+   montadas, no rectángulos pintados */
+.qz-readout,
+.qz-margin,
+.qz-gauge,
+.qz-wave {
+  background: linear-gradient(180deg, #161615, #0d0d0c 58%, #101010);
+  box-shadow: var(--qz-relief);
+  border-radius: var(--qz-r-panel);
+  border-radius: var(--qz-r-panel);
+  overflow: hidden;
+}
+
+/* lectura principal: el número manda la composición */
+/* La lectura manda: la columna de deltas queda ACOTADA y envuelve. Con `auto`
+   se comía el número cuando aparecía el cuarto dato (lo agregado a mano). */
+.qz-readout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(210px, 0.85fr);
+  align-items: stretch;
+  gap: 28px;
+  padding: 20px 24px 18px;
+}
+
+.qz-readout__label,
+.qz-gauge__label,
+.qz-ledger__head span,
+.qz-decisions__head h2 {
+  font-size: 0.58rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--qz-dim);
+}
+
+/* la escala baja al pie del plano: sin aire muerto abajo del número */
+.qz-readout__figure {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 6px;
+  min-width: 0;
+}
+
+.qz-readout__value {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  min-width: 0;
+  font-size: clamp(1.9rem, 2.7vw, 3.05rem);
+  font-weight: 200;
+  letter-spacing: -0.045em;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  text-shadow: 0 0 34px rgb(242 239 232 / 0.14);
+}
+
+.qz-readout__value i {
+  font-style: normal;
+  font-size: 0.42em;
+  color: var(--qz-dim);
+}
+
+.qz-readout__exact {
+  font-size: 0.72rem;
+  color: var(--qz-dim);
+  font-variant-numeric: tabular-nums;
+}
+
+/* escala del rango: ticks fijos + banda viva entre piso y techo */
+.qz-scale {
+  position: relative;
+  height: 26px;
+  margin-top: 8px;
+}
+
+.qz-scale__ticks {
+  position: absolute;
+  inset: 0 0 12px;
+  background-image: repeating-linear-gradient(
+    90deg,
+    var(--qz-line-strong) 0 1px,
+    transparent 1px 14px
+  );
+  opacity: 0.5;
+}
+
+.qz-scale__band {
+  position: absolute;
+  bottom: 8px;
+  height: 3px;
+  transform-origin: left center;
+  background: var(--qz-fg);
+  box-shadow: var(--qz-glow-fg);
+}
+
+.qz-scale__mark {
+  position: absolute;
+  bottom: 3px;
+  width: 1px;
+  height: 13px;
+  background: var(--qz-fg);
+}
+
+.qz-readout__deltas {
+  display: flex;
+  flex-wrap: wrap;
+  align-content: center;
+  gap: 16px 24px;
+  margin: 0;
+  padding-left: 26px;
+  border-left: 1px solid var(--qz-line);
+}
+
+.qz-readout__deltas div {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  flex: 1 1 92px;
+  min-width: 92px;
+}
+
+.qz-readout__deltas dt {
+  font-size: 0.56rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--qz-dim);
+}
+
+.qz-readout__deltas dd {
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 300;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+
+.qz-readout__deltas dd[data-tone="warn"] {
+  color: var(--qz-warn);
+}
+
+.qz-readout__deltas dd[data-tone="alert"] {
+  color: var(--qz-alert);
+}
+
+.qz-readout__deltas small {
+  font-size: 0.64rem;
+  color: var(--qz-dim);
+}
+
+/* --------------------------------------------------- consola de margen */
+
+/* segunda lectura del tablero: el costo lo cierra el motor, el precio lo pone
+   Eze. Acá se ve contra qué lo está poniendo. */
+.qz-margin {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(230px, 268px);
+  gap: 26px;
+  padding: 18px 24px 16px;
+}
+
+.qz-margin__reading {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+/* el número vivo toma el tono del veredicto: es la lectura, no un adorno */
+.qz-margin[data-tone="warn"] .qz-readout__value {
+  color: var(--qz-warn);
+  text-shadow: var(--qz-glow-warn);
+}
+
+.qz-margin[data-tone="alert"] .qz-readout__value {
+  color: var(--qz-alert);
+  text-shadow: var(--qz-glow-alert);
+}
+
+.qz-margin__verdict {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 6px 0 0;
+}
+
+.qz-margin__verdict strong {
+  font-size: 0.78rem;
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+.qz-margin[data-tone="ok"] .qz-margin__verdict strong {
+  color: var(--qz-ok);
+}
+
+.qz-margin[data-tone="warn"] .qz-margin__verdict strong {
+  color: var(--qz-warn);
+}
+
+.qz-margin[data-tone="alert"] .qz-margin__verdict strong {
+  color: var(--qz-alert);
+}
+
+.qz-margin__verdict small {
+  font-size: 0.66rem;
+  line-height: 1.5;
+  color: var(--qz-dim);
+}
+
+.qz-margin__control {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-left: 26px;
+  border-left: 1px solid var(--qz-line);
+  min-width: 0;
+}
+
+.qz-margin__field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.qz-margin__field span {
+  font-size: 0.56rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--qz-dim);
+}
+
+/* el campo va hundido en el chasis: es donde se mete la mano */
+.qz-margin__field input {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--qz-line-strong);
+  background: var(--qz-inset);
+  box-shadow: var(--qz-well);
+  color: var(--qz-fg);
+  font: inherit;
+  font-size: 1.16rem;
+  font-weight: 300;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+  border-radius: var(--qz-r-control);
+}
+
+.qz-margin__field input:focus-visible {
+  outline: 1px solid var(--qz-focus);
+  outline-offset: 1px;
+}
+
+.qz-margin__dial {
+  width: 100%;
+  height: 20px;
+  margin: 0;
+  appearance: none;
+  background: transparent;
+  cursor: ew-resize;
+}
+
+.qz-margin__dial::-webkit-slider-runnable-track {
+  height: 4px;
+  background: var(--qz-inset);
+  box-shadow: var(--qz-well);
+}
+
+.qz-margin__dial::-moz-range-track {
+  height: 4px;
+  background: var(--qz-inset);
+  box-shadow: var(--qz-well);
+}
+
+.qz-margin__dial::-webkit-slider-thumb {
+  appearance: none;
+  width: 3px;
+  height: 18px;
+  margin-top: -7px;
+  background: var(--qz-fg);
+  box-shadow: var(--qz-glow-fg);
+}
+
+.qz-margin__dial::-moz-range-thumb {
+  width: 3px;
+  height: 18px;
+  border: 0;
+  border-radius: 0;
+  background: var(--qz-fg);
+  box-shadow: var(--qz-glow-fg);
+}
+
+.qz-margin__dial:focus-visible {
+  outline: 1px solid var(--qz-focus);
+  outline-offset: 2px;
+}
+
+.qz-margin__presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.qz-margin__presets button {
+  padding: 4px 8px;
+  border: 1px solid var(--qz-line-strong);
+  background: transparent;
+  box-shadow: var(--qz-edge);
+  color: var(--qz-muted);
+  font: inherit;
+  font-size: 0.62rem;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  transition: color 0.16s ease, border-color 0.16s ease;
+  border-radius: 99px;
+}
+
+.qz-margin__presets button:hover {
+  color: var(--qz-fg);
+  border-color: var(--qz-fg);
+}
+
+.qz-margin__presets button:focus-visible {
+  outline: 1px solid var(--qz-focus);
+  outline-offset: 1px;
+}
+
+.qz-margin__note {
+  font-size: 0.62rem;
+  line-height: 1.5;
+  color: var(--qz-dim);
+}
+
+/* Escala del precio: la leyenda va en su propia banda abajo para que nunca
+   pise la marca del precio simulado (con el dial en el piso, las dos caen en
+   el mismo punto). La franja rayada es donde el piso depende de cómo salga la
+   obra: entrás al piso sólo si el costo no se corre. */
+.qz-scale--margin {
+  height: 40px;
+}
+
+.qz-scale--margin .qz-scale__ticks {
+  inset: 0 0 26px;
+}
+
+/* la franja de riesgo va en su propio carril, arriba del relleno del precio:
+   si compartieran altura el relleno la taparía justo cuando importa */
+.qz-scale__risk {
+  position: absolute;
+  bottom: 22px;
+  height: 3px;
+  background: repeating-linear-gradient(135deg, var(--qz-warn) 0 1px, transparent 1px 4px);
+}
+
+.qz-scale--margin .qz-scale__band {
+  bottom: 16px;
+}
+
+.qz-scale--margin .qz-scale__mark {
+  bottom: 11px;
+  height: 14px;
+  box-shadow: var(--qz-glow-fg);
+}
+
+.qz-scale__legend {
+  position: absolute;
+  bottom: 0;
+  transform: translateX(-50%);
+  font-size: 0.54rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--qz-dim);
+  white-space: nowrap;
+}
+
+/* fila de instrumentos */
+.qz-instruments {
+  /* flex y no grid: en la última fila los instrumentos CRECEN para llenarla.
+     Con auto-fit quedaba un hueco cuando el quinto caía solo. */
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  background: var(--qz-ground);
+}
+
+.qz-instruments > .qz-gauge {
+  flex: 1 1 132px;
+}
+
+.qz-gauge {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  padding: 14px 16px 13px;
+  min-width: 0;
+}
+
+.qz-gauge__body {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.qz-gauge__body strong {
+  font-size: 1.02rem;
+  font-weight: 500;
+}
+
+.qz-gauge__figure {
+  font-size: 1.9rem !important;
+  font-weight: 200 !important;
+  letter-spacing: -0.035em;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.qz-gauge__figure i {
+  font-style: normal;
+  font-size: 0.4em;
+  letter-spacing: 0.04em;
+  color: var(--qz-dim);
+  margin-left: 0.3em;
+}
+
+.qz-gauge small,
+.qz-gauge__body small {
+  display: block;
+  font-size: 0.65rem;
+  line-height: 1.45;
+  color: var(--qz-dim);
+}
+
+.qz-gauge__empty {
+  margin: 0;
+  font-size: 0.7rem;
+  color: var(--qz-dim);
+}
+
+.qz-gauge[data-tone="warn"] .qz-gauge__figure {
+  color: var(--qz-warn);
+}
+
+/* dial de cobertura */
+/* el dial va hundido en el panel: pozo con sombra propia */
+.qz-dial {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 64px;
+  height: 64px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: radial-gradient(circle at 50% 34%, #131312, #070707 72%);
+  box-shadow: var(--qz-well);
+}
+
+.qz-dial svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.qz-dial line {
+  stroke: rgb(242 239 232 / 0.16);
+  stroke-width: 2;
+}
+
+.qz-dial line[data-on="true"] {
+  stroke: var(--qz-fg);
+}
+
+.qz-gauge[data-level="alta"] .qz-dial line[data-on="true"] {
+  stroke: var(--qz-ok);
+  filter: drop-shadow(0 0 3px rgb(143 187 166 / 0.6));
+}
+
+.qz-gauge[data-level="media"] .qz-dial line[data-on="true"] {
+  stroke: var(--qz-warn);
+  filter: drop-shadow(0 0 3px rgb(211 168 98 / 0.5));
+}
+
+.qz-gauge[data-level="baja"] .qz-dial line[data-on="true"] {
+  stroke: var(--qz-alert);
+  filter: drop-shadow(0 0 3px rgb(207 125 104 / 0.5));
+}
+
+.qz-dial__center {
+  font-size: 0.78rem;
+  font-weight: 300;
+  font-variant-numeric: tabular-nums;
+}
+
+/* pista segmentada: un segmento por ítem real */
+.qz-gauge__track {
+  display: flex;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+
+.qz-gauge__track span {
+  flex: 1;
+  height: 16px;
+  background: rgb(242 239 232 / 0.1);
+  border-radius: 3px;
+}
+
+.qz-gauge__track span[data-state="ok"] {
+  background: var(--qz-ok);
+  box-shadow: var(--qz-glow-ok);
+}
+
+.qz-gauge__track span[data-state="warn"] {
+  background: var(--qz-warn);
+}
+
+.qz-gauge__track span[data-state="alert"] {
+  background: var(--qz-alert);
+  box-shadow: var(--qz-glow-alert);
+}
+
+.qz-split {
+  position: relative;
+  flex: 1;
+  height: 16px;
+  background: rgb(242 239 232 / 0.14);
+  overflow: hidden;
+  border-radius: 99px;
+}
+
+.qz-split span {
+  display: block;
+  height: 100%;
+  background: var(--qz-fg);
+}
+
+/* ------------------------------------------------------------ ledger */
+
+.qz-ledger {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  /* `clip` y no `hidden`: hidden crearía un scrollport propio y los encabezados
+     de rubro dejarían de pegarse al scroll del tablero. */
+  overflow: clip;
+}
+
+.qz-ledger__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 20px;
+  border-bottom: 1px solid var(--qz-line);
+}
+
+.qz-ledger__head h2 {
+  margin: 0;
+  font-size: 0.86rem;
+  font-weight: 500;
+}
+
+/* la mesa dice dónde quedó guardada. Si la base rechaza algo, se dice acá y el
+   cambio se deshace: nunca se muestra como guardado lo que no entró. */
+.qz-taller-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
+  padding: 3px 9px;
+  border: 1px solid var(--qz-line);
+  border-radius: 999px;
+  font-size: 0.56rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--qz-dim);
+  white-space: nowrap;
+}
+
+.qz-taller-state[data-tone="ok"] {
+  color: var(--qz-ok);
+  border-color: color-mix(in srgb, var(--qz-ok) 34%, transparent);
+}
+
+.qz-taller-state[data-tone="alert"] {
+  color: var(--qz-alert);
+  border-color: color-mix(in srgb, var(--qz-alert) 46%, transparent);
+  letter-spacing: 0.06em;
+  text-transform: none;
+  font-size: 0.62rem;
+  white-space: normal;
+}
+
+/* sin scroll propio: el rubro se estira y scrollea el tablero (pedido 1) */
+.qz-ledger__scroll {
+  min-height: 0;
+}
+
+.qz-ledger__empty {
+  padding: 24px 20px;
+  font-size: 0.8rem;
+  color: var(--qz-dim);
+}
+
+.qz-rubro + .qz-rubro {
+  border-top: 1px solid var(--qz-line);
+}
+
+.qz-rubro__head {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 13px 24px;
+  background: linear-gradient(180deg, #131312, #0e0e0d);
+  border-bottom: 1px solid var(--qz-line);
+  box-shadow: var(--qz-elev-1);
+}
+
+.qz-rubro__head i {
+  width: 3px;
+  height: 20px;
+}
+
+.qz-rubro__head h3 {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  font-size: 0.9rem;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.qz-rubro__share {
+  font-size: 0.62rem;
+  letter-spacing: 0.1em;
+  color: var(--qz-dim);
+  font-variant-numeric: tabular-nums;
+}
+
+.qz-rubro__money {
+  font-size: 0.86rem;
+  font-weight: 300;
+  font-variant-numeric: tabular-nums;
+}
+
+.qz-item {
+  padding: 17px 24px 18px;
+  border-bottom: 1px solid rgb(242 239 232 / 0.06);
+}
+
+.qz-item[data-severity="blocking"] {
+  box-shadow: inset 2px 0 0 var(--qz-alert);
+}
+
+.qz-item[data-severity="warning"] {
+  box-shadow: inset 2px 0 0 var(--qz-warn);
+}
+
+.qz-item__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.qz-item__head strong {
+  display: block;
+  font-size: 0.95rem;
+  font-weight: 500;
+  letter-spacing: -0.005em;
+}
+
+.qz-item__head small {
+  display: block;
+  margin-top: 4px;
+  font-size: 0.73rem;
+  color: var(--qz-dim);
+}
+
+.qz-item__subtotal {
+  font-size: 0.98rem;
+  font-weight: 300;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.qz-item[data-severity="blocking"] .qz-item__subtotal {
+  color: var(--qz-alert);
+}
+
+/* abanico de precios del ítem */
+.qz-offers {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 13px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.qz-offer {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 12px;
+  background: linear-gradient(180deg, #131312, #0b0b0a);
+  border: 1px solid var(--qz-line);
+  border-radius: 99px;
+  box-shadow: inset 0 1px 0 rgb(242 239 232 / 0.06), 0 6px 12px -10px rgb(0 0 0 / 0.9);
+}
+
+.qz-offer__origin {
+  font-size: 0.6rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--qz-dim);
+}
+
+.qz-offer__value {
+  font-size: 0.88rem;
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+}
+
+.qz-offer__delta {
+  font-size: 0.75rem;
+  color: var(--qz-warn);
+  font-variant-numeric: tabular-nums;
+}
+
+.qz-offer__flag,
+.qz-offer__note {
+  font-size: 0.68rem;
+  letter-spacing: 0.03em;
+  color: var(--qz-dim);
+}
+
+.qz-offer a {
+  display: inline-grid;
+  place-items: center;
+  color: var(--qz-dim);
+  rotate: 45deg;
+}
+
+.qz-offer a:hover {
+  color: var(--qz-fg);
+}
+
+.qz-offer[data-state="recommended"] {
+  border-color: rgb(143 187 166 / 0.55);
+  box-shadow: var(--qz-edge), 0 0 14px rgb(143 187 166 / 0.14);
+}
+
+.qz-offer[data-state="recommended"] .qz-offer__flag {
+  color: var(--qz-ok);
+}
+
+.qz-offer[data-state="discarded"] {
+  opacity: 0.55;
+}
+
+.qz-offer[data-state="discarded"] .qz-offer__value {
+  text-decoration: line-through;
+  text-decoration-color: var(--qz-alert);
+}
+
+.qz-offer[data-state="reference"] {
+  border-style: dashed;
+}
+
+.qz-item__verdict {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 12px 0 0;
+  font-size: 0.78rem;
+  line-height: 1.5;
+  color: var(--qz-dim);
+}
+
+.qz-item__verdict[data-severity="warning"] {
+  color: var(--qz-warn);
+}
+
+.qz-item__verdict[data-severity="blocking"] {
+  color: var(--qz-alert);
+}
+
+/* ------------------------------------------------- ítems agregados a mano
+
+   El visor es READ-ONLY contra App RAVN: lo que Eze agrega acá vive en su
+   navegador (localStorage, por cotización) y se muestra SIEMPRE marcado como
+   "a mano". No se mezcla con el rango que cerró el motor — se suma aparte,
+   así el número persistido nunca queda contaminado. */
+
+.qz-rubro__add {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  background: none;
+  border: 1px dashed var(--qz-line-strong);
+  border-radius: 99px;
+  color: var(--qz-muted);
+  font: inherit;
+  font-size: 0.62rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: color 0.16s ease, border-color 0.16s ease;
+}
+
+.qz-rubro__add:hover {
+  color: var(--qz-fg);
+  border-color: var(--qz-fg);
+}
+
+.qz-manual-form {
+  display: grid;
+  grid-template-columns:
+    minmax(0, 2fr) minmax(0, 1.1fr) minmax(0, 0.75fr)
+    minmax(0, 0.75fr) minmax(0, 1.2fr) auto auto;
+  align-items: end;
+  gap: 8px;
+  padding: 14px 24px 16px;
+  background: rgb(242 239 232 / 0.035);
+  border-bottom: 1px solid var(--qz-line);
+}
+
+.qz-manual-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+}
+
+.qz-manual-form span {
+  font-size: 0.54rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--qz-dim);
+}
+
+.qz-manual-form input,
+.qz-manual-form select {
+  width: 100%;
+  padding: 7px 9px;
+  background: var(--qz-inset);
+  border: 1px solid var(--qz-line-strong);
+  border-radius: var(--qz-r-control);
+  box-shadow: var(--qz-well);
+  color: var(--qz-fg);
+  font: inherit;
+  font-size: 0.82rem;
+}
+
+.qz-manual-form select {
+  appearance: none;
+}
+
+.qz-manual-form button {
+  padding: 8px 14px;
+  border: 1px solid var(--qz-line-strong);
+  border-radius: var(--qz-r-control);
+  background: none;
+  color: var(--qz-fg);
+  font: inherit;
+  font-size: 0.66rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.qz-manual-form button[type="submit"]:not(:disabled):hover {
+  background: var(--qz-fg);
+  border-color: var(--qz-fg);
+  color: #070707;
+}
+
+.qz-manual-form button:disabled {
+  color: var(--qz-dim);
+  border-color: var(--qz-line);
+}
+
+.qz-manual-form__cancel {
+  color: var(--qz-dim) !important;
+}
+
+.qz-item[data-manual="true"] {
+  background: rgb(242 239 232 / 0.02);
+  box-shadow: inset 2px 0 0 var(--qz-line-strong);
+}
+
+/* el nombre y su marca van en el mismo renglón */
+.qz-item[data-manual="true"] .qz-item__head strong {
+  display: inline;
+}
+
+.qz-item__flag {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-left: 8px;
+  padding: 2px 8px;
+  border: 1px solid var(--qz-line-strong);
+  border-radius: 99px;
+  font-size: 0.56rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--qz-muted);
+  vertical-align: 1px;
+}
+
+.qz-item__drop {
+  display: inline-grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  margin-left: 10px;
+  background: none;
+  border: 1px solid var(--qz-line);
+  border-radius: 50%;
+  color: var(--qz-dim);
+  cursor: pointer;
+}
+
+.qz-item__drop:hover {
+  color: var(--qz-alert);
+  border-color: var(--qz-alert);
+}
+
+.qz-rubro__manual {
+  font-size: 0.62rem;
+  letter-spacing: 0.04em;
+  color: var(--qz-muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* ------------------------------------------------------------- la ola */
+
+.qz-wave {
+  display: flex;
+  flex-direction: column;
+  max-height: 46vh;
+}
+
+.qz-wave__head {
+  display: grid;
+  grid-template-columns: auto auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 16px;
+  padding: 10px 20px;
+}
+
+.qz-wave__head h2 {
+  margin: 0;
+  font-size: 0.58rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--qz-dim);
+}
+
+.qz-wave__head p {
+  margin: 0;
+  font-size: 0.72rem;
+  color: var(--qz-dim);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.qz-wave__stop {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  background: none;
+  border: 1px solid var(--qz-line-strong);
+  color: var(--qz-fg);
+  font-size: 0.65rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.qz-wave__grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1px;
+  min-height: 0;
+  background: var(--qz-ground);
+  border-top: 1px solid var(--qz-line);
+}
+
+.qz-terminal {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: #070707;
+  border-radius: var(--qz-r-control);
+  overflow: hidden;
+}
+
+.qz-terminal header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 12px;
+  border-bottom: 1px solid var(--qz-line);
+  color: var(--qz-dim);
+}
+
+.qz-terminal header h3 {
+  margin: 0;
+  font-size: 0.68rem;
+  font-weight: 500;
+  color: var(--qz-fg);
+}
+
+.qz-terminal header span {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.6rem;
+}
+
+.qz-terminal__count {
+  margin-left: auto;
+}
+
+.qz-terminal[data-running="true"] header::before {
+  content: "";
+  width: 5px;
+  height: 5px;
+  background: var(--qz-fg);
+  border-radius: 50%;
+  box-shadow: var(--qz-glow-fg);
+}
+
+.qz-terminal__body {
+  flex: 1;
+  min-height: 96px;
+  max-height: 26vh;
+  overflow-y: auto;
+  padding: 12px 15px 14px;
+  font-family: var(--qz-mono);
+  font-size: 0.76rem;
+  line-height: 1.75;
+  color: var(--qz-muted);
+}
+
+.qz-terminal__body p {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* Cada tipo de línea con su color: lo que la ola busca se distingue de lo que
+   informa y de lo que devuelve. Los tonos son los mismos de estado del tablero. */
+.qz-terminal__body p[data-kind="status"] {
+  color: var(--qz-dim);
+  letter-spacing: 0.02em;
+}
+
+.qz-terminal__body p[data-kind="tool"] {
+  color: var(--qz-ok);
+}
+
+.qz-terminal__body p[data-kind="text"] {
+  color: var(--qz-muted);
+}
+
+.qz-terminal__body p[data-kind="raw"] {
+  color: #7f8c9e;
+}
+
+.qz-terminal__body p[data-kind="result"] {
+  margin: 6px 0;
+  padding-left: 9px;
+  border-left: 1px solid var(--qz-line-strong);
+  color: var(--qz-fg);
+}
+
+.qz-terminal__body p[data-kind="error"] {
+  color: var(--qz-alert);
+}
+
+.qz-terminal__idle {
+  color: var(--qz-dim);
+}
+
+/* Resaltado de sintaxis adentro de la línea (pedido 2). Paleta de editor
+   validada sobre #070707: todos los tonos pasan 4.5:1 contra el fondo. El
+   `data-kind` sigue mandando el color base; esto pinta lo que se reconoce. */
+.qz-terminal__body span[data-tk="command"] {
+  color: #e5c76b;
+  font-weight: 500;
+}
+
+.qz-terminal__body span[data-tk="path"],
+.qz-terminal__body span[data-tk="file"] {
+  color: #7fb4e3;
+}
+
+.qz-terminal__body span[data-tk="flag"] {
+  color: #c99bda;
+}
+
+.qz-terminal__body span[data-tk="string"] {
+  color: #9ecf8a;
+}
+
+.qz-terminal__body span[data-tk="number"] {
+  color: #e0a37a;
+  font-variant-numeric: tabular-nums;
+}
+
+.qz-terminal__body span[data-tk="url"] {
+  color: #6fc7c0;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+/* ---------------------------------------------- decidir desde la tarjeta */
+
+.qz-decision__offers li {
+  position: relative;
+}
+
+.qz-decision .qz-decision__use {
+  padding: 3px 9px;
+  border: 1px solid var(--qz-line-strong);
+  border-radius: 99px;
+  background: none;
+  color: var(--qz-muted);
+  font: inherit;
+  font-size: 0.58rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.qz-decision .qz-decision__use:hover {
+  background: var(--qz-fg);
+  border-color: var(--qz-fg);
+  color: #070707;
+}
+
+.qz-decision__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.qz-decision__actions small {
+  font-size: 0.62rem;
+  line-height: 1.4;
+  color: var(--qz-dim);
+}
+
+.qz-decision .qz-decision__skip {
+  border-style: dashed;
+  color: var(--qz-dim);
+}
+
+.qz-decision .qz-decision__skip:hover {
+  color: #070707;
+}
+
+.qz-item[data-decided="true"] {
+  box-shadow: inset 2px 0 0 var(--qz-ok);
+}
+
+.qz-item__closed {
+  color: var(--qz-ok) !important;
+}
+
+.qz-item__closed button {
+  margin-left: 8px;
+  padding: 2px 9px;
+  background: none;
+  border: 1px solid var(--qz-line-strong);
+  border-radius: 99px;
+  color: var(--qz-dim);
+  font: inherit;
+  font-size: 0.6rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.qz-item__closed button:hover {
+  color: var(--qz-fg);
+  border-color: var(--qz-fg);
+}
+
+/* -------------------------------------------------- rubro que se colapsa */
+
+.qz-rubro__fold {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  flex: 0 0 auto;
+  background: none;
+  border: 1px solid var(--qz-line);
+  border-radius: 50%;
+  color: var(--qz-dim);
+  cursor: pointer;
+}
+
+.qz-rubro__fold:hover {
+  color: var(--qz-fg);
+  border-color: var(--qz-line-strong);
+}
+
+.qz-rubro[data-collapsed="true"] .qz-rubro__fold svg {
+  rotate: -90deg;
+}
+
+.qz-rubro[data-collapsed="true"] .qz-rubro__head {
+  position: static;
+  box-shadow: none;
+}
+
+/* ------------------------------------------- margen con lo agregado a mano */
+
+.qz-margin__switch {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  margin-top: 10px;
+  padding: 9px 11px;
+  border: 1px solid var(--qz-line);
+  border-radius: var(--qz-r-control);
+  background: rgb(242 239 232 / 0.03);
+  cursor: pointer;
+}
+
+.qz-margin__switch input {
+  width: 15px;
+  height: 15px;
+  margin: 2px 0 0;
+  accent-color: var(--qz-fg);
+  cursor: pointer;
+}
+
+.qz-margin__switch span {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 0.72rem;
+  line-height: 1.4;
+}
+
+.qz-margin__switch small {
+  font-size: 0.64rem;
+  color: var(--qz-dim);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ------------------------------------------------------------ decisiones */
+
+.qz-decisions {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.qz-decisions__head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 18px 12px;
+  border-bottom: 1px solid var(--qz-line);
+}
+
+.qz-decisions__head h2 {
+  margin: 0;
+}
+
+.qz-decisions__count {
+  margin-left: auto;
+  font-size: 1.35rem;
+  font-weight: 200;
+  font-variant-numeric: tabular-nums;
+}
+
+.qz-decisions__count[data-alert="true"] {
+  color: var(--qz-alert);
+}
+
+.qz-decisions__fold {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  background: none;
+  border: 1px solid var(--qz-line);
+  border-radius: 50%;
+  color: var(--qz-dim);
+  cursor: pointer;
+}
+
+.qz-decisions__fold:hover {
+  color: var(--qz-fg);
+  border-color: var(--qz-line-strong);
+}
+
+/* --------------------------------------------- rail plegado (lomo)
+
+   Plegado, el rail queda como el lomo de un cajón: el título vertical, cuántas
+   decisiones esperan y —si hay alguna— el signo de admisión en rojo. Se pliega
+   solo cuando la cola llega a cero: ahí el tablero se queda con la pantalla. */
+
+.qz-spine {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 0;
+  background: linear-gradient(180deg, var(--qz-panel-top), var(--qz-panel-bottom));
+  border: none;
+  border-radius: var(--qz-r-panel);
+  box-shadow: var(--qz-edge), var(--qz-elev-1);
+  color: var(--qz-dim);
+  cursor: pointer;
+  transition: color 0.16s ease;
+}
+
+.qz-spine:hover {
+  color: var(--qz-fg);
+}
+
+.qz-spine__bang {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: var(--qz-alert);
+  box-shadow: var(--qz-glow-alert);
+  color: #0a0a0a;
+  font-size: 0.8rem;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.qz-spine__count {
+  font-size: 0.95rem;
+  font-weight: 300;
+  font-variant-numeric: tabular-nums;
+  color: var(--qz-fg);
+}
+
+.qz-spine__label {
+  writing-mode: vertical-rl;
+  font-size: 0.58rem;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.qz-spine__clear {
+  color: var(--qz-ok);
+}
+
+.qz-decisions__scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.qz-decision {
+  padding: 12px 13px 13px;
+  background: linear-gradient(180deg, #151514, #0e0e0d);
+  border: 1px solid var(--qz-line);
+  box-shadow: var(--qz-edge), var(--qz-elev-2);
+  border-radius: var(--qz-r-card);
+}
+
+.qz-decision[data-severity="blocking"] {
+  border-color: rgb(207 125 104 / 0.4);
+}
+
+.qz-decision[data-focused="true"] {
+  border-color: var(--qz-line-strong);
+}
+
+.qz-decision header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.qz-decision__tag {
+  font-size: 0.54rem;
+  letter-spacing: 0.18em;
+  color: var(--qz-warn);
+}
+
+.qz-decision[data-severity="blocking"] .qz-decision__tag {
+  color: var(--qz-alert);
+}
+
+.qz-decision header small {
+  font-size: 0.62rem;
+  color: var(--qz-dim);
+  text-align: right;
+}
+
+.qz-decision h3 {
+  margin: 0 0 5px;
+  font-size: 0.86rem;
+  font-weight: 500;
+}
+
+.qz-decision__headline {
+  margin: 0 0 10px;
+  font-size: 0.76rem;
+  line-height: 1.5;
+  color: var(--qz-muted);
+}
+
+.qz-decision__offers {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  margin: 0 0 10px;
+  padding: 0;
+  list-style: none;
+  background: var(--qz-line);
+  border: 1px solid var(--qz-line);
+  border-radius: var(--qz-r-control);
+  overflow: hidden;
+}
+
+.qz-decision__offers li {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 9px;
+  background: var(--qz-inset);
+}
+
+.qz-decision__offers span {
+  font-size: 0.55rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--qz-dim);
+}
+
+.qz-decision__offers strong {
+  font-size: 0.8rem;
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+}
+
+.qz-decision__offers em {
+  font-style: normal;
+  font-size: 0.62rem;
+  color: var(--qz-dim);
+  white-space: nowrap;
+}
+
+.qz-decision__offers li[data-state="recommended"] {
+  background: rgb(143 187 166 / 0.09);
+}
+
+.qz-decision__offers li[data-state="recommended"] em {
+  color: var(--qz-ok);
+}
+
+.qz-decision__offers li[data-state="discarded"] strong {
+  text-decoration: line-through;
+  text-decoration-color: var(--qz-alert);
+  color: var(--qz-dim);
+}
+
+.qz-decision__none {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 0 0 10px;
+  font-size: 0.72rem;
+  color: var(--qz-dim);
+}
+
+.qz-decision__criterion {
+  margin: 0 0 11px;
+  padding-left: 9px;
+  border-left: 1px solid var(--qz-line-strong);
+  font-size: 0.68rem;
+  line-height: 1.5;
+  color: var(--qz-dim);
+}
+
+.qz-decision button,
+.qz-questions button {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 11px;
+  background: none;
+  border: 1px solid var(--qz-line-strong);
+  color: var(--qz-fg);
+  font-size: 0.66rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.qz-decision button svg,
+.qz-questions button svg {
+  rotate: 45deg;
+}
+
+.qz-decision button:hover,
+.qz-questions button:hover {
+  background: var(--qz-fg);
+  color: #070707;
+  border-color: var(--qz-fg);
+}
+
+.qz-decisions__clear {
+  margin: 0;
+  padding: 18px 10px;
+  font-size: 0.76rem;
+  line-height: 1.5;
+  color: var(--qz-ok);
+}
+
+.qz-questions {
+  padding-top: 4px;
+}
+
+.qz-questions h3 {
+  margin: 0 0 8px;
+  font-size: 0.56rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--qz-dim);
+}
+
+.qz-questions ul {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.qz-questions li {
+  padding: 10px 11px;
+  background: var(--qz-inset);
+  border: 1px solid var(--qz-line);
+  border-radius: var(--qz-r-control);
+}
+
+.qz-questions p {
+  margin: 0 0 8px;
+  font-size: 0.75rem;
+  line-height: 1.5;
+}
+
+/* cajones: control y actividad, cerrados por defecto */
+.qz-drawers {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  background: var(--qz-line);
+  border: 1px solid var(--qz-line);
+  border-radius: var(--qz-r-control);
+  overflow: hidden;
+}
+
+.qz-drawers details {
+  background: var(--qz-inset);
+}
+
+.qz-drawers summary {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 11px;
+  cursor: pointer;
+  font-size: 0.66rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--qz-muted);
+  list-style: none;
+}
+
+.qz-drawers summary::-webkit-details-marker {
+  display: none;
+}
+
+.qz-drawers summary small {
+  margin-left: auto;
+  font-size: 0.62rem;
+  letter-spacing: 0.04em;
+  text-transform: none;
+  color: var(--qz-dim);
+}
+
+.qz-drawers details[open] summary svg {
+  rotate: 180deg;
+}
+
+.qz-checks,
+.qz-events {
+  margin: 0;
+  padding: 0 11px 10px;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+
+.qz-checks li div {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.qz-checks strong,
+.qz-events strong {
+  font-size: 0.72rem;
+  font-weight: 500;
+}
+
+.qz-checks li[data-status="absent"] strong {
+  color: var(--qz-dim);
+}
+
+.qz-checks span {
+  font-size: 0.64rem;
+  color: var(--qz-dim);
+}
+
+.qz-checks p,
+.qz-events p {
+  margin: 3px 0 0;
+  font-size: 0.66rem;
+  line-height: 1.45;
+  color: var(--qz-dim);
+}
+
+.qz-events li {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 10px;
+}
+
+.qz-events time {
+  font-size: 0.6rem;
+  color: var(--qz-dim);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.qz-drawers__gap {
+  margin: 0;
+  padding: 0 11px 10px;
+  font-size: 0.64rem;
+  line-height: 1.45;
+  color: var(--qz-dim);
+}
+
+.qz-decisions__lock {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 12px;
+  border: 1px solid var(--qz-line);
+  color: var(--qz-dim);
+  border-radius: var(--qz-r-control);
+}
+
+.qz-decisions__lock strong {
+  display: block;
+  font-size: 0.72rem;
+  font-weight: 500;
+  color: var(--qz-muted);
+}
+
+.qz-decisions__lock span {
+  font-size: 0.64rem;
+}
+
+/* ------------------------------------------------------------ sin datos */
+
+.qz-empty-page {
+  display: grid;
+  place-items: center;
+  min-height: 100dvh;
+  padding: 24px;
+}
+
+.qz-empty-page__card {
+  max-width: 520px;
+  padding: 28px;
+  background: linear-gradient(180deg, var(--qz-panel-top), var(--qz-panel-bottom));
+  border: 1px solid var(--qz-line);
+  box-shadow: var(--qz-edge), var(--qz-elev-2);
+  border-radius: var(--qz-r-panel);
+}
+
+.qz-empty-page h1 {
+  margin: 0 0 12px;
+  font-size: 1.4rem;
+  font-weight: 300;
+}
+
+.qz-empty-page p {
+  margin: 0 0 10px;
+  font-size: 0.84rem;
+  line-height: 1.6;
+  color: var(--qz-muted);
+}
+
+.qz-kicker {
+  font-size: 0.58rem;
+  letter-spacing: 0.2em;
+  color: var(--qz-dim);
+}
+
+/* ----------------------------------------------------------- responsive */
+
+@media (max-width: 1280px) {
+  .qz-readout,
+  .qz-margin {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 16px;
+  }
+
+  .qz-readout__deltas,
+  .qz-margin__control {
+    padding-left: 0;
+    border-left: none;
+    border-top: 1px solid var(--qz-line);
+    padding-top: 14px;
+    justify-content: start;
+  }
+}
+
+@media (max-width: 1024px) {
+  .qz-console {
+    height: auto;
+    min-height: 100dvh;
+    overflow-x: clip;
+    overflow-y: visible;
+  }
+
+  .qz-rail {
+    position: sticky;
+    top: 0;
+    gap: 10px;
+    padding: 0 12px;
+  }
+
+  .qz-rail__stage,
+  .qz-brand__product {
+    display: none;
+  }
+
+  .qz-rail__quote select {
+    max-width: min(46vw, 320px);
+  }
+
+  .qz-lamp {
+    font-size: 0;
+    gap: 0;
+  }
+
+  .qz-lamp i {
+    width: 7px;
+    height: 7px;
+  }
+
+  .qz-tag--preview {
+    font-size: 0.5rem;
+    padding: 3px 6px;
+  }
+
+  .qz-mobile-tabs {
+    position: sticky;
+    top: var(--qz-rail-h);
+    z-index: 15;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    background: var(--qz-panel-bottom);
+    border-bottom: 1px solid var(--qz-line);
+  }
+
+  .qz-mobile-tabs button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    padding: 11px 6px;
+    background: none;
+    border: none;
+    border-right: 1px solid var(--qz-line);
+    color: var(--qz-dim);
+    font-size: 0.68rem;
+    letter-spacing: 0.06em;
+    cursor: pointer;
+  }
+
+  .qz-mobile-tabs button:last-child {
+    border-right: none;
+  }
+
+  .qz-mobile-tabs button[aria-current="page"] {
+    color: var(--qz-fg);
+    box-shadow: inset 0 -2px 0 var(--qz-fg);
+  }
+
+  .qz-body {
+    display: block;
+    padding: 8px;
+  }
+
+  /* en el celular manda la solapa, no el plegado del escritorio */
+  .qz-splitter,
+  .qz-spine,
+  .qz-decisions__fold {
+    display: none !important;
+  }
+
+  .qz-chat,
+  .qz-board,
+  .qz-decisions {
+    display: none;
+  }
+
+  .qz-body[data-rail="closed"] > .qz-decisions[data-mobile-active="true"] {
+    display: flex;
+  }
+
+  .qz-chat[data-mobile-active="true"],
+  .qz-decisions[data-mobile-active="true"] {
+    display: flex;
+    flex-direction: column;
+    min-height: calc(100dvh - var(--qz-rail-h) - 44px);
+  }
+
+  .qz-chat[data-mobile-active="true"] {
+    display: grid;
+  }
+
+  .qz-board[data-mobile-active="true"] {
+    display: grid;
+    grid-template-rows: auto auto auto auto;
+  }
+
+  .qz-ledger__scroll,
+  .qz-decisions__scroll,
+  .qz-thread {
+    overflow: visible;
+  }
+
+  .qz-wave {
+    max-height: none;
+  }
+
+  .qz-readout__value {
+    font-size: clamp(2rem, 9vw, 2.8rem);
+  }
+
+  .qz-readout__deltas {
+    grid-auto-flow: row;
+    gap: 12px;
+  }
+
+  .qz-readout__deltas div {
+    flex-direction: row;
+    align-items: baseline;
+    justify-content: space-between;
+  }
+
+  .qz-decision__offers li {
+    grid-template-columns: auto minmax(0, 1fr) auto auto;
+  }
+}
+
+@media (max-width: 680px) {
+  .qz-instruments > .qz-gauge {
+    flex-basis: 100%;
+  }
+
+  .qz-margin {
+    padding: 16px 14px;
+  }
+
+  .qz-wave__grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .qz-wave__head {
+    grid-template-columns: auto auto;
+    row-gap: 6px;
+  }
+
+  .qz-wave__head p {
+    grid-column: 1 / -1;
+    white-space: normal;
+  }
+
+  .qz-rubro__head {
+    flex-wrap: wrap;
+    row-gap: 6px;
+  }
+
+  .qz-rubro__head h3 {
+    flex: 1 0 60%;
+  }
+
+  .qz-manual-form {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    padding: 14px;
+  }
+
+  .qz-item__head {
+    flex-direction: column;
+    gap: 4px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.001ms !important;
+    transition-duration: 0.001ms !important;
+  }
+}
