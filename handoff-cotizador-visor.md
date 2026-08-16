@@ -259,8 +259,20 @@ Preview, no prod** — mismo flujo que ya conoce, `vercel promote` o disparo por
 API.
 
 **Password de basic auth: se cambió.** El local era de 11 caracteres y esto ya
-está en internet abierto; se generó uno de 28. El de Vercel **no es** el que
-está en el `.env.local` viejo del worktree.
+está en internet abierto; se generó uno de 28.
+
+**OJO — esta nota estaba mal y confundió (corregido 16/08 noche):** decía que el
+de Vercel "no es el que está en el `.env.local`", y eso mandó a buscar al lado
+equivocado. La verdad: el `.env.local` de **`Documents/ravn/apps/cotizador-ravn/`
+SÍ tiene la password buena** (usuario `eze`, 28 chars) — es la misma que la de
+Vercel, verificada con un 200 contra prod. El que NO sirve es el `.env.local`
+del **worktree viejo de Codex** (`~/.codex/worktrees/ee5a/ravn/`), que tiene
+`visual-only`. Los dos archivos están gitignored.
+
+**No se puede leer desde Vercel:** `COTIZADOR_BASIC_PASSWORD` y
+`COTIZADOR_BASIC_USER` están marcadas `sensitive`, así que la API las devuelve
+vacías. Si alguna vez se pierde el `.env.local`, no hay recuperación: hay que
+generar una nueva, cargarla en Production y Preview y redeployar.
 
 Probado de punta a punta contra la nube: basic auth (sin credenciales 401, con
 credenciales 200, password mala 401) · `/api/quotes` devuelve las cotizaciones
