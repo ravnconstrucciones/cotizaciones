@@ -258,21 +258,28 @@ configuración, no de código:
 Preview, no prod** — mismo flujo que ya conoce, `vercel promote` o disparo por
 API.
 
-**Password de basic auth: se cambió.** El local era de 11 caracteres y esto ya
-está en internet abierto; se generó uno de 28.
+**Credenciales de basic auth — LAS ELIGIÓ EZE, 16/08 noche.** Usuario `RAVN`,
+password `APORTODO`. Reemplazan la generada de 28 chars, que él no podía
+recordar. Cargadas en Vercel (Production y Preview) y en
+`Documents/ravn/apps/cotizador-ravn/.env.local` (gitignored).
 
-**OJO — esta nota estaba mal y confundió (corregido 16/08 noche):** decía que el
-de Vercel "no es el que está en el `.env.local`", y eso mandó a buscar al lado
-equivocado. La verdad: el `.env.local` de **`Documents/ravn/apps/cotizador-ravn/`
-SÍ tiene la password buena** (usuario `eze`, 28 chars) — es la misma que la de
-Vercel, verificada con un 200 contra prod. El que NO sirve es el `.env.local`
-del **worktree viejo de Codex** (`~/.codex/worktrees/ee5a/ravn/`), que tiene
-`visual-only`. Los dos archivos están gitignored.
+**Se le avisó y decidió igual, así que no volver a insistir:** `APORTODO` son 8
+letras, palabra real, sin números — en una URL pública eso cae a un ataque de
+diccionario. Se le ofreció `APORTODO777` (su número clave) como la misma
+password pero no adivinable. Si en algún momento dice que sí, es cambiar las dos
+vars en Vercel y redeployar; no hay nada más que tocar.
 
-**No se puede leer desde Vercel:** `COTIZADOR_BASIC_PASSWORD` y
-`COTIZADOR_BASIC_USER` están marcadas `sensitive`, así que la API las devuelve
-vacías. Si alguna vez se pierde el `.env.local`, no hay recuperación: hay que
-generar una nueva, cargarla en Production y Preview y redeployar.
+**Dónde vive y qué NO se puede recuperar:** las dos vars están marcadas
+`sensitive` en Vercel, así que la API las devuelve vacías — el único lugar
+legible es el `.env.local` de `Documents/ravn/apps/cotizador-ravn/`. **OJO con
+el otro `.env.local`:** el del worktree viejo de Codex
+(`~/.codex/worktrees/ee5a/ravn/`) tiene `visual-only` y NO sirve; una nota vieja
+de este handoff mandaba a buscar ahí y hacía perder tiempo.
+
+**La puerta está por una razón, no por trámite:** la URL es pública y el visor
+muestra costos reales y márgenes. Alternativa ofrecida y no tomada (queda para
+cuando moleste de nuevo): Deployment Protection de Vercel — entra el que está
+logueado en su cuenta, sin password que perder.
 
 Probado de punta a punta contra la nube: basic auth (sin credenciales 401, con
 credenciales 200, password mala 401) · `/api/quotes` devuelve las cotizaciones
