@@ -1,6 +1,6 @@
 "use client";
 
-import { Play, Radio, Square, TerminalSquare } from "lucide-react";
+import { Radio, Square, TerminalSquare } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { BridgeAgent, TerminalLineKind } from "../bridge/stream-format";
 import { RavnMark3D } from "./ravn-mark-3d";
@@ -8,6 +8,16 @@ import { RavnMark3D } from "./ravn-mark-3d";
 export type BridgeConfig = {
   url: string;
   token: string;
+};
+
+/**
+ * Pedido de ola que baja desde el chat (pedido 14 de Eze): el composer de la
+ * conversación es el ÚNICO disparador — acá no hay input propio. `seq`
+ * distingue envíos aunque el texto se repita.
+ */
+export type WaveRequest = {
+  prompt: string;
+  seq: number;
 };
 
 type BridgeHealth = "off" | "ready" | "running";
@@ -44,15 +54,21 @@ function isTerminalEvent(value: unknown): value is TerminalEvent {
   );
 }
 
-export function LiveTerminals({ bridge }: { bridge: BridgeConfig | null }) {
+export function LiveTerminals({
+  bridge,
+  request,
+}: {
+  bridge: BridgeConfig | null;
+  request: WaveRequest | null;
+}) {
   const [health, setHealth] = useState<BridgeHealth>("off");
   const [events, setEvents] = useState<TerminalEvent[]>([]);
   const [waveNote, setWaveNote] = useState<string | null>(null);
-  const [prompt, setPrompt] = useState("");
   const [launching, setLaunching] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const sourceRef = useRef<EventSource | null>(null);
   const streamingRef = useRef(false);
+  const handledSeqRef = useRef(0);
 
   const connectStream = useCallback(() => {
     if (!bridge || streamingRef.current) return;
@@ -121,30 +137,49 @@ export function LiveTerminals({ bridge }: { bridge: BridgeConfig | null }) {
     };
   }, [bridge, connectStream]);
 
-  const launchWave = async () => {
-    if (!bridge || launching) return;
-    const trimmed = prompt.trim();
-    if (!trimmed) return;
-    setLaunching(true);
-    setError(null);
-    try {
-      const response = await fetch(`${bridge.url}/waves`, {
-        method: "POST",
-        headers: { "content-type": "application/json", "x-bridge-token": bridge.token },
-        body: JSON.stringify({ prompt: trimmed }),
-      });
-      const payload = (await response.json()) as { error?: string };
-      if (!response.ok) throw new Error(payload.error ?? "El bridge rechazó la ola.");
-      setEvents([]);
-      setWaveNote(null);
-      setHealth("running");
-      connectStream();
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "No se pudo lanzar la ola.");
-    } finally {
-      setLaunching(false);
+  const launchWave = useCallback(
+    async (text: string) => {
+      if (!bridge) return;
+      const trimmed = text.trim();
+      if (!trimmed) return;
+      setLaunching(true);
+      setError(null);
+      try {
+        const response = await fetch(`${bridge.url}/waves`, {
+          method: "POST",
+          headers: { "content-type": "application/json", "x-bridge-token": bridge.token },
+          body: JSON.stringify({ prompt: trimmed }),
+        });
+        const payload = (await response.json()) as { error?: string };
+        if (!response.ok) throw new Error(payload.error ?? "El bridge rechazó la ola.");
+        setEvents([]);
+        setWaveNote(null);
+        setHealth("running");
+        connectStream();
+      } catch (cause) {
+        setError(cause instanceof Error ? cause.message : "No se pudo lanzar la ola.");
+      } finally {
+        setLaunching(false);
+      }
+    },
+    [bridge, connectStream]
+  );
+
+  /**
+   * Pedido 14: la ola SALE DEL CHAT. Cada envío del composer llega acá con su
+   * `seq`; se despacha una sola vez aunque el componente re-renderice.
+   */
+  useEffect(() => {
+    if (!request || request.seq <= handledSeqRef.current) return;
+    handledSeqRef.current = request.seq;
+    if (!bridge) {
+      setError(
+        "El mensaje quedó en la conversación: sin bridge configurado no hay ola que lanzar."
+      );
+      return;
     }
-  };
+    void launchWave(request.prompt);
+  }, [request, bridge, launchWave]);
 
   const stopWave = async () => {
     if (!bridge) return;
@@ -183,24 +218,14 @@ export function LiveTerminals({ bridge }: { bridge: BridgeConfig | null }) {
             </p>
           ) : (
             <>
-              <form
-                className="qz-terminals__launcher"
-                onSubmit={(event) => {
-                  event.preventDefault();
-                  void launchWave();
-                }}
-              >
-                <label className="qz-sr-only" htmlFor="wave-prompt">
-                  Qué tiene que investigar la ola
-                </label>
-                <input
-                  id="wave-prompt"
-                  type="text"
-                  value={prompt}
-                  disabled={health === "running" || launching}
-                  onChange={(event) => setPrompt(event.target.value)}
-                  placeholder="Ej.: Precio actual del m2 de porcelanato 60×60 instalado en zona norte GBA, con fuentes"
-                />
+              <div className="qz-terminals__launcher">
+                <p className="qz-terminals__origin">
+                  {launching
+                    ? "Despachando la ola…"
+                    : health === "running"
+                      ? "Ola corriendo — Codex y Fable trabajando en paralelo."
+                      : "Escribí el trabajo en la conversación: eso dispara la ola."}
+                </p>
                 {health === "running" ? (
                   <button
                     type="button"
@@ -210,13 +235,8 @@ export function LiveTerminals({ bridge }: { bridge: BridgeConfig | null }) {
                     <Square size={13} aria-hidden="true" />
                     Cortar ola
                   </button>
-                ) : (
-                  <button type="submit" disabled={launching || prompt.trim().length === 0}>
-                    <Play size={13} aria-hidden="true" />
-                    Lanzar ola
-                  </button>
-                )}
-              </form>
+                ) : null}
+              </div>
               <p className="qz-terminals__note" role="status" aria-live="polite">
                 {error ??
                   waveNote ??

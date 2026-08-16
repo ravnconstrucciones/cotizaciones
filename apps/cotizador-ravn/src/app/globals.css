@@ -15,6 +15,15 @@
   --qz-alert: #c17663;
   --qz-lift: linear-gradient(180deg, rgb(242 239 232 / 0.03), rgb(242 239 232 / 0.008) 62%);
   --qz-font: var(--font-raleway), Raleway, "Helvetica Neue", Arial, sans-serif;
+
+  /* Profundidad (pedido 13). Eze habilitó explícitamente sombra y glow
+     monocromos DENTRO del visor, fuera de la regla "cero sombra" del Design
+     System — con la condición de que no pese. Por eso son sombras estáticas:
+     nada acá se anima, así el compositor no repinta. Tres niveles y basta. */
+  --qz-edge: inset 0 1px 0 rgb(242 239 232 / 0.055);
+  --qz-elev-1: 0 14px 26px -20px rgb(0 0 0 / 0.9);
+  --qz-elev-2: 0 28px 52px -30px rgb(0 0 0 / 0.95);
+  --qz-glow: 0 0 10px rgb(242 239 232 / 0.5);
 }
 
 * {
@@ -575,11 +584,9 @@ textarea:disabled {
   flex-direction: column;
   padding: 1.25rem 1.4rem 1.15rem;
   background: var(--qz-lift), var(--qz-panel);
-  /* pedido 13 v1 — profundidad real: canto de luz arriba + caída abajo,
-     el panel deja de ser un plano y pasa a ser una pieza con volumen */
-  box-shadow:
-    inset 0 1px 0 rgb(242 239 232 / 0.05),
-    0 18px 34px -22px rgb(0 0 0 / 0.85);
+  /* pedido 13 — canto de luz arriba + caída abajo: el panel deja de ser un
+     plano y pasa a ser una pieza apoyada sobre el tablero */
+  box-shadow: var(--qz-edge), var(--qz-elev-2);
 }
 
 /* marcas de registro: firma de instrumento de los paneles de datos */
@@ -1463,10 +1470,20 @@ textarea:disabled {
   border-bottom: 1px solid var(--qz-line);
 }
 
-/* núcleo: el isotipo 3D real girando según el estado del bridge */
+/* núcleo: el monolito RAVN girando según el estado del bridge */
+/* La banda del núcleo es UNA escena, no dos celdas: el monolito a la izquierda
+   y el estado de la máquina a su derecha, sobre el mismo piso. Es un pozo —
+   entra hacia adentro del tablero mientras los paneles de datos salen hacia
+   afuera. Ahí está la profundidad, sin una sola capa extra que componer. */
 .qz-terminals__stage {
   display: grid;
-  grid-template-columns: 216px minmax(0, 1fr);
+  grid-template-columns: 344px minmax(0, 1fr);
+  background-color: #050505;
+  background-image:
+    linear-gradient(rgb(242 239 232 / 0.02) 1px, transparent 1px),
+    linear-gradient(90deg, rgb(242 239 232 / 0.02) 1px, transparent 1px);
+  background-size: 26px 26px;
+  box-shadow: inset 0 16px 30px -20px rgb(0 0 0 / 0.95);
 }
 
 .qz-core {
@@ -1476,12 +1493,16 @@ textarea:disabled {
   align-items: center;
   justify-content: center;
   gap: 0.4rem;
-  padding: 0.9rem 1rem;
-  border-right: 1px solid var(--qz-line);
-  background-image:
-    linear-gradient(rgb(242 239 232 / 0.02) 1px, transparent 1px),
-    linear-gradient(90deg, rgb(242 239 232 / 0.02) 1px, transparent 1px);
-  background-size: 26px 26px;
+  padding: 1.1rem 1rem 0.9rem;
+}
+
+/* horizonte: la línea de piso contra la que apoya el monolito */
+.qz-core__mark {
+  position: relative;
+  /* pozo de luz del pedestal — la piedra no flota, se apoya sobre algo.
+     Va de fondo del host y el canvas (alpha) lo deja pasar: cero capas extra. */
+  background:
+    radial-gradient(58% 30% at 50% 84%, rgb(242 239 232 / 0.075), transparent 72%);
 }
 
 .qz-core__label {
@@ -1493,11 +1514,8 @@ textarea:disabled {
   text-transform: uppercase;
 }
 
-.qz-core__mark {
-  position: relative;
-}
-
 .qz-core__mark--flat {
+  background: none;
   display: grid;
   place-items: center;
 }
@@ -1552,38 +1570,28 @@ textarea:disabled {
   font-size: 0.72rem;
 }
 
+/* pedido 14: acá ya no hay input propio — la ola la dispara el chat. Queda el
+   estado de la máquina y el corte manual. */
 .qz-terminals__launcher {
   display: flex;
-  align-items: flex-end;
+  align-items: center;
   gap: 0.9rem;
   padding: 0.9rem 1.4rem 0;
 }
 
-.qz-terminals__launcher input {
+/* El estado de la máquina es lo que se lee al lado del monolito: va grande y
+   liviano, como las cifras del tablero. */
+.qz-terminals__origin {
   flex: 1;
   min-width: 0;
-  padding: 0.55rem 0 0.5rem;
-  border: 0;
-  border-bottom: 1px solid var(--qz-line-strong);
-  border-radius: 0;
-  outline: 0;
-  background: transparent;
+  margin: 0;
+  max-width: 34ch;
   color: var(--qz-fg);
-  font-size: 0.84rem;
-  line-height: 1.5;
-}
-
-.qz-terminals__launcher input:focus-visible {
-  border-bottom-color: var(--qz-fg);
-}
-
-.qz-terminals__launcher input::placeholder {
-  color: var(--qz-dim);
-  opacity: 1;
-}
-
-.qz-terminals__launcher input:disabled {
-  opacity: 0.78;
+  font-size: clamp(1.05rem, 1.5vw, 1.35rem);
+  font-weight: 300;
+  letter-spacing: -0.01em;
+  line-height: 1.35;
+  text-wrap: balance;
 }
 
 .qz-terminals__launcher button {
@@ -1639,9 +1647,7 @@ textarea:disabled {
   min-width: 0;
   flex-direction: column;
   background: var(--qz-lift), var(--qz-panel);
-  box-shadow:
-    inset 0 1px 0 rgb(242 239 232 / 0.05),
-    0 18px 34px -22px rgb(0 0 0 / 0.85);
+  box-shadow: var(--qz-edge), var(--qz-elev-2);
 }
 
 .qz-terminal[data-running="true"] > header h3::after {

@@ -38,7 +38,7 @@ import type {
   QuoteWorkspaceSnapshot,
 } from "../domain";
 import { formatObservedDate as dateTime } from "./format-observed-date";
-import { LiveTerminals, type BridgeConfig } from "./live-terminals";
+import { LiveTerminals, type BridgeConfig, type WaveRequest } from "./live-terminals";
 import { RavnIso } from "./ravn-iso";
 
 type ControlCenterData = {
@@ -327,6 +327,8 @@ export function ControlCenter({
   const [draft, setDraft] = useState("");
   const [localMessages, setLocalMessages] = useState<LocalPreviewMessage[]>([]);
   const [composerNotice, setComposerNotice] = useState<string | null>(null);
+  const [wave, setWave] = useState<WaveRequest | null>(null);
+  const waveSeq = useRef(0);
   const requestInFlight = useRef(false);
   const composerRef = useRef<HTMLTextAreaElement>(null);
   const snapshot = data.snapshot;
@@ -388,6 +390,11 @@ export function ControlCenter({
     return () => window.clearInterval(timer);
   }, [loadQuote, preview, snapshot.quote.id]);
 
+  /**
+   * Pedido 14 de Eze: la ola arranca DESDE EL CHAT, no desde un lanzador
+   * aparte. Lo que escribe acá se muestra en la conversación y, si el bridge
+   * está configurado, dispara la ola real de Codex + Fable.
+   */
   const submitPreviewMessage = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const text = draft.trim();
@@ -397,7 +404,13 @@ export function ControlCenter({
       { id: `local:${Date.now()}`, text, occurredAt: new Date().toISOString() },
     ]);
     setDraft("");
-    setComposerNotice("Entrada agregada a esta demostración. No se despachó ningún trabajo.");
+    waveSeq.current += 1;
+    setWave({ prompt: text, seq: waveSeq.current });
+    setComposerNotice(
+      bridge
+        ? "Ola despachada: Codex y Fable lo están trabajando en la pestaña Equipo."
+        : "Entrada agregada a esta demostración. Sin bridge configurado no salió ninguna ola."
+    );
   };
 
   const focusConversation = () => {
@@ -521,6 +534,7 @@ export function ControlCenter({
             active={mobileTab === "equipo"}
             reduceMotion={Boolean(reduceMotion)}
             bridge={bridge}
+            wave={wave}
           />
         </div>
       </main>
@@ -676,6 +690,7 @@ function TeamWorkspace({
   active,
   reduceMotion,
   bridge,
+  wave,
 }: {
   snapshot: QuoteWorkspaceSnapshot;
   stations: Workstation[];
@@ -685,6 +700,7 @@ function TeamWorkspace({
   active: boolean;
   reduceMotion: boolean;
   bridge: BridgeConfig | null;
+  wave: WaveRequest | null;
 }) {
   const [sourcesOpen, setSourcesOpen] = useState(false);
   const codexBatchIds = modelBatchIds(snapshot, "codex");
@@ -712,7 +728,7 @@ function TeamWorkspace({
         <span className="qz-column-state">{modelContributionCount} aportes</span>
       </header>
 
-      <LiveTerminals bridge={bridge} />
+      <LiveTerminals bridge={bridge} request={wave} />
 
       <div className="qz-team-grid" aria-label="Aportes de modelos, fuentes y controles">
         {stations.map((station) => (
