@@ -1012,6 +1012,21 @@ function FormationBoard({
           <strong>
             {compactMoney(snapshot.core.costRange.min)} — {compactMoney(snapshot.core.costRange.max)}
           </strong>
+          {snapshot.core.costRange.max ? (
+            <i className="qz-scale" aria-hidden="true">
+              <span
+                className="qz-scale__band"
+                style={{
+                  left: `${((snapshot.core.costRange.min ?? 0) / snapshot.core.costRange.max) * 100}%`,
+                  width: `${
+                    ((snapshot.core.costRange.max - (snapshot.core.costRange.min ?? 0)) /
+                      snapshot.core.costRange.max) *
+                    100
+                  }%`,
+                }}
+              />
+            </i>
+          ) : null}
           <small>
             {money(snapshot.core.costRange.min)} — {money(snapshot.core.costRange.max)}
           </small>
@@ -1026,13 +1041,13 @@ function FormationBoard({
             aria-label={`Confianza del costo: ${CONFIDENCE_LABELS[confidence]}`}
           >
             <span className="qz-kpi__label">Confianza</span>
-            <strong>{CONFIDENCE_LABELS[confidence]}</strong>
-            <i className="qz-meter" aria-hidden="true">
-              <span />
-              <span />
-              <span />
-            </i>
-            <small>{coverage}% del costo con fuente y fecha</small>
+            <div className="qz-kpi__instrument">
+              <CoverageDial percent={coverage} />
+              <div className="qz-kpi__reading">
+                <strong>{CONFIDENCE_LABELS[confidence]}</strong>
+                <small>{coverage}% del costo con fuente y fecha</small>
+              </div>
+            </div>
           </article>
           <article className="qz-kpi" aria-label={`Rubros listos: ${ready} de ${snapshot.batches.length}`}>
             <span className="qz-kpi__label">Rubros listos</span>
@@ -1040,6 +1055,22 @@ function FormationBoard({
               {ready}
               <i>/{snapshot.batches.length}</i>
             </strong>
+            {snapshot.batches.length > 0 ? (
+              <i className="qz-segments" aria-hidden="true">
+                {snapshot.batches.map((batch) => (
+                  <span
+                    key={batch.id}
+                    data-state={
+                      snapshot.orchestration.readyToConsolidateBatchIds.includes(batch.id)
+                        ? "ok"
+                        : snapshot.orchestration.blockedBatchIds.includes(batch.id)
+                          ? "warn"
+                          : "idle"
+                    }
+                  />
+                ))}
+              </i>
+            ) : null}
             <small>{waiting > 0 ? `${waiting} esperan respuesta` : "ninguno espera respuesta"}</small>
           </article>
         </div>
@@ -1169,6 +1200,41 @@ function FormationBoard({
         </div>
       </div>
     </section>
+  );
+}
+
+/**
+ * Dial de instrumento: anillo de ticks finos que se llena hasta el porcentaje
+ * REAL de cobertura del costo (dato del motor, no decorativo). El color del
+ * tramo lleno lo hereda del nivel de confianza de la card (`data-level`).
+ */
+function CoverageDial({ percent }: { percent: number }) {
+  const TICKS = 48;
+  const clamped = Math.max(0, Math.min(100, percent));
+  const filled = Math.round((clamped / 100) * TICKS);
+  return (
+    <div className="qz-dial">
+      <svg viewBox="0 0 96 96" aria-hidden="true">
+        {Array.from({ length: TICKS }, (_, index) => {
+          const angle = (index / TICKS) * Math.PI * 2 - Math.PI / 2;
+          const cos = Math.cos(angle);
+          const sin = Math.sin(angle);
+          // coordenadas fijadas a 2 decimales: el server y el cliente deben
+          // serializar exactamente igual o React acusa hydration mismatch
+          return (
+            <line
+              key={index}
+              x1={(48 + cos * 36).toFixed(2)}
+              y1={(48 + sin * 36).toFixed(2)}
+              x2={(48 + cos * 45).toFixed(2)}
+              y2={(48 + sin * 45).toFixed(2)}
+              data-on={index < filled}
+            />
+          );
+        })}
+      </svg>
+      <span className="qz-dial__center">{clamped}%</span>
+    </div>
   );
 }
 

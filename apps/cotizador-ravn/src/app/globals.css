@@ -569,11 +569,45 @@ textarea:disabled {
 }
 
 .qz-kpi {
+  position: relative;
   display: flex;
   min-width: 0;
   flex-direction: column;
   padding: 1.25rem 1.4rem 1.15rem;
   background: var(--qz-lift), var(--qz-panel);
+}
+
+/* marcas de registro: firma de instrumento de los paneles de datos */
+.qz-kpi::before,
+.qz-kpi::after,
+.qz-terminal::before,
+.qz-terminal::after,
+.qz-core::before,
+.qz-core::after {
+  content: "";
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  border: 0 solid var(--qz-line-strong);
+  pointer-events: none;
+}
+
+.qz-kpi::before,
+.qz-terminal::before,
+.qz-core::before {
+  top: 5px;
+  left: 5px;
+  border-top-width: 1px;
+  border-left-width: 1px;
+}
+
+.qz-kpi::after,
+.qz-terminal::after,
+.qz-core::after {
+  right: 5px;
+  bottom: 5px;
+  border-right-width: 1px;
+  border-bottom-width: 1px;
 }
 
 .qz-kpi__label {
@@ -586,8 +620,6 @@ textarea:disabled {
 
 .qz-kpi--cost {
   grid-column: span 5;
-  justify-content: space-between;
-  min-height: 190px;
 }
 
 .qz-kpi--cost strong {
@@ -601,16 +633,34 @@ textarea:disabled {
 }
 
 .qz-kpi--cost small {
-  margin-top: 0.8rem;
+  margin-top: 0.55rem;
   color: var(--qz-dim);
   font-size: 0.64rem;
   font-variant-numeric: tabular-nums;
 }
 
+/* regla de rango: escala desde 0 con la banda min—max real del costo */
+.qz-scale {
+  position: relative;
+  display: block;
+  height: 14px;
+  margin-top: 0.9rem;
+  border-bottom: 1px solid var(--qz-line-strong);
+  background-image: linear-gradient(90deg, rgb(242 239 232 / 0.16) 1px, transparent 1px);
+  background-size: calc(100% / 24) 100%;
+}
+
+.qz-scale__band {
+  position: absolute;
+  top: 4px;
+  bottom: 4px;
+  min-width: 2px;
+  background: var(--qz-fg);
+}
+
 .qz-kpi--mix {
   grid-column: span 4;
   gap: 0.85rem;
-  min-height: 190px;
 }
 
 .qz-mix-head {
@@ -814,28 +864,90 @@ textarea:disabled {
   font-size: 0.6rem;
 }
 
-.qz-meter {
+/* dial de cobertura: anillo de ticks que se llena hasta el % real */
+.qz-kpi__instrument {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-top: 0.7rem;
+  min-width: 0;
+}
+
+.qz-kpi__reading {
+  min-width: 0;
+}
+
+.qz-kpi__reading strong {
+  display: block;
+  margin-top: 0;
+}
+
+.qz-dial {
+  position: relative;
+  width: 84px;
+  flex: 0 0 84px;
+}
+
+.qz-dial svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.qz-dial line {
+  stroke: rgb(242 239 232 / 0.14);
+  stroke-width: 1.5;
+}
+
+.qz-dial line[data-on="true"] {
+  stroke: var(--qz-fg);
+}
+
+.qz-kpi--confidence[data-level="alta"] .qz-dial line[data-on="true"] {
+  stroke: var(--qz-ok);
+}
+
+.qz-kpi--confidence[data-level="media"] .qz-dial line[data-on="true"] {
+  stroke: var(--qz-warn);
+}
+
+.qz-kpi--confidence[data-level="baja"] .qz-dial line[data-on="true"] {
+  stroke: var(--qz-alert);
+}
+
+.qz-kpi--confidence[data-level="sin_calcular"] .qz-dial line[data-on="true"] {
+  stroke: var(--qz-dim);
+}
+
+.qz-dial__center {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-size: 0.82rem;
+  font-weight: 200;
+  font-variant-numeric: tabular-nums;
+}
+
+/* un segmento por rubro real: lleno = listo, ámbar = espera respuesta */
+.qz-segments {
   display: flex;
   gap: 2px;
   margin-top: 0.75rem;
 }
 
-.qz-meter span {
-  height: 4px;
+.qz-segments span {
+  height: 6px;
   flex: 1 1 0;
   background: var(--qz-line-strong);
 }
 
-.qz-kpi--confidence[data-level="alta"] .qz-meter span {
+.qz-segments span[data-state="ok"] {
   background: var(--qz-ok);
 }
 
-.qz-kpi--confidence[data-level="media"] .qz-meter span:nth-child(-n + 2) {
+.qz-segments span[data-state="warn"] {
   background: var(--qz-warn);
-}
-
-.qz-kpi--confidence[data-level="baja"] .qz-meter span:first-child {
-  background: var(--qz-alert);
 }
 
 /* ------------------------------------------------------------- rubros */
@@ -1129,8 +1241,9 @@ textarea:disabled {
   display: flex;
   align-items: flex-start;
   gap: 0.75rem;
-  margin-top: auto;
-  padding: 0 1.4rem 1.2rem;
+  margin: 0 1.4rem 1.2rem;
+  padding-top: 0.9rem;
+  border-top: 1px solid var(--qz-line);
   color: var(--qz-muted);
 }
 
@@ -1329,6 +1442,58 @@ textarea:disabled {
   border-bottom: 1px solid var(--qz-line);
 }
 
+/* núcleo: el isotipo 3D real girando según el estado del bridge */
+.qz-terminals__stage {
+  display: grid;
+  grid-template-columns: 216px minmax(0, 1fr);
+}
+
+.qz-core {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  padding: 0.9rem 1rem;
+  border-right: 1px solid var(--qz-line);
+  background-image:
+    linear-gradient(rgb(242 239 232 / 0.02) 1px, transparent 1px),
+    linear-gradient(90deg, rgb(242 239 232 / 0.02) 1px, transparent 1px);
+  background-size: 26px 26px;
+}
+
+.qz-core__label {
+  color: var(--qz-dim);
+  font-size: 0.5625rem;
+  font-weight: 600;
+  letter-spacing: 0.15em;
+  text-align: center;
+  text-transform: uppercase;
+}
+
+.qz-core__mark {
+  position: relative;
+}
+
+.qz-core__mark--flat {
+  display: grid;
+  place-items: center;
+}
+
+.qz-core__iso {
+  width: 44%;
+  height: auto;
+  color: var(--qz-fg);
+}
+
+.qz-terminals__ops {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  justify-content: center;
+}
+
 .qz-terminals__health {
   display: inline-flex;
   min-height: 27px;
@@ -1448,6 +1613,7 @@ textarea:disabled {
 }
 
 .qz-terminal {
+  position: relative;
   display: flex;
   min-width: 0;
   flex-direction: column;
@@ -1473,10 +1639,17 @@ textarea:disabled {
 }
 
 .qz-terminal > header span {
-  margin-left: auto;
   color: var(--qz-dim);
   font-size: 0.61rem;
   letter-spacing: 0.08em;
+}
+
+.qz-terminal > header span:last-child {
+  margin-left: auto;
+}
+
+.qz-terminal__count {
+  font-variant-numeric: tabular-nums;
 }
 
 .qz-terminal[data-running="true"] > header h3::after {
@@ -1508,6 +1681,10 @@ textarea:disabled {
   font-family: ui-monospace, "SF Mono", Menlo, monospace;
   font-size: 0.68rem;
   line-height: 1.55;
+  background-image:
+    linear-gradient(rgb(242 239 232 / 0.018) 1px, transparent 1px),
+    linear-gradient(90deg, rgb(242 239 232 / 0.018) 1px, transparent 1px);
+  background-size: 26px 26px;
 }
 
 .qz-terminal__body p {
@@ -1542,6 +1719,15 @@ textarea:disabled {
 @media (max-width: 899px) {
   .qz-terminals__grid {
     grid-template-columns: 1fr;
+  }
+
+  .qz-terminals__stage {
+    grid-template-columns: 1fr;
+  }
+
+  /* el núcleo 3D es espectáculo de escritorio; en mobile mandan los datos */
+  .qz-core {
+    display: none;
   }
 
   .qz-terminals__launcher {
@@ -2197,7 +2383,6 @@ textarea:disabled {
 
   .qz-kpi--cost {
     grid-column: 1 / -1;
-    min-height: 160px;
   }
 
   .qz-kpi--mix {

@@ -3,6 +3,7 @@
 import { Play, Radio, Square, TerminalSquare } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { BridgeAgent, TerminalLineKind } from "../bridge/stream-format";
+import { RavnMark3D } from "./ravn-mark-3d";
 
 export type BridgeConfig = {
   url: string;
@@ -157,77 +158,87 @@ export function LiveTerminals({ bridge }: { bridge: BridgeConfig | null }) {
     }
   };
 
-  if (!bridge) {
-    return (
-      <section className="qz-terminals" aria-labelledby="terminals-title">
-        <TerminalsHeader health="off" />
-        <p className="qz-terminals__empty">
-          Bridge no configurado: falta <code>COTIZADOR_BRIDGE_TOKEN</code> en{" "}
-          <code>.env.local</code>. Sin bridge no hay terminales — nada se simula.
-        </p>
-      </section>
-    );
-  }
+  const effectiveHealth: BridgeHealth = bridge ? health : "off";
 
   return (
     <section className="qz-terminals" aria-labelledby="terminals-title">
-      <TerminalsHeader health={health} />
+      <TerminalsHeader health={effectiveHealth} />
 
-      {health === "off" ? (
-        <p className="qz-terminals__empty">
-          El bridge no responde en <code>{bridge.url}</code>. Levantalo con{" "}
-          <code>npm run bridge</code> en la Mac; este panel se conecta solo.
-        </p>
-      ) : (
-        <>
-          <form
-            className="qz-terminals__launcher"
-            onSubmit={(event) => {
-              event.preventDefault();
-              void launchWave();
-            }}
-          >
-            <label className="qz-sr-only" htmlFor="wave-prompt">
-              Qué tiene que investigar la ola
-            </label>
-            <input
-              id="wave-prompt"
-              type="text"
-              value={prompt}
-              disabled={health === "running" || launching}
-              onChange={(event) => setPrompt(event.target.value)}
-              placeholder="Ej.: Precio actual del m2 de porcelanato 60×60 instalado en zona norte GBA, con fuentes"
+      <div className="qz-terminals__stage">
+        <div className="qz-core">
+          <RavnMark3D state={effectiveHealth} />
+          <span className="qz-core__label">Núcleo · {HEALTH_LABELS[effectiveHealth]}</span>
+        </div>
+
+        <div className="qz-terminals__ops">
+          {!bridge ? (
+            <p className="qz-terminals__empty">
+              Bridge no configurado: falta <code>COTIZADOR_BRIDGE_TOKEN</code> en{" "}
+              <code>.env.local</code>. Sin bridge no hay terminales — nada se simula.
+            </p>
+          ) : health === "off" ? (
+            <p className="qz-terminals__empty">
+              El bridge no responde en <code>{bridge.url}</code>. Levantalo con{" "}
+              <code>npm run bridge</code> en la Mac; este panel se conecta solo.
+            </p>
+          ) : (
+            <>
+              <form
+                className="qz-terminals__launcher"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  void launchWave();
+                }}
+              >
+                <label className="qz-sr-only" htmlFor="wave-prompt">
+                  Qué tiene que investigar la ola
+                </label>
+                <input
+                  id="wave-prompt"
+                  type="text"
+                  value={prompt}
+                  disabled={health === "running" || launching}
+                  onChange={(event) => setPrompt(event.target.value)}
+                  placeholder="Ej.: Precio actual del m2 de porcelanato 60×60 instalado en zona norte GBA, con fuentes"
+                />
+                {health === "running" ? (
+                  <button
+                    type="button"
+                    className="qz-terminals__stop"
+                    onClick={() => void stopWave()}
+                  >
+                    <Square size={13} aria-hidden="true" />
+                    Cortar ola
+                  </button>
+                ) : (
+                  <button type="submit" disabled={launching || prompt.trim().length === 0}>
+                    <Play size={13} aria-hidden="true" />
+                    Lanzar ola
+                  </button>
+                )}
+              </form>
+              <p className="qz-terminals__note" role="status" aria-live="polite">
+                {error ??
+                  waveNote ??
+                  "Cada ola abre una sesión real por CLI y consume las dos suscripciones (Codex y Claude)."}
+              </p>
+            </>
+          )}
+        </div>
+      </div>
+
+      {bridge && health !== "off" ? (
+        <div className="qz-terminals__grid">
+          {(["codex", "fable"] as const).map((agent) => (
+            <TerminalPane
+              key={agent}
+              agent={agent}
+              running={health === "running"}
+              events={events.filter((event) => event.agent === agent).slice(-MAX_LINES)}
             />
-            {health === "running" ? (
-              <button type="button" className="qz-terminals__stop" onClick={() => void stopWave()}>
-                <Square size={13} aria-hidden="true" />
-                Cortar ola
-              </button>
-            ) : (
-              <button type="submit" disabled={launching || prompt.trim().length === 0}>
-                <Play size={13} aria-hidden="true" />
-                Lanzar ola
-              </button>
-            )}
-          </form>
-          <p className="qz-terminals__note" role="status" aria-live="polite">
-            {error ??
-              waveNote ??
-              "Cada ola abre una sesión real por CLI y consume las dos suscripciones (Codex y Claude)."}
-          </p>
-
-          <div className="qz-terminals__grid">
-            {(["codex", "fable"] as const).map((agent) => (
-              <TerminalPane
-                key={agent}
-                agent={agent}
-                running={health === "running"}
-                events={events.filter((event) => event.agent === agent).slice(-MAX_LINES)}
-              />
-            ))}
-          </div>
-        </>
-      )}
+          ))}
+        </div>
+      ) : null}
     </section>
   );
 }
@@ -270,6 +281,9 @@ function TerminalPane({
       <header>
         <TerminalSquare size={15} strokeWidth={1.5} aria-hidden="true" />
         <h3>{label.name}</h3>
+        {events.length > 0 ? (
+          <span className="qz-terminal__count">{events.length} líneas</span>
+        ) : null}
         <span>{label.cli}</span>
       </header>
       <div
