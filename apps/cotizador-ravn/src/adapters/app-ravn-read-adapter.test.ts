@@ -340,10 +340,9 @@ describe("App RAVN read adapter", () => {
     expect((caught as QuoteReadError).code).toBe("upstream_error");
   });
 
-  it.each([
-    { desglose: { items: [] } },
-    { revision: { ...DETAIL.revision, checklist: [null] } },
-  ])("rejects partial legacy JSON safely instead of throwing a TypeError", async (partial) => {
+  it.each([{ desglose: { items: [] } }])(
+    "rejects partial legacy JSON safely instead of throwing a TypeError",
+    async (partial) => {
     const fetchImpl = vi.fn<typeof fetch>(async (input) => {
       const url = String(input);
       if (url.endsWith("/api/cotizaciones")) {
@@ -371,9 +370,53 @@ describe("App RAVN read adapter", () => {
       fetchImpl,
     });
 
-    const caught = await adapter.loadQuoteWorkspace().catch((error: unknown) => error);
+      const caught = await adapter.loadQuoteWorkspace().catch((error: unknown) => error);
 
-    expect(caught).toBeInstanceOf(QuoteReadError);
-    expect((caught as QuoteReadError).code).toBe("invalid_response");
+      expect(caught).toBeInstanceOf(QuoteReadError);
+      expect((caught as QuoteReadError).code).toBe("invalid_response");
+    }
+  );
+
+  /**
+   * En la base conviven dos formas de `revision`: la del motor de recetas y una
+   * de investigación en curso (`{dudas, estado, evidencia_fuente, …}`). La
+   * revisión es metadata OPCIONAL — exigir una sola forma hacía ilegible el
+   * expediente entero (el Garage de Glorietas no abría por esto). Lo que no se
+   * reconoce se degrada a `null`, que aguas abajo ya significa "falta la
+   * revisión".
+   */
+  it.each([
+    { revision: { ...DETAIL.revision, checklist: [null] } },
+    { revision: { dudas: ["Confirmar el adoquín"], estado: "investigacion_en_curso" } },
+  ])("degrada una revisión que no reconoce en vez de tirar la cotización", async (partial) => {
+    const fetchImpl = vi.fn<typeof fetch>(async (input) => {
+      const url = String(input);
+      if (url.endsWith("/api/cotizaciones")) {
+        return json({
+          cotizaciones: [
+            {
+              id: DETAIL.id,
+              creado_at: DETAIL.creado_at,
+              titulo: DETAIL.titulo,
+              zona: DETAIL.zona,
+              estado: DETAIL.estado,
+              total_min: DETAIL.total_min,
+              total_max: DETAIL.total_max,
+              precio_propuesta: DETAIL.precio_propuesta,
+            },
+          ],
+        });
+      }
+      if (url.endsWith("/mensajes")) return json({ mensajes: [], motor_conectado: false });
+      return json({ cotizacion: { ...DETAIL, ...partial } });
+    });
+
+    const result = await createAppRavnReadAdapter({
+      baseUrl: "https://app.example.test",
+      readSecret: "secret",
+      fetchImpl,
+    }).loadQuoteWorkspace();
+
+    expect(result.snapshot.quote.id).toBe(DETAIL.id);
   });
 });

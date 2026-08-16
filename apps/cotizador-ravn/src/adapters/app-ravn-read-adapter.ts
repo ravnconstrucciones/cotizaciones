@@ -161,6 +161,19 @@ function isLegacyRevision(value: unknown): boolean {
   );
 }
 
+/**
+ * La `revision` es metadata OPCIONAL para el visor: aguas abajo, `null` ya es un
+ * estado legítimo ("falta la revisión"). En la base conviven al menos dos formas
+ * — la del motor de recetas (checklist/sanidad/…) y una de investigación en
+ * curso (`{dudas, estado, evidencia_fuente, metraje_confirmado}`). Exigir la
+ * primera hacía ilegible la cotización ENTERA por un campo accesorio: el Garage
+ * de Glorietas no abría por esto. Lo que no se reconoce se degrada a `null`; no
+ * se inventa nada, sólo se deja de tirar el resto del expediente.
+ */
+function normalizeRevision(value: unknown): unknown {
+  return isLegacyRevision(value) ? value : null;
+}
+
 function isCotizacionRow(value: unknown): value is CotizacionRow {
   return (
     isRecord(value) &&
@@ -176,7 +189,6 @@ function isCotizacionRow(value: unknown): value is CotizacionRow {
     isNullableNumber(value.total_min) &&
     isNullableNumber(value.total_max) &&
     isNullableNumber(value.precio_propuesta) &&
-    isLegacyRevision(value.revision) &&
     isNullableString(value.motivo_rechazo) &&
     isNullableString(value.presupuesto_id) &&
     isNullableString(value.foto_portada_path)
@@ -356,10 +368,17 @@ export function createAppRavnReadAdapter(configInput: AdapterConfig): {
         getJson(config, `/api/cotizaciones/${encodedId}/mensajes`),
       ]);
 
-      if (!isRecord(detailPayload) || !isCotizacionRow(detailPayload.cotizacion)) {
+      // La revisión se normaliza ANTES de validar la fila: si viene con una
+      // forma que el visor no conoce, se degrada a `null` en vez de tumbar el
+      // expediente entero (ver `normalizeRevision`).
+      const detailQuote = isRecord(detailPayload) && isRecord(detailPayload.cotizacion)
+        ? { ...detailPayload.cotizacion, revision: normalizeRevision(detailPayload.cotizacion.revision) }
+        : null;
+
+      if (!isCotizacionRow(detailQuote)) {
         throw new QuoteReadError("invalid_response", "El detalle de la cotización es inválido.");
       }
-      if (detailPayload.cotizacion.id !== quoteId) {
+      if (detailQuote.id !== quoteId) {
         throw new QuoteReadError(
           "invalid_response",
           "App RAVN devolvió una cotización distinta de la solicitada."
@@ -378,12 +397,12 @@ export function createAppRavnReadAdapter(configInput: AdapterConfig): {
           : null;
       const pickerQuotes = quotes.some((quote) => quote.id === quoteId)
         ? quotes
-        : [...quotes, projectQuoteSummary(detailPayload.cotizacion)];
+        : [...quotes, projectQuoteSummary(detailQuote)];
 
       return {
         quotes: pickerQuotes,
         snapshot: projectQuoteWorkspace({
-          quote: detailPayload.cotizacion,
+          quote: detailQuote,
           messages,
           bridgeConnected,
           provenance: "app_ravn_readonly",
