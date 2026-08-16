@@ -9,6 +9,9 @@ import type {
   TipoItem,
   Unidad,
 } from "../../../../src/lib/cotizador/tipos";
+import { itemPricing, type ItemDecision, type ItemOffer } from "./price-decision";
+
+export type { ItemDecision, ItemOffer } from "./price-decision";
 
 export type AutorMensaje = "eze" | "sistema" | "fable" | "codex";
 
@@ -77,6 +80,10 @@ export type BatchItem = {
   /** true = decisión fechada de Eze o doble fuente SISMAT + internet. */
   corroborated: boolean;
   manual: boolean;
+  /** Abanico de precios persistidos del ítem, con desvío contra la más barata. */
+  offers: ItemOffer[];
+  /** Veredicto determinístico del visor sobre ese abanico (pedidos 9 y 10). */
+  decision: ItemDecision;
 };
 
 export type QuoteBatch = {
@@ -294,6 +301,8 @@ export type ProjectQuoteWorkspaceInput = {
   messages?: readonly MensajeHilo[];
   /** Latido real de puente-cotizador que trae el endpoint legacy. */
   bridgeConnected?: boolean | null;
+  /** YYYY-MM-DD para vencimientos de precio; default: hoy. Inyectable en tests. */
+  hoy?: string;
   provenance?: QuoteWorkspaceSnapshot["provenance"];
 };
 
@@ -459,8 +468,9 @@ function itemCorroborated(item: ItemDesglose): boolean {
   return Boolean(item.precios.eze) || Boolean(item.precios.sismat && item.precios.internet);
 }
 
-function batchItems(items: readonly ItemDesglose[]): BatchItem[] {
+function batchItems(items: readonly ItemDesglose[], today: string): BatchItem[] {
   return items.map((item) => ({
+    ...itemPricing(item, today),
     name: item.nombre,
     tipo: item.tipo,
     unidad: item.unidad,
@@ -585,7 +595,11 @@ function sanityItemName(check: string): string | null {
   return itemName ? itemName : null;
 }
 
-function groupedBatches(items: readonly ItemDesglose[], revision: Revision | null): QuoteBatch[] {
+function groupedBatches(
+  items: readonly ItemDesglose[],
+  revision: Revision | null,
+  today: string
+): QuoteBatch[] {
   const groups = new Map<string, ItemDesglose[]>();
   for (const item of items) {
     const etapa = item.etapa.trim() || "Sin etapa persistida";
@@ -645,7 +659,7 @@ function groupedBatches(items: readonly ItemDesglose[], revision: Revision | nul
       etapa,
       itemCount: group.length,
       itemNames: group.map((item) => item.nombre),
-      items: batchItems(group),
+      items: batchItems(group, today),
       responsibility,
       evidence: evidenceForItems(etapa, group),
       priceRange: batchPriceRange(group),
@@ -1173,7 +1187,8 @@ export function projectQuoteWorkspace(input: ProjectQuoteWorkspaceInput): QuoteW
   const desglose = asDesglose(input.quote.desglose);
   const activeItems = (desglose?.items ?? []).filter((item) => item.activo !== false);
   const revision = input.quote.revision;
-  const batches = groupedBatches(activeItems, revision);
+  const today = input.hoy ?? new Date().toISOString().slice(0, 10);
+  const batches = groupedBatches(activeItems, revision, today);
   const blockers = buildBlockers({ quote: input.quote, desglose, activeItems, revision });
   const costRange = persistedCostRange(input.quote, desglose);
   const coverage = sourceCoverage(activeItems);

@@ -2,20 +2,14 @@
 
 import {
   ArrowUp,
-  CheckCircle2,
   ChevronDown,
-  CircleHelp,
-  FileCheck2,
-  FileText,
-  Link2,
+  CircleSlash2,
   LockKeyhole,
   MessageSquare,
   Paperclip,
   RefreshCw,
-  ScanSearch,
-  Search,
-  ShieldCheck,
-  type LucideIcon,
+  SlidersHorizontal,
+  TriangleAlert,
 } from "lucide-react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import Link from "next/link";
@@ -25,28 +19,34 @@ import {
   useMemo,
   useRef,
   useState,
-  type CSSProperties,
   type FormEvent,
   type RefObject,
 } from "react";
 import type {
   BatchItem,
+  ItemOffer,
   QuoteBatch,
   QuoteEvent,
-  QuoteRole,
   QuoteSummary,
   QuoteWorkspaceSnapshot,
 } from "../domain";
+import { decisionRank } from "../domain/price-decision";
 import { formatObservedDate as dateTime } from "./format-observed-date";
-import { LiveTerminals, type BridgeConfig, type WaveRequest } from "./live-terminals";
+import {
+  LiveTerminals,
+  type BridgeConfig,
+  type BridgeHealth,
+  type WaveRequest,
+} from "./live-terminals";
 import { RavnIso } from "./ravn-iso";
+import { RavnMark3D } from "./ravn-mark-3d";
 
 type ControlCenterData = {
   quotes: QuoteSummary[];
   snapshot: QuoteWorkspaceSnapshot;
 };
 
-type MobileTab = "conversar" | "equipo" | "cotizacion";
+type MobileTab = "conversar" | "tablero" | "decidir";
 
 type LocalPreviewMessage = {
   id: string;
@@ -54,17 +54,10 @@ type LocalPreviewMessage = {
   occurredAt: string;
 };
 
-type Workstation = {
-  id: "fable" | "codex" | "sources" | "verification";
-  label: string;
-  remit: string;
-  status: string;
-  action: string;
-  artifact: string;
-  batchIds: string[];
-  evidenceCount: number;
-  observed: boolean;
-  icon: LucideIcon;
+/** Un ítem con su rubro: la unidad de decisión de la cola. */
+type QueueEntry = {
+  batch: QuoteBatch;
+  item: BatchItem;
 };
 
 const MONEY = new Intl.NumberFormat("es-AR", {
@@ -77,19 +70,16 @@ const COMPACT_MONEY = new Intl.NumberFormat("es-AR", {
   style: "currency",
   currency: "ARS",
   notation: "compact",
-  maximumFractionDigits: 1,
+  maximumFractionDigits: 2,
 });
 
-const TIME = new Intl.DateTimeFormat("es-AR", {
-  hour: "2-digit",
-  minute: "2-digit",
-});
+const TIME = new Intl.DateTimeFormat("es-AR", { hour: "2-digit", minute: "2-digit" });
 
 const STAGE_LABELS: Record<QuoteWorkspaceSnapshot["core"]["stage"], string> = {
-  intake: "Relevando el trabajo",
+  intake: "Relevando",
   cost_review: "Armando el costo",
   legacy_approved: "Número aprobado",
-  rejected: "Cotización rechazada",
+  rejected: "Rechazada",
   legacy_document_emitted: "Documento emitido",
 };
 
@@ -104,42 +94,34 @@ const ORIGIN_LABELS: Record<string, string> = {
   sismat: "SISMAT",
   internet: "Internet",
   retail: "Retail",
-  eze: "Número de Eze",
+  eze: "Tu número",
   extra: "Extra",
 };
 
-const CHECK_LABELS: Record<
-  QuoteWorkspaceSnapshot["observability"]["checks"][number]["id"],
-  string
-> = {
-  checklist: "Alcance y requisitos",
-  sanity: "Cantidades y rendimientos",
-  stale_prices: "Vigencia de precios",
-  divergences: "Cruce entre fuentes",
-  open_doubts: "Preguntas abiertas",
+const DECISION_TAGS: Record<string, string> = {
+  sin_precio: "SIN PRECIO",
+  divergencia_critica: "FUENTES EN CONFLICTO",
+  divergencia: "DISPERSIÓN ALTA",
+  precio_vencido: "PRECIO VENCIDO",
+  sin_contraste: "SIN CONTRASTE",
+  cerrado: "CERRADO",
 };
 
-const GAP_LABELS: Record<
-  QuoteWorkspaceSnapshot["observability"]["instrumentationGaps"][number],
-  string
-> = {
-  per_agent_heartbeat: "actividad individual por rol",
-  job_runtime: "asignación y progreso por tarea",
-  queue_runtime: "cola de investigación",
-  credit_budget: "presupuesto y consumo de créditos",
-  deterministic_process_run: "identificador de cada cálculo",
-};
+/** Paleta categórica RAVN por rubro, validada sobre #0a0a0a (dataviz). */
+const RUBRO_COLORS = ["#3f72b3", "#c9739a", "#118066", "#8d78cf", "#8f9440", "#918e87"] as const;
 
 function money(value: number | null): string {
-  return value == null ? "Sin costo calculado" : MONEY.format(value);
+  return value == null ? "N/D" : MONEY.format(value);
 }
 
-function compactMoney(value: number | null): string {
-  return value == null ? "—" : COMPACT_MONEY.format(value);
+function compact(value: number | null): string {
+  return value == null ? "N/D" : COMPACT_MONEY.format(value);
 }
 
-function initialBatchId(snapshot: QuoteWorkspaceSnapshot): string | null {
-  return snapshot.batches.find((batch) => batch.currentBlocker)?.id ?? snapshot.batches[0]?.id ?? null;
+function signedPct(value: number): string {
+  const rounded = Math.round(value * 10) / 10;
+  if (rounded === 0) return "=";
+  return `${rounded > 0 ? "+" : ""}${rounded.toLocaleString("es-AR")}%`;
 }
 
 function eventTime(value: string): string {
@@ -157,148 +139,24 @@ function sourceUrl(source: string): string | null {
   }
 }
 
-function unique(values: readonly string[]): string[] {
-  return Array.from(new Set(values));
+function rubroColor(index: number): string {
+  return RUBRO_COLORS[index % RUBRO_COLORS.length];
 }
 
-function batchFromLabel(batches: readonly QuoteBatch[], label: string): QuoteBatch | null {
-  const normalized = label.trim().toLocaleLowerCase("es-AR");
-  if (!normalized) return null;
-  return (
-    batches.find((batch) => batch.etapa.trim().toLocaleLowerCase("es-AR") === normalized) ?? null
-  );
+/** Ancho del rango: cuánto se puede mover el costo entre piso y techo. */
+function rangeWidthPct(min: number | null, max: number | null): number | null {
+  if (min == null || max == null || min <= 0) return null;
+  return Math.round(((max - min) / min) * 1000) / 10;
 }
 
-function batchForEvent(batches: readonly QuoteBatch[], event: QuoteEvent): QuoteBatch | null {
-  if (event.type === "source_evidence") {
-    return batches.find((batch) => batch.evidence.some((item) => item.id === event.evidence.id)) ?? null;
-  }
-  if (event.type === "message") return batchFromLabel(batches, event.message.etiqueta);
-  return null;
-}
-
-function latestMessageFor(
-  events: readonly QuoteEvent[],
-  author: "fable" | "codex"
-): Extract<QuoteEvent, { type: "message" }> | null {
-  return (
-    [...events]
-      .reverse()
-      .find(
-        (event): event is Extract<QuoteEvent, { type: "message" }> =>
-          event.type === "message" && event.message.autor === author
-      ) ?? null
-  );
-}
-
-function roleById(snapshot: QuoteWorkspaceSnapshot, id: QuoteRole["id"]): QuoteRole | null {
-  return snapshot.roles.find((role) => role.id === id) ?? null;
-}
-
-function modelBatchIds(
-  snapshot: QuoteWorkspaceSnapshot,
-  author: "fable" | "codex"
-): string[] {
-  return unique(
-    snapshot.events.flatMap((event) => {
-      if (event.type !== "message" || event.message.autor !== author) return [];
-      const batch = batchFromLabel(snapshot.batches, event.message.etiqueta);
-      return batch ? [batch.id] : [];
-    })
-  );
-}
-
-function buildWorkstations(snapshot: QuoteWorkspaceSnapshot): Workstation[] {
-  const fable = roleById(snapshot, "fable");
-  const codex = roleById(snapshot, "codex");
-  const fableMessage = latestMessageFor(snapshot.events, "fable");
-  const codexMessage = latestMessageFor(snapshot.events, "codex");
-  const sourceRows = snapshot.observability.sources.filter((source) => source.evidenceCount > 0);
-  const sourceCount = sourceRows.reduce((sum, source) => sum + source.evidenceCount, 0);
-  const sourceBatchIds = unique(sourceRows.flatMap((source) => source.affectedBatchIds));
-  const sourceNames = sourceRows
-    .map((source) => ORIGIN_LABELS[source.origin] ?? source.origin)
-    .join(" · ");
-  const persistedChecks = snapshot.observability.checks.filter(
-    (check) => check.status === "persisted"
-  );
-  const checkCount = persistedChecks.reduce((sum, check) => sum + check.persistedCount, 0);
-  const findingCount = persistedChecks.reduce((sum, check) => sum + check.findings.length, 0);
-  const checkBatchIds = unique(persistedChecks.flatMap((check) => check.affectedBatchIds));
-
-  const workstationForMessage = (
-    id: "fable" | "codex",
-    label: string,
-    remit: string,
-    icon: LucideIcon,
-    role: QuoteRole | null,
-    message: Extract<QuoteEvent, { type: "message" }> | null
-  ): Workstation => {
-    const batch = message ? batchFromLabel(snapshot.batches, message.message.etiqueta) : null;
-    return {
-      id,
-      label,
-      remit,
-      status: message ? "APORTE REGISTRADO" : "SIN ACTIVIDAD OBSERVADA",
-      action: message?.detail ?? "Todavía no hay un análisis guardado para esta cotización.",
-      artifact: message
-        ? `${message.message.etiqueta} · ${eventTime(message.occurredAt)}`
-        : "Sin artefacto o mensaje persistido",
-      batchIds: batch ? [batch.id] : [],
-      evidenceCount: role?.persistedEvidenceCount ?? 0,
-      observed: Boolean(message),
-      icon,
-    };
-  };
-
-  return [
-    workstationForMessage(
-      "codex",
-      "Codex",
-      "Método y alcance",
-      FileText,
-      codex,
-      codexMessage
-    ),
-    workstationForMessage(
-      "fable",
-      "Fable",
-      "Investigación y alternativas",
-      ScanSearch,
-      fable,
-      fableMessage
-    ),
-    {
-      id: "sources",
-      label: "Precios y fuentes",
-      remit: "SISMAT · proveedores · web",
-      status: sourceCount > 0 ? "EVIDENCIA REGISTRADA" : "SIN FUENTES OBSERVADAS",
-      action:
-        sourceCount > 0
-          ? `${sourceCount} referencias fechadas alimentan ${sourceBatchIds.length} rubro(s).`
-          : "No hay precios con fuente y fecha guardados para esta cotización.",
-      artifact: sourceNames || "Sin origen persistido",
-      batchIds: sourceBatchIds,
-      evidenceCount: sourceCount,
-      observed: sourceCount > 0,
-      icon: Search,
-    },
-    {
-      id: "verification",
-      label: "Control de costo",
-      remit: "Cantidades · vigencia · duplicados",
-      status: checkCount > 0 ? "CONTROL REGISTRADO" : "SIN CONTROL OBSERVADO",
-      action:
-        checkCount > 0
-          ? `${checkCount} controles guardados; ${findingCount} resultado(s) para revisar.`
-          : "No hay una revisión completa guardada para mostrar.",
-      artifact: checkCount > 0 ? "Revisión determinística" : "Sin salida de control",
-      batchIds: checkBatchIds,
-      evidenceCount: checkCount,
-      observed: checkCount > 0,
-      icon: ShieldCheck,
-    },
-  ];
+function queueEntries(snapshot: QuoteWorkspaceSnapshot): QueueEntry[] {
+  return snapshot.batches
+    .flatMap((batch) => batch.items.map((item) => ({ batch, item })))
+    .filter((entry) => entry.item.decision.kind !== "cerrado")
+    .sort((left, right) => {
+      const byRank = decisionRank(left.item.decision.kind) - decisionRank(right.item.decision.kind);
+      return byRank !== 0 ? byRank : right.item.subtotalMax - left.item.subtotalMax;
+    });
 }
 
 function isControlCenterData(value: unknown): value is ControlCenterData {
@@ -316,26 +174,22 @@ export function ControlCenter({
   preview: boolean;
   bridge: BridgeConfig | null;
 }) {
-  const reduceMotion = useReducedMotion();
+  const reduceMotion = Boolean(useReducedMotion());
   const [data, setData] = useState(initialData);
-  const [selectedBatchId, setSelectedBatchId] = useState<string | null>(
-    initialBatchId(initialData.snapshot)
-  );
-  const [mobileTab, setMobileTab] = useState<MobileTab>("conversar");
+  const [mobileTab, setMobileTab] = useState<MobileTab>("tablero");
   const [busy, setBusy] = useState(false);
   const [refreshError, setRefreshError] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
   const [localMessages, setLocalMessages] = useState<LocalPreviewMessage[]>([]);
   const [composerNotice, setComposerNotice] = useState<string | null>(null);
   const [wave, setWave] = useState<WaveRequest | null>(null);
+  const [health, setHealth] = useState<BridgeHealth>("off");
+  const [focusedItem, setFocusedItem] = useState<string | null>(null);
   const waveSeq = useRef(0);
   const requestInFlight = useRef(false);
   const composerRef = useRef<HTMLTextAreaElement>(null);
   const snapshot = data.snapshot;
-  const selectedBatch =
-    snapshot.batches.find((batch) => batch.id === selectedBatchId) ?? snapshot.batches[0] ?? null;
-  const workstations = useMemo(() => buildWorkstations(snapshot), [snapshot]);
-  const events = useMemo(() => [...snapshot.events].reverse(), [snapshot.events]);
+  const queue = useMemo(() => queueEntries(snapshot), [snapshot]);
 
   const loadQuote = useCallback(
     async (quoteId: string, announce = true) => {
@@ -362,13 +216,9 @@ export function ControlCenter({
         }
 
         setData(payload);
-        setSelectedBatchId((current) =>
-          payload.snapshot.batches.some((batch) => batch.id === current)
-            ? current
-            : initialBatchId(payload.snapshot)
-        );
         setLocalMessages([]);
         setComposerNotice(null);
+        setFocusedItem(null);
         window.history.replaceState(null, "", `/?quote=${encodeURIComponent(quoteId)}`);
       } catch (error) {
         setRefreshError(
@@ -391,9 +241,8 @@ export function ControlCenter({
   }, [loadQuote, preview, snapshot.quote.id]);
 
   /**
-   * Pedido 14 de Eze: la ola arranca DESDE EL CHAT, no desde un lanzador
-   * aparte. Lo que escribe acá se muestra en la conversación y, si el bridge
-   * está configurado, dispara la ola real de Codex + Fable.
+   * Pedido 14: la ola arranca DESDE EL CHAT. Lo que escribe acá se muestra en la
+   * conversación y, con bridge configurado, dispara la ola real.
    */
   const submitPreviewMessage = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -408,33 +257,27 @@ export function ControlCenter({
     setWave({ prompt: text, seq: waveSeq.current });
     setComposerNotice(
       bridge
-        ? "Ola despachada: Codex y Fable lo están trabajando en la pestaña Equipo."
+        ? "Ola despachada: Codex y Fable la están trabajando."
         : "Entrada agregada a esta demostración. Sin bridge configurado no salió ninguna ola."
     );
   };
 
-  const focusConversation = () => {
+  const answerInConversation = (question: string) => {
     setMobileTab("conversar");
+    setDraft((current) => (current.length > 0 ? current : `${question} `));
     window.requestAnimationFrame(() => composerRef.current?.focus());
   };
 
-  const connectionLabel =
-    snapshot.observability.bridge.heartbeat === "fresh"
-      ? "Datos actualizados"
-      : snapshot.observability.bridge.heartbeat === "stale_or_absent"
-        ? "Actualización demorada"
-        : "Estado no consultado";
-
   return (
-    <div className="qz-shell">
-      <header className="qz-header">
+    <div className="qz-console">
+      <header className="qz-rail">
         <Link className="qz-brand" href="/" aria-label="Cotizador RAVN, inicio">
           <RavnIso className="qz-brand__iso" drawing={busy} />
           <span className="qz-brand__mark">RAVN.</span>
           <span className="qz-brand__product">COTIZADOR</span>
         </Link>
 
-        <div className="qz-quote-picker">
+        <div className="qz-rail__quote">
           <label className="qz-sr-only" htmlFor="quote-picker">
             Cotización abierta
           </label>
@@ -450,14 +293,19 @@ export function ControlCenter({
               </option>
             ))}
           </select>
-          <ChevronDown size={15} aria-hidden="true" />
+          <ChevronDown size={14} aria-hidden="true" />
+          <span className="qz-rail__stage">{STAGE_LABELS[snapshot.core.stage]}</span>
         </div>
 
-        <div className="qz-header__state">
-          {preview ? <span className="qz-preview-chip">PREVIEW</span> : null}
-          <span className="qz-connection" data-state={snapshot.observability.bridge.heartbeat}>
-            <span aria-hidden="true" />
-            {connectionLabel}
+        <div className="qz-rail__state">
+          {preview ? <span className="qz-tag qz-tag--preview">PREVIEW</span> : null}
+          <span className="qz-lamp" data-state={snapshot.observability.bridge.heartbeat}>
+            <i aria-hidden="true" />
+            {snapshot.observability.bridge.heartbeat === "fresh"
+              ? "Lectura fresca"
+              : snapshot.observability.bridge.heartbeat === "stale_or_absent"
+                ? "Lectura demorada"
+                : "Lectura no consultada"}
           </span>
           <motion.button
             type="button"
@@ -469,7 +317,7 @@ export function ControlCenter({
             animate={{ rotate: busy && !reduceMotion ? 180 : 0 }}
             transition={{ duration: reduceMotion ? 0 : 0.2 }}
           >
-            <RefreshCw size={16} aria-hidden="true" />
+            <RefreshCw size={15} aria-hidden="true" />
           </motion.button>
         </div>
       </header>
@@ -484,8 +332,8 @@ export function ControlCenter({
         {(
           [
             ["conversar", "Conversar", MessageSquare],
-            ["equipo", "Equipo", Link2],
-            ["cotizacion", "Cotización", FileCheck2],
+            ["tablero", "Tablero", SlidersHorizontal],
+            ["decidir", `Decidir · ${queue.length}`, TriangleAlert],
           ] as const
         ).map(([id, label, Icon]) => (
           <button
@@ -494,16 +342,17 @@ export function ControlCenter({
             aria-current={mobileTab === id ? "page" : undefined}
             onClick={() => setMobileTab(id)}
           >
-            <Icon size={16} aria-hidden="true" />
+            <Icon size={15} aria-hidden="true" />
             {label}
           </button>
         ))}
       </nav>
 
-      <main className="qz-workspace">
-        <ConversationDesk
+      <main className="qz-body">
+        <ConversationColumn
           snapshot={snapshot}
           preview={preview}
+          health={health}
           active={mobileTab === "conversar"}
           draft={draft}
           onDraftChange={setDraft}
@@ -511,42 +360,40 @@ export function ControlCenter({
           localMessages={localMessages}
           notice={composerNotice}
           composerRef={composerRef}
-          reduceMotion={Boolean(reduceMotion)}
+          reduceMotion={reduceMotion}
         />
 
-        <div className="qz-deck">
-          <FormationBoard
-            snapshot={snapshot}
-            selectedBatch={selectedBatch}
-            onSelectBatch={setSelectedBatchId}
-            onAnswer={focusConversation}
-            active={mobileTab === "cotizacion"}
-            preview={preview}
-            reduceMotion={Boolean(reduceMotion)}
-          />
+        <BoardColumn
+          snapshot={snapshot}
+          queue={queue}
+          active={mobileTab === "tablero"}
+          reduceMotion={reduceMotion}
+          bridge={bridge}
+          wave={wave}
+          onHealth={setHealth}
+          focusedItem={focusedItem}
+        />
 
-          <TeamWorkspace
-            snapshot={snapshot}
-            stations={workstations}
-            events={events}
-            selectedBatch={selectedBatch}
-            onSelectBatch={setSelectedBatchId}
-            active={mobileTab === "equipo"}
-            reduceMotion={Boolean(reduceMotion)}
-            bridge={bridge}
-            wave={wave}
-          />
-        </div>
+        <DecisionColumn
+          snapshot={snapshot}
+          queue={queue}
+          active={mobileTab === "decidir"}
+          reduceMotion={reduceMotion}
+          onAnswer={answerInConversation}
+          onFocusItem={setFocusedItem}
+          focusedItem={focusedItem}
+        />
       </main>
-
-      <TechnicalDetails snapshot={snapshot} selectedBatch={selectedBatch} events={events} />
     </div>
   );
 }
 
-function ConversationDesk({
+/* ------------------------------------------------------------ conversación */
+
+function ConversationColumn({
   snapshot,
   preview,
+  health,
   active,
   draft,
   onDraftChange,
@@ -558,6 +405,7 @@ function ConversationDesk({
 }: {
   snapshot: QuoteWorkspaceSnapshot;
   preview: boolean;
+  health: BridgeHealth;
   active: boolean;
   draft: string;
   onDraftChange: (value: string) => void;
@@ -572,33 +420,40 @@ function ConversationDesk({
       event.type === "message" &&
       (event.message.autor === "eze" || event.message.autor === "sistema")
   );
+  const threadRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const node = threadRef.current;
+    if (node) node.scrollTop = node.scrollHeight;
+  }, [localMessages.length]);
 
   return (
     <section
-      className="qz-conversation qz-mobile-panel"
+      className="qz-chat qz-panel"
       data-mobile-active={active}
       aria-labelledby="conversation-title"
     >
-      <header className="qz-column-header">
-        <div>
-          <h1 id="conversation-title">Decime qué trabajo querés cotizar</h1>
-          <p>Contame el alcance o respondé lo que falta. El equipo ordena el resto por rubros.</p>
+      {/* Pedido 6: el monolito no ocupa celda propia — es el fondo vivo de la
+          conversación y gira según el estado real del bridge. */}
+      <div className="qz-chat__backdrop" aria-hidden="true">
+        <div className="qz-chat__monolith">
+          <RavnMark3D state={health} size={330} />
         </div>
-      </header>
-
-      <div className="qz-current-matter">
-        <span>Ahora</span>
-        <strong>{snapshot.quote.title}</strong>
-        <small>{STAGE_LABELS[snapshot.core.stage]}</small>
       </div>
 
-      <div className="qz-thread" role="log" aria-label="Conversación de la cotización">
+      <header className="qz-chat__head">
+        <h1 id="conversation-title">{snapshot.quote.title}</h1>
+        <p>
+          {snapshot.quote.zone ? `${snapshot.quote.zone} · ` : ""}
+          Escribí el alcance o respondé lo que falta: eso dispara la ola.
+        </p>
+      </header>
+
+      <div className="qz-thread" role="log" aria-label="Conversación de la cotización" ref={threadRef}>
         {thread.length === 0 && localMessages.length === 0 ? (
-          <div className="qz-thread-empty">
-            <MessageSquare size={22} strokeWidth={1.4} aria-hidden="true" />
-            <p>No hay una conversación guardada para esta cotización.</p>
-            <span>El pedido y las respuestas aparecerán acá cuando estén disponibles.</span>
-          </div>
+          <p className="qz-thread__empty">
+            No hay conversación guardada para esta cotización.
+          </p>
         ) : null}
 
         {thread.map((event) => {
@@ -620,10 +475,10 @@ function ConversationDesk({
               className="qz-message"
               data-author="eze"
               key={message.id}
-              initial={reduceMotion ? false : { opacity: 0, y: 8 }}
+              initial={reduceMotion ? false : { opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0 }}
-              transition={{ duration: reduceMotion ? 0 : 0.18 }}
+              transition={{ duration: reduceMotion ? 0 : 0.22, ease: [0.16, 1, 0.3, 1] }}
             >
               <div className="qz-message__meta">
                 <span>EZE</span>
@@ -650,582 +505,274 @@ function ConversationDesk({
               ? "Ej.: El porcelanato es 60 × 60 y la grifería va embutida…"
               : "La conversación todavía no está habilitada en esta versión."
           }
-          rows={4}
+          rows={3}
         />
         <div className="qz-composer__footer">
-          <button type="button" className="qz-attach" disabled aria-label="Adjuntar archivo">
-            <Paperclip size={17} aria-hidden="true" />
+          <button
+            type="button"
+            className="qz-attach"
+            disabled
+            title="Falta el contrato de subida: la conversación todavía es de solo lectura."
+          >
+            <Paperclip size={15} aria-hidden="true" />
             <span>Adjuntar</span>
           </button>
-          <span className="qz-composer__state">
-            {preview ? "Demostración local" : "Escritura pendiente"}
-          </span>
           <motion.button
             className="qz-send"
             type="submit"
             disabled={!preview || draft.trim().length === 0}
-            whileTap={reduceMotion ? undefined : { scale: 0.97 }}
+            whileTap={reduceMotion ? undefined : { scale: 0.96 }}
             aria-label="Enviar al cotizador"
           >
-            <ArrowUp size={18} aria-hidden="true" />
+            <ArrowUp size={17} aria-hidden="true" />
           </motion.button>
         </div>
+        <p className="qz-composer__notice" role="status" aria-live="polite">
+          {notice ??
+            (preview
+              ? "Demostración local: la entrada no modifica datos de App RAVN."
+              : "Esta versión lee la conversación pero todavía no puede escribir.")}
+        </p>
       </form>
-      <p className="qz-composer-notice" role="status" aria-live="polite">
-        {notice ??
-          (preview
-            ? "Podés probar la entrada; no activa agentes ni modifica datos."
-            : "Esta versión muestra la conversación existente pero todavía no puede enviar respuestas.")}
-      </p>
     </section>
   );
 }
 
-function TeamWorkspace({
+/* ---------------------------------------------------------------- tablero */
+
+function BoardColumn({
   snapshot,
-  stations,
-  events,
-  selectedBatch,
-  onSelectBatch,
+  queue,
   active,
   reduceMotion,
   bridge,
   wave,
+  onHealth,
+  focusedItem,
 }: {
   snapshot: QuoteWorkspaceSnapshot;
-  stations: Workstation[];
-  events: QuoteEvent[];
-  selectedBatch: QuoteBatch | null;
-  onSelectBatch: (id: string) => void;
+  queue: QueueEntry[];
   active: boolean;
   reduceMotion: boolean;
   bridge: BridgeConfig | null;
   wave: WaveRequest | null;
+  onHealth: (health: BridgeHealth) => void;
+  focusedItem: string | null;
 }) {
-  const [sourcesOpen, setSourcesOpen] = useState(false);
-  const codexBatchIds = modelBatchIds(snapshot, "codex");
-  const fableBatchIds = modelBatchIds(snapshot, "fable");
-  const modelCoverage = unique([...codexBatchIds, ...fableBatchIds]);
-  const sharedBatchIds = codexBatchIds.filter((id) => fableBatchIds.includes(id));
-  const complementaryBatchIds = modelCoverage.filter((id) => !sharedBatchIds.includes(id));
-  const untouchedBatches = snapshot.batches.filter((batch) => !modelCoverage.includes(batch.id));
-  const sharedNames = sharedBatchIds
-    .map((id) => snapshot.batches.find((batch) => batch.id === id)?.etapa)
-    .filter((name): name is string => Boolean(name));
-  const modelContributionCount = stations.reduce((sum, station) => sum + station.evidenceCount, 0);
+  const itemRefs = useRef(new Map<string, HTMLDivElement>());
+
+  useEffect(() => {
+    if (!focusedItem) return;
+    itemRefs.current.get(focusedItem)?.scrollIntoView({ block: "center", behavior: "smooth" });
+  }, [focusedItem]);
 
   return (
-    <section
-      className="qz-team qz-mobile-panel"
-      data-mobile-active={active}
-      aria-labelledby="team-title"
-    >
-      <header className="qz-section-bar">
-        <div>
-          <h2 id="team-title">Codex + Fable contrastan el mismo pedido</h2>
-          <p>Sus aportes se cruzan por rubro; fuentes y controles validan qué entra al costo.</p>
-        </div>
-        <span className="qz-column-state">{modelContributionCount} aportes</span>
-      </header>
-
-      <LiveTerminals bridge={bridge} request={wave} />
-
-      <div className="qz-team-grid" aria-label="Aportes de modelos, fuentes y controles">
-        {stations.map((station) => (
-          <WorkstationCard
-            key={station.id}
-            snapshot={snapshot}
-            station={station}
-            selectedBatch={selectedBatch}
-            onSelectBatch={onSelectBatch}
-            reduceMotion={reduceMotion}
-            expand={
-              station.id === "sources" && station.evidenceCount > 0
-                ? {
-                    open: sourcesOpen,
-                    count: station.evidenceCount,
-                    onToggle: () => setSourcesOpen((current) => !current),
-                  }
-                : undefined
-            }
-          />
-        ))}
-      </div>
-
-      <AnimatePresence initial={false}>
-        {sourcesOpen ? (
-          <motion.div
-            id="qz-sources-panel"
-            initial={reduceMotion ? false : { height: 0, opacity: 0 }}
-            animate={{ height: "auto", opacity: 1 }}
-            exit={reduceMotion ? undefined : { height: 0, opacity: 0 }}
-            transition={{ duration: reduceMotion ? 0 : 0.24, ease: [0.22, 1, 0.36, 1] }}
-          >
-            <SourcesPanel snapshot={snapshot} />
-          </motion.div>
-        ) : null}
-      </AnimatePresence>
-
-      <div className="qz-model-comparison" aria-label="Cruce entre los dos modelos">
-        <div>
-          <span>Cruces por rubro</span>
-          <strong>{sharedNames.length > 0 ? sharedNames.join(" · ") : "Ninguno guardado"}</strong>
-        </div>
-        <div>
-          <span>Se complementan</span>
-          <strong>{complementaryBatchIds.length} rubro(s)</strong>
-        </div>
-        <div>
-          <span>Divergencias</span>
-          <strong>Sin comparación persistida</strong>
-        </div>
-        <div>
-          <span>Huecos de ambos</span>
-          <strong>{untouchedBatches.length} rubro(s)</strong>
-        </div>
-      </div>
-
-      <div className="qz-activity-strip" aria-label="Últimos movimientos registrados">
-        <div className="qz-activity-strip__title">
-          <span>Qué cambió</span>
-          <strong>{snapshot.events.length}</strong>
-        </div>
-        {events.slice(0, 3).map((event) => {
-          const batch = batchForEvent(snapshot.batches, event);
-          return (
-            <article key={event.id}>
-              <time dateTime={event.occurredAt}>{eventTime(event.occurredAt)}</time>
-              <div>
-                <strong>{event.title}</strong>
-                <span>{batch?.etapa ?? "Cotización general"}</span>
-              </div>
-            </article>
-          );
-        })}
-        {events.length === 0 ? <p>No hay movimientos guardados.</p> : null}
-      </div>
+    <section className="qz-board" data-mobile-active={active} aria-label="Tablero del costo">
+      <Readout snapshot={snapshot} queue={queue} reduceMotion={reduceMotion} />
+      <InstrumentRow snapshot={snapshot} queue={queue} />
+      <RubroLedger
+        snapshot={snapshot}
+        reduceMotion={reduceMotion}
+        focusedItem={focusedItem}
+        registerItem={(key, node) => {
+          if (node) itemRefs.current.set(key, node);
+          else itemRefs.current.delete(key);
+        }}
+      />
+      <LiveTerminals bridge={bridge} request={wave} onHealth={onHealth} />
     </section>
   );
 }
 
-function WorkstationCard({
+function Readout({
   snapshot,
-  station,
-  selectedBatch,
-  onSelectBatch,
+  queue,
   reduceMotion,
-  expand,
 }: {
   snapshot: QuoteWorkspaceSnapshot;
-  station: Workstation;
-  selectedBatch: QuoteBatch | null;
-  onSelectBatch: (id: string) => void;
+  queue: QueueEntry[];
   reduceMotion: boolean;
-  expand?: { open: boolean; count: number; onToggle: () => void };
 }) {
-  const linkedToSelected = Boolean(selectedBatch && station.batchIds.includes(selectedBatch.id));
+  const { min, max } = snapshot.core.costRange;
+  const composition = snapshot.core.composition;
+  const width = rangeWidthPct(min, max);
+  const itemCount = snapshot.batches.reduce((sum, batch) => sum + batch.itemCount, 0);
+  const blocking = queue.filter((entry) => entry.item.decision.severity === "blocking").length;
+
   return (
-    <motion.article
-      className="qz-station"
-      data-observed={station.observed}
-      data-linked={linkedToSelected}
-      layout
-      transition={{ duration: reduceMotion ? 0 : 0.2 }}
-    >
-      <header>
-        <station.icon size={18} strokeWidth={1.5} aria-hidden="true" />
-        <div>
-          <h3>{station.label}</h3>
-          <p>{station.remit}</p>
-        </div>
-        <span>{station.status}</span>
-      </header>
-      <p className="qz-station__action">{station.action}</p>
-      {expand ? (
-        <button
-          type="button"
-          className="qz-station__expand"
-          aria-expanded={expand.open}
-          aria-controls="qz-sources-panel"
-          onClick={expand.onToggle}
-        >
-          {expand.open ? "Ocultar el detalle" : `Ver los ${expand.count} precios con fuente`}
-          <ChevronDown size={14} aria-hidden="true" data-open={expand.open} />
-        </button>
-      ) : null}
-      <footer>
-        <span>
-          <FileCheck2 size={14} aria-hidden="true" />
-          {station.artifact}
+    <section className="qz-readout qz-panel" aria-label="Rango de costo">
+      <div className="qz-readout__figure">
+        <span className="qz-readout__label">Costo directo estimado</span>
+        <strong className="qz-readout__value">
+          <span>{compact(min)}</span>
+          <i aria-hidden="true">—</i>
+          <span>{compact(max)}</span>
+        </strong>
+        <span className="qz-readout__exact">
+          {money(min)} a {money(max)}
+          {composition
+            ? ` · imprevistos ${composition.imprevistosPct}% · zona ×${composition.factorZonaMin.toLocaleString("es-AR")}`
+            : ""}
         </span>
-        <strong>{station.evidenceCount}</strong>
-      </footer>
-      <div className="qz-station__rubros">
-        {station.batchIds.length > 0 ? (
-          station.batchIds.slice(0, 2).map((id) => {
-            const batch = snapshot.batches.find((item) => item.id === id);
-            if (!batch) return null;
-            return (
-              <button type="button" key={id} onClick={() => onSelectBatch(id)}>
-                {batch.etapa}
-              </button>
-            );
-          })
-        ) : (
-          <span>Sin rubro enlazado</span>
-        )}
+        {min != null && max != null && max > 0 ? (
+          <RangeScale min={min} max={max} reduceMotion={reduceMotion} />
+        ) : null}
       </div>
-    </motion.article>
-  );
-}
 
-function itemSourceFlag(item: BatchItem): string | null {
-  if (!item.priced) return "Sin precio de costo";
-  if (item.corroborated) return null;
-  if (item.origins.length === 1 && item.origins[0] === "sismat") {
-    return "Solo SISMAT · falta contraste en internet";
-  }
-  return "Una sola fuente · falta contraste";
-}
-
-function SourcesPanel({ snapshot }: { snapshot: QuoteWorkspaceSnapshot }) {
-  const extras = snapshot.events.filter(
-    (event): event is Extract<QuoteEvent, { type: "source_evidence" }> =>
-      event.type === "source_evidence" && event.evidence.origin === "extra"
-  );
-
-  return (
-    <section className="qz-sources" aria-label="Todos los precios con fuente y fecha">
-      {snapshot.batches.map((batch) => {
-        if (batch.evidence.length === 0) return null;
-        return (
-          <div className="qz-sources__group" key={batch.id}>
-            <h3>
-              {batch.etapa}
-              <span>{batch.evidence.length} precio(s)</span>
-            </h3>
-            {batch.items
-              .filter((item) => item.origins.length > 0)
-              .map((item) => {
-                const rows = batch.evidence.filter((entry) => entry.item === item.name);
-                const flag = itemSourceFlag(item);
-                return (
-                  <div className="qz-sources__item" key={item.name}>
-                    <div className="qz-sources__item-head">
-                      <strong>{item.name}</strong>
-                      {flag ? <span className="qz-sources__flag">{flag}</span> : null}
-                    </div>
-                    <ul>
-                      {rows.map((evidence) => {
-                        const href = sourceUrl(evidence.source);
-                        return (
-                          <li key={evidence.id}>
-                            <span className="qz-sources__origin">
-                              {ORIGIN_LABELS[evidence.origin] ?? evidence.origin}
-                            </span>
-                            <p>{evidence.source}</p>
-                            <span className="qz-sources__value">
-                              {money(evidence.value)} · {dateTime(evidence.date)}
-                            </span>
-                            {href ? (
-                              <a href={href} target="_blank" rel="noreferrer">
-                                Abrir <ArrowUp size={12} aria-hidden="true" />
-                              </a>
-                            ) : (
-                              <span className="qz-sources__nolink">Sin link</span>
-                            )}
-                          </li>
-                        );
-                      })}
-                    </ul>
-                  </div>
-                );
-              })}
-          </div>
-        );
-      })}
-
-      {extras.length > 0 ? (
-        <div className="qz-sources__group">
-          <h3>
-            Extras fuera de receta
-            <span>{extras.length} precio(s)</span>
-          </h3>
-          {extras.map((event) => {
-            const href = sourceUrl(event.evidence.source);
-            return (
-              <div className="qz-sources__item" key={event.id}>
-                <div className="qz-sources__item-head">
-                  <strong>{event.evidence.item}</strong>
-                </div>
-                <ul>
-                  <li>
-                    <span className="qz-sources__origin">Extra</span>
-                    <p>{event.evidence.source}</p>
-                    <span className="qz-sources__value">
-                      {money(event.evidence.value)} · {dateTime(event.evidence.date)}
-                    </span>
-                    {href ? (
-                      <a href={href} target="_blank" rel="noreferrer">
-                        Abrir <ArrowUp size={12} aria-hidden="true" />
-                      </a>
-                    ) : (
-                      <span className="qz-sources__nolink">Sin link</span>
-                    )}
-                  </li>
-                </ul>
-              </div>
-            );
-          })}
+      <dl className="qz-readout__deltas">
+        <div>
+          <dt>Ancho del rango</dt>
+          <dd data-tone={width != null && width > 10 ? "warn" : "ok"}>
+            {width == null ? "N/D" : signedPct(width)}
+          </dd>
+          <small>{max != null && min != null ? `${money(max - min)} de diferencia` : "N/D"}</small>
         </div>
-      ) : null}
+        <div>
+          <dt>Ítems en el costo</dt>
+          <dd>{itemCount}</dd>
+          <small>{snapshot.batches.length} rubros</small>
+        </div>
+        <div>
+          <dt>Frenan el número</dt>
+          <dd data-tone={blocking > 0 ? "alert" : "ok"}>{blocking}</dd>
+          <small>{queue.length} decisiones abiertas</small>
+        </div>
+      </dl>
     </section>
   );
 }
 
-function FormationBoard({
-  snapshot,
-  selectedBatch,
-  onSelectBatch,
-  onAnswer,
-  active,
-  preview,
+/** Escala del rango sobre el techo: dónde cae el piso y cuánto se puede mover. */
+function RangeScale({
+  min,
+  max,
   reduceMotion,
 }: {
-  snapshot: QuoteWorkspaceSnapshot;
-  selectedBatch: QuoteBatch | null;
-  onSelectBatch: (id: string) => void;
-  onAnswer: () => void;
-  active: boolean;
-  preview: boolean;
+  min: number;
+  max: number;
   reduceMotion: boolean;
 }) {
-  const question = snapshot.decision.questions[0] ?? selectedBatch?.currentBlocker ?? null;
+  const left = Math.max(0, Math.min(100, (min / max) * 100));
+  return (
+    <div className="qz-scale" role="img" aria-label={`El piso del costo está al ${Math.round(left)}% del techo`}>
+      <i className="qz-scale__ticks" aria-hidden="true" />
+      <motion.i
+        className="qz-scale__band"
+        aria-hidden="true"
+        initial={reduceMotion ? false : { scaleX: 0 }}
+        animate={{ scaleX: 1 }}
+        transition={{ duration: reduceMotion ? 0 : 0.7, ease: [0.16, 1, 0.3, 1] }}
+        style={{ left: `${left}%`, width: `${100 - left}%` }}
+      />
+      <span className="qz-scale__mark" style={{ left: `${left}%` }} aria-hidden="true" />
+    </div>
+  );
+}
+
+function InstrumentRow({
+  snapshot,
+  queue,
+}: {
+  snapshot: QuoteWorkspaceSnapshot;
+  queue: QueueEntry[];
+}) {
+  const coverage = snapshot.core.sourceCoverage;
+  const composition = snapshot.core.composition;
   const ready = snapshot.orchestration.readyToConsolidateBatchIds.length;
-  const waiting = snapshot.orchestration.blockedBatchIds.length;
-  const blockedBatches = snapshot.batches.filter((batch) => batch.currentBlocker);
-  const questionBatch = blockedBatches.length === 1 ? blockedBatches[0] : null;
-  const coverage = snapshot.core.sourceCoverage.percent;
-  const confidence = snapshot.core.confidence.level;
+  const totalItems = snapshot.batches.reduce((sum, batch) => sum + batch.items.length, 0);
+  const closed = totalItems - queue.length;
+  const splitTotal = composition ? composition.laborMax + composition.materialsMax : 0;
+  const laborPct = splitTotal > 0 ? Math.round((composition!.laborMax / splitTotal) * 100) : null;
+  const spreads = snapshot.batches
+    .flatMap((batch) => batch.items.map((item) => item.decision.spreadPct))
+    .filter((value): value is number => value != null);
+  const maxSpread = spreads.length > 0 ? Math.max(...spreads) : null;
 
   return (
-    <section
-      className="qz-board qz-mobile-panel"
-      data-mobile-active={active}
-      aria-labelledby="formation-title"
-    >
-      <header className="qz-section-bar">
-        <div>
-          <h2 id="formation-title">Cotización en formación</h2>
-          <p>{snapshot.quote.title}</p>
+    <div className="qz-instruments" aria-label="Instrumentos del costo">
+      <article className="qz-gauge qz-panel" data-level={snapshot.core.confidence.level}>
+        <span className="qz-gauge__label">Confianza</span>
+        <div className="qz-gauge__body">
+          <CoverageDial percent={coverage.percent} />
+          <div>
+            <strong>{CONFIDENCE_LABELS[snapshot.core.confidence.level]}</strong>
+            <small>
+              {coverage.coveredItems} de {coverage.totalItems} ítems con fuente fechada
+            </small>
+          </div>
         </div>
-        <span className="qz-column-state">{STAGE_LABELS[snapshot.core.stage]}</span>
-      </header>
+      </article>
 
-      <div className="qz-board-grid">
-        <article className="qz-kpi qz-kpi--cost" aria-label="Rango de costo">
-          <span className="qz-kpi__label">Rango estimado</span>
-          <strong>
-            {compactMoney(snapshot.core.costRange.min)} — {compactMoney(snapshot.core.costRange.max)}
+      <article className="qz-gauge qz-panel">
+        <span className="qz-gauge__label">Decisiones cerradas</span>
+        <div className="qz-gauge__body">
+          <strong className="qz-gauge__figure">
+            {closed}
+            <i>de {totalItems}</i>
           </strong>
-          {snapshot.core.costRange.max ? (
-            <i className="qz-scale" aria-hidden="true">
-              <span
-                className="qz-scale__band"
-                style={{
-                  left: `${((snapshot.core.costRange.min ?? 0) / snapshot.core.costRange.max) * 100}%`,
-                  width: `${
-                    ((snapshot.core.costRange.max - (snapshot.core.costRange.min ?? 0)) /
-                      snapshot.core.costRange.max) *
-                    100
-                  }%`,
-                }}
-              />
-            </i>
-          ) : null}
-          <small>
-            {money(snapshot.core.costRange.min)} — {money(snapshot.core.costRange.max)}
-          </small>
-        </article>
+          <div className="qz-gauge__track" aria-hidden="true">
+            {snapshot.batches.flatMap((batch) =>
+              batch.items.map((item) => (
+                <span
+                  key={`${batch.id}:${item.name}`}
+                  data-state={
+                    item.decision.severity === "ok"
+                      ? "ok"
+                      : item.decision.severity === "blocking"
+                        ? "alert"
+                        : "warn"
+                  }
+                />
+              ))
+            )}
+          </div>
+        </div>
+        <small>{ready} de {snapshot.batches.length} rubros sin bloqueo</small>
+      </article>
 
-        <CompositionCard snapshot={snapshot} reduceMotion={reduceMotion} />
-
-        <div className="qz-kpi-stack">
-          <article
-            className="qz-kpi qz-kpi--confidence"
-            data-level={confidence}
-            aria-label={`Confianza del costo: ${CONFIDENCE_LABELS[confidence]}`}
-          >
-            <span className="qz-kpi__label">Confianza</span>
-            <div className="qz-kpi__instrument">
-              <CoverageDial percent={coverage} />
-              <div className="qz-kpi__reading">
-                <strong>{CONFIDENCE_LABELS[confidence]}</strong>
-                <small>{coverage}% del costo con fuente y fecha</small>
+      <article className="qz-gauge qz-panel">
+        <span className="qz-gauge__label">Mano de obra vs materiales</span>
+        {composition && splitTotal > 0 ? (
+          <>
+            <div className="qz-gauge__body">
+              <strong className="qz-gauge__figure">{laborPct}%</strong>
+              <div className="qz-split" aria-hidden="true">
+                <span style={{ width: `${laborPct}%` }} />
               </div>
             </div>
-          </article>
-          <article className="qz-kpi" aria-label={`Rubros listos: ${ready} de ${snapshot.batches.length}`}>
-            <span className="qz-kpi__label">Rubros listos</span>
-            <strong>
-              {ready}
-              <i>/{snapshot.batches.length}</i>
-            </strong>
-            {snapshot.batches.length > 0 ? (
-              <i className="qz-segments" aria-hidden="true">
-                {snapshot.batches.map((batch) => (
-                  <span
-                    key={batch.id}
-                    data-state={
-                      snapshot.orchestration.readyToConsolidateBatchIds.includes(batch.id)
-                        ? "ok"
-                        : snapshot.orchestration.blockedBatchIds.includes(batch.id)
-                          ? "warn"
-                          : "idle"
-                    }
-                  />
-                ))}
-              </i>
-            ) : null}
-            <small>{waiting > 0 ? `${waiting} esperan respuesta` : "ninguno espera respuesta"}</small>
-          </article>
+            <small>
+              MO {compact(composition.laborMax)} · materiales {compact(composition.materialsMax)}
+            </small>
+          </>
+        ) : (
+          <p className="qz-gauge__empty">Sin desglose de totales persistido.</p>
+        )}
+      </article>
+
+      <article className="qz-gauge qz-panel" data-tone={maxSpread != null && maxSpread > 25 ? "warn" : undefined}>
+        <span className="qz-gauge__label">Dispersión máxima entre fuentes</span>
+        <div className="qz-gauge__body">
+          <strong className="qz-gauge__figure">
+            {maxSpread == null ? "N/D" : `${maxSpread.toLocaleString("es-AR")}%`}
+          </strong>
         </div>
-
-        <section className="qz-rubro-board" aria-labelledby="rubro-board-title">
-          <div className="qz-rubro-board__heading">
-            <h3 id="rubro-board-title">Rubros</h3>
-            <span>{snapshot.batches.length}</span>
-          </div>
-          <div className="qz-rubro-board__list">
-            {snapshot.batches.map((batch) => {
-              const expanded = selectedBatch?.id === batch.id;
-              return (
-                <div className="qz-rubro" key={batch.id}>
-                  <button
-                    type="button"
-                    data-state={batch.currentBlocker ? "warn" : "ok"}
-                    aria-pressed={expanded}
-                    aria-expanded={expanded}
-                    onClick={() => onSelectBatch(batch.id)}
-                  >
-                    <div>
-                      <strong>{batch.etapa}</strong>
-                      <span>
-                        {batch.itemCount} ítem(s) · {batch.evidence.length} evidencias
-                      </span>
-                    </div>
-                    <span className="qz-rubro-board__pct">{batch.sourceCoverage.percent}%</span>
-                    <i aria-hidden="true">
-                      <span style={{ "--qz-progress": `${batch.sourceCoverage.percent}%` } as CSSProperties} />
-                    </i>
-                    <small>{batch.currentBlocker ?? "Costo cubierto con fuentes persistidas."}</small>
-                  </button>
-                  <AnimatePresence initial={false}>
-                    {expanded ? (
-                      <motion.div
-                        className="qz-rubro-items"
-                        role="region"
-                        aria-label={`Qué contempla ${batch.etapa}`}
-                        initial={reduceMotion ? false : { height: 0, opacity: 0 }}
-                        animate={{ height: "auto", opacity: 1 }}
-                        exit={reduceMotion ? undefined : { height: 0, opacity: 0 }}
-                        transition={{ duration: reduceMotion ? 0 : 0.22, ease: [0.22, 1, 0.36, 1] }}
-                      >
-                        <ul>
-                          {batch.items.map((item) => (
-                            <li key={item.name} data-priced={item.priced}>
-                              <div className="qz-rubro-items__head">
-                                <strong>{item.name}</strong>
-                                <span>
-                                  {item.priced
-                                    ? rangeMoney(item.subtotalMin, item.subtotalMax)
-                                    : "Sin precio"}
-                                </span>
-                              </div>
-                              <small>
-                                {item.tipo === "mano_de_obra" ? "Mano de obra" : "Material"} ·{" "}
-                                {item.cantidad} {item.unidad}
-                                {item.manual ? " · agregado en la mesa" : ""}
-                                {item.origins.length > 0
-                                  ? ` · ${item.origins
-                                      .map((origin) => ORIGIN_LABELS[origin] ?? origin)
-                                      .join(" + ")}`
-                                  : ""}
-                              </small>
-                            </li>
-                          ))}
-                        </ul>
-                      </motion.div>
-                    ) : null}
-                  </AnimatePresence>
-                </div>
-              );
-            })}
-            {snapshot.batches.length === 0 ? <p>No hay rubros guardados para formar el costo.</p> : null}
-          </div>
-        </section>
-
-        <div className="qz-decision-cell">
-          <AnimatePresence mode="wait" initial={false}>
-            {question ? (
-              <motion.section
-                className="qz-question"
-                key={question}
-                initial={reduceMotion ? false : { opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: reduceMotion ? 0 : 0.18 }}
-                aria-labelledby="question-title"
-              >
-                <CircleHelp size={20} strokeWidth={1.5} aria-hidden="true" />
-                <div>
-                  <h3 id="question-title">Necesitamos tu respuesta</h3>
-                  <p>{question}</p>
-                  <small>{questionBatch ? `Afecta ${questionBatch.etapa}` : "Afecta la cotización"}</small>
-                </div>
-                <button type="button" onClick={onAnswer}>
-                  {preview ? "Responder en conversación" : "Ver conversación"}
-                  <ArrowUp size={15} aria-hidden="true" />
-                </button>
-              </motion.section>
-            ) : (
-              <motion.section
-                className="qz-question qz-question--ready"
-                key="ready"
-                initial={reduceMotion ? false : { opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: reduceMotion ? 0 : 0.18 }}
-              >
-                <CheckCircle2 size={20} strokeWidth={1.5} aria-hidden="true" />
-                <div>
-                  <h3>Costo listo para decidir</h3>
-                  <p>No quedan respuestas de Eze registradas como pendientes.</p>
-                </div>
-              </motion.section>
-            )}
-          </AnimatePresence>
-
-          <footer className="qz-decision-lock">
-            <LockKeyhole size={18} strokeWidth={1.5} aria-hidden="true" />
-            <div>
-              <strong>Propuesta todavía no habilitada</strong>
-              <span>Primero se confirma el número final y el margen.</span>
-            </div>
-          </footer>
-        </div>
-      </div>
-    </section>
+        <small>
+          {maxSpread == null
+            ? "Ningún ítem tiene dos fuentes comparables."
+            : `Sobre ${spreads.length} ítem(s) con SISMAT e internet. El motor marca arriba de 25%.`}
+        </small>
+      </article>
+    </div>
   );
 }
 
 /**
- * Dial de instrumento: anillo de ticks finos que se llena hasta el porcentaje
- * REAL de cobertura del costo (dato del motor, no decorativo). El color del
- * tramo lleno lo hereda del nivel de confianza de la card (`data-level`).
+ * Dial de cobertura: anillo de ticks que se llena hasta el porcentaje REAL de
+ * ítems con fuente y fecha. Coordenadas a 2 decimales para que servidor y
+ * cliente serialicen igual (si no, React acusa hydration mismatch).
  */
 function CoverageDial({ percent }: { percent: number }) {
-  const TICKS = 48;
+  const TICKS = 44;
   const clamped = Math.max(0, Math.min(100, percent));
   const filled = Math.round((clamped / 100) * TICKS);
   return (
@@ -1235,13 +782,11 @@ function CoverageDial({ percent }: { percent: number }) {
           const angle = (index / TICKS) * Math.PI * 2 - Math.PI / 2;
           const cos = Math.cos(angle);
           const sin = Math.sin(angle);
-          // coordenadas fijadas a 2 decimales: el server y el cliente deben
-          // serializar exactamente igual o React acusa hydration mismatch
           return (
             <line
               key={index}
-              x1={(48 + cos * 36).toFixed(2)}
-              y1={(48 + sin * 36).toFixed(2)}
+              x1={(48 + cos * 34).toFixed(2)}
+              y1={(48 + sin * 34).toFixed(2)}
               x2={(48 + cos * 45).toFixed(2)}
               y2={(48 + sin * 45).toFixed(2)}
               data-on={index < filled}
@@ -1254,343 +799,369 @@ function CoverageDial({ percent }: { percent: number }) {
   );
 }
 
-type CompositionMeasure = "todo" | "solo_mo";
+/* ----------------------------------------------------------------- rubros */
 
-/**
- * Paleta categórica RAVN para rubros, validada (dataviz) sobre #0a0a0a:
- * banda L dark, croma ≥ 0.10, ΔE adyacente CVD ≥ 8, contraste ≥ 3:1.
- * Orden fijo por rubro; los acentos de estado (salvia/ámbar/óxido) quedan reservados.
- */
-const RUBRO_SLICE_COLORS = ["#3f72b3", "#c9739a", "#118066", "#8d78cf", "#8f9440"] as const;
-const FOLD_SLICE_COLOR = "#918e87";
-const EXTRA_SLICE_COLOR = "#5c5952";
-const MAX_RUBRO_SLICES = RUBRO_SLICE_COLORS.length;
-
-type CompositionSlice = {
-  key: string;
-  label: string;
-  min: number;
-  max: number;
-  color: string;
-};
-
-function compositionSlices(
-  snapshot: QuoteWorkspaceSnapshot,
-  measure: CompositionMeasure
-): CompositionSlice[] {
-  const rubros = snapshot.batches.map((batch, index) => {
-    const range = measure === "todo" ? batch.priceRange : batch.laborRange;
-    return {
-      key: batch.id,
-      label: batch.etapa,
-      min: range.min ?? 0,
-      max: range.max ?? 0,
-      color: index < MAX_RUBRO_SLICES ? RUBRO_SLICE_COLORS[index] : FOLD_SLICE_COLOR,
-      folded: index >= MAX_RUBRO_SLICES,
-    };
-  });
-  const slices: CompositionSlice[] = rubros.filter((rubro) => !rubro.folded && rubro.max > 0);
-  const folded = rubros.filter((rubro) => rubro.folded && rubro.max > 0);
-  if (folded.length > 0) {
-    slices.push({
-      key: "fold",
-      label: `Otros (${folded.length} rubros)`,
-      min: folded.reduce((sum, rubro) => sum + rubro.min, 0),
-      max: folded.reduce((sum, rubro) => sum + rubro.max, 0),
-      color: FOLD_SLICE_COLOR,
-    });
-  }
-  const composition = snapshot.core.composition;
-  if (measure === "todo" && composition && composition.extrasMax > 0) {
-    slices.push({
-      key: "extras",
-      label: "Extras",
-      min: composition.extrasMin,
-      max: composition.extrasMax,
-      color: EXTRA_SLICE_COLOR,
-    });
-  }
-  return slices;
-}
-
-function rangeMoney(min: number, max: number): string {
-  return min === max ? compactMoney(max) : `${compactMoney(min)} — ${compactMoney(max)}`;
-}
-
-function Donut({
-  slices,
-  total,
-  reduceMotion,
-}: {
-  slices: CompositionSlice[];
-  total: number;
-  reduceMotion: boolean;
-}) {
-  const gap = slices.length > 1 ? 1.4 : 0;
-  let start = 0;
-  return (
-    <svg className="qz-donut" viewBox="0 0 120 120" aria-hidden="true">
-      <g transform="rotate(-90 60 60)">
-        {slices.map((slice) => {
-          const percent = (slice.max / total) * 100;
-          const length = Math.max(percent - gap, 0.4);
-          const offset = -(start + gap / 2);
-          start += percent;
-          return (
-            <motion.circle
-              key={slice.key}
-              cx={60}
-              cy={60}
-              r={48}
-              pathLength={100}
-              fill="none"
-              stroke={slice.color}
-              strokeWidth={13}
-              initial={false}
-              animate={{
-                strokeDasharray: `${length} ${100 - length}`,
-                strokeDashoffset: offset,
-              }}
-              transition={{ duration: reduceMotion ? 0 : 0.5, ease: [0.22, 1, 0.36, 1] }}
-            />
-          );
-        })}
-      </g>
-    </svg>
-  );
-}
-
-function CompositionCard({
+function RubroLedger({
   snapshot,
   reduceMotion,
+  focusedItem,
+  registerItem,
 }: {
   snapshot: QuoteWorkspaceSnapshot;
   reduceMotion: boolean;
+  focusedItem: string | null;
+  registerItem: (key: string, node: HTMLDivElement | null) => void;
 }) {
-  const [measure, setMeasure] = useState<CompositionMeasure>("todo");
-  const slices = compositionSlices(snapshot, measure);
-  const total = slices.reduce((sum, slice) => sum + slice.max, 0);
-  const composition = snapshot.core.composition;
-  const splitTotal = composition ? composition.laborMax + composition.materialsMax : 0;
+  const totalMax = snapshot.batches.reduce((sum, batch) => sum + (batch.priceRange.max ?? 0), 0);
 
   return (
-    <article className="qz-kpi qz-kpi--mix" aria-label="Composición del costo">
-      <header className="qz-mix-head">
-        <span className="qz-kpi__label">Composición del costo</span>
-        <div className="qz-mix-toggle" role="group" aria-label="Medida de la composición">
-          <button
-            type="button"
-            aria-pressed={measure === "todo"}
-            onClick={() => setMeasure("todo")}
-          >
-            MO + materiales
-          </button>
-          <button
-            type="button"
-            aria-pressed={measure === "solo_mo"}
-            onClick={() => setMeasure("solo_mo")}
-          >
-            Solo MO
-          </button>
-        </div>
+    <section className="qz-ledger qz-panel" aria-label="Rubros del costo">
+      <header className="qz-ledger__head">
+        <h2>Rubros y precios por ítem</h2>
+        <span>Cada precio contra la más barata del ítem</span>
       </header>
 
-      {slices.length > 0 ? (
-        <div className="qz-mix-body">
-          <div className="qz-donut-wrap">
-            <Donut slices={slices} total={total} reduceMotion={reduceMotion} />
-            <div className="qz-donut-center">
-              <strong>{compactMoney(total)}</strong>
-              <small>techo del rango</small>
-            </div>
-          </div>
-          <ul className="qz-mix-legend">
-            {slices.map((slice) => (
-              <li key={slice.key}>
-                <i style={{ background: slice.color }} aria-hidden="true" />
-                <span className="qz-mix-legend__name">{slice.label}</span>
-                <span className="qz-mix-legend__val">
-                  {rangeMoney(slice.min, slice.max)} ·{" "}
-                  <b>{Math.round((slice.max / total) * 100)}%</b>
-                </span>
-              </li>
-            ))}
-          </ul>
-        </div>
-      ) : (
-        <p className="qz-mix-empty">
-          {measure === "solo_mo"
-            ? "No hay mano de obra con subtotal persistido."
-            : "Sin desglose persistido para componer el costo."}
-        </p>
-      )}
+      <div className="qz-ledger__scroll">
+        {snapshot.batches.map((batch, index) => {
+          const share = totalMax > 0 ? Math.round(((batch.priceRange.max ?? 0) / totalMax) * 100) : 0;
+          return (
+            <section className="qz-rubro" key={batch.id}>
+              <header className="qz-rubro__head">
+                <i style={{ background: rubroColor(index) }} aria-hidden="true" />
+                <h3>{batch.etapa}</h3>
+                <span className="qz-rubro__share">{share}% del costo</span>
+                <strong className="qz-rubro__money">
+                  {batch.priceRange.min === batch.priceRange.max
+                    ? compact(batch.priceRange.max)
+                    : `${compact(batch.priceRange.min)} — ${compact(batch.priceRange.max)}`}
+                </strong>
+              </header>
 
-      {composition && splitTotal > 0 ? (
-        <div
-          className="qz-mix-split"
-          role="img"
-          aria-label={`Mano de obra ${rangeMoney(composition.laborMin, composition.laborMax)}, materiales ${rangeMoney(composition.materialsMin, composition.materialsMax)}`}
-        >
-          <i aria-hidden="true">
-            <span
-              className="qz-mix-split__mo"
-              style={{ width: `${(composition.laborMax / splitTotal) * 100}%` }}
-            />
-            <span className="qz-mix-split__mat" />
-          </i>
-          <div>
-            <span>
-              <b>Mano de obra</b> {rangeMoney(composition.laborMin, composition.laborMax)} ·{" "}
-              {Math.round((composition.laborMax / splitTotal) * 100)}%
-            </span>
-            <span>
-              <b>Materiales</b> {rangeMoney(composition.materialsMin, composition.materialsMax)} ·{" "}
-              {Math.round((composition.materialsMax / splitTotal) * 100)}%
-            </span>
-          </div>
-        </div>
-      ) : null}
-
-      <small className="qz-mix-note">
-        Costo directo persistido, antes de imprevistos y zona; participación sobre el techo del
-        rango.
-      </small>
-    </article>
+              <div className="qz-rubro__items">
+                {batch.items.map((item) => (
+                  <ItemRow
+                    key={item.name}
+                    batchId={batch.id}
+                    item={item}
+                    focused={focusedItem === `${batch.id}:${item.name}`}
+                    reduceMotion={reduceMotion}
+                    registerItem={registerItem}
+                  />
+                ))}
+              </div>
+            </section>
+          );
+        })}
+        {snapshot.batches.length === 0 ? (
+          <p className="qz-ledger__empty">No hay rubros guardados para formar el costo.</p>
+        ) : null}
+      </div>
+    </section>
   );
 }
 
-function TechnicalDetails({
+function ItemRow({
+  batchId,
+  item,
+  focused,
+  reduceMotion,
+  registerItem,
+}: {
+  batchId: string;
+  item: BatchItem;
+  focused: boolean;
+  reduceMotion: boolean;
+  registerItem: (key: string, node: HTMLDivElement | null) => void;
+}) {
+  const key = `${batchId}:${item.name}`;
+  return (
+    <motion.div
+      className="qz-item"
+      data-severity={item.decision.severity}
+      data-focused={focused}
+      ref={(node) => registerItem(key, node)}
+      animate={
+        focused && !reduceMotion
+          ? { backgroundColor: "rgba(242,239,232,0.06)" }
+          : { backgroundColor: "rgba(242,239,232,0)" }
+      }
+      transition={{ duration: reduceMotion ? 0 : 0.5 }}
+    >
+      <div className="qz-item__head">
+        <div>
+          <strong>{item.name}</strong>
+          <small>
+            {item.tipo === "mano_de_obra" ? "Mano de obra" : "Material"} ·{" "}
+            {item.cantidad.toLocaleString("es-AR")} {item.unidad}
+            {item.manual ? " · agregado en la mesa" : ""}
+          </small>
+        </div>
+        <span className="qz-item__subtotal">
+          {item.priced
+            ? item.subtotalMin === item.subtotalMax
+              ? money(item.subtotalMax)
+              : `${money(item.subtotalMin)} — ${money(item.subtotalMax)}`
+            : "Sin precio"}
+        </span>
+      </div>
+
+      {item.offers.length > 0 ? (
+        <ul className="qz-offers">
+          {item.offers.map((offer) => (
+            <OfferChip key={offer.origin} offer={offer} />
+          ))}
+        </ul>
+      ) : null}
+
+      <p className="qz-item__verdict" data-severity={item.decision.severity}>
+        {item.decision.severity !== "ok" ? <TriangleAlert size={13} aria-hidden="true" /> : null}
+        {item.decision.headline}
+      </p>
+    </motion.div>
+  );
+}
+
+function OfferChip({ offer }: { offer: ItemOffer }) {
+  const href = sourceUrl(offer.source);
+  const state = offer.recommended
+    ? "recommended"
+    : offer.discarded
+      ? "discarded"
+      : offer.reference
+        ? "reference"
+        : "plain";
+
+  return (
+    <li className="qz-offer" data-state={state} title={`${offer.source} · ${dateTime(offer.date)}`}>
+      <span className="qz-offer__origin">{ORIGIN_LABELS[offer.origin] ?? offer.origin}</span>
+      <strong className="qz-offer__value">{money(offer.value)}</strong>
+      {offer.deltaPct != null && offer.deltaPct !== 0 ? (
+        <span className="qz-offer__delta">{signedPct(offer.deltaPct)}</span>
+      ) : null}
+      {offer.cheapest ? <span className="qz-offer__flag">más barata</span> : null}
+      {offer.recommended ? <span className="qz-offer__flag">la que usaría</span> : null}
+      {offer.note ? <span className="qz-offer__note">{offer.note}</span> : null}
+      {href ? (
+        <a href={href} target="_blank" rel="noreferrer" aria-label={`Abrir la fuente de ${offer.source}`}>
+          <ArrowUp size={11} aria-hidden="true" />
+        </a>
+      ) : null}
+    </li>
+  );
+}
+
+/* ------------------------------------------------- controles y actividad */
+
+const CHECK_LABELS: Record<
+  QuoteWorkspaceSnapshot["observability"]["checks"][number]["id"],
+  string
+> = {
+  checklist: "Alcance y requisitos",
+  sanity: "Cantidades y rendimientos",
+  stale_prices: "Vigencia de precios",
+  divergences: "Cruce entre fuentes",
+  open_doubts: "Preguntas abiertas",
+};
+
+const GAP_LABELS: Record<
+  QuoteWorkspaceSnapshot["observability"]["instrumentationGaps"][number],
+  string
+> = {
+  per_agent_heartbeat: "actividad individual por rol",
+  job_runtime: "asignación y progreso por tarea",
+  queue_runtime: "cola de investigación",
+  credit_budget: "presupuesto y consumo de créditos",
+  deterministic_process_run: "identificador de cada cálculo",
+};
+
+function ControlsDrawer({ snapshot }: { snapshot: QuoteWorkspaceSnapshot }) {
+  const events = [...snapshot.events].reverse();
+  const persisted = snapshot.observability.checks.filter((check) => check.status === "persisted");
+
+  return (
+    <div className="qz-drawers">
+      <details>
+        <summary>
+          <span>Controles guardados</span>
+          <small>{persisted.length} de {snapshot.observability.checks.length}</small>
+          <ChevronDown size={14} aria-hidden="true" />
+        </summary>
+        <ul className="qz-checks">
+          {snapshot.observability.checks.map((check) => (
+            <li key={check.id} data-status={check.status}>
+              <div>
+                <strong>{CHECK_LABELS[check.id]}</strong>
+                <span>{check.status === "persisted" ? check.persistedCount : "Sin salida"}</span>
+              </div>
+              {check.findings.slice(0, 3).map((finding, index) => (
+                <p key={`${finding.subject}:${index}`}>
+                  {finding.subject}: {finding.detail}
+                </p>
+              ))}
+            </li>
+          ))}
+        </ul>
+        <p className="qz-drawers__gap">
+          Todavía no se observa {snapshot.observability.instrumentationGaps.map((gap) => GAP_LABELS[gap]).join(", ")}.
+        </p>
+      </details>
+
+      <details>
+        <summary>
+          <span>Qué cambió</span>
+          <small>{events.length} movimientos</small>
+          <ChevronDown size={14} aria-hidden="true" />
+        </summary>
+        <ol className="qz-events">
+          {events.map((event) => (
+            <li key={event.id}>
+              <time dateTime={event.occurredAt}>{dateTime(event.occurredAt)}</time>
+              <div>
+                <strong>{event.title}</strong>
+                <p>{event.detail}</p>
+              </div>
+            </li>
+          ))}
+        </ol>
+        {events.length === 0 ? <p className="qz-drawers__gap">No hay actividad guardada.</p> : null}
+      </details>
+    </div>
+  );
+}
+
+/* --------------------------------------------------------------- decisión */
+
+function DecisionColumn({
   snapshot,
-  selectedBatch,
-  events,
+  queue,
+  active,
+  reduceMotion,
+  onAnswer,
+  onFocusItem,
+  focusedItem,
 }: {
   snapshot: QuoteWorkspaceSnapshot;
-  selectedBatch: QuoteBatch | null;
-  events: QuoteEvent[];
+  queue: QueueEntry[];
+  active: boolean;
+  reduceMotion: boolean;
+  onAnswer: (question: string) => void;
+  onFocusItem: (key: string | null) => void;
+  focusedItem: string | null;
 }) {
+  const questions = snapshot.decision.questions;
+
   return (
-    <section className="qz-secondary" aria-label="Detalle de la cotización">
-      <details id="technical-evidence">
-        <summary>
-          <span>Evidencia y controles</span>
-          <small>{selectedBatch?.etapa ?? "Sin rubro seleccionado"}</small>
-          <ChevronDown size={17} aria-hidden="true" />
-        </summary>
-        <div className="qz-detail-body qz-detail-body--split">
-          <div>
-            <h3>Fuentes del rubro</h3>
-            {selectedBatch && selectedBatch.evidence.length > 0 ? (
-              <ul className="qz-evidence-list">
-                {selectedBatch.evidence.map((evidence) => {
-                  const href = sourceUrl(evidence.source);
-                  return (
-                    <li key={evidence.id}>
-                      <span>{ORIGIN_LABELS[evidence.origin] ?? evidence.origin}</span>
-                      <div>
-                        <strong>{evidence.item}</strong>
-                        <p>{evidence.source}</p>
-                        <small>
-                          {money(evidence.value)} · {dateTime(evidence.date)}
-                        </small>
-                      </div>
-                      {href ? (
-                        <a href={href} target="_blank" rel="noreferrer">
-                          Abrir <ArrowUp size={13} aria-hidden="true" />
-                        </a>
-                      ) : null}
-                    </li>
-                  );
-                })}
-              </ul>
-            ) : (
-              <p>No hay evidencia fechada para el rubro seleccionado.</p>
-            )}
-          </div>
-          <div>
-            <h3>Controles guardados</h3>
-            <ul className="qz-check-list">
-              {snapshot.observability.checks.map((check) => (
-                <li key={check.id}>
-                  <div>
-                    <strong>{CHECK_LABELS[check.id]}</strong>
-                    <span>{check.status === "persisted" ? check.persistedCount : "Sin salida"}</span>
-                  </div>
-                  {check.findings.slice(0, 4).map((finding, index) => (
-                    <p key={`${finding.subject}:${index}`}>
-                      {finding.subject}: {finding.detail}
-                    </p>
-                  ))}
+    <section
+      className="qz-decisions qz-panel"
+      data-mobile-active={active}
+      aria-labelledby="decisions-title"
+    >
+      <header className="qz-decisions__head">
+        <h2 id="decisions-title">Lo que falta decidir</h2>
+        <span>{queue.length}</span>
+      </header>
+
+      <div className="qz-decisions__scroll">
+        <AnimatePresence initial={false}>
+          {queue.map((entry) => {
+            const key = `${entry.batch.id}:${entry.item.name}`;
+            return (
+              <motion.article
+                className="qz-decision"
+                key={key}
+                data-severity={entry.item.decision.severity}
+                data-focused={focusedItem === key}
+                layout={!reduceMotion}
+                initial={reduceMotion ? false : { opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={reduceMotion ? undefined : { opacity: 0, x: 16 }}
+                transition={{ duration: reduceMotion ? 0 : 0.28, ease: [0.16, 1, 0.3, 1] }}
+                onMouseEnter={() => onFocusItem(key)}
+                onMouseLeave={() => onFocusItem(null)}
+              >
+                <header>
+                  <span className="qz-decision__tag">
+                    {DECISION_TAGS[entry.item.decision.kind] ?? entry.item.decision.kind}
+                  </span>
+                  <small>{entry.batch.etapa}</small>
+                </header>
+                <h3>{entry.item.name}</h3>
+                <p className="qz-decision__headline">{entry.item.decision.headline}</p>
+
+                {entry.item.offers.length > 0 ? (
+                  <ul className="qz-decision__offers">
+                    {entry.item.offers.map((offer) => (
+                      <li key={offer.origin} data-state={offer.recommended ? "recommended" : offer.discarded ? "discarded" : "plain"}>
+                        <span>{ORIGIN_LABELS[offer.origin] ?? offer.origin}</span>
+                        <strong>{money(offer.value)}</strong>
+                        <em>
+                          {offer.recommended
+                            ? "la que usaría"
+                            : offer.discarded
+                              ? "descartada"
+                              : offer.reference
+                                ? "referencia"
+                                : offer.deltaPct != null && offer.deltaPct !== 0
+                                  ? signedPct(offer.deltaPct)
+                                  : "más barata"}
+                        </em>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="qz-decision__none">
+                    <CircleSlash2 size={13} aria-hidden="true" />
+                    Ninguna fuente persistida para este ítem.
+                  </p>
+                )}
+
+                <p className="qz-decision__criterion">{entry.item.decision.criterion}</p>
+
+                <button
+                  type="button"
+                  onClick={() => onAnswer(`${entry.item.name}: `)}
+                >
+                  Resolver en la conversación
+                  <ArrowUp size={13} aria-hidden="true" />
+                </button>
+              </motion.article>
+            );
+          })}
+        </AnimatePresence>
+
+        {queue.length === 0 ? (
+          <p className="qz-decisions__clear">
+            Ningún ítem espera decisión: todos los precios están cerrados con fuente fechada.
+          </p>
+        ) : null}
+
+        {questions.length > 0 ? (
+          <section className="qz-questions">
+            <h3>Preguntas abiertas de la cotización</h3>
+            <ul>
+              {questions.map((question) => (
+                <li key={question}>
+                  <p>{question}</p>
+                  <button type="button" onClick={() => onAnswer(question)}>
+                    Responder
+                    <ArrowUp size={12} aria-hidden="true" />
+                  </button>
                 </li>
               ))}
             </ul>
-          </div>
-        </div>
-      </details>
+          </section>
+        ) : null}
 
-      <details>
-        <summary>
-          <span>Actividad completa</span>
-          <small>{events.length} movimientos guardados</small>
-          <ChevronDown size={17} aria-hidden="true" />
-        </summary>
-        <div className="qz-detail-body">
-          <ol className="qz-event-list">
-            {events.map((event) => {
-              const batch = batchForEvent(snapshot.batches, event);
-              return (
-                <li key={event.id}>
-                  <time dateTime={event.occurredAt}>{dateTime(event.occurredAt)}</time>
-                  <div>
-                    <strong>{event.title}</strong>
-                    <p>{event.detail}</p>
-                    <span>{batch?.etapa ?? "Cotización general"}</span>
-                  </div>
-                </li>
-              );
-            })}
-          </ol>
-          {events.length === 0 ? <p>No hay actividad guardada para mostrar.</p> : null}
-        </div>
-      </details>
+        <ControlsDrawer snapshot={snapshot} />
 
-      <details>
-        <summary>
-          <span>Estado técnico</span>
-          <small>Instrumentación parcial</small>
-          <ChevronDown size={17} aria-hidden="true" />
-        </summary>
-        <div className="qz-detail-body qz-detail-body--split">
+        <footer className="qz-decisions__lock">
+          <LockKeyhole size={15} aria-hidden="true" />
           <div>
-            <h3>Qué todavía no puede observarse</h3>
-            <p>
-              Esta versión no recibe todavía{" "}
-              {snapshot.observability.instrumentationGaps
-                .map((gap) => GAP_LABELS[gap])
-                .join(", ")}.
-            </p>
-            <p>
-              Por eso no atribuye tareas en cola, actividad en curso ni consumo a ningún agente.
-            </p>
+            <strong>Propuesta bloqueada</strong>
+            <span>Primero se cierra el número final y el margen en App RAVN.</span>
           </div>
-          <div>
-            <h3>Acciones protegidas</h3>
-            <ul className="qz-protected-list">
-              <li>
-                <LockKeyhole size={16} aria-hidden="true" />
-                Preparar la propuesta para el cliente
-              </li>
-              <li>
-                <LockKeyhole size={16} aria-hidden="true" />
-                Registrar la cotización final en App RAVN
-              </li>
-              <li>
-                <LockKeyhole size={16} aria-hidden="true" />
-                Despachar tareas o consumir créditos
-              </li>
-            </ul>
-          </div>
-        </div>
-      </details>
+        </footer>
+      </div>
     </section>
   );
 }

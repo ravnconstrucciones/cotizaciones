@@ -1,9 +1,8 @@
 "use client";
 
-import { Radio, Square, TerminalSquare } from "lucide-react";
+import { Square, TerminalSquare } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { BridgeAgent, TerminalLineKind } from "../bridge/stream-format";
-import { RavnMark3D } from "./ravn-mark-3d";
 
 export type BridgeConfig = {
   url: string;
@@ -20,7 +19,7 @@ export type WaveRequest = {
   seq: number;
 };
 
-type BridgeHealth = "off" | "ready" | "running";
+export type BridgeHealth = "off" | "ready" | "running";
 
 type TerminalEvent = {
   seq: number;
@@ -39,7 +38,7 @@ const AGENT_LABELS: Record<BridgeAgent, { name: string; cli: string }> = {
 };
 
 const HEALTH_LABELS: Record<BridgeHealth, string> = {
-  off: "Bridge apagado · N/D",
+  off: "Bridge apagado",
   ready: "Bridge listo",
   running: "Ola corriendo",
 };
@@ -54,12 +53,19 @@ function isTerminalEvent(value: unknown): value is TerminalEvent {
   );
 }
 
+/**
+ * La banda de la ola: el estado real de la máquina al pie del tablero. El
+ * monolito ya no vive acá — es el fondo de la conversación (pedido 6) y gira
+ * con el estado que este componente publica por `onHealth`.
+ */
 export function LiveTerminals({
   bridge,
   request,
+  onHealth,
 }: {
   bridge: BridgeConfig | null;
   request: WaveRequest | null;
+  onHealth?: (health: BridgeHealth) => void;
 }) {
   const [health, setHealth] = useState<BridgeHealth>("off");
   const [events, setEvents] = useState<TerminalEvent[]>([]);
@@ -69,6 +75,12 @@ export function LiveTerminals({
   const sourceRef = useRef<EventSource | null>(null);
   const streamingRef = useRef(false);
   const handledSeqRef = useRef(0);
+
+  const effectiveHealth: BridgeHealth = bridge ? health : "off";
+
+  useEffect(() => {
+    onHealth?.(effectiveHealth);
+  }, [effectiveHealth, onHealth]);
 
   const connectStream = useCallback(() => {
     if (!bridge || streamingRef.current) return;
@@ -165,10 +177,6 @@ export function LiveTerminals({
     [bridge, connectStream]
   );
 
-  /**
-   * Pedido 14: la ola SALE DEL CHAT. Cada envío del composer llega acá con su
-   * `seq`; se despacha una sola vez aunque el componente re-renderice.
-   */
   useEffect(() => {
     if (!request || request.seq <= handledSeqRef.current) return;
     handledSeqRef.current = request.seq;
@@ -193,88 +201,58 @@ export function LiveTerminals({
     }
   };
 
-  const effectiveHealth: BridgeHealth = bridge ? health : "off";
+  const open = Boolean(bridge) && effectiveHealth !== "off";
 
   return (
-    <section className="qz-terminals" aria-labelledby="terminals-title">
-      <TerminalsHeader health={effectiveHealth} />
+    <section className="qz-wave qz-panel" data-open={open} aria-labelledby="wave-title">
+      <header className="qz-wave__head">
+        <h2 id="wave-title">La ola</h2>
+        <span className="qz-lamp" data-state={effectiveHealth}>
+          <i aria-hidden="true" />
+          {HEALTH_LABELS[effectiveHealth]}
+        </span>
+        <p role="status" aria-live="polite">
+          {error ??
+            (!bridge ? (
+              <>
+                Falta <code>COTIZADOR_BRIDGE_TOKEN</code> en <code>.env.local</code>. Sin bridge no
+                hay terminales: nada se simula.
+              </>
+            ) : effectiveHealth === "off" ? (
+              <>
+                El bridge no responde en <code>{bridge.url}</code>. Levantalo con{" "}
+                <code>npm run bridge</code>.
+              </>
+            ) : launching ? (
+              "Despachando la ola…"
+            ) : (
+              (waveNote ??
+                (effectiveHealth === "running"
+                  ? "Codex y Fable trabajando en paralelo."
+                  : "Escribí el trabajo en la conversación: eso dispara la ola."))
+            ))}
+        </p>
+        {effectiveHealth === "running" ? (
+          <button type="button" className="qz-wave__stop" onClick={() => void stopWave()}>
+            <Square size={12} aria-hidden="true" />
+            Cortar
+          </button>
+        ) : null}
+      </header>
 
-      <div className="qz-terminals__stage">
-        <div className="qz-core">
-          <RavnMark3D state={effectiveHealth} />
-          <span className="qz-core__label">Núcleo · {HEALTH_LABELS[effectiveHealth]}</span>
-        </div>
-
-        <div className="qz-terminals__ops">
-          {!bridge ? (
-            <p className="qz-terminals__empty">
-              Bridge no configurado: falta <code>COTIZADOR_BRIDGE_TOKEN</code> en{" "}
-              <code>.env.local</code>. Sin bridge no hay terminales — nada se simula.
-            </p>
-          ) : health === "off" ? (
-            <p className="qz-terminals__empty">
-              El bridge no responde en <code>{bridge.url}</code>. Levantalo con{" "}
-              <code>npm run bridge</code> en la Mac; este panel se conecta solo.
-            </p>
-          ) : (
-            <>
-              <div className="qz-terminals__launcher">
-                <p className="qz-terminals__origin">
-                  {launching
-                    ? "Despachando la ola…"
-                    : health === "running"
-                      ? "Ola corriendo — Codex y Fable trabajando en paralelo."
-                      : "Escribí el trabajo en la conversación: eso dispara la ola."}
-                </p>
-                {health === "running" ? (
-                  <button
-                    type="button"
-                    className="qz-terminals__stop"
-                    onClick={() => void stopWave()}
-                  >
-                    <Square size={13} aria-hidden="true" />
-                    Cortar ola
-                  </button>
-                ) : null}
-              </div>
-              <p className="qz-terminals__note" role="status" aria-live="polite">
-                {error ??
-                  waveNote ??
-                  "Cada ola abre una sesión real por CLI y consume las dos suscripciones (Codex y Claude)."}
-              </p>
-            </>
-          )}
-        </div>
-      </div>
-
-      {bridge && health !== "off" ? (
-        <div className="qz-terminals__grid">
+      {open ? (
+        <div className="qz-wave__grid">
           {(["codex", "fable"] as const).map((agent) => (
             <TerminalPane
               key={agent}
               agent={agent}
-              running={health === "running"}
+              running={effectiveHealth === "running"}
               events={events.filter((event) => event.agent === agent).slice(-MAX_LINES)}
             />
           ))}
         </div>
       ) : null}
     </section>
-  );
-}
-
-function TerminalsHeader({ health }: { health: BridgeHealth }) {
-  return (
-    <header className="qz-section-bar">
-      <div>
-        <h2 id="terminals-title">Terminales en vivo</h2>
-        <p>Sesiones reales de Codex y Fable con las suscripciones locales, sin API.</p>
-      </div>
-      <span className="qz-terminals__health" data-state={health}>
-        <Radio size={13} aria-hidden="true" />
-        {HEALTH_LABELS[health]}
-      </span>
-    </header>
   );
 }
 
@@ -299,12 +277,10 @@ function TerminalPane({
   return (
     <article className="qz-terminal" data-running={running && events.length > 0}>
       <header>
-        <TerminalSquare size={15} strokeWidth={1.5} aria-hidden="true" />
+        <TerminalSquare size={13} strokeWidth={1.5} aria-hidden="true" />
         <h3>{label.name}</h3>
-        {events.length > 0 ? (
-          <span className="qz-terminal__count">{events.length} líneas</span>
-        ) : null}
         <span>{label.cli}</span>
+        {events.length > 0 ? <span className="qz-terminal__count">{events.length}</span> : null}
       </header>
       <div
         className="qz-terminal__body"
@@ -318,9 +294,7 @@ function TerminalPane({
         }}
       >
         {events.length === 0 ? (
-          <p className="qz-terminal__idle">
-            {running ? "Esperando salida…" : "Sin sesión lanzada."}
-          </p>
+          <p className="qz-terminal__idle">{running ? "Esperando salida…" : "Sin sesión lanzada."}</p>
         ) : (
           events.map((event) => (
             <p key={event.seq} data-kind={event.kind}>

@@ -60,11 +60,11 @@ export default function RootLayout({ children }: { children: ReactNode }) {
           data-impeccable-direction="9f6054db"
           dangerouslySetInnerHTML={{
             __html: `<!--
-THESIS: Cotizar es una conversación que organiza trabajo visible por rubro; rechaza el dashboard técnico como puerta de entrada.
-OWN-WORLD: Negro RAVN, blanco cálido, acero mate, líneas tensas y paneles cuadrados; una inversión blanca marca solamente la decisión que requiere a Eze.
-STORY: Eze plantea el trabajo, ve aportes y fuentes vinculados, responde el bloqueo y observa cómo se forma el costo sin actividad inventada.
-FIRST VIEWPORT: Header de 64px; conversación dominante a la izquierda, equipo conectado al centro y cotización en formación a la derecha; el compositor es la acción primaria.
-FORM: Expediente vivo de tres columnas, posición 5/7 del conjunto grounded y fijado por el brief del usuario sobre el roll; seed 9f6054db.
+THESIS: El costo es un instrumento que se lee y se calibra, no un documento que se scrollea; cada precio se muestra contra su referencia y el visor dice cuál usaría. Rechaza el dashboard de cards apiladas.
+OWN-WORLD: Consola negra montada por planos (#030303 chasis, paneles #101010→#0a0a0a) separados por costuras de 1px, cantos de luz y caída estática; marcas de registro en las esquinas de cada lectura; cifras Raleway 200 tabulares y etiquetas de 0.58rem tracking .2em; glow sólo en lecturas vivas (salvia cubierto, ámbar espera, óxido riesgo); el monolito de piedra gira detrás de la conversación.
+STORY: Eze lee el rango y cuánto se puede mover, baja a los rubros donde cada ítem muestra su abanico de precios con el desvío contra la más barata, resuelve la cola de decisiones y dispara la ola escribiendo en la conversación.
+FIRST VIEWPORT: 100dvh sin scroll de página. Rail de 52px; conversación de 360px con el monolito de fondo · tablero central (rango a 4rem con escala de piso a techo, cuatro instrumentos, ledger de rubros scrolleable, banda de la ola al pie) · rail de decisión de 356px con la cola ordenada por severidad.
+FORM: Tablero de instrumentos, fijado por el brief de Eze del 16/08 (laboratorio / centro de control) sobre el roll; seed 9f6054db.
 FINISH: unreviewed and undocumented is unfinished; this build ends with the finish review, the verdict, and DESIGN.md
 -->`,
           }}
