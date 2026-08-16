@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 import {
   bypassAgentePermitido,
   bypassCotizadorReadPermitido,
+  bypassCotizadorWritePermitido,
   credencialCotizadorReadValida,
+  credencialCotizadorWriteValida,
 } from "@/middleware";
 
 /**
@@ -89,5 +91,58 @@ describe("credencialCotizadorReadValida", () => {
     expect(credencialCotizadorReadValida(null, "read-only", "legacy-write")).toBe(false);
     expect(credencialCotizadorReadValida("wrong", "read-only", "legacy-write")).toBe(false);
     expect(credencialCotizadorReadValida("read-only", undefined, "legacy-write")).toBe(false);
+  });
+});
+
+/**
+ * El pase del expediente (16/08): el Cotizador standalone deja el extracto y el
+ * número en App RAVN. Su credencial de ESCRITURA existe para exactamente una
+ * ruta — la frontera taller / oficina sostenida por permisos.
+ */
+describe("bypassCotizadorWritePermitido", () => {
+  it("permite POST al pase", () => {
+    expect(bypassCotizadorWritePermitido("/api/cotizaciones/abc-123/pase", "POST")).toBe(true);
+  });
+
+  it("NUNCA permite aprobar, emitir ni crear obra — eso es de la oficina", () => {
+    expect(bypassCotizadorWritePermitido("/api/cotizaciones/abc-123/aprobar", "POST")).toBe(false);
+    expect(bypassCotizadorWritePermitido("/api/cotizaciones/abc-123/emitir", "POST")).toBe(false);
+    expect(bypassCotizadorWritePermitido("/api/cotizaciones/abc-123/estado", "POST")).toBe(false);
+  });
+
+  it("NO abre las otras escrituras de la mesa ni /api/* entero", () => {
+    expect(bypassCotizadorWritePermitido("/api/cotizaciones/abc-123/desglose", "PATCH")).toBe(false);
+    expect(bypassCotizadorWritePermitido("/api/cotizaciones/abc-123", "PATCH")).toBe(false);
+    expect(bypassCotizadorWritePermitido("/api/cotizaciones/abc-123/mensajes", "POST")).toBe(false);
+    expect(bypassCotizadorWritePermitido("/api/dinero/espejo", "POST")).toBe(false);
+  });
+
+  it("no acepta otros métodos sobre la misma ruta", () => {
+    expect(bypassCotizadorWritePermitido("/api/cotizaciones/abc-123/pase", "GET")).toBe(false);
+    expect(bypassCotizadorWritePermitido("/api/cotizaciones/abc-123/pase", "DELETE")).toBe(false);
+  });
+});
+
+describe("credencialCotizadorWriteValida", () => {
+  const ESCRITURA = "secreto-de-escritura";
+  const LECTURA = "secreto-de-lectura";
+  const LEGACY = "secreto-legacy";
+
+  it("acepta la credencial correcta", () => {
+    expect(credencialCotizadorWriteValida(ESCRITURA, ESCRITURA, LECTURA, LEGACY)).toBe(true);
+  });
+
+  it("rechaza la credencial de lectura sobre la puerta de escritura", () => {
+    expect(credencialCotizadorWriteValida(LECTURA, ESCRITURA, LECTURA, LEGACY)).toBe(false);
+  });
+
+  it("falla cerrada si el secreto de escritura no está provisionado", () => {
+    expect(credencialCotizadorWriteValida(ESCRITURA, undefined, LECTURA, LEGACY)).toBe(false);
+    expect(credencialCotizadorWriteValida(null, ESCRITURA, LECTURA, LEGACY)).toBe(false);
+  });
+
+  it("falla cerrada si lo provisionaron igual que la lectura o que el legacy", () => {
+    expect(credencialCotizadorWriteValida(LECTURA, LECTURA, LECTURA, LEGACY)).toBe(false);
+    expect(credencialCotizadorWriteValida(LEGACY, LEGACY, LECTURA, LEGACY)).toBe(false);
   });
 });

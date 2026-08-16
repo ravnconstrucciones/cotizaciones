@@ -122,9 +122,51 @@ const RUTAS_BYPASS_COTIZADOR_READ: Array<{ patron: RegExp; metodos: string[] }> 
   { patron: /^\/api\/cotizaciones\/[^/]+\/mensajes$/, metodos: ["GET"] },
 ];
 
+/**
+ * Frontera de ESCRITURA del Cotizador: exactamente una ruta, el pase del
+ * expediente. Es la línea taller / oficina sostenida por permisos y no por
+ * buena voluntad — con esta credencial el Cotizador puede dejar el extracto y
+ * el número, y NADA más: aprobar, emitir, crear obra, mover plata, tocar
+ * archivos o mensajes quedan afuera aunque el secreto se filtre.
+ *
+ * Se mantiene separada de la credencial de lectura a propósito: la de lectura
+ * sigue siendo incapaz de escribir.
+ */
+const RUTAS_BYPASS_COTIZADOR_WRITE: Array<{ patron: RegExp; metodos: string[] }> = [
+  { patron: /^\/api\/cotizaciones\/[^/]+\/pase$/, metodos: ["POST"] },
+];
+
 /** true si `metodo` sobre `pathname` está en la allowlist de arriba. */
 export function bypassAgentePermitido(pathname: string, metodo: string): boolean {
   return RUTAS_BYPASS_AGENTE.some((r) => r.patron.test(pathname) && r.metodos.includes(metodo));
+}
+
+/** true sólo para el pase del expediente. */
+export function bypassCotizadorWritePermitido(pathname: string, metodo: string): boolean {
+  return RUTAS_BYPASS_COTIZADOR_WRITE.some(
+    (ruta) => ruta.patron.test(pathname) && ruta.metodos.includes(metodo)
+  );
+}
+
+/**
+ * La credencial de escritura debe existir y ser distinta de las otras dos. Si
+ * alguien la provisiona con el mismo valor que la de lectura o la del puente
+ * legacy, el bypass no existe: una mala provisión falla cerrada en vez de
+ * ampliar permisos en silencio.
+ */
+export function credencialCotizadorWriteValida(
+  presentada: string | null,
+  escritura: string | undefined,
+  lectura: string | undefined,
+  agenteLegacy: string | undefined
+): boolean {
+  return Boolean(
+    presentada &&
+      escritura &&
+      escritura !== lectura &&
+      escritura !== agenteLegacy &&
+      presentada === escritura
+  );
 }
 
 /** true sólo para las lecturas que consume el Cotizador standalone. */
@@ -159,6 +201,21 @@ export async function middleware(request: NextRequest) {
       process.env.RAVN_AGENTE_SECRET
     ) &&
     bypassCotizadorReadPermitido(request.nextUrl.pathname, request.method)
+  ) {
+    return NextResponse.next({ request });
+  }
+
+  // El pase del expediente: el Cotizador deja el extracto y el número en App
+  // RAVN. Credencial propia, una sola ruta — no puede aprobar ni emitir.
+  const claveCotizadorWrite = request.headers.get("x-ravn-cotizador-write");
+  if (
+    credencialCotizadorWriteValida(
+      claveCotizadorWrite,
+      process.env.RAVN_COTIZADOR_WRITE_SECRET,
+      process.env.RAVN_COTIZADOR_READ_SECRET,
+      process.env.RAVN_AGENTE_SECRET
+    ) &&
+    bypassCotizadorWritePermitido(request.nextUrl.pathname, request.method)
   ) {
     return NextResponse.next({ request });
   }

@@ -1073,6 +1073,111 @@ code {
   color: var(--qz-dim);
 }
 
+/* El pase: la única escritura del laboratorio sobre App RAVN. Va pegado al
+   precio porque es el gesto que sigue a fijarlo — y se distingue del resto de
+   los controles (que sólo simulan) por ser el único con relleno sólido. */
+.qz-pase {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-top: 10px;
+  border-top: 1px solid var(--qz-line);
+}
+
+.qz-pase strong {
+  font-size: 0.72rem;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  color: var(--qz-fg);
+}
+
+.qz-pase small {
+  font-size: 0.62rem;
+  line-height: 1.5;
+  color: var(--qz-dim);
+}
+
+.qz-pase--off {
+  font-size: 0.62rem;
+  line-height: 1.5;
+  color: var(--qz-dim);
+}
+
+.qz-pase__go {
+  padding: 8px 12px;
+  border: 1px solid var(--qz-fg);
+  border-radius: var(--qz-r-control);
+  background: var(--qz-fg);
+  color: var(--qz-bg);
+  font: inherit;
+  font-size: 0.68rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  cursor: pointer;
+  box-shadow: var(--qz-elev-1);
+  transition: opacity 0.16s ease;
+}
+
+.qz-pase__go:hover:not(:disabled) {
+  opacity: 0.86;
+}
+
+.qz-pase__go:disabled {
+  border-color: var(--qz-line-strong);
+  background: transparent;
+  color: var(--qz-dim);
+  box-shadow: none;
+  cursor: not-allowed;
+}
+
+.qz-pase__go:focus-visible {
+  outline: 1px solid var(--qz-focus);
+  outline-offset: 2px;
+}
+
+.qz-pase__acciones {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.qz-pase__acciones button:not(.qz-pase__go) {
+  padding: 8px 10px;
+  border: 1px solid var(--qz-line-strong);
+  border-radius: var(--qz-r-control);
+  background: transparent;
+  color: var(--qz-muted);
+  font: inherit;
+  font-size: 0.64rem;
+  cursor: pointer;
+}
+
+.qz-pase__acciones button:not(.qz-pase__go):hover {
+  color: var(--qz-fg);
+  border-color: var(--qz-fg);
+}
+
+/* Lo que quedó afuera se lee, no se esconde: si algo del taller no llegó a la
+   cotización, tiene que estar a la vista con su motivo. */
+.qz-pase__descartes {
+  margin: 0;
+  padding-left: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-size: 0.62rem;
+  line-height: 1.5;
+  color: var(--qz-warn);
+}
+
+.qz-pase[data-state="hecho"] strong {
+  color: var(--qz-ok);
+}
+
+.qz-pase[data-state="error"] small[role="alert"] {
+  color: var(--qz-alert);
+}
+
 /* Escala del precio: la leyenda va en su propia banda abajo para que nunca
    pise la marca del precio simulado (con el dial en el piso, las dos caen en
    el mismo punto). La franja rayada es donde el piso depende de cómo salga la

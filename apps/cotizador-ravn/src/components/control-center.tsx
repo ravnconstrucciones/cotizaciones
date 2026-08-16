@@ -48,6 +48,7 @@ import {
 import { decisionRank } from "../domain/price-decision";
 import { localTaller, remoteTaller, type TallerPersistence } from "../taller/persistence";
 import {
+  isPersistableQuoteId,
   manualSubtotal,
   manualTotal as sumManual,
   type Decision,
@@ -966,6 +967,7 @@ function BoardColumn({
         snapshot={snapshot}
         reduceMotion={reduceMotion}
         manualItems={manualItems}
+        decided={decided}
       />
       <InstrumentRow snapshot={snapshot} queue={queue} />
       <RubroLedger
@@ -1073,10 +1075,12 @@ function MarginConsole({
   snapshot,
   reduceMotion,
   manualItems,
+  decided,
 }: {
   snapshot: QuoteWorkspaceSnapshot;
   reduceMotion: boolean;
   manualItems: ManualItem[];
+  decided: Record<string, Decision>;
 }) {
   const manualTotal = sumManual(manualItems);
   /**
@@ -1203,10 +1207,150 @@ function MarginConsole({
         <small className="qz-margin__note">
           {persisted == null
             ? `Sin precio cargado en App RAVN: el dial abre en el piso de ${MARGEN_PISO_PCT}% sobre el costo techo.`
-            : `App RAVN tiene ${money(persisted)} cargado. Simular acá no lo cambia: el número final lo fijás en la app.`}
+            : `App RAVN tiene ${money(persisted)} cargado. Mover el dial no lo cambia: se escribe cuando pasás el expediente.`}
         </small>
+        <PaseExpediente
+          quoteId={snapshot.quote.id}
+          price={price}
+          manualCount={manualItems.length}
+          decidedCount={
+            Object.values(decided).filter((decision) => decision.value != null).length
+          }
+        />
       </div>
     </section>
+  );
+}
+
+/**
+ * El PASE: lo único que el laboratorio escribe en App RAVN.
+ *
+ * Va acá abajo, pegado al precio, porque es el gesto que sigue a fijarlo. Lo
+ * que viaja es el número y el extracto rubro por rubro — nada de texto: el
+ * alcance y la redacción de la propuesta son del diagnóstico.
+ *
+ * Regla anti-slop: nunca se muestra como pasado algo que no entró. El estado
+ * `hecho` sólo aparece con la confirmación de App RAVN en la mano, y cualquier
+ * rechazo se muestra con su motivo textual.
+ */
+function PaseExpediente({
+  quoteId,
+  price,
+  manualCount,
+  decidedCount,
+}: {
+  quoteId: string;
+  price: number | null;
+  manualCount: number;
+  decidedCount: number;
+}) {
+  type Estado =
+    | { kind: "listo" }
+    | { kind: "confirmando" }
+    | { kind: "pasando" }
+    | { kind: "hecho"; detalle: string; descartados: string[] }
+    | { kind: "error"; motivo: string };
+
+  const [estado, setEstado] = useState<Estado>({ kind: "listo" });
+  const real = isPersistableQuoteId(quoteId);
+
+  // Cambió el precio o la mesa: el "pasado" de antes ya no describe lo que hay.
+  useEffect(() => {
+    setEstado((current) => (current.kind === "hecho" ? { kind: "listo" } : current));
+  }, [price, manualCount, decidedCount]);
+
+  const pasar = useCallback(async () => {
+    setEstado({ kind: "pasando" });
+    try {
+      const response = await fetch("/api/pase", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ quote: quoteId, precioPropuesta: price }),
+      });
+      const cuerpo = (await response.json().catch(() => null)) as
+        | { error?: string; aplicados?: { manuales: number; precios: number }; descartados?: Array<{ que: string; motivo: string }> }
+        | null;
+
+      if (!response.ok || !cuerpo) {
+        setEstado({
+          kind: "error",
+          motivo: cuerpo?.error ?? "El pase no entró y App RAVN no dijo por qué.",
+        });
+        return;
+      }
+
+      const aplicados = cuerpo.aplicados ?? { manuales: 0, precios: 0 };
+      setEstado({
+        kind: "hecho",
+        detalle: `${aplicados.manuales} a mano · ${aplicados.precios} precios cerrados`,
+        descartados: (cuerpo.descartados ?? []).map((d) => `${d.que}: ${d.motivo}`),
+      });
+    } catch {
+      setEstado({ kind: "error", motivo: "No se pudo llegar a App RAVN — el pase no entró." });
+    }
+  }, [price, quoteId]);
+
+  if (!real) {
+    return (
+      <p className="qz-pase qz-pase--off">
+        Vista de prueba: no hay expediente real al que pasarle el número.
+      </p>
+    );
+  }
+
+  if (estado.kind === "hecho") {
+    return (
+      <div className="qz-pase" data-state="hecho">
+        <strong>Pasado a App RAVN</strong>
+        <small>{estado.detalle}</small>
+        {estado.descartados.length > 0 ? (
+          <ul className="qz-pase__descartes">
+            {estado.descartados.map((linea) => (
+              <li key={linea}>Quedó afuera — {linea}</li>
+            ))}
+          </ul>
+        ) : null}
+        <small>Aprobá y emití la propuesta desde la app.</small>
+      </div>
+    );
+  }
+
+  if (estado.kind === "confirmando") {
+    return (
+      <div className="qz-pase" data-state="confirmando">
+        <strong>
+          {price == null ? "Sin precio" : money(price)} · {manualCount} a mano · {decidedCount}{" "}
+          precios cerrados
+        </strong>
+        <small>
+          La cotización queda igual a esta mesa. Si editaste algo a mano en App RAVN después del
+          último pase, se pisa.
+        </small>
+        <div className="qz-pase__acciones">
+          <button type="button" className="qz-pase__go" onClick={pasar}>
+            Pasar
+          </button>
+          <button type="button" onClick={() => setEstado({ kind: "listo" })}>
+            Cancelar
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="qz-pase" data-state={estado.kind === "error" ? "error" : "listo"}>
+      <button
+        type="button"
+        className="qz-pase__go"
+        disabled={price == null || estado.kind === "pasando"}
+        onClick={() => setEstado({ kind: "confirmando" })}
+      >
+        {estado.kind === "pasando" ? "Pasando…" : "Pasar el expediente a App RAVN"}
+      </button>
+      {price == null ? <small>Fijá el precio para poder pasarlo.</small> : null}
+      {estado.kind === "error" ? <small role="alert">{estado.motivo}</small> : null}
+    </div>
   );
 }
 
