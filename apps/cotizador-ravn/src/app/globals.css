@@ -514,12 +514,50 @@ code {
 }
 
 /* Pedido 6: el monolito es el fondo vivo de la conversación. Va detrás de
-   todo, con retícula y velo para que los mensajes sigan leyéndose. */
+   todo, con retícula y velo para que los mensajes sigan leyéndose.
+
+   Pedido de Eze, 16/08 noche ("ahí se queda corto, ¿ves que abajo no se ve?"):
+   el escenario ocupa SÓLO las filas de cabecera y conversación, nunca la del
+   composer. Con `inset: 0` el monolito se centraba contra el panel entero, así
+   que al achicarse la ventana la banda opaca del composer le subía encima y le
+   cortaba la base — a 720 px de alto la pieza quedaba partida al medio. Ahora
+   la banda es su propia región y la pieza no la puede pisar nadie.
+
+   Las cuatro regiones se colocan EXPLÍCITAMENTE: si el escenario se coloca solo
+   y las demás se auto-ubican, el auto-placement saltea las celdas ocupadas y la
+   cabecera se va a la fila del composer. */
 .qz-chat__backdrop {
-  position: absolute;
-  inset: 0;
+  grid-area: 1 / 1 / 3 / 2;
+  position: relative;
+  min-height: 0;
   overflow: hidden;
   pointer-events: none;
+  /* contenedor de consulta: el piso de legibilidad del núcleo se mide contra
+     ESTA banda, no contra la ventana */
+  container-type: size;
+  container-name: qz-stage;
+}
+
+.qz-chat > .qz-chat__head {
+  grid-area: 1 / 1;
+}
+
+.qz-chat > .qz-thread {
+  grid-area: 2 / 1;
+}
+
+.qz-chat > .qz-composer {
+  grid-area: 3 / 1;
+}
+
+/* 300 px es el piso de legibilidad de la pieza (probado: a 216 no se lee como
+   la R, parece una cuña). Si la banda no lo aguanta, el núcleo NO se achica: se
+   va. Mostrar una cuña sería relleno, y con `display: none` el
+   IntersectionObserver del núcleo no abre el loop de render. */
+@container qz-stage (max-height: 356px) {
+  .qz-chat__monolith {
+    display: none;
+  }
 }
 
 /* Fondo del escenario: sólo luz. Eze pidió sacar la cuadrícula de atrás del
@@ -533,7 +571,7 @@ code {
 
 .qz-chat__monolith {
   position: absolute;
-  top: 47%;
+  top: 50%;
   left: 50%;
   translate: -50% -50%;
   display: grid;
@@ -1226,19 +1264,26 @@ code {
      Con auto-fit quedaba un hueco cuando el quinto caía solo. */
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 10px;
   background: var(--qz-ground);
 }
 
+/* Los cinco en UNA fila entraban a 137 px: la etiqueta se partía en tres
+   renglones y el texto de apoyo en cuatro (pedido de Eze, 16/08 noche: "sigue
+   todo medio apretado… que sea más extenso, que se vea más"). Con base 232 px
+   la fila se corta en 3 + 2 a cualquier ancho de tablero y cada instrumento
+   respira. La última fila igual crece y no deja hueco. */
 .qz-instruments > .qz-gauge {
-  flex: 1 1 132px;
+  flex: 1 1 232px;
 }
 
 .qz-gauge {
   display: flex;
   flex-direction: column;
-  gap: 9px;
-  padding: 14px 16px 13px;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 18px 20px 17px;
+  min-height: 158px;
   min-width: 0;
 }
 
@@ -1274,8 +1319,8 @@ code {
 .qz-gauge small,
 .qz-gauge__body small {
   display: block;
-  font-size: 0.65rem;
-  line-height: 1.45;
+  font-size: 0.7rem;
+  line-height: 1.55;
   color: var(--qz-dim);
 }
 
