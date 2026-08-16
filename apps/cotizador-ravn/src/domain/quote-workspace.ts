@@ -122,6 +122,26 @@ export type CostComposition = {
   basis: "persisted_desglose_totales";
 };
 
+/**
+ * Tiempo de obra tal como lo persistió el motor en `desglose.tiempo`. El dato
+ * ya venía en el contrato y el visor no lo mostraba: días, cuadrilla, y los
+ * dos derivados que sí se pueden calcular sin inventar nada — los jornales
+ * (días × gente) y lo que sale el día de cuadrilla según la MO ya persistida.
+ * Ese último número es el que deja ver si la MO cotizada cierra contra lo que
+ * de verdad se le paga a una cuadrilla por día.
+ */
+export type WorkSchedule = {
+  daysMin: number;
+  daysMax: number;
+  crewMax: number;
+  crewDaysMin: number;
+  crewDaysMax: number;
+  /** MO persistida / jornales. null cuando falta el desglose de totales. */
+  laborPerCrewDayMin: number | null;
+  laborPerCrewDayMax: number | null;
+  basis: "persisted_desglose_tiempo";
+};
+
 export type QuoteBlockerCode =
   | "no_recipe"
   | "no_items"
@@ -228,6 +248,8 @@ export type QuoteWorkspaceSnapshot = {
     blockers: QuoteBlocker[];
     /** null cuando la cotización no persiste desglose.totales. */
     composition: CostComposition | null;
+    /** null cuando la cotización no persiste desglose.tiempo. */
+    schedule: WorkSchedule | null;
   };
   batches: QuoteBatch[];
   roles: QuoteRole[];
@@ -510,6 +532,41 @@ function costComposition(desglose: Desglose | null): CostComposition | null {
     factorZonaMin: isFiniteNumber(totals.factor_zona_min) ? totals.factor_zona_min : 1,
     factorZonaMax: isFiniteNumber(totals.factor_zona_max) ? totals.factor_zona_max : 1,
     basis: "persisted_desglose_totales",
+  };
+}
+
+function workSchedule(
+  desglose: Desglose | null,
+  composition: CostComposition | null
+): WorkSchedule | null {
+  const tiempo = desglose?.tiempo;
+  if (
+    !tiempo ||
+    !isFiniteNumber(tiempo.dias_min) ||
+    !isFiniteNumber(tiempo.dias_max) ||
+    !isFiniteNumber(tiempo.cuadrilla_max) ||
+    tiempo.dias_max <= 0 ||
+    tiempo.cuadrilla_max <= 0
+  ) {
+    return null;
+  }
+
+  const crewDaysMin = tiempo.dias_min * tiempo.cuadrilla_max;
+  const crewDaysMax = tiempo.dias_max * tiempo.cuadrilla_max;
+  const perDay = (labor: number, crewDays: number): number | null =>
+    crewDays > 0 ? Math.round(labor / crewDays) : null;
+
+  return {
+    daysMin: tiempo.dias_min,
+    daysMax: tiempo.dias_max,
+    crewMax: tiempo.cuadrilla_max,
+    crewDaysMin,
+    crewDaysMax,
+    // Banda completa: la MO más chata repartida en los jornales más largos, y
+    // al revés. Cualquier otro cruce estrecharía la banda sin dato que lo avale.
+    laborPerCrewDayMin: composition ? perDay(composition.laborMin, crewDaysMax) : null,
+    laborPerCrewDayMax: composition ? perDay(composition.laborMax, crewDaysMin) : null,
+    basis: "persisted_desglose_tiempo",
   };
 }
 
@@ -1191,6 +1248,7 @@ export function projectQuoteWorkspace(input: ProjectQuoteWorkspaceInput): QuoteW
   const batches = groupedBatches(activeItems, revision, today);
   const blockers = buildBlockers({ quote: input.quote, desglose, activeItems, revision });
   const costRange = persistedCostRange(input.quote, desglose);
+  const composition = costComposition(desglose);
   const coverage = sourceCoverage(activeItems);
   const blockerCodes = blockers.map((blocker) => blocker.code);
   const technicalBlockers = blockers.filter(
@@ -1227,7 +1285,8 @@ export function projectQuoteWorkspace(input: ProjectQuoteWorkspaceInput): QuoteW
       stage: stageFromLegacyState(input.quote.estado),
       confidence: coreConfidence({ costRange, batches, blockers }),
       blockers,
-      composition: costComposition(desglose),
+      composition,
+      schedule: workSchedule(desglose, composition),
     },
     batches,
     roles: roles({

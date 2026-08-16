@@ -578,17 +578,26 @@ code {
 
 /* --------------------------------------------------------------- tablero */
 
+/* El tablero va para ABAJO y scrollea entero (pedido de Eze, 16/08). Antes era
+   una grilla de 100dvh con el ledger como única fila elástica: al sumar la
+   consola de margen esa fila se comía a cero y el rubro no entraba. Ahora las
+   filas toman su alto natural, el ledger muestra todos sus ítems y el que
+   scrollea es esta columna — no la página, y el rail de decisión de la derecha
+   queda quieto a la vista, que era el punto del rediseño. */
 .qz-board {
   display: grid;
-  grid-template-rows: auto auto minmax(0, 1fr) auto;
+  grid-auto-rows: max-content;
   gap: 1px;
   min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
   background: var(--qz-ground);
 }
 
 /* módulos levantados del chasis: la lectura y los instrumentos son piezas
    montadas, no rectángulos pintados */
 .qz-readout,
+.qz-margin,
 .qz-gauge,
 .qz-wave {
   background: linear-gradient(180deg, #161615, #0d0d0c 58%, #101010);
@@ -726,10 +735,233 @@ code {
   color: var(--qz-dim);
 }
 
+/* --------------------------------------------------- consola de margen */
+
+/* segunda lectura del tablero: el costo lo cierra el motor, el precio lo pone
+   Eze. Acá se ve contra qué lo está poniendo. */
+.qz-margin {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(230px, 268px);
+  gap: 26px;
+  padding: 18px 24px 16px;
+}
+
+.qz-margin__reading {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+/* el número vivo toma el tono del veredicto: es la lectura, no un adorno */
+.qz-margin[data-tone="warn"] .qz-readout__value {
+  color: var(--qz-warn);
+  text-shadow: var(--qz-glow-warn);
+}
+
+.qz-margin[data-tone="alert"] .qz-readout__value {
+  color: var(--qz-alert);
+  text-shadow: var(--qz-glow-alert);
+}
+
+.qz-margin__verdict {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 6px 0 0;
+}
+
+.qz-margin__verdict strong {
+  font-size: 0.78rem;
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+.qz-margin[data-tone="ok"] .qz-margin__verdict strong {
+  color: var(--qz-ok);
+}
+
+.qz-margin[data-tone="warn"] .qz-margin__verdict strong {
+  color: var(--qz-warn);
+}
+
+.qz-margin[data-tone="alert"] .qz-margin__verdict strong {
+  color: var(--qz-alert);
+}
+
+.qz-margin__verdict small {
+  font-size: 0.66rem;
+  line-height: 1.5;
+  color: var(--qz-dim);
+}
+
+.qz-margin__control {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-left: 26px;
+  border-left: 1px solid var(--qz-line);
+  min-width: 0;
+}
+
+.qz-margin__field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.qz-margin__field span {
+  font-size: 0.56rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--qz-dim);
+}
+
+/* el campo va hundido en el chasis: es donde se mete la mano */
+.qz-margin__field input {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--qz-line-strong);
+  background: var(--qz-inset);
+  box-shadow: var(--qz-well);
+  color: var(--qz-fg);
+  font: inherit;
+  font-size: 1.16rem;
+  font-weight: 300;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+
+.qz-margin__field input:focus-visible {
+  outline: 1px solid var(--qz-focus);
+  outline-offset: 1px;
+}
+
+.qz-margin__dial {
+  width: 100%;
+  height: 20px;
+  margin: 0;
+  appearance: none;
+  background: transparent;
+  cursor: ew-resize;
+}
+
+.qz-margin__dial::-webkit-slider-runnable-track {
+  height: 4px;
+  background: var(--qz-inset);
+  box-shadow: var(--qz-well);
+}
+
+.qz-margin__dial::-moz-range-track {
+  height: 4px;
+  background: var(--qz-inset);
+  box-shadow: var(--qz-well);
+}
+
+.qz-margin__dial::-webkit-slider-thumb {
+  appearance: none;
+  width: 3px;
+  height: 18px;
+  margin-top: -7px;
+  background: var(--qz-fg);
+  box-shadow: var(--qz-glow-fg);
+}
+
+.qz-margin__dial::-moz-range-thumb {
+  width: 3px;
+  height: 18px;
+  border: 0;
+  border-radius: 0;
+  background: var(--qz-fg);
+  box-shadow: var(--qz-glow-fg);
+}
+
+.qz-margin__dial:focus-visible {
+  outline: 1px solid var(--qz-focus);
+  outline-offset: 2px;
+}
+
+.qz-margin__presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.qz-margin__presets button {
+  padding: 4px 8px;
+  border: 1px solid var(--qz-line-strong);
+  background: transparent;
+  box-shadow: var(--qz-edge);
+  color: var(--qz-muted);
+  font: inherit;
+  font-size: 0.62rem;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  transition: color 0.16s ease, border-color 0.16s ease;
+}
+
+.qz-margin__presets button:hover {
+  color: var(--qz-fg);
+  border-color: var(--qz-fg);
+}
+
+.qz-margin__presets button:focus-visible {
+  outline: 1px solid var(--qz-focus);
+  outline-offset: 1px;
+}
+
+.qz-margin__note {
+  font-size: 0.62rem;
+  line-height: 1.5;
+  color: var(--qz-dim);
+}
+
+/* Escala del precio: la leyenda va en su propia banda abajo para que nunca
+   pise la marca del precio simulado (con el dial en el piso, las dos caen en
+   el mismo punto). La franja rayada es donde el piso depende de cómo salga la
+   obra: entrás al piso sólo si el costo no se corre. */
+.qz-scale--margin {
+  height: 40px;
+}
+
+.qz-scale--margin .qz-scale__ticks {
+  inset: 0 0 26px;
+}
+
+/* la franja de riesgo va en su propio carril, arriba del relleno del precio:
+   si compartieran altura el relleno la taparía justo cuando importa */
+.qz-scale__risk {
+  position: absolute;
+  bottom: 22px;
+  height: 3px;
+  background: repeating-linear-gradient(135deg, var(--qz-warn) 0 1px, transparent 1px 4px);
+}
+
+.qz-scale--margin .qz-scale__band {
+  bottom: 16px;
+}
+
+.qz-scale--margin .qz-scale__mark {
+  bottom: 11px;
+  height: 14px;
+  box-shadow: var(--qz-glow-fg);
+}
+
+.qz-scale__legend {
+  position: absolute;
+  bottom: 0;
+  transform: translateX(-50%);
+  font-size: 0.54rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--qz-dim);
+  white-space: nowrap;
+}
+
 /* fila de instrumentos */
 .qz-instruments {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(148px, 1fr));
   gap: 1px;
   background: var(--qz-ground);
 }
@@ -905,11 +1137,9 @@ code {
   font-weight: 500;
 }
 
+/* sin scroll propio: el rubro se estira y scrollea el tablero (pedido 1) */
 .qz-ledger__scroll {
-  flex: 1;
   min-height: 0;
-  overflow-y: auto;
-  overscroll-behavior: contain;
 }
 
 .qz-ledger__empty {
@@ -1647,16 +1877,14 @@ code {
 /* ----------------------------------------------------------- responsive */
 
 @media (max-width: 1280px) {
-  .qz-instruments {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .qz-readout {
+  .qz-readout,
+  .qz-margin {
     grid-template-columns: minmax(0, 1fr);
     gap: 16px;
   }
 
-  .qz-readout__deltas {
+  .qz-readout__deltas,
+  .qz-margin__control {
     padding-left: 0;
     border-left: none;
     border-top: 1px solid var(--qz-line);
@@ -1797,6 +2025,10 @@ code {
 @media (max-width: 680px) {
   .qz-instruments {
     grid-template-columns: minmax(0, 1fr);
+  }
+
+  .qz-margin {
+    padding: 16px 14px;
   }
 
   .qz-wave__grid {

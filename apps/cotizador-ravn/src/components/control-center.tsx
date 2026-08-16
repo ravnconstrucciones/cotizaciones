@@ -30,6 +30,14 @@ import type {
   QuoteSummary,
   QuoteWorkspaceSnapshot,
 } from "../domain";
+import {
+  MARGEN_PISO_PCT,
+  marginBand,
+  openingPrice,
+  priceDialRange,
+  roundUpToSellable,
+  type MarginBand,
+} from "../domain/margin";
 import { decisionRank } from "../domain/price-decision";
 import { formatObservedDate as dateTime } from "./format-observed-date";
 import {
@@ -569,6 +577,7 @@ function BoardColumn({
   return (
     <section className="qz-board" data-mobile-active={active} aria-label="Tablero del costo">
       <Readout snapshot={snapshot} queue={queue} reduceMotion={reduceMotion} />
+      <MarginConsole snapshot={snapshot} reduceMotion={reduceMotion} />
       <InstrumentRow snapshot={snapshot} queue={queue} />
       <RubroLedger
         snapshot={snapshot}
@@ -642,6 +651,175 @@ function Readout({
   );
 }
 
+/**
+ * Consola de margen: el tramo que faltaba, de costo a precio. Toda la
+ * aritmética sale de `domain/margin.ts` — acá no se calcula nada, se muestra.
+ *
+ * Es un SIMULADOR: nada de lo que se toque acá se escribe en App RAVN (el
+ * visor sigue siendo read-only en v1). El número final lo sigue fijando Eze en
+ * la app; esto le dice contra qué lo está fijando.
+ */
+function MarginConsole({
+  snapshot,
+  reduceMotion,
+}: {
+  snapshot: QuoteWorkspaceSnapshot;
+  reduceMotion: boolean;
+}) {
+  const { min: costMin, max: costMax } = snapshot.core.costRange;
+  const persisted = snapshot.quote.finalNumber;
+  const opening = useMemo(
+    () => openingPrice({ persistedPrice: persisted, costMax }),
+    [persisted, costMax]
+  );
+  const [price, setPrice] = useState<number | null>(opening?.price ?? null);
+
+  // Al cambiar de cotización el dial vuelve a abrir donde corresponde.
+  useEffect(() => {
+    setPrice(opening?.price ?? null);
+  }, [opening]);
+
+  const band = useMemo(
+    () => (price == null ? null : marginBand({ price, costMin, costMax })),
+    [price, costMin, costMax]
+  );
+  const dial = costMax != null && costMax > 0 ? priceDialRange(costMax) : null;
+
+  if (costMin == null || costMax == null || !band || !dial) {
+    return (
+      <section className="qz-margin qz-panel" aria-label="Precio y margen">
+        <span className="qz-readout__label">Precio y margen</span>
+        <p className="qz-gauge__empty">
+          El motor todavía no cerró el costo. Sin costo no hay margen que medir.
+        </p>
+      </section>
+    );
+  }
+
+  const tone =
+    band.verdict.severity === "ok"
+      ? "ok"
+      : band.verdict.severity === "warning"
+        ? "warn"
+        : "alert";
+
+  return (
+    <section className="qz-margin qz-panel" data-tone={tone} aria-label="Precio y margen">
+      <div className="qz-margin__reading">
+        <span className="qz-readout__label">Margen sobre venta</span>
+        <strong className="qz-readout__value">
+          <span>{band.pctAtCostMax.toLocaleString("es-AR")}</span>
+          <i aria-hidden="true">—</i>
+          <span>{band.pctAtCostMin.toLocaleString("es-AR")}%</span>
+        </strong>
+        <span className="qz-readout__exact">
+          Ganás {money(band.profitAtCostMax)} a {money(band.profitAtCostMin)} · se juegan{" "}
+          {band.spreadPoints.toLocaleString("es-AR")} puntos entre que la obra salga cara o barata
+        </span>
+        <MarginScale band={band} dial={dial} reduceMotion={reduceMotion} />
+        <p className="qz-margin__verdict">
+          <strong>{band.verdict.headline}</strong>
+          <small>{band.verdict.criterion}</small>
+        </p>
+      </div>
+
+      <div className="qz-margin__control">
+        <label className="qz-margin__field">
+          <span>Precio de venta</span>
+          <input
+            inputMode="numeric"
+            value={price == null ? "" : price.toLocaleString("es-AR")}
+            onChange={(event) => {
+              const digits = event.target.value.replace(/\D/g, "");
+              setPrice(digits ? Number(digits) : null);
+            }}
+            aria-label="Precio de venta a simular"
+          />
+        </label>
+        <input
+          className="qz-margin__dial"
+          type="range"
+          min={dial.min}
+          max={dial.max}
+          step={10_000}
+          value={Math.min(Math.max(band.price, dial.min), dial.max)}
+          onChange={(event) => setPrice(Number(event.target.value))}
+          aria-label="Dial de precio de venta"
+        />
+        <div className="qz-margin__presets">
+          <button type="button" onClick={() => setPrice(roundUpToSellable(band.priceAtFloorOverCostMax))}>
+            Piso {MARGEN_PISO_PCT}% s/ techo
+          </button>
+          <button type="button" onClick={() => setPrice(roundUpToSellable(band.priceAtFloorOverCostMin))}>
+            Piso {MARGEN_PISO_PCT}% s/ piso
+          </button>
+          <button type="button" onClick={() => setPrice(roundUpToSellable(band.price))}>
+            Redondear
+          </button>
+          {persisted != null ? (
+            <button type="button" onClick={() => setPrice(Math.round(persisted))}>
+              El de la app
+            </button>
+          ) : null}
+        </div>
+        <small className="qz-margin__note">
+          {persisted == null
+            ? `Sin precio cargado en App RAVN: el dial abre en el piso de ${MARGEN_PISO_PCT}% sobre el costo techo.`
+            : `App RAVN tiene ${money(persisted)} cargado. Simular acá no lo cambia: el número final lo fijás en la app.`}
+        </small>
+      </div>
+    </section>
+  );
+}
+
+/**
+ * Escala del precio: los dos precios que cierran el piso (uno contra el costo
+ * techo, otro contra el piso) y dónde cae el precio simulado. Entre las dos
+ * marcas está la franja donde el piso depende de cómo salga la obra.
+ */
+function MarginScale({
+  band,
+  dial,
+  reduceMotion,
+}: {
+  band: MarginBand;
+  dial: { min: number; max: number };
+  reduceMotion: boolean;
+}) {
+  const span = dial.max - dial.min;
+  const at = (value: number) => Math.max(0, Math.min(100, ((value - dial.min) / span) * 100));
+  const riskLeft = at(band.priceAtFloorOverCostMin);
+  const riskRight = at(band.priceAtFloorOverCostMax);
+  const here = at(band.price);
+
+  return (
+    <div
+      className="qz-scale qz-scale--margin"
+      role="img"
+      aria-label={`Precio simulado ${MONEY.format(band.price)}; el piso de ${MARGEN_PISO_PCT}% se cierra siempre desde ${MONEY.format(band.priceAtFloorOverCostMax)}`}
+    >
+      <i className="qz-scale__ticks" aria-hidden="true" />
+      <span
+        className="qz-scale__risk"
+        style={{ left: `${riskLeft}%`, width: `${Math.max(0, riskRight - riskLeft)}%` }}
+        aria-hidden="true"
+      />
+      <motion.i
+        className="qz-scale__band"
+        aria-hidden="true"
+        initial={reduceMotion ? false : { scaleX: 0 }}
+        animate={{ scaleX: 1 }}
+        transition={{ duration: reduceMotion ? 0 : 0.7, ease: [0.16, 1, 0.3, 1] }}
+        style={{ left: 0, width: `${here}%` }}
+      />
+      <span className="qz-scale__mark" style={{ left: `${here}%` }} aria-hidden="true" />
+      <span className="qz-scale__legend" style={{ left: `${riskRight}%` }} aria-hidden="true">
+        piso {MARGEN_PISO_PCT}%
+      </span>
+    </div>
+  );
+}
+
 /** Escala del rango sobre el techo: dónde cae el piso y cuánto se puede mover. */
 function RangeScale({
   min,
@@ -678,6 +856,7 @@ function InstrumentRow({
 }) {
   const coverage = snapshot.core.sourceCoverage;
   const composition = snapshot.core.composition;
+  const schedule = snapshot.core.schedule;
   const ready = snapshot.orchestration.readyToConsolidateBatchIds.length;
   const totalItems = snapshot.batches.reduce((sum, batch) => sum + batch.items.length, 0);
   const closed = totalItems - queue.length;
@@ -749,6 +928,33 @@ function InstrumentRow({
         )}
       </article>
 
+      <article className="qz-gauge qz-panel">
+        <span className="qz-gauge__label">Tiempo de obra</span>
+        {schedule ? (
+          <>
+            <div className="qz-gauge__body">
+              <strong className="qz-gauge__figure">
+                {schedule.daysMin === schedule.daysMax
+                  ? schedule.daysMax
+                  : `${schedule.daysMin}—${schedule.daysMax}`}
+                <i>días</i>
+              </strong>
+            </div>
+            <small>
+              {schedule.crewMax} en obra ·{" "}
+              {schedule.crewDaysMin === schedule.crewDaysMax
+                ? `${schedule.crewDaysMax} jornales`
+                : `${schedule.crewDaysMin} a ${schedule.crewDaysMax} jornales`}
+              {schedule.laborPerCrewDayMin != null && schedule.laborPerCrewDayMax != null
+                ? ` · la MO cotizada paga ${money(schedule.laborPerCrewDayMin)} a ${money(schedule.laborPerCrewDayMax)} el día de cuadrilla`
+                : " · sin desglose de MO para cruzar el jornal"}
+            </small>
+          </>
+        ) : (
+          <p className="qz-gauge__empty">La receta no persistió días ni cuadrilla.</p>
+        )}
+      </article>
+
       <article className="qz-gauge qz-panel" data-tone={maxSpread != null && maxSpread > 25 ? "warn" : undefined}>
         <span className="qz-gauge__label">Dispersión máxima entre fuentes</span>
         <div className="qz-gauge__body">
@@ -759,7 +965,7 @@ function InstrumentRow({
         <small>
           {maxSpread == null
             ? "Ningún ítem tiene dos fuentes comparables."
-            : `Sobre ${spreads.length} ítem(s) con SISMAT e internet. El motor marca arriba de 25%.`}
+            : `${spreads.length} ítem(s) con las dos fuentes · el motor marca arriba de 25%`}
         </small>
       </article>
     </div>
