@@ -1,5 +1,93 @@
 # Handoff — Visor Cotizador RAVN (consola de instrumentos)
 
+## ✅ PUERTA CONVERSACIONAL: EL CHAT ES LA PUERTA (17/08 mediodía) — SIN DEPLOY
+
+Eze vio el composer y dijo, textual: *"la puerta de entrada tiene que ser
+esa!! ahí cargo la OT"*. Diseño cerrado con él pregunta por pregunta (spec
+`docs/superpowers/specs/2026-08-17-puerta-conversacional-cotizador-design.md`,
+plan `docs/superpowers/plans/2026-08-17-puerta-conversacional-cotizador.md`)
+y CONSTRUIDO ENTERO. Commits en `home-cards` (local): `14bf381` spec ·
+`c4eed54` plan · `84c5e80` helpers · `a43ad47` intake-client · `c33f1f4`
+composer · `49d162f` caja+panel · `e49992a` bridge · `e5827fe` home ·
+`968d120` borra gate · `873146f` fixes de la prueba real.
+**⚠️ SIN PUSH y SIN DEPLOY a producción — esperando el OK de Eze.**
+
+**Lo que quedó:** el visor abre en la caja vacía (estilo ChatGPT); el primer
+envío crea el expediente (título provisional del primer renglón; el real lo
+trae Fable), sube adjuntos, deja el primer mensaje del hilo y despacha la ola;
+la propuesta vuelve al hilo como mensaje de Fable con el `ReconocimientoPanel`
+embebido debajo (`variant="hilo"`); responder por la caja relanza la ola DE
+INTAKE **con el hilo a la vista** (el bridge lo lee por PostgREST — verificado:
+la hormigonera pasó a "propia" por un mensaje del chat); Confirmar → receta
+candidata + `en_revision` + tablero, igual que antes. El clip vive SIEMPRE
+(charla incluida: sube al expediente + pie "Adjunté: …" + la ola de charla
+baja los archivos y corre con Read). `intake-gate.tsx` BORRADO; `subirUno` y
+`despacharOla` viven en `src/lib/intake-client.ts`. Sin cotización activa el
+adapter cae a la más nueva (antes: pantalla de error).
+
+**Probado punta a punta con DOS olas reales** (cotización de prueba borrada,
+`cotizador_huerfanos` y `dinero_huerfanos` en 0): OT .txt + texto → propuesta
+con 3 rubros / 13 ítems / maquinaria propia vs alquiler / 5 preguntas de obra
+→ respuesta por chat → propuesta v2 con la respuesta incorporada → Confirmar →
+tablero. Capturas: `.impeccable/finish/puerta-conversacional-*.png`.
+Verificación: 207 tests cotizador · 591 App RAVN · typecheck raíz+cotizador ·
+lint · build 177 kB (era 176).
+
+**🔴 HALLAZGO para decidir con Eze:** el hilo lo contesta TAMBIÉN el
+respondedor legacy de App RAVN (el daemon que responde `cotizacion_mensajes`).
+En la prueba metió respuestas tipo charla diciendo "el adjunto no me llegó"
+(él no ve los archivos de la puerta) y "ya volcado a la propuesta" (no puede
+tocarla — slop). Dos voces contestando el mismo hilo confunden: decidir si el
+daemon se apaga para cotizaciones con intake o se le enseña la puerta.
+
+**Pendiente chico anotado:** si una ola de charla/intake se despacha mientras
+otra corre, el bridge devuelve 409 y el aviso lo dice — comportamiento
+correcto pero sin cola; con uso real conviene mirar si molesta.
+
+## ✅ CONVERSACIÓN OPERATIVA: EL COMPOSER ESCRIBE DE VERDAD (17/08 mañana)
+
+Eze vio el composer muerto desde el celular ("¿podés hacer que eso también
+funcione? dejá todo operativo") y quedó construido, probado y EN PRODUCCIÓN.
+Commits `35bd834` (la conversación) + `dcaedf4` (CORS del bridge) en
+`origin/home-cards`. Deploys: App RAVN `dpl_JCLRrUXATwG46kKXySsBSBGoYKmg` ·
+Cotizador `dpl_7aXRMwXHmLPca1knLAX8rQ1iwPFu` (este último con las env nuevas
+del bridge), los dos READY y verificados.
+
+**El circuito:** composer → `POST /api/mensajes?quote=` (proxy) → App RAVN
+`POST .../mensajes` con la write credential (allowlist ampliada; `/aprobar` y
+`/emitir` siguen 401) → el mensaje persiste como `eze` en
+`cotizacion_mensajes` ANTES de despachar nada → ola de charla al bridge
+(`kind: "charla"`) → Fable con el expediente a la vista (cotización + últimos
+30 mensajes por PostgREST, prompt `bridge/charla-prompt.mjs`) → su respuesta
+entra al MISMO hilo como `fable` con `respuesta_a` → el visor refresca el hilo
+solo (debounce 900 ms tras cada `result` de la ola). Si la ola falla, el
+motivo queda en el hilo como `sistema`. Sin bridge, el mensaje queda guardado
+y el aviso lo dice. El hilo ahora muestra las cuatro voces (antes filtraba
+fable/codex).
+
+**Probado punta a punta en navegador** contra un clon real del intertrabado
+(borrado después, huérfanos en 0): pregunta desde el composer → respuesta de
+Fable en 11 s con datos REALES del desglose ("cama y recolocación $825.000 =
+31% de los $2.620.593 de MO"). Captura:
+`apps/cotizador-ravn/.impeccable/finish/conversacion-operativa.png`.
+
+**Para que la ola salga desde el visor de la NUBE (en la Mac):**
+`COTIZADOR_BRIDGE_TOKEN` + `COTIZADOR_BRIDGE_URL=http://127.0.0.1:3011` ya
+están en Vercel (Production+Preview) y el bridge acepta lista de orígenes
+(`COTIZADOR_BRIDGE_ALLOWED_ORIGIN` en `.env.local`, ahora local + prod, CORS
+con eco y `Vary: Origin`). Desde el CELULAR el bridge es inalcanzable
+(127.0.0.1): el mensaje persiste igual y la ola se relanza con la Mac abierta
+— es el modelo "yo cotizo con la Mac abierta". Ojo Safari: puede bloquear
+http://127.0.0.1 desde página HTTPS; en Chrome anda.
+
+**Anotado, NO arreglado (cosmético):** en la terminal de Fable, un mensaje del
+asistente con bloque `thinking` vacío se imprime como JSON crudo
+(`stream-format.ts` no lo reconoce y lo pasa entero — es la regla "no
+desaparecer mensajes" de la ronda 4 mostrando su costado feo).
+
+**El bridge quedó CORRIENDO** (se apaga solo a los 30 min sin uso; se levanta
+con `npm run bridge` en `apps/cotizador-ravn`). Dev servers apagados.
+
 ## ✅ PUERTA DE ENTRADA: CONSTRUIDA Y EN PRODUCCIÓN (17/08 madrugada)
 
 Eze dijo "terminalo para cuando me despierte" y quedó TERMINADA, verificada y
