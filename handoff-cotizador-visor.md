@@ -6,22 +6,49 @@ DEL 16/08 CERRADOS.** El cotizador está en la nube
 extracto en App RAVN con un botón, y **la mano de obra ya es un rubro propio con
 postulantes**.
 
-**⏭️ POR ACÁ SE SIGUE — DOS APROBACIONES DE EZE, NADA MÁS.** El pedido 3 está
-construido y verificado en local (commit `78f3579`, sin pushear). Para que entre:
+**✅ EN PRODUCCIÓN Y VERIFICADO (16/08 noche).** Eze aprobó las dos cosas y se
+hicieron:
 
-1. **Aplicar la migración `20260817090000_cotizador_taller_postulantes_mo.sql`**
-   (esquema de producción = aprobación de Eze). **Es bloqueante:** sin la tabla,
-   `tallerStore().read()` falla y la mesa entera queda fail-closed con el error
-   a la vista — o sea, no se puede deployar el código antes que la migración.
-2. **Push a `origin/home-cards` + deploy de los dos proyectos** (el pase tocó
-   App RAVN: `mesa-merge.ts` y la ruta del pase). Recordatorio de siempre: el
-   push solo NO deploya a prod (`productionBranch` es `main`), va por
-   `POST /v13/deployments` con `target: production` y
-   `gitSource {repoId: 1200117728, ref: "home-cards"}`.
+1. **Migración `cotizador_taller_postulantes_mo` APLICADA** a la base de
+   producción (10 columnas, 4 policies, 3 índices, RLS activo). CRUD probado
+   contra la base REAL por curl: alta, elegir, cambio de elegido (el índice
+   único hace el swap bien) y baja; **filas de prueba borradas**;
+   `cotizador_huerfanos` y `dinero_huerfanos` en **0**.
+2. **Commits `78f3579` + `e9fb679` pusheados a `origin/home-cards`** y **deploy
+   de producción de los DOS proyectos** por API contra ese ref:
+   App RAVN `dpl_ChQaBMqadVRcuNKUdSRbEMCXGau3` · Cotizador
+   `dpl_7RCRxEmXhfwFAF8KBratY19sdyWX`. Los dos READY.
 
-Después de eso, lo que queda son los pendientes viejos (contrato de escritura de
-la conversación → adjuntos/audio/drag & drop, y sacar las rutas del cotizador de
-App RAVN). "⚠️ DIRECCIÓN NUEVA" sigue siendo el brief.
+Verificado en la nube: cotizador **401** sin credenciales y **200** con ellas ·
+`/api/taller/postulantes` existe y valida (**409 not_persistable** con un id que
+no es UUID) · `/api/taller` de una cotización real devuelve **200** con
+`postulantes: []` · App RAVN `/` 307 → login, `/login` 200.
+
+**⏭️ POR ACÁ SE SIGUE.** Eze pidió, textual: *"/loop de corrección de errores que
+no quede ni uno fuera y ya avanzamos para usarlo"*. O sea: **una pasada de caza
+de errores sobre el visor entero antes de empezar a cotizar de verdad con él.**
+Arrancar por ahí, en sesión nueva y con contexto limpio. Lo demás que queda son
+los pendientes viejos (contrato de escritura de la conversación →
+adjuntos/audio/drag & drop, y sacar las rutas del cotizador de App RAVN).
+"⚠️ DIRECCIÓN NUEVA" sigue siendo el brief.
+
+**Dónde mirar primero en esa caza** (lo que esta sesión sabe y no está probado):
+
+- **El CRUD de postulantes desde la UI contra la nube.** Probado por curl contra
+  la base y en el navegador contra el fixture (mesa local), pero **no** la
+  combinación UI + cotización real + base.
+- **El pase con un postulante elegido, punta a punta.** `construirPase` lo
+  traduce y hay tests, pero no se disparó un pase real con MO elegida contra
+  App RAVN.
+- **Cotizaciones viejas (Húsares y compañía)**: `desglose.items` con la forma
+  vieja (`{item, costo}`); el visor las rechaza al elegirlas. **Sigue siendo
+  decisión de producto** mostrarlas como "formato viejo, no legible" en el
+  selector en vez de romper.
+- **Los rubros sin ítem de MO** no aparecen en el rubro de mano de obra (es
+  correcto), pero conviene mirar una cotización real con muchos rubros para ver
+  que el tablero no queda raro.
+- **First Load JS pasó de 167 a 171 kB.** Dentro de la vara, pero es el número
+  que Eze mira.
 
 ## Lo último: la MO como rubro propio (pedido 3, commit `78f3579`)
 
