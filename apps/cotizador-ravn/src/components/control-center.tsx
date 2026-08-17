@@ -278,11 +278,25 @@ export function ControlCenter({
     []
   );
   const [decided, setDecided] = useState<Record<string, Decision>>({});
+  // En la ENTRADA el snapshot de fondo es de OTRO expediente: su cola y sus
+  // preguntas no se muestran — mezclar expedientes está prohibido.
   const queue = useMemo(
-    () => queueEntries(snapshot).filter((entry) => !decided[`${entry.batch.id}:${entry.item.name}`]),
-    [snapshot, decided]
+    () =>
+      entrada
+        ? []
+        : queueEntries(snapshot).filter(
+            (entry) => !decided[`${entry.batch.id}:${entry.item.name}`]
+          ),
+    [snapshot, decided, entrada]
   );
-  const pending = queue.length + snapshot.decision.questions.length;
+  const pending = entrada ? 0 : queue.length + snapshot.decision.questions.length;
+  const snapshotDecision = useMemo(
+    () =>
+      entrada
+        ? { ...snapshot, decision: { ...snapshot.decision, questions: [] } }
+        : snapshot,
+    [snapshot, entrada]
+  );
 
   // --- ventanas manipulables (pedido 4): anchos arrastrados y recordados ---
   const [chatWidth, setChatWidth] = useState(360);
@@ -600,12 +614,14 @@ export function ControlCenter({
   );
 
   useEffect(() => {
-    if (preview) return;
+    // En la ENTRADA no se refresca nada: el snapshot de fondo es de otro
+    // expediente y el poll reescribía la URL (?quote=) estando en la puerta.
+    if (preview || entrada) return;
     const timer = window.setInterval(() => {
       if (document.visibilityState === "visible") void loadQuote(snapshot.quote.id, false);
     }, 30_000);
     return () => window.clearInterval(timer);
-  }, [loadQuote, preview, snapshot.quote.id]);
+  }, [loadQuote, preview, entrada, snapshot.quote.id]);
 
   /**
    * Pedido 14: la ola arranca DESDE EL CHAT. Lo que escribe acá se muestra en la
@@ -667,6 +683,39 @@ export function ControlCenter({
    * no puede salir (sin bridge, Mac apagada), el mensaje ya quedó guardado y
    * el aviso lo dice. En preview se mantiene la demostración local de siempre.
    */
+  /**
+   * La lámpara del bridge la alimenta LiveTerminals — que vive en el tablero.
+   * En entrada y reconocimiento el tablero NO está montado, y `health` quedaba
+   * clavado en "off": el panel decía "Bridge apagado" mientras la ola corría.
+   * Acá se consulta el mismo /health con el mismo criterio.
+   */
+  useEffect(() => {
+    if (momento === "charla" || !bridge) return;
+    let cancelled = false;
+    const check = async () => {
+      try {
+        const response = await fetch(`${bridge.url}/health`, {
+          headers: { "x-bridge-token": bridge.token },
+          cache: "no-store",
+        });
+        if (cancelled) return;
+        if (!response.ok) throw new Error();
+        const payload = (await response.json()) as {
+          wave: { status: "running" | "done" } | null;
+        };
+        setHealth(payload.wave?.status === "running" ? "running" : "ready");
+      } catch {
+        if (!cancelled) setHealth("off");
+      }
+    };
+    void check();
+    const timer = window.setInterval(() => void check(), 6000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, [momento, bridge]);
+
   /**
    * La puerta conversacional (spec 2026-08-17): en `entrada` el primer envío
    * CREA el expediente — borrador con título provisional, archivos, primer
@@ -875,7 +924,9 @@ export function ControlCenter({
             ))}
           </select>
           <ChevronDown size={14} aria-hidden="true" />
-          <span className="qz-rail__stage">{STAGE_LABELS[snapshot.core.stage]}</span>
+          {entrada ? null : (
+            <span className="qz-rail__stage">{STAGE_LABELS[snapshot.core.stage]}</span>
+          )}
         </div>
 
         <div className="qz-rail__state">
@@ -1031,7 +1082,7 @@ export function ControlCenter({
         />
 
         <DecisionColumn
-          snapshot={snapshot}
+          snapshot={snapshotDecision}
           queue={queue}
           pending={pending}
           active={mobileTab === "decidir"}

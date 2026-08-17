@@ -316,10 +316,19 @@ async function startIntakeWave({ cotizacionId, texto, archivos }) {
     await rm(dir, { recursive: true, force: true }).catch(() => {});
     throw error;
   }
+  // El hilo del expediente viaja con la ola: al relanzar tras una respuesta de
+  // Eze en la conversación, la propuesta nueva tiene que verla (spec puerta
+  // conversacional — "los mensajes alimentan el reconocimiento").
+  const hilo = await pgLeer(
+    `cotizacion_mensajes?cotizacion_id=eq.${encodeURIComponent(cotizacionId)}&select=autor,texto,creado_at&order=creado_at.desc&limit=30`
+  )
+    .then((filas) => filas.reverse())
+    .catch(() => []);
+
   const hoy = new Intl.DateTimeFormat("en-CA", {
     timeZone: "America/Argentina/Buenos_Aires",
   }).format(new Date());
-  const prompt = intakePrompt({ texto, archivos: locales, hoy });
+  const prompt = intakePrompt({ texto, archivos: locales, hoy, hilo });
 
   wave = {
     id: randomUUID(),

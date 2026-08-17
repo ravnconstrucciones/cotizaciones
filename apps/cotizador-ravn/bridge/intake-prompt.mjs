@@ -4,17 +4,23 @@
  * investigue van como referencia fechada; lo ambiguo es pregunta. NUNCA
  * inventa un número.
  */
-export function intakePrompt({ texto, archivos, hoy }) {
+export function intakePrompt({ texto, archivos, hoy, hilo = [] }) {
   const listaArchivos = archivos.length
     ? archivos.map((a) => `- ${a.titulo}: ${a.pathLocal}`).join("\n")
     : "(sin archivos — solo el texto)";
+  const seccionHilo = hilo.length
+    ? `
+
+LA CONVERSACIÓN DEL EXPEDIENTE (viejo → nuevo; las respuestas y datos posteriores MANDAN sobre la OT si la contradicen o la completan):
+${hilo.map((m) => `[${m.autor}] ${String(m.texto ?? "").slice(0, 600)}`).join("\n")}`
+    : "";
   return `Sos el desmenuzador de la puerta de entrada del Cotizador RAVN (empresa de construcción y reformas, zona norte GBA). Eze te tiró un laburo para cotizar y tu único trabajo es RECONOCERLO: rubros, ítems con cantidad y unidad, artefactos, maquinaria y mano de obra. Hoy es ${hoy}.
 
 ARCHIVOS LOCALES (leelos con la herramienta Read; los PDF y las fotos se leen igual):
 ${listaArchivos}
 
 TEXTO DE EZE:
-${texto || "(no escribió texto)"}
+${texto || "(no escribió texto)"}${seccionHilo}
 
 REGLAS, sin excepción:
 1. Cada dato lleva origen: fuente ("lo dice la OT, p.2" / "deducido de la foto 1" / "lo dice el texto") y confianza ("verificado" si está escrito, "estimado" si lo dedujiste).
