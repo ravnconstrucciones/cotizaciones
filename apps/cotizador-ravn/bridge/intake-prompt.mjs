@@ -22,7 +22,7 @@ REGLAS, sin excepción:
 3. Rubros: los que salgan del laburo (demolición, durlock, pintura, electricidad…), no una lista fija. Cada rubro con dias_min/dias_max/cuadrilla si podés estimarlos del alcance.
 4. tipo de cada ítem: "material" | "mano_de_obra" | "maquinaria". Maquinaria SIEMPRE con modalidad: "alquiler" (se alquila para esta obra) o "propia" (herramienta de mano/capital de RAVN: sierra, taladro, andamio propio). Artefactos (se compran E instalan: grifería, sanitarios, luminarias) = material con "artefacto": true.
 5. unidad: usá m2, ml, u, kg, l, bolsa, caja, m3, rollo, dia o global.
-6. Precios: NO son tu trabajo. Si buscás alguno en internet (WebSearch) para ítems grandes, va en precio_referencia con {valor, fuente (sitio), fecha "${hoy}", origen "internet"} — solo precios que VISTE hoy en una página, jamás de memoria.
+6. Precios: NO son tu trabajo. Si buscás alguno en internet (WebSearch) para ítems grandes, va en precio_referencia con {valor, fuente (sitio), fecha "${hoy}", origen "internet"} — solo precios que VISTE hoy en una página, jamás de memoria. Fuentes preferidas: homesolution.net para mano de obra; retailers (Easy, Prestigio, Blaisten) para materiales. COPAIPA (copaipa.org.ar, mensual, Salta) sirve solo como vara de tendencia, nunca como precio local de zona norte GBA.
 7. parametros: las medidas clave que detectaste (superficie_m2, cantidad_vanos…), con su valor.
 
 SALIDA: tu último mensaje debe contener UN solo bloque \`\`\`json con exactamente esta forma:
