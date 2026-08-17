@@ -128,6 +128,22 @@ function retailPick(cost: RawOffer[], retail: RawOffer | undefined): RawOffer | 
 }
 
 export function itemPricing(item: ItemDesglose, today: string): ItemPricing {
+  // Maquinaria PROPIA (capex, decisión de Eze 09/08): se lista para logística
+  // pero no lleva precio ni suma al costo. Sin este corte caería a la cola
+  // como "sin precio" — pidiendo una decisión que no existe.
+  if (item.tipo === "maquinaria" && item.modalidad === "propia") {
+    return {
+      offers: [],
+      decision: {
+        kind: "cerrado",
+        severity: "ok",
+        headline: "Herramienta propia de RAVN: se lista, no suma al costo.",
+        criterion: "Capex o alquiler (regla 09/08): lo propio no se carga a una obra puntual.",
+        spreadPct: null,
+      },
+    };
+  }
+
   const raw = rawOffers(item, today);
   const cost = raw.filter((offer) => COST_ORIGINS.includes(offer.origin));
   const retail = raw.find((offer) => offer.origin === "retail");

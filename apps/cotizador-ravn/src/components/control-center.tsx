@@ -72,6 +72,7 @@ import {
   formatObservedDate as dateTime,
   formatObservedTime as eventTime,
 } from "./format-observed-date";
+import { IntakeGate } from "./intake-gate";
 import {
   LiveTerminals,
   type BridgeConfig,
@@ -79,6 +80,7 @@ import {
   type WaveRequest,
 } from "./live-terminals";
 import { RavnIso } from "./ravn-iso";
+import { ReconocimientoPanel } from "./reconocimiento-panel";
 import { RavnMark3D } from "./ravn-mark-3d";
 
 type ControlCenterData = {
@@ -241,6 +243,8 @@ export function ControlCenter({
   const [composerNotice, setComposerNotice] = useState<string | null>(null);
   const [wave, setWave] = useState<WaveRequest | null>(null);
   const [health, setHealth] = useState<BridgeHealth>("off");
+  // La puerta de entrada: "+ Nueva cotización" en el picker abre el gate.
+  const [intakeMode, setIntakeMode] = useState(false);
   const [focusedItem, setFocusedItem] = useState<string | null>(null);
   const waveSeq = useRef(0);
   const requestInFlight = useRef(false);
@@ -639,10 +643,19 @@ export function ControlCenter({
           </label>
           <select
             id="quote-picker"
-            value={snapshot.quote.id}
+            value={intakeMode ? "__nueva__" : snapshot.quote.id}
             disabled={busy || preview}
-            onChange={(event) => void loadQuote(event.target.value)}
+            onChange={(event) => {
+              if (event.target.value === "__nueva__") {
+                setIntakeMode(true);
+                setMobileTab("tablero");
+                return;
+              }
+              setIntakeMode(false);
+              void loadQuote(event.target.value);
+            }}
           >
+            <option value="__nueva__">+ Nueva cotización</option>
             {data.quotes.map((quote) => (
               <option key={quote.id} value={quote.id}>
                 {quote.title}
@@ -737,6 +750,25 @@ export function ControlCenter({
           label="Ancho de la conversación"
         />
 
+        {intakeMode ? (
+          <IntakeGate
+            bridge={bridge}
+            active={mobileTab === "tablero"}
+            onCreated={(id, avisoDeLaPuerta) => {
+              setIntakeMode(false);
+              setComposerNotice(avisoDeLaPuerta);
+              void loadQuote(id);
+            }}
+          />
+        ) : snapshot.quote.legacyState === "borrador" && !preview ? (
+          <ReconocimientoPanel
+            quoteId={snapshot.quote.id}
+            bridge={bridge}
+            health={health}
+            active={mobileTab === "tablero"}
+            onConfirmada={() => void loadQuote(snapshot.quote.id)}
+          />
+        ) : (
         <BoardColumn
           snapshot={snapshot}
           queue={queue}
@@ -761,6 +793,7 @@ export function ControlCenter({
           onDropPostulante={dropPostulante}
           onElegirPostulante={elegirPostulante}
         />
+        )}
 
         <Splitter
           side="rail"
@@ -1024,7 +1057,7 @@ function ConversationColumn({
             type="button"
             className="qz-attach"
             disabled
-            title="Falta el contrato de subida: la conversación todavía es de solo lectura."
+            title="Los archivos entran por la puerta: elegí “+ Nueva cotización” en el selector."
           >
             <Paperclip size={15} aria-hidden="true" />
             <span>Adjuntar</span>

@@ -188,3 +188,36 @@ describe("vencimiento de una referencia que no está en el costo", () => {
     expect(decision.severity).toBe("warning");
   });
 });
+
+describe("maquinaria propia (puerta de entrada, 17/08)", () => {
+  it("queda cerrada sin ofertas: se lista, no pide decisión ni suma", () => {
+    const propia = item({
+      nombre: "Sierra de sable",
+      tipo: "maquinaria",
+      modalidad: "propia",
+      precios: {},
+      precio_min: null,
+      precio_max: null,
+      subtotal_min: 0,
+      subtotal_max: 0,
+      sin_precio: false,
+    });
+    const pricing = itemPricing(propia, "2026-08-17");
+    expect(pricing.decision.kind).toBe("cerrado");
+    expect(pricing.decision.severity).toBe("ok");
+    expect(pricing.offers).toEqual([]);
+  });
+
+  it("la alquilada sin precio sigue cayendo a la cola como sin_precio", () => {
+    const alquiler = item({
+      nombre: "Andamio",
+      tipo: "maquinaria",
+      modalidad: "alquiler",
+      precios: {},
+      precio_min: null,
+      precio_max: null,
+      sin_precio: true,
+    });
+    expect(itemPricing(alquiler, "2026-08-17").decision.kind).toBe("sin_precio");
+  });
+});
