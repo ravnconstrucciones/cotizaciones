@@ -1,10 +1,13 @@
 import {
   EMPTY_TALLER,
   isPersistableQuoteId,
+  parsePostulante,
   type Decision,
   type ItemKey,
   type ManualDraft,
   type ManualItem,
+  type PostulanteDraft,
+  type PostulanteMO,
   type TallerState,
 } from "./types";
 
@@ -21,6 +24,7 @@ import {
 const DEFAULT_TIMEOUT_MS = 5_000;
 const ITEMS = "cotizador_taller_items";
 const DECISIONES = "cotizador_taller_decisiones";
+const POSTULANTES = "cotizador_taller_postulantes_mo";
 
 type FetchImplementation = (
   input: string | URL | Request,
@@ -103,6 +107,37 @@ function manualDraftToRow(quoteId: string, draft: ManualDraft): Record<string, u
     cantidad: draft.cantidad,
     unidad: draft.unidad,
     precio_unit: draft.precioUnit,
+  };
+}
+
+function rowToPostulante(row: unknown): PostulanteMO | null {
+  if (!isRecord(row)) return null;
+  return parsePostulante({
+    id: row.id,
+    batchId: row.rubro_id,
+    itemName: row.item_nombre,
+    proveedor: row.proveedor,
+    precioUnit: toNumber(row.precio_unit),
+    // PostgREST devuelve `date` como YYYY-MM-DD; si viniera con hora, se corta.
+    fecha: typeof row.fecha === "string" ? row.fecha.slice(0, 10) : row.fecha,
+    procedencia: row.procedencia,
+    elegido: row.elegido === true,
+  });
+}
+
+function postulanteDraftToRow(
+  quoteId: string,
+  draft: PostulanteDraft
+): Record<string, unknown> {
+  return {
+    cotizacion_id: quoteId,
+    rubro_id: draft.batchId,
+    item_nombre: draft.itemName,
+    proveedor: draft.proveedor,
+    precio_unit: draft.precioUnit,
+    fecha: draft.fecha,
+    procedencia: draft.procedencia,
+    elegido: false,
   };
 }
 
@@ -192,12 +227,13 @@ export function createTallerStore(config: TallerStoreConfig) {
       if (!isPersistableQuoteId(quoteId)) return EMPTY_TALLER;
 
       const query = `cotizacion_id=eq.${encodeURIComponent(quoteId)}`;
-      const [itemRows, decisionRows] = await Promise.all([
+      const [itemRows, decisionRows, postulanteRows] = await Promise.all([
         request(`${ITEMS}?${query}&order=creado_at.asc`, { method: "GET" }),
         request(`${DECISIONES}?${query}`, { method: "GET" }),
+        request(`${POSTULANTES}?${query}&order=creado_at.asc`, { method: "GET" }),
       ]);
 
-      if (!Array.isArray(itemRows) || !Array.isArray(decisionRows)) {
+      if (!Array.isArray(itemRows) || !Array.isArray(decisionRows) || !Array.isArray(postulanteRows)) {
         throw new TallerError("invalid_response", "La base no devolvió las filas del taller.");
       }
 
@@ -212,6 +248,9 @@ export function createTallerStore(config: TallerStoreConfig) {
           .map(rowToManualItem)
           .filter((item): item is ManualItem => item !== null),
         decided,
+        postulantes: postulanteRows
+          .map(rowToPostulante)
+          .filter((p): p is PostulanteMO => p !== null),
       };
     },
 
@@ -265,6 +304,60 @@ export function createTallerStore(config: TallerStoreConfig) {
         throw new TallerError("invalid_response", "La base no devolvió la decisión guardada.");
       }
       return saved.decision;
+    },
+
+    /** Un presupuesto de MO más sobre la mesa. Entra sin elegir: elegir es otro acto. */
+    async addPostulante(quoteId: string, draft: PostulanteDraft): Promise<PostulanteMO> {
+      assertPersistable(quoteId);
+      const payload = await request(POSTULANTES, {
+        method: "POST",
+        headers: { Prefer: "return=representation" },
+        body: JSON.stringify(postulanteDraftToRow(quoteId, draft)),
+      });
+
+      const created = Array.isArray(payload) ? rowToPostulante(payload[0]) : null;
+      if (!created) {
+        throw new TallerError("invalid_response", "La base no devolvió el postulante recién creado.");
+      }
+      return created;
+    },
+
+    async dropPostulante(quoteId: string, id: string): Promise<void> {
+      assertPersistable(quoteId);
+      await request(
+        `${POSTULANTES}?cotizacion_id=eq.${encodeURIComponent(quoteId)}&id=eq.${encodeURIComponent(id)}`,
+        { method: "DELETE", headers: { Prefer: "return=minimal" } }
+      );
+    },
+
+    /**
+     * "El que me cobran a mí". Se limpia el rubro entero ANTES de marcar: el
+     * índice único de la base rechaza dos elegidos y, sin esta secuencia,
+     * cambiar de proveedor fallaría siempre. `id` en `null` sólo desmarca.
+     */
+    async elegirPostulante(
+      quoteId: string,
+      batchId: string,
+      id: string | null
+    ): Promise<void> {
+      assertPersistable(quoteId);
+      const delRubro =
+        `cotizacion_id=eq.${encodeURIComponent(quoteId)}` +
+        `&rubro_id=eq.${encodeURIComponent(batchId)}`;
+
+      await request(`${POSTULANTES}?${delRubro}&elegido=is.true`, {
+        method: "PATCH",
+        headers: { Prefer: "return=minimal" },
+        body: JSON.stringify({ elegido: false }),
+      });
+
+      if (id === null) return;
+
+      await request(`${POSTULANTES}?${delRubro}&id=eq.${encodeURIComponent(id)}`, {
+        method: "PATCH",
+        headers: { Prefer: "return=minimal" },
+        body: JSON.stringify({ elegido: true }),
+      });
     },
 
     /** Reabrir: se borra la fila y el ítem vuelve a la cola. */

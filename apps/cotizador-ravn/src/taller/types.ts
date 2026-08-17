@@ -41,12 +41,43 @@ export type Decision = {
 /** Clave de la decisión dentro de una cotización: `<rubro>:<ítem>`. */
 export type ItemKey = string;
 
+/**
+ * Un presupuesto de mano de obra de un proveedor CON NOMBRE, compitiendo por el
+ * ítem de MO de un rubro (pedido 3 de Eze, 16/08). La lista es abierta: son los
+ * que haya, no tres fijos.
+ *
+ * `precioUnit` va en la unidad del ítem ($/m², $/ml, $/global) — la misma vara
+ * que `precios.sismat` y `precios.internet`, así el desvío se compara sin
+ * traducir. El total es la multiplicación por la cantidad y no se guarda.
+ *
+ * SISMAT e internet NO son postulantes: son la investigación contra la que se
+ * mide, y ya vienen persistidas en el expediente.
+ */
+export type PostulanteMO = {
+  id: string;
+  /** Rubro al que compite: `QuoteBatch["id"]`. */
+  batchId: string;
+  /** Ítem de MO de ese rubro. Es el que el pase cierra si este gana. */
+  itemName: string;
+  proveedor: string;
+  precioUnit: number;
+  /** YYYY-MM-DD — cuándo consiguió el presupuesto. */
+  fecha: string;
+  /** De dónde salió: "presupuesto por WhatsApp", "lo dijo en obra"… */
+  procedencia: string | null;
+  /** El que Eze marcó como "el que me cobran a mí": pisa el costo. */
+  elegido: boolean;
+};
+
+export type PostulanteDraft = Omit<PostulanteMO, "id" | "elegido">;
+
 export type TallerState = {
   manual: ManualItem[];
   decided: Record<ItemKey, Decision>;
+  postulantes: PostulanteMO[];
 };
 
-export const EMPTY_TALLER: TallerState = { manual: [], decided: {} };
+export const EMPTY_TALLER: TallerState = { manual: [], decided: {}, postulantes: [] };
 
 export function manualSubtotal(item: ManualItem): number {
   return item.cantidad * item.precioUnit;
@@ -125,11 +156,51 @@ export function parseDecision(value: unknown): Decision | null {
   return { origin, value: numeric, at };
 }
 
+const FECHA = /^\d{4}-\d{2}-\d{2}$/;
+
+/**
+ * Valida el alta de un postulante. Mismo criterio que el ítem a mano: ante un
+ * campo incompleto devuelve `null` y la mesa rechaza, no repara.
+ */
+export function parsePostulanteDraft(value: unknown): PostulanteDraft | null {
+  if (!isRecord(value)) return null;
+
+  const batchId = trimmed(value.batchId);
+  const itemName = trimmed(value.itemName);
+  const proveedor = trimmed(value.proveedor);
+  const fecha = trimmed(value.fecha);
+  const precioUnit = positiveNumber(value.precioUnit);
+  const procedencia = trimmed(value.procedencia);
+
+  if (!batchId || !itemName || !proveedor || !fecha || !FECHA.test(fecha) || precioUnit == null) {
+    return null;
+  }
+
+  return { batchId, itemName, proveedor, precioUnit, fecha, procedencia };
+}
+
+export function parsePostulante(value: unknown): PostulanteMO | null {
+  if (!isRecord(value)) return null;
+  const id = trimmed(value.id);
+  const draft = parsePostulanteDraft(value);
+  if (!id || !draft) return null;
+  return { id, ...draft, elegido: value.elegido === true };
+}
+
+/** El total del postulante en el rubro: su precio unitario × la cantidad del ítem. */
+export function postulanteTotal(postulante: PostulanteMO, cantidad: number): number {
+  return postulante.precioUnit * cantidad;
+}
+
 export function parseTallerState(value: unknown): TallerState {
   if (!isRecord(value)) return EMPTY_TALLER;
 
   const manual = Array.isArray(value.manual)
     ? value.manual.map(parseManualItem).filter((item): item is ManualItem => item !== null)
+    : [];
+
+  const postulantes = Array.isArray(value.postulantes)
+    ? value.postulantes.map(parsePostulante).filter((p): p is PostulanteMO => p !== null)
     : [];
 
   const decided: Record<string, Decision> = {};
@@ -140,5 +211,5 @@ export function parseTallerState(value: unknown): TallerState {
     }
   }
 
-  return { manual, decided };
+  return { manual, decided, postulantes };
 }

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { construirPase, type RubroDelExpediente } from "./pase";
-import type { ManualItem, TallerState } from "./types";
+import type { ManualItem, PostulanteMO, TallerState } from "./types";
 
 const RUBROS: RubroDelExpediente[] = [
   { id: "batch:0:Preparaci%C3%B3n", etapa: "Preparación", itemNames: ["Pintura látex", "Fijador"] },
@@ -21,8 +21,108 @@ function manual(over: Partial<ManualItem> = {}): ManualItem {
 }
 
 function taller(over: Partial<TallerState> = {}): TallerState {
-  return { manual: [], decided: {}, ...over };
+  return { manual: [], decided: {}, postulantes: [], ...over };
 }
+
+function postulante(over: Partial<PostulanteMO> = {}): PostulanteMO {
+  return {
+    id: "p1",
+    batchId: "batch:0:Preparaci%C3%B3n",
+    itemName: "Fijador",
+    proveedor: "Fran",
+    precioUnit: 44_000,
+    fecha: "2026-08-14",
+    procedencia: "presupuesto por WhatsApp",
+    elegido: true,
+    ...over,
+  };
+}
+
+describe("construirPase — mano de obra con postulantes", () => {
+  it("el elegido viaja como precio cerrado del ítem, con el nombre del proveedor", () => {
+    const { payload, descartados } = construirPase({
+      rubros: RUBROS,
+      taller: taller({ postulantes: [postulante()] }),
+      precioPropuesta: null,
+    });
+
+    expect(descartados).toEqual([]);
+    expect(payload.preciosCerrados).toEqual([
+      {
+        nombre: "Fijador",
+        valor: 44_000,
+        origen: "eze",
+        fuente: "Fran — presupuesto por WhatsApp",
+      },
+    ]);
+  });
+
+  it("sin procedencia viaja sólo el nombre del proveedor", () => {
+    const { payload } = construirPase({
+      rubros: RUBROS,
+      taller: taller({ postulantes: [postulante({ procedencia: null })] }),
+      precioPropuesta: null,
+    });
+    expect(payload.preciosCerrados[0].fuente).toBe("Fran");
+  });
+
+  it("los descartados se quedan en el taller: sólo viaja el elegido", () => {
+    const { payload } = construirPase({
+      rubros: RUBROS,
+      taller: taller({
+        postulantes: [
+          postulante({ id: "p2", proveedor: "Pacheco", precioUnit: 38_000, elegido: false }),
+          postulante(),
+        ],
+      }),
+      precioPropuesta: null,
+    });
+    expect(payload.preciosCerrados).toHaveLength(1);
+    expect(payload.preciosCerrados[0].fuente).toContain("Fran");
+  });
+
+  it("el postulante elegido le gana a una decisión previa sobre el mismo ítem", () => {
+    const { payload, descartados } = construirPase({
+      rubros: RUBROS,
+      taller: taller({
+        postulantes: [postulante()],
+        decided: {
+          "batch:0:Preparaci%C3%B3n:Fijador": { origin: "sismat", value: 30_000, at: "2026-08-15" },
+        },
+      }),
+      precioPropuesta: null,
+    });
+
+    expect(descartados).toEqual([]);
+    expect(payload.preciosCerrados).toEqual([
+      { nombre: "Fijador", valor: 44_000, origen: "eze", fuente: "Fran — presupuesto por WhatsApp" },
+    ]);
+  });
+
+  it("descarta con motivo el elegido cuyo ítem ya no está en el expediente", () => {
+    const { payload, descartados } = construirPase({
+      rubros: RUBROS,
+      taller: taller({ postulantes: [postulante({ itemName: "MO que se borró" })] }),
+      precioPropuesta: null,
+    });
+
+    expect(payload.preciosCerrados).toEqual([]);
+    expect(descartados).toEqual([
+      { que: "MO Fran", motivo: 'el ítem "MO que se borró" ya no está en el expediente' },
+    ]);
+  });
+
+  it("descarta con motivo el elegido cuyo rubro ya no existe", () => {
+    const { descartados } = construirPase({
+      rubros: RUBROS,
+      taller: taller({ postulantes: [postulante({ batchId: "batch:9:Borrado" })] }),
+      precioPropuesta: null,
+    });
+    expect(descartados).toEqual([
+      { que: "MO Fran", motivo: "el rubro de ese postulante ya no existe en el expediente" },
+    ]);
+  });
+});
 
 describe("construirPase", () => {
   it("traduce el ítem a mano y le infiere el rubro con la función de App RAVN", () => {

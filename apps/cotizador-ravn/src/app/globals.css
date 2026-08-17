@@ -2839,6 +2839,326 @@ code {
     flex-direction: column;
     gap: 4px;
   }
+
+  .qz-contender {
+    grid-template-columns: minmax(0, 1fr);
+    row-gap: 8px;
+  }
+
+  .qz-contender__price {
+    align-items: flex-start;
+    text-align: left;
+  }
+
+  .qz-contender__actions {
+    justify-content: flex-start;
+  }
+}
+
+/* ------------------------------------------------- mano de obra: el rubro
+
+   Pedido 3 de Eze (16/08): la MO deja de ser un ítem más y pasa a ser un rubro
+   propio, con los presupuestos de proveedor compitiendo contra las dos
+   investigaciones. El desvío es el producto, así que la lectura (las frases)
+   tiene tanto peso visual como los números. */
+
+.qz-labor {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: clip;
+}
+
+.qz-labor__total {
+  flex: 0 0 auto;
+  font-size: 0.92rem;
+  font-weight: 300;
+  font-variant-numeric: tabular-nums;
+}
+
+.qz-labor-rubro {
+  padding: 16px 24px 18px;
+  border-top: 1px solid var(--qz-line);
+}
+
+.qz-labor-rubro[data-severity="warning"] {
+  box-shadow: inset 2px 0 0 var(--qz-warn);
+}
+
+.qz-labor-rubro[data-severity="blocking"] {
+  box-shadow: inset 2px 0 0 var(--qz-alert);
+}
+
+.qz-labor-rubro__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.qz-labor-rubro__head h3 {
+  margin: 0;
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+
+.qz-labor-rubro__head small {
+  display: block;
+  margin-top: 3px;
+  font-size: 0.66rem;
+  color: var(--qz-dim);
+}
+
+/* el número grande del rubro: el protagonista (precisión 8 de Eze) */
+.qz-labor-rubro__money {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  flex: 0 0 auto;
+  font-size: 1.12rem;
+  font-weight: 300;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.qz-labor-rubro__money[data-basis="postulante"] {
+  text-shadow: var(--qz-glow-fg);
+}
+
+.qz-labor-rubro__money[data-basis="sin_precio"] {
+  color: var(--qz-alert);
+  font-size: 0.86rem;
+}
+
+.qz-labor-rubro__money small {
+  font-size: 0.52rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--qz-dim);
+  text-shadow: none;
+}
+
+.qz-labor-rubro__verdict {
+  margin: 12px 0 0;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 0.8rem;
+  color: var(--qz-muted);
+}
+
+.qz-labor-rubro__verdict[data-severity="warning"] {
+  color: var(--qz-warn);
+}
+
+.qz-labor-rubro__verdict[data-severity="blocking"] {
+  color: var(--qz-alert);
+}
+
+.qz-labor-rubro__verdict svg {
+  flex: 0 0 auto;
+}
+
+/* la lectura recitada: es el análisis, no un caption */
+.qz-labor-rubro__lines {
+  list-style: none;
+  margin: 12px 0 0;
+  padding: 11px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  background: var(--qz-inset);
+  border: 1px solid var(--qz-line);
+  border-radius: var(--qz-r-card);
+  box-shadow: var(--qz-well);
+  font-size: 0.74rem;
+  line-height: 1.6;
+  color: var(--qz-muted);
+}
+
+.qz-contenders {
+  list-style: none;
+  margin: 14px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.qz-contender {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 14px;
+  padding: 10px 13px;
+  border: 1px solid var(--qz-line);
+  border-radius: var(--qz-r-card);
+  background: rgb(242 239 232 / 0.02);
+}
+
+/* la investigación es la vara, no un competidor: se lee más apagada */
+.qz-contender[data-kind="investigacion"] {
+  background: none;
+  border-style: dashed;
+}
+
+.qz-contender[data-chosen="true"] {
+  border-color: color-mix(in srgb, var(--qz-fg) 42%, transparent);
+  background: rgb(242 239 232 / 0.055);
+  box-shadow: var(--qz-elev-1);
+}
+
+.qz-contender__who {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+}
+
+.qz-contender__who strong {
+  font-size: 0.86rem;
+  font-weight: 500;
+}
+
+.qz-contender__who small {
+  flex: 1 0 100%;
+  font-size: 0.62rem;
+  color: var(--qz-dim);
+}
+
+.qz-contender__tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 7px;
+  border: 1px solid var(--qz-line-strong);
+  border-radius: 999px;
+  font-size: 0.52rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--qz-dim);
+  white-space: nowrap;
+}
+
+.qz-contender__tag[data-tone="chosen"] {
+  color: var(--qz-fg);
+  border-color: color-mix(in srgb, var(--qz-fg) 48%, transparent);
+}
+
+.qz-contender__price {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.qz-contender__price strong {
+  font-size: 0.92rem;
+  font-weight: 300;
+  font-variant-numeric: tabular-nums;
+}
+
+.qz-contender[data-cheapest="true"] .qz-contender__price strong {
+  color: var(--qz-ok);
+}
+
+.qz-contender__price small {
+  font-size: 0.62rem;
+  color: var(--qz-dim);
+  font-variant-numeric: tabular-nums;
+}
+
+.qz-contender__actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  justify-content: flex-end;
+}
+
+.qz-contender__pick {
+  padding: 6px 11px;
+  background: none;
+  border: 1px solid var(--qz-line-strong);
+  border-radius: var(--qz-r-control);
+  color: var(--qz-muted);
+  font: inherit;
+  font-size: 0.6rem;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: color 0.16s ease, border-color 0.16s ease, background 0.16s ease;
+}
+
+.qz-contender__pick:hover {
+  color: var(--qz-fg);
+  border-color: var(--qz-fg);
+}
+
+.qz-contender__pick[data-active="true"] {
+  color: var(--qz-dim);
+  border-style: dashed;
+}
+
+.qz-contender__note {
+  font-size: 0.55rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--qz-dim);
+  white-space: nowrap;
+}
+
+.qz-labor-rubro__add {
+  margin-top: 13px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: none;
+  border: 1px dashed var(--qz-line-strong);
+  border-radius: 99px;
+  color: var(--qz-muted);
+  font: inherit;
+  font-size: 0.62rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: color 0.16s ease, border-color 0.16s ease;
+}
+
+.qz-labor-rubro__add:hover {
+  color: var(--qz-fg);
+  border-color: var(--qz-fg);
+}
+
+.qz-postulante-form {
+  margin-top: 13px;
+  grid-template-columns:
+    minmax(0, 1.4fr) minmax(0, 1fr) minmax(0, 1fr)
+    minmax(0, 1fr) minmax(0, 1.4fr);
+  border: 1px solid var(--qz-line);
+  border-radius: var(--qz-r-card);
+  padding: 14px;
+}
+
+/* el eco traduce total ↔ unitario mientras tipea: la cantidad ya se conoce */
+.qz-postulante-form__echo {
+  grid-column: 1 / -1;
+  margin: 0;
+  font-size: 0.68rem;
+  color: var(--qz-dim);
+  font-variant-numeric: tabular-nums;
+}
+
+.qz-margin__labor {
+  margin: 10px 0 0;
+  font-size: 0.7rem;
+  line-height: 1.55;
+  color: var(--qz-dim);
 }
 
 @media (prefers-reduced-motion: reduce) {

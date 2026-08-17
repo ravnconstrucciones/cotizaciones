@@ -46,6 +46,15 @@ import {
   type MarginBand,
 } from "../domain/margin";
 import { decisionRank } from "../domain/price-decision";
+import {
+  hoyLocalIso,
+  laborBoard,
+  laborOverrideDelta,
+  VENCIMIENTO_MO_DIAS,
+  type LaborBoard,
+  type LaborContender,
+  type LaborRubro,
+} from "../domain/labor";
 import { localTaller, remoteTaller, type TallerPersistence } from "../taller/persistence";
 import {
   isPersistableQuoteId,
@@ -54,6 +63,8 @@ import {
   type Decision,
   type ManualDraft,
   type ManualItem,
+  type PostulanteDraft,
+  type PostulanteMO,
 } from "../taller/types";
 import { formatObservedDate as dateTime } from "./format-observed-date";
 import {
@@ -190,9 +201,16 @@ function rangeWidthPct(min: number | null, max: number | null): number | null {
   return Math.round(((max - min) / min) * 1000) / 10;
 }
 
+/**
+ * La cola de decisiones es de MATERIALES. La mano de obra tiene su propio rubro
+ * con postulantes (pedido 3): se decide ahí, contra los presupuestos de
+ * proveedor, no de a un precio suelto en esta cola. Dejarla en los dos lados
+ * sería pedirle la misma decisión dos veces.
+ */
 function queueEntries(snapshot: QuoteWorkspaceSnapshot): QueueEntry[] {
   return snapshot.batches
     .flatMap((batch) => batch.items.map((item) => ({ batch, item })))
+    .filter((entry) => entry.item.tipo !== "mano_de_obra")
     .filter((entry) => entry.item.decision.kind !== "cerrado")
     .sort((left, right) => {
       const byRank = decisionRank(left.item.decision.kind) - decisionRank(right.item.decision.kind);
@@ -293,6 +311,9 @@ export function ControlCenter({
    * rechazó. Cada escritura es optimista y, si no entra, se revierte y se avisa.
    */
   const [manualItems, setManualItems] = useState<ManualItem[]>([]);
+  const [postulantes, setPostulantes] = useState<PostulanteMO[]>([]);
+  /** Se fija una vez por sesión: mide la antigüedad de los presupuestos de MO. */
+  const [today] = useState(hoyLocalIso);
   const [tallerError, setTallerError] = useState<string | null>(null);
   const [tallerLoading, setTallerLoading] = useState(true);
   const tallerRef = useRef<TallerPersistence | null>(null);
@@ -310,6 +331,7 @@ export function ControlCenter({
     let cancelled = false;
     setTallerLoading(true);
     setManualItems([]);
+    setPostulantes([]);
     setDecided({});
 
     taller()
@@ -317,6 +339,7 @@ export function ControlCenter({
       .then((state) => {
         if (cancelled) return;
         setManualItems(state.manual);
+        setPostulantes(state.postulantes);
         setDecided(state.decided);
         setTallerError(null);
       })
@@ -379,6 +402,71 @@ export function ControlCenter({
       );
     },
     [manualItems, persist, quoteId, taller]
+  );
+
+  /**
+   * --- postulantes de mano de obra (pedido 3) ---
+   *
+   * Un presupuesto de proveedor entra sin elegir: cargarlo y marcarlo son dos
+   * actos distintos. Marcar uno PISA el costo y recalcula al toque, sin
+   * confirmación ni freno por desvío — decisión de Eze: *"yo de última lo miro
+   * y sé cómo manejarlo"*. La herramienta muestra el desvío, no lo tutela.
+   */
+  const addPostulante = useCallback(
+    async (draft: PostulanteDraft) => {
+      const provisional: PostulanteMO = {
+        id: `pendiente:${draft.proveedor}:${draft.batchId}`,
+        ...draft,
+        elegido: false,
+      };
+      await persist(
+        () => setPostulantes((current) => [...current, provisional]),
+        () => setPostulantes((current) => current.filter((p) => p.id !== provisional.id)),
+        async () => {
+          const saved = await taller().addPostulante(quoteId, draft);
+          setPostulantes((current) => current.map((p) => (p.id === provisional.id ? saved : p)));
+        }
+      );
+    },
+    [persist, quoteId, taller]
+  );
+
+  const dropPostulante = useCallback(
+    async (id: string) => {
+      const removed = postulantes.find((p) => p.id === id);
+      await persist(
+        () => setPostulantes((current) => current.filter((p) => p.id !== id)),
+        () => setPostulantes((current) => (removed ? [...current, removed] : current)),
+        () => taller().dropPostulante(quoteId, id)
+      );
+    },
+    [persist, postulantes, quoteId, taller]
+  );
+
+  /**
+   * El rubro de mano de obra, armado en el navegador: los presupuestos que Eze
+   * tiene sobre la mesa contra la investigación que ya trajo el motor. Se
+   * recalcula solo al marcar un postulante — de ahí sale el "al toque".
+   */
+  const labor = useMemo(
+    () => laborBoard(snapshot.batches, postulantes, today),
+    [snapshot.batches, postulantes, today]
+  );
+  const laborDelta = useMemo(() => laborOverrideDelta(labor), [labor]);
+
+  const elegirPostulante = useCallback(
+    async (batchId: string, id: string | null) => {
+      const previous = postulantes;
+      await persist(
+        () =>
+          setPostulantes((current) =>
+            current.map((p) => (p.batchId === batchId ? { ...p, elegido: p.id === id } : p))
+          ),
+        () => setPostulantes(previous),
+        () => taller().elegirPostulante(quoteId, batchId, id)
+      );
+    },
+    [persist, postulantes, quoteId, taller]
   );
 
   const decide = useCallback(
@@ -630,6 +718,11 @@ export function ControlCenter({
           tallerError={tallerError}
           tallerLoading={tallerLoading}
           tallerKind={preview ? "local" : "remota"}
+          labor={labor}
+          laborDelta={laborDelta}
+          onAddPostulante={addPostulante}
+          onDropPostulante={dropPostulante}
+          onElegirPostulante={elegirPostulante}
         />
 
         <Splitter
@@ -930,6 +1023,11 @@ function BoardColumn({
   tallerError,
   tallerLoading,
   tallerKind,
+  labor,
+  laborDelta,
+  onAddPostulante,
+  onDropPostulante,
+  onElegirPostulante,
 }: {
   snapshot: QuoteWorkspaceSnapshot;
   queue: QueueEntry[];
@@ -947,6 +1045,11 @@ function BoardColumn({
   tallerError: string | null;
   tallerLoading: boolean;
   tallerKind: "remota" | "local";
+  labor: LaborBoard;
+  laborDelta: { min: number; max: number };
+  onAddPostulante: (draft: PostulanteDraft) => void;
+  onDropPostulante: (id: string) => void;
+  onElegirPostulante: (batchId: string, id: string | null) => void;
 }) {
   const itemRefs = useRef(new Map<string, HTMLDivElement>());
 
@@ -968,6 +1071,8 @@ function BoardColumn({
         reduceMotion={reduceMotion}
         manualItems={manualItems}
         decided={decided}
+        laborDelta={laborDelta}
+        laborChosen={labor.withChosen}
       />
       <InstrumentRow snapshot={snapshot} queue={queue} />
       <RubroLedger
@@ -986,6 +1091,12 @@ function BoardColumn({
           if (node) itemRefs.current.set(key, node);
           else itemRefs.current.delete(key);
         }}
+      />
+      <LaborLedger
+        board={labor}
+        onAdd={onAddPostulante}
+        onDrop={onDropPostulante}
+        onElegir={onElegirPostulante}
       />
       <LiveTerminals bridge={bridge} request={wave} onHealth={onHealth} />
     </section>
@@ -1076,11 +1187,15 @@ function MarginConsole({
   reduceMotion,
   manualItems,
   decided,
+  laborDelta,
+  laborChosen,
 }: {
   snapshot: QuoteWorkspaceSnapshot;
   reduceMotion: boolean;
   manualItems: ManualItem[];
   decided: Record<string, Decision>;
+  laborDelta: { min: number; max: number };
+  laborChosen: number;
 }) {
   const manualTotal = sumManual(manualItems);
   /**
@@ -1090,10 +1205,19 @@ function MarginConsole({
    */
   const [withManual, setWithManual] = useState(true);
   const addOn = manualTotal > 0 && withManual ? manualTotal : 0;
+  /**
+   * La mano de obra elegida PISA el costo del motor y el margen se recalcula al
+   * toque, sin confirmación (regla de Eze). El delta ya viene firmado: puede
+   * bajar el costo tanto como subirlo.
+   */
   const costMin =
-    snapshot.core.costRange.min == null ? null : snapshot.core.costRange.min + addOn;
+    snapshot.core.costRange.min == null
+      ? null
+      : snapshot.core.costRange.min + addOn + laborDelta.min;
   const costMax =
-    snapshot.core.costRange.max == null ? null : snapshot.core.costRange.max + addOn;
+    snapshot.core.costRange.max == null
+      ? null
+      : snapshot.core.costRange.max + addOn + laborDelta.max;
   const persisted = snapshot.quote.finalNumber;
   const opening = useMemo(
     () => openingPrice({ persistedPrice: persisted, costMax }),
@@ -1163,6 +1287,16 @@ function MarginConsole({
             </span>
           </label>
         ) : null}
+        {laborChosen > 0 ? (
+          <p className="qz-margin__labor">
+            Mano de obra cerrada con proveedor en {laborChosen}{" "}
+            {laborChosen === 1 ? "rubro" : "rubros"}:{" "}
+            {laborDelta.max === 0 && laborDelta.min === 0
+              ? "no le movió nada al costo."
+              : `${laborDelta.max > 0 ? "sube" : "baja"} el techo ${money(Math.abs(laborDelta.max))}` +
+                ` y ${laborDelta.min > 0 ? "sube" : "baja"} el piso ${money(Math.abs(laborDelta.min))}.`}
+          </p>
+        ) : null}
       </div>
 
       <div className="qz-margin__control">
@@ -1216,6 +1350,7 @@ function MarginConsole({
           decidedCount={
             Object.values(decided).filter((decision) => decision.value != null).length
           }
+          laborChosen={laborChosen}
         />
       </div>
     </section>
@@ -1238,11 +1373,14 @@ function PaseExpediente({
   price,
   manualCount,
   decidedCount,
+  laborChosen,
 }: {
   quoteId: string;
   price: number | null;
   manualCount: number;
   decidedCount: number;
+  /** Rubros con proveedor de MO marcado: viajan como precio cerrado del ítem. */
+  laborChosen: number;
 }) {
   type Estado =
     | { kind: "listo" }
@@ -1257,7 +1395,7 @@ function PaseExpediente({
   // Cambió el precio o la mesa: el "pasado" de antes ya no describe lo que hay.
   useEffect(() => {
     setEstado((current) => (current.kind === "hecho" ? { kind: "listo" } : current));
-  }, [price, manualCount, decidedCount]);
+  }, [price, manualCount, decidedCount, laborChosen]);
 
   const pasar = useCallback(async () => {
     setEstado({ kind: "pasando" });
@@ -1321,6 +1459,9 @@ function PaseExpediente({
         <strong>
           {price == null ? "Sin precio" : money(price)} · {manualCount} a mano · {decidedCount}{" "}
           precios cerrados
+          {laborChosen > 0
+            ? ` · mano de obra de ${laborChosen} ${laborChosen === 1 ? "rubro" : "rubros"}`
+            : ""}
         </strong>
         <small>
           La cotización queda igual a esta mesa. Si editaste algo a mano en App RAVN después del
@@ -1663,25 +1804,38 @@ function RubroLedger({
   tallerLoading: boolean;
   tallerKind: "remota" | "local";
 }) {
-  const totalMax = snapshot.batches.reduce((sum, batch) => sum + (batch.priceRange.max ?? 0), 0);
+  /**
+   * Este ledger es de MATERIALES. Desde el pedido 3 la mano de obra tiene rubro
+   * propio (`LaborLedger`) y sale de acá: mostrarla en los dos lados haría que
+   * los dos números sumaran de más al leerlos juntos.
+   */
+  const totalMax = snapshot.batches.reduce(
+    (sum, batch) => sum + (batch.materialsRange.max ?? 0),
+    0
+  );
   const [openForm, setOpenForm] = useState<string | null>(null);
   const [collapsed, setCollapsed] = useState<string[]>([]);
 
   return (
     <section className="qz-ledger qz-panel" aria-label="Rubros del costo">
       <header className="qz-ledger__head">
-        <h2>Rubros y precios por ítem</h2>
-        <span>Cada precio contra la más barata del ítem</span>
+        <h2>Materiales por rubro</h2>
+        <span>Cada precio contra la más barata del ítem · la mano de obra va aparte</span>
         <TallerState error={tallerError} loading={tallerLoading} kind={tallerKind} />
       </header>
 
       <div className="qz-ledger__scroll">
         {snapshot.batches.map((batch, index) => {
-          const share = totalMax > 0 ? Math.round(((batch.priceRange.max ?? 0) / totalMax) * 100) : 0;
+          const items = batch.items.filter((item) => item.tipo !== "mano_de_obra");
+          if (items.length === 0 && !manualItems.some((item) => item.batchId === batch.id)) {
+            return null;
+          }
+          const share =
+            totalMax > 0 ? Math.round(((batch.materialsRange.max ?? 0) / totalMax) * 100) : 0;
           const mine = manualItems.filter((item) => item.batchId === batch.id);
           const mineTotal = sumManual(mine);
           const shut = collapsed.includes(batch.id);
-          const openIssues = batch.items.filter(
+          const openIssues = items.filter(
             (item) =>
               item.decision.kind !== "cerrado" && !decided[`${batch.id}:${item.name}`]
           ).length;
@@ -1707,18 +1861,18 @@ function RubroLedger({
                 <h3>{batch.etapa}</h3>
                 {shut ? (
                   <span className="qz-rubro__share">
-                    {batch.items.length} ítems
+                    {items.length} ítems
                     {openIssues > 0 ? ` · ${openIssues} sin cerrar` : " · todos cerrados"}
                   </span>
                 ) : null}
-                <span className="qz-rubro__share">{share}% del costo</span>
+                <span className="qz-rubro__share">{share}% de los materiales</span>
                 {mineTotal > 0 ? (
                   <span className="qz-rubro__manual">+ {compact(mineTotal)} a mano</span>
                 ) : null}
                 <strong className="qz-rubro__money">
-                  {batch.priceRange.min === batch.priceRange.max
-                    ? compact(batch.priceRange.max)
-                    : `${compact(batch.priceRange.min)} — ${compact(batch.priceRange.max)}`}
+                  {batch.materialsRange.min === batch.materialsRange.max
+                    ? compact(batch.materialsRange.max)
+                    : `${compact(batch.materialsRange.min)} — ${compact(batch.materialsRange.max)}`}
                 </strong>
                 <button
                   type="button"
@@ -1744,7 +1898,7 @@ function RubroLedger({
 
               {shut ? null : (
                 <div className="qz-rubro__items">
-                  {batch.items.map((item) => {
+                  {items.map((item) => {
                     const key = `${batch.id}:${item.name}`;
                     return (
                       <ItemRow
@@ -1772,6 +1926,352 @@ function RubroLedger({
         ) : null}
       </div>
     </section>
+  );
+}
+
+/**
+ * EL RUBRO DE MANO DE OBRA (pedido 3 de Eze, 16/08).
+ *
+ * Un rubro propio, y adentro un panel por rubro de obra con los contendientes:
+ * los presupuestos de proveedor que él cargó y las dos investigaciones que trajo
+ * el motor. Marcar uno PISA el costo y recalcula el margen al toque, sin
+ * confirmación — el desvío se muestra, no interrumpe.
+ *
+ * Nada acá es decorativo: cada número es un precio persistido o uno que Eze
+ * tipeó, y cada frase compara dos de ellos.
+ */
+function LaborLedger({
+  board,
+  onAdd,
+  onDrop,
+  onElegir,
+}: {
+  board: LaborBoard;
+  onAdd: (draft: PostulanteDraft) => void;
+  onDrop: (id: string) => void;
+  onElegir: (batchId: string, id: string | null) => void;
+}) {
+  const [openForm, setOpenForm] = useState<string | null>(null);
+
+  if (board.rubros.length === 0) return null;
+
+  return (
+    <section className="qz-labor qz-panel" aria-label="Mano de obra por rubro">
+      <header className="qz-ledger__head">
+        <h2>Mano de obra</h2>
+        <span>
+          {board.withChosen} de {board.rubros.length}{" "}
+          {board.rubros.length === 1 ? "rubro cerrado" : "rubros cerrados"} con proveedor ·{" "}
+          {board.withCandidates === 0
+            ? "sin presupuestos cargados"
+            : `${board.withCandidates} con presupuesto`}
+        </span>
+        <strong className="qz-labor__total">
+          {board.totalMin == null || board.totalMax == null
+            ? "Sin precio"
+            : board.totalMin === board.totalMax
+              ? compact(board.totalMax)
+              : `${compact(board.totalMin)} — ${compact(board.totalMax)}`}
+        </strong>
+      </header>
+
+      <div className="qz-ledger__scroll">
+        {board.rubros.map((rubro) => (
+          <LaborRubroPanel
+            key={rubro.batchId}
+            rubro={rubro}
+            formOpen={openForm === rubro.batchId}
+            onToggleForm={() =>
+              setOpenForm((current) => (current === rubro.batchId ? null : rubro.batchId))
+            }
+            onAdd={(draft) => {
+              onAdd(draft);
+              setOpenForm(null);
+            }}
+            onDrop={onDrop}
+            onElegir={onElegir}
+          />
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function LaborRubroPanel({
+  rubro,
+  formOpen,
+  onToggleForm,
+  onAdd,
+  onDrop,
+  onElegir,
+}: {
+  rubro: LaborRubro;
+  formOpen: boolean;
+  onToggleForm: () => void;
+  onAdd: (draft: PostulanteDraft) => void;
+  onDrop: (id: string) => void;
+  onElegir: (batchId: string, id: string | null) => void;
+}) {
+  return (
+    <section className="qz-labor-rubro" data-severity={rubro.readout.severity}>
+      <header className="qz-labor-rubro__head">
+        <div>
+          <h3>{rubro.etapa}</h3>
+          <small>
+            {rubro.itemName} · {rubro.cantidad.toLocaleString("es-AR")} {rubro.unidad}
+          </small>
+        </div>
+        <span className="qz-labor-rubro__money" data-basis={rubro.costBasis}>
+          {rubro.costMin == null || rubro.costMax == null
+            ? "Sin precio"
+            : rubro.costMin === rubro.costMax
+              ? money(rubro.costMax)
+              : `${money(rubro.costMin)} — ${money(rubro.costMax)}`}
+          <small>
+            {rubro.costBasis === "postulante"
+              ? "lo que te cobran"
+              : rubro.costBasis === "propio"
+                ? "tu número"
+                : rubro.costBasis === "investigacion"
+                  ? "investigación"
+                  : "no suma"}
+          </small>
+        </span>
+      </header>
+
+      <p className="qz-labor-rubro__verdict" data-severity={rubro.readout.severity}>
+        {rubro.readout.severity !== "ok" ? <TriangleAlert size={13} aria-hidden="true" /> : null}
+        {rubro.readout.headline}
+      </p>
+
+      {rubro.contenders.length > 0 ? (
+        <ul className="qz-contenders">
+          {rubro.contenders.map((contender) => (
+            <ContenderRow
+              key={`${contender.kind}:${contender.id}`}
+              contender={contender}
+              unidad={rubro.unidad}
+              onElegir={() =>
+                onElegir(rubro.batchId, contender.chosen ? null : contender.id)
+              }
+              onDrop={() => onDrop(contender.id)}
+            />
+          ))}
+        </ul>
+      ) : null}
+
+      {rubro.readout.lines.length > 0 ? (
+        <ul className="qz-labor-rubro__lines">
+          {rubro.readout.lines.map((line) => (
+            <li key={line}>{line}</li>
+          ))}
+        </ul>
+      ) : null}
+
+      {formOpen ? (
+        <PostulanteForm
+          batchId={rubro.batchId}
+          itemName={rubro.itemName}
+          unidad={rubro.unidad}
+          cantidad={rubro.cantidad}
+          onAdd={onAdd}
+          onCancel={onToggleForm}
+        />
+      ) : (
+        <button type="button" className="qz-labor-rubro__add" onClick={onToggleForm}>
+          <Plus size={13} aria-hidden="true" />
+          Presupuesto de proveedor
+        </button>
+      )}
+    </section>
+  );
+}
+
+function ContenderRow({
+  contender,
+  unidad,
+  onElegir,
+  onDrop,
+}: {
+  contender: LaborContender;
+  unidad: string;
+  onElegir: () => void;
+  onDrop: () => void;
+}) {
+  const esPostulante = contender.kind === "postulante";
+
+  return (
+    <li
+      className="qz-contender"
+      data-kind={contender.kind}
+      data-chosen={contender.chosen}
+      data-cheapest={contender.cheapest}
+    >
+      <div className="qz-contender__who">
+        <strong>{contender.label}</strong>
+        {contender.kind === "investigacion" ? (
+          <span className="qz-contender__tag">investigación</span>
+        ) : null}
+        {contender.kind === "propio" ? (
+          <span className="qz-contender__tag">ya cerrado por vos</span>
+        ) : null}
+        {contender.chosen ? (
+          <span className="qz-contender__tag" data-tone="chosen">
+            <Check size={11} aria-hidden="true" />
+            el que me cobra
+          </span>
+        ) : null}
+        {contender.cheapest ? <span className="qz-contender__tag">el más barato</span> : null}
+        <small>
+          {contender.source ?? "sin procedencia"} · {dateTime(contender.date)}
+          {contender.expired
+            ? ` · ${contender.ageDays} días (límite ${VENCIMIENTO_MO_DIAS})`
+            : ""}
+        </small>
+      </div>
+
+      <span className="qz-contender__price">
+        <strong>{money(contender.total)}</strong>
+        <small>
+          {money(contender.unitPrice)}/{unidad}
+          {contender.deltaPct != null && contender.deltaPct !== 0
+            ? ` · ${signedPct(contender.deltaPct)}`
+            : ""}
+        </small>
+      </span>
+
+      <span className="qz-contender__actions">
+        {esPostulante ? (
+          <button
+            type="button"
+            className="qz-contender__pick"
+            data-active={contender.chosen}
+            onClick={onElegir}
+          >
+            {contender.chosen ? "Sacarlo" : "Es el que me cobra"}
+          </button>
+        ) : (
+          <span className="qz-contender__note">
+            {contender.kind === "propio" ? "en el costo hoy" : "no entra al costo"}
+          </span>
+        )}
+        {esPostulante ? (
+          <button
+            type="button"
+            className="qz-item__drop"
+            onClick={onDrop}
+            aria-label={`Sacar el presupuesto de ${contender.label}`}
+            title="Sacar de la mesa"
+          >
+            <X size={13} aria-hidden="true" />
+          </button>
+        ) : null}
+      </span>
+    </li>
+  );
+}
+
+/**
+ * Alta de un presupuesto de proveedor. El número se puede tipear como total del
+ * rubro o por unidad: los dos existen en la realidad (Fran tira "$40.000 el m²"
+ * o "$3.000.000 todo el baño") y la cantidad ya se conoce, así que traducir uno
+ * al otro es una división, no una suposición.
+ */
+function PostulanteForm({
+  batchId,
+  itemName,
+  unidad,
+  cantidad,
+  onAdd,
+  onCancel,
+}: {
+  batchId: string;
+  itemName: string;
+  unidad: string;
+  cantidad: number;
+  onAdd: (draft: PostulanteDraft) => void;
+  onCancel: () => void;
+}) {
+  const [proveedor, setProveedor] = useState("");
+  const [monto, setMonto] = useState("");
+  const [modo, setModo] = useState<"total" | "unitario">("total");
+  const [fecha, setFecha] = useState(hoyLocalIso);
+  const [procedencia, setProcedencia] = useState("");
+
+  const montoNum = Number(monto.replace(/\./g, "").replace(",", "."));
+  const precioUnit =
+    Number.isFinite(montoNum) && montoNum > 0
+      ? modo === "total"
+        ? montoNum / cantidad
+        : montoNum
+      : null;
+  const valid = proveedor.trim().length > 0 && precioUnit != null && fecha.length === 10;
+
+  return (
+    <form
+      className="qz-manual-form qz-postulante-form"
+      onSubmit={(event) => {
+        event.preventDefault();
+        if (!valid || precioUnit == null) return;
+        onAdd({
+          batchId,
+          itemName,
+          proveedor: proveedor.trim(),
+          precioUnit,
+          fecha,
+          procedencia: procedencia.trim() || null,
+        });
+      }}
+    >
+      <label>
+        <span>Quién pasó el precio</span>
+        <input
+          value={proveedor}
+          autoFocus
+          onChange={(event) => setProveedor(event.target.value)}
+          placeholder="Ej.: Fran"
+        />
+      </label>
+      <label>
+        <span>Cuánto</span>
+        <input
+          inputMode="numeric"
+          value={monto}
+          onChange={(event) => setMonto(event.target.value)}
+          placeholder="0"
+        />
+      </label>
+      <label>
+        <span>Ese número es</span>
+        <select value={modo} onChange={(event) => setModo(event.target.value as typeof modo)}>
+          <option value="total">Todo el rubro</option>
+          <option value="unitario">Por {unidad}</option>
+        </select>
+      </label>
+      <label>
+        <span>Cuándo</span>
+        <input type="date" value={fecha} onChange={(event) => setFecha(event.target.value)} />
+      </label>
+      <label>
+        <span>De dónde salió</span>
+        <input
+          value={procedencia}
+          onChange={(event) => setProcedencia(event.target.value)}
+          placeholder="Presupuesto por WhatsApp"
+        />
+      </label>
+      <p className="qz-postulante-form__echo">
+        {precioUnit == null
+          ? `${cantidad.toLocaleString("es-AR")} ${unidad} a cotizar`
+          : `${money(precioUnit)}/${unidad} · ${money(precioUnit * cantidad)} el rubro`}
+      </p>
+      <button type="submit" disabled={!valid}>
+        Agregar
+      </button>
+      <button type="button" className="qz-manual-form__cancel" onClick={onCancel}>
+        Cancelar
+      </button>
+    </form>
   );
 }
 

@@ -63,6 +63,12 @@ export type PasePrecioCerrado = {
   nombre: string;
   valor: number;
   origen: OrigenPrecio;
+  /**
+   * Quién pasó el número, cuando tiene nombre: el proveedor de mano de obra que
+   * ganó el rubro. Viaja para que `precios_items` aprenda "Fran" y no una
+   * etiqueta genérica. Sólo tiene efecto con origen `eze`.
+   */
+  fuente?: string;
 };
 
 export type PasePayload = {
@@ -156,6 +162,7 @@ function bodyDelPase(payload: PasePayload): Record<string, unknown> {
       nombre: p.nombre,
       valor: p.valor,
       origen: p.origen,
+      ...(p.fuente ? { fuente: p.fuente } : {}),
     })),
   };
 }

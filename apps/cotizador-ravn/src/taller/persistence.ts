@@ -2,11 +2,14 @@ import {
   EMPTY_TALLER,
   parseManualItem,
   parseDecision,
+  parsePostulante,
   parseTallerState,
   type Decision,
   type ItemKey,
   type ManualDraft,
   type ManualItem,
+  type PostulanteDraft,
+  type PostulanteMO,
   type TallerState,
 } from "./types";
 
@@ -33,10 +36,14 @@ export type TallerPersistence = {
     value: number | null
   ): Promise<Decision>;
   reopen(quoteId: string, itemKey: ItemKey): Promise<void>;
+  addPostulante(quoteId: string, draft: PostulanteDraft): Promise<PostulanteMO>;
+  dropPostulante(quoteId: string, id: string): Promise<void>;
+  elegirPostulante(quoteId: string, batchId: string, id: string | null): Promise<void>;
 };
 
 export const MANUAL_KEY = (quoteId: string) => `qz:manual:${quoteId}`;
 export const DECIDED_KEY = (quoteId: string) => `qz:decidido:${quoteId}`;
+export const POSTULANTES_KEY = (quoteId: string) => `qz:postulantes:${quoteId}`;
 
 type Storage = Pick<globalThis.Storage, "getItem" | "setItem">;
 
@@ -68,6 +75,7 @@ export function localTaller(storage: Storage): TallerPersistence {
     return parseTallerState({
       manual: readJson(storage, MANUAL_KEY(quoteId)),
       decided: readJson(storage, DECIDED_KEY(quoteId)),
+      postulantes: readJson(storage, POSTULANTES_KEY(quoteId)),
     });
   }
 
@@ -102,6 +110,30 @@ export function localTaller(storage: Storage): TallerPersistence {
       const decided = { ...state(quoteId).decided };
       delete decided[itemKey];
       writeJson(storage, DECIDED_KEY(quoteId), decided);
+    },
+
+    async addPostulante(quoteId, draft) {
+      const postulante: PostulanteMO = { id: newId(), ...draft, elegido: false };
+      writeJson(storage, POSTULANTES_KEY(quoteId), [...state(quoteId).postulantes, postulante]);
+      return postulante;
+    },
+
+    async dropPostulante(quoteId, id) {
+      writeJson(
+        storage,
+        POSTULANTES_KEY(quoteId),
+        state(quoteId).postulantes.filter((p) => p.id !== id)
+      );
+    },
+
+    async elegirPostulante(quoteId, batchId, id) {
+      writeJson(
+        storage,
+        POSTULANTES_KEY(quoteId),
+        state(quoteId).postulantes.map((p) =>
+          p.batchId === batchId ? { ...p, elegido: p.id === id } : p
+        )
+      );
     },
   };
 }
@@ -176,6 +208,33 @@ export function remoteTaller(fetchImpl: FetchImplementation = fetch): TallerPers
         `/api/taller/decisiones?${q(quoteId)}&item=${encodeURIComponent(itemKey)}`,
         { method: "DELETE" }
       );
+    },
+
+    async addPostulante(quoteId, draft) {
+      const payload = await send(fetchImpl, `/api/taller/postulantes?${q(quoteId)}`, {
+        method: "POST",
+        body: JSON.stringify(draft),
+      });
+      const postulante = parsePostulante(payload);
+      if (!postulante) {
+        throw new Error("El taller guardó el postulante pero devolvió algo ilegible.");
+      }
+      return postulante;
+    },
+
+    async dropPostulante(quoteId, id) {
+      await send(
+        fetchImpl,
+        `/api/taller/postulantes?${q(quoteId)}&id=${encodeURIComponent(id)}`,
+        { method: "DELETE" }
+      );
+    },
+
+    async elegirPostulante(quoteId, batchId, id) {
+      await send(fetchImpl, `/api/taller/postulantes?${q(quoteId)}`, {
+        method: "PATCH",
+        body: JSON.stringify({ batchId, id }),
+      });
     },
   };
 }

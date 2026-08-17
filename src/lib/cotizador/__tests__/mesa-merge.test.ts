@@ -110,6 +110,42 @@ describe("fechadoDePrecioCerrado", () => {
     expect(r).toEqual({ valor: 50_000, fuente: FUENTE_EZE, fecha: hoyIso() });
   });
 
+  it("el precio de un proveedor con nombre viaja con SU nombre, no con la etiqueta genérica", () => {
+    const r = fechadoDePrecioCerrado(
+      {
+        nombre: "MO colocación porcelanato",
+        valor: 44_000,
+        origen: "eze",
+        fuente: "Fran — presupuesto por WhatsApp",
+      },
+      undefined
+    );
+    expect(r).toEqual({
+      valor: 44_000,
+      fuente: "Fran — presupuesto por WhatsApp",
+      fecha: hoyIso(),
+    });
+  });
+
+  it("una fuente en blanco no borra la atribución: cae a la etiqueta de la mesa", () => {
+    const r = fechadoDePrecioCerrado(
+      { nombre: "Pintura", valor: 50_000, origen: "eze", fuente: "   " },
+      undefined
+    );
+    expect(r.fuente).toBe(FUENTE_EZE);
+  });
+
+  it("la fuente propia NO pisa a la de una fuente persistida — sólo aplica al número de Eze", () => {
+    const persistido = item("Pintura", {
+      sismat: { valor: 48_000, fuente: "SISMAT", fecha: "2026-07-02" },
+    });
+    const r = fechadoDePrecioCerrado(
+      { nombre: "Pintura", valor: 48_000, origen: "sismat", fuente: "Fran" },
+      persistido
+    );
+    expect(r.fuente).toBe("SISMAT");
+  });
+
   it("un precio de fuente CONSERVA su fuente y su fecha — el vencimiento sigue midiendo la antigüedad real", () => {
     const persistido = item("Pintura", {
       sismat: { valor: 48_000, fuente: "SISMAT", fecha: "2026-07-02" },

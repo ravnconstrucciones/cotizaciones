@@ -16,7 +16,7 @@ import type {
   PasePayload,
   PasePrecioCerrado,
 } from "../adapters/app-ravn-write-adapter";
-import type { ManualItem, TallerState } from "./types";
+import type { ManualItem, PostulanteMO, TallerState } from "./types";
 
 const UNIDADES: readonly string[] = [
   "m2", "ml", "u", "kg", "l", "bolsa", "caja", "m3", "rollo", "dia", "global",
@@ -62,6 +62,15 @@ function rubroDelManual(manual: ManualItem, etapa: string): string {
     etapa,
     tipo: manual.tipo,
   } as ItemDesglose);
+}
+
+/**
+ * De quién es el precio de MO que viaja. `precios_items` guarda una etiqueta de
+ * fuente y ésta es la que sirve dentro de tres meses: el nombre del proveedor y
+ * de dónde salió el presupuesto.
+ */
+function fuenteDelPostulante(p: PostulanteMO): string {
+  return p.procedencia ? `${p.proveedor} — ${p.procedencia}` : p.proveedor;
 }
 
 /**
@@ -129,9 +138,51 @@ export function construirPase({
     });
   }
 
-  // ── Precios cerrados ──────────────────────────────────────────────────────
+  // ── Mano de obra: el postulante elegido de cada rubro ─────────────────────
+  // Viaja el elegido, nunca los descartados: la competencia es del taller, la
+  // oficina sólo necesita saber a quién le va a pagar. El precio va con el
+  // NOMBRE del proveedor como fuente, así `precios_items` aprende de quién era.
   const preciosCerrados: PasePrecioCerrado[] = [];
+  const cerradoPorMO = new Set<string>();
 
+  for (const elegido of taller.postulantes.filter((p) => p.elegido)) {
+    const rubro = rubros.find((r) => r.id === elegido.batchId);
+    if (!rubro) {
+      descartados.push({
+        que: `MO ${elegido.proveedor}`,
+        motivo: "el rubro de ese postulante ya no existe en el expediente",
+      });
+      continue;
+    }
+    if (!rubro.itemNames.includes(elegido.itemName)) {
+      descartados.push({
+        que: `MO ${elegido.proveedor}`,
+        motivo: `el ítem "${elegido.itemName}" ya no está en el expediente`,
+      });
+      continue;
+    }
+    if (!(elegido.precioUnit > 0)) {
+      descartados.push({ que: `MO ${elegido.proveedor}`, motivo: "el precio no es mayor a cero" });
+      continue;
+    }
+    if (cerradoPorMO.has(elegido.itemName)) {
+      descartados.push({
+        que: `MO ${elegido.proveedor}`,
+        motivo: "ese ítem de mano de obra ya lo cerró otro postulante",
+      });
+      continue;
+    }
+
+    cerradoPorMO.add(elegido.itemName);
+    preciosCerrados.push({
+      nombre: elegido.itemName,
+      valor: elegido.precioUnit,
+      origen: "eze",
+      fuente: fuenteDelPostulante(elegido),
+    });
+  }
+
+  // ── Precios cerrados ──────────────────────────────────────────────────────
   for (const [clave, decision] of Object.entries(taller.decided)) {
     // "Lo dejo cerrado igual": la decisión existe pero no fija un número. Cierra
     // la cola en el laboratorio y no tiene nada que escribir en la cotización.
@@ -143,6 +194,9 @@ export function construirPase({
       continue;
     }
     if (nombresManuales.has(partes.item)) continue; // su precio viaja en el ítem a mano
+    // Si un postulante ganó ese ítem, manda el postulante: marcar "el que me
+    // cobran a mí" es un acto más explícito que haber cerrado la tarjeta antes.
+    if (cerradoPorMO.has(partes.item)) continue;
     if (!nombresDeReceta.has(partes.item)) {
       descartados.push({ que: partes.item, motivo: "el ítem ya no está en el expediente" });
       continue;

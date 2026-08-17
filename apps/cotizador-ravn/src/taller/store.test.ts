@@ -136,7 +136,7 @@ describe("read", () => {
     const { calls, store } = storeWith(() => json([]));
     const state = await store.read("synthetic-preview-quote");
     expect(calls).toHaveLength(0);
-    expect(state).toEqual({ manual: [], decided: {} });
+    expect(state).toEqual({ manual: [], decided: {}, postulantes: [] });
   });
 });
 

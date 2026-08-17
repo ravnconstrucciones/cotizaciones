@@ -60,7 +60,7 @@ describe("localTaller", () => {
 
   it("aguanta un localStorage con basura sin romper la mesa", async () => {
     const storage = fakeStorage({ [MANUAL_KEY(QUOTE)]: "{no es json" });
-    expect(await localTaller(storage).load(QUOTE)).toEqual({ manual: [], decided: {} });
+    expect(await localTaller(storage).load(QUOTE)).toEqual({ manual: [], decided: {}, postulantes: [] });
   });
 });
 

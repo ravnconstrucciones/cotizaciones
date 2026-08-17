@@ -12,7 +12,7 @@ import {
   nombresDeReceta,
   preciosDeFuente,
   validarManual,
-  FUENTE_EZE,
+  fuenteDePrecioCerrado,
   type ManualEntrante,
   type PrecioCerrado,
 } from "@/lib/cotizador/mesa-merge";
@@ -101,6 +101,12 @@ export async function POST(req: Request, ctx: Params) {
     if (!ORIGENES.includes(cerrado.origen)) {
       return NextResponse.json(
         { error: `origen inválido en "${cerrado.nombre}": ${cerrado.origen}` },
+        { status: 400 }
+      );
+    }
+    if (cerrado.fuente != null && typeof cerrado.fuente !== "string") {
+      return NextResponse.json(
+        { error: `fuente inválida en "${cerrado.nombre}" (texto o nada)` },
         { status: 400 }
       );
     }
@@ -248,7 +254,10 @@ export async function POST(req: Request, ctx: Params) {
         item: c.nombre,
         origen: "eze" as const,
         valor: c.valor,
-        fuente: FUENTE_EZE,
+        // El proveedor que lo pasó, si vino con nombre; si no, la etiqueta de
+        // siempre. Es lo que hace que dentro de tres meses se sepa que ese
+        // precio de MO era de Fran y no un número suelto.
+        fuente: fuenteDePrecioCerrado(c),
         fecha,
         revisado_at: ahora,
       })),

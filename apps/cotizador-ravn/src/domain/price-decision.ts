@@ -91,10 +91,17 @@ function n(value: number): string {
   return value.toLocaleString("es-AR");
 }
 
-function pct(from: number, to: number): number {
+/**
+ * Desvío de `to` contra `from`, en % con un decimal. Es LA cuenta del desvío en
+ * todo el visor: la comparten los precios por ítem y el rubro de mano de obra.
+ * No escribir otra.
+ */
+export function pctDelta(from: number, to: number): number {
   if (from <= 0) return 0;
   return Math.round(((to - from) / from) * 1000) / 10;
 }
+
+const pct = pctDelta;
 
 type RawOffer = { origin: OrigenPrecio; price: PrecioFechado; ageDays: number; expired: boolean };
 

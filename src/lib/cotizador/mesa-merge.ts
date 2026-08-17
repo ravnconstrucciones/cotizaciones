@@ -182,7 +182,21 @@ export type PrecioCerrado = {
   nombre: string;
   valor: number;
   origen: OrigenPrecio;
+  /**
+   * Quién puso ese número, cuando no fue Eze de la nada: el proveedor que pasó
+   * el presupuesto de mano de obra ("Fran — presupuesto por WhatsApp"). Sólo
+   * aplica con origen `eze`, que es el único que califica para calibrar.
+   * Sin esto `precios_items` aprendería "Eze — mesa de revisión" y se perdería
+   * de quién era el precio, que es justamente el dato que sirve la próxima vez.
+   */
+  fuente?: string;
 };
+
+/** Etiqueta de fuente para un precio cerrado, ya recortada para la base. */
+export function fuenteDePrecioCerrado(cerrado: PrecioCerrado): string {
+  const propia = typeof cerrado.fuente === "string" ? cerrado.fuente.trim() : "";
+  return propia ? propia.slice(0, 120) : FUENTE_EZE;
+}
 
 /**
  * Traza del precio cerrado: cuando el origen es una fuente ya persistida, se
@@ -195,7 +209,7 @@ export function fechadoDePrecioCerrado(
   itemPersistido: ItemDesglose | undefined
 ): PrecioFechado {
   if (cerrado.origen === "eze") {
-    return { valor: cerrado.valor, fuente: FUENTE_EZE, fecha: hoyIso() };
+    return { valor: cerrado.valor, fuente: fuenteDePrecioCerrado(cerrado), fecha: hoyIso() };
   }
   const persistido = itemPersistido?.precios?.[cerrado.origen];
   return {
