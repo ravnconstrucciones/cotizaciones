@@ -29,7 +29,7 @@ import {
   UMBRAL_DIVERGENCIA_PCT,
 } from "../../../../src/lib/cotizador/cotizar";
 import type { Unidad } from "../../../../src/lib/cotizador/tipos";
-import { VENCIMIENTO_DIAS, diasEntre } from "../../../../src/lib/cotizador/vencimiento";
+import { VENCIMIENTO_DIAS, diasEntre, hoyIsoAR } from "../../../../src/lib/cotizador/vencimiento";
 import { originName, pctDelta } from "./price-decision";
 import type { PostulanteMO } from "../taller/types";
 import type { BatchItem, QuoteBatch } from "./quote-workspace";
@@ -38,16 +38,19 @@ import type { BatchItem, QuoteBatch } from "./quote-workspace";
 export const VENCIMIENTO_MO_DIAS = VENCIMIENTO_DIAS.mano_de_obra;
 
 /**
- * El día de HOY en la máquina de Eze, no en UTC.
+ * El día de HOY donde se trabaja: Buenos Aires, con la zona NOMBRADA.
  *
- * `toISOString()` devuelve UTC: a las 21 de Buenos Aires ya es el día siguiente,
- * y un presupuesto cargado esta noche aparecía fechado mañana. La fecha de un
- * presupuesto es un dato de obra, así que se mide en la zona en la que se
- * trabaja.
+ * Dos cosas que no alcanzan y por eso no se usan. `toISOString()` es UTC: a las
+ * 21 de Buenos Aires ya es el día siguiente y el presupuesto cargado esta noche
+ * aparecía fechado mañana. Y restar `getTimezoneOffset()` arregla el navegador
+ * de Eze pero rompe el servidor: esta consola la renderiza Next del lado del
+ * servidor ANTES de hidratar, y en Vercel ese proceso corre en UTC — el HTML
+ * llegaba con un día y el navegador calculaba otro.
+ *
+ * Con la zona nombrada las dos puntas dan lo mismo siempre.
  */
 export function hoyLocalIso(now: Date = new Date()): string {
-  const local = new Date(now.getTime() - now.getTimezoneOffset() * 60_000);
-  return local.toISOString().slice(0, 10);
+  return hoyIsoAR(now);
 }
 
 /**
@@ -202,17 +205,26 @@ function readout(args: {
 
     for (const other of contenders) {
       if (other.id === chosen.id) continue;
-      const delta = pctDelta(other.unitPrice, chosen.unitPrice);
+      // Dos desvíos distintos, y confundirlos deforma el número que Eze lee:
+      //   · `contraOther` mide al ELEGIDO contra esta referencia (base: la
+      //     referencia). Es el que alimenta el veredicto — "Fran está 50%
+      //     arriba de SISMAT".
+      //   · `delta` mide a la REFERENCIA contra el elegido (base: el elegido),
+      //     porque la frase habla de ella — "SISMAT está 33,3% abajo de Fran".
+      // Con 100 contra 150 los dos son ciertos y valen 50% y 33,3%: no es la
+      // misma cuenta mirada al revés.
+      const contraOther = pctDelta(other.unitPrice, chosen.unitPrice);
+      const delta = pctDelta(chosen.unitPrice, other.unitPrice);
       if (delta === 0) {
         lines.push(`${other.label} te pasó exactamente el mismo número: ${money(other.total)}.`);
         continue;
       }
-      const lado = delta > 0 ? "abajo" : "arriba";
+      const lado = delta < 0 ? "abajo" : "arriba";
       lines.push(
         `${other.label} está ${pctText(delta)} ${lado} de lo que te cobra ${chosen.label}: ` +
           `${money(other.total)} contra ${money(chosen.total)}.`
       );
-      if (other.kind !== "postulante" && delta > worst) worst = delta;
+      if (other.kind !== "postulante" && contraOther > worst) worst = contraOther;
     }
 
     if (chosen.expired) {
@@ -287,11 +299,12 @@ function readout(args: {
   // y hay que decirlo, no leerlo como si estuviera vacío.
   if (propio) {
     for (const ref of research) {
-      const delta = pctDelta(ref.unitPrice, propio.unitPrice);
+      // El sujeto de la frase es la referencia, así que la base es TU número.
+      const delta = pctDelta(propio.unitPrice, ref.unitPrice);
       lines.push(
         delta === 0
           ? `${ref.label} coincide con tu número: ${money(ref.total)}.`
-          : `${ref.label} está ${pctText(delta)} ${delta > 0 ? "abajo" : "arriba"} de tu número: ` +
+          : `${ref.label} está ${pctText(delta)} ${delta < 0 ? "abajo" : "arriba"} de tu número: ` +
             `${money(ref.total)} contra ${money(propio.total)}.`
       );
     }

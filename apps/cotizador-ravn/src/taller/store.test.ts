@@ -250,3 +250,44 @@ describe("parseTallerState", () => {
     expect(manualTotal(state.manual)).toBe(200);
   });
 });
+
+/**
+ * Elegir "el que me cobran a mí" son DOS escrituras: desmarcar el rubro y
+ * marcar al nuevo. Si la segunda no toca ninguna fila, el rubro queda sin
+ * nadie elegido — y PostgREST contesta 200 igual. Sin verificarlo, la consola
+ * mostraba al proveedor marcado y el margen calculaba con su número mientras la
+ * base no tenía a nadie.
+ */
+describe("elegirPostulante", () => {
+  const POSTULANTE = "a1b2c3d4-0000-4000-8000-000000000001";
+
+  it("desmarca el rubro y después marca al elegido", async () => {
+    const { calls, store } = storeWith((call) =>
+      call.url.includes("elegido=is.true") ? json([]) : json([{ id: POSTULANTE }])
+    );
+
+    await store.elegirPostulante(QUOTE, "batch:0:Zócalos", POSTULANTE);
+
+    expect(calls).toHaveLength(2);
+    expect(calls[0].url).toContain("elegido=is.true");
+    expect(calls[0].init.body).toBe(JSON.stringify({ elegido: false }));
+    expect(calls[1].url).toContain(`id=eq.${POSTULANTE}`);
+    expect(calls[1].init.body).toBe(JSON.stringify({ elegido: true }));
+  });
+
+  it("no hace la segunda escritura cuando sólo se desmarca", async () => {
+    const { calls, store } = storeWith(() => json([]));
+    await store.elegirPostulante(QUOTE, "batch:0:Zócalos", null);
+    expect(calls).toHaveLength(1);
+  });
+
+  it("falla si el id no era de ese rubro: nadie quedó marcado, y no se calla", async () => {
+    const { store } = storeWith((call) =>
+      call.url.includes("elegido=is.true") ? json([]) : json([])
+    );
+
+    await expect(
+      store.elegirPostulante(QUOTE, "batch:0:Zócalos", POSTULANTE)
+    ).rejects.toBeInstanceOf(TallerError);
+  });
+});

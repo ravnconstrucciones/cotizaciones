@@ -24,15 +24,202 @@ Verificado en la nube: cotizador **401** sin credenciales y **200** con ellas ·
 no es UUID) · `/api/taller` de una cotización real devuelve **200** con
 `postulantes: []` · App RAVN `/` 307 → login, `/login` 200.
 
-**⏭️ POR ACÁ SE SIGUE.** Eze pidió, textual: *"/loop de corrección de errores que
-no quede ni uno fuera y ya avanzamos para usarlo"*. O sea: **una pasada de caza
-de errores sobre el visor entero antes de empezar a cotizar de verdad con él.**
-Arrancar por ahí, en sesión nueva y con contexto limpio. Lo demás que queda son
-los pendientes viejos (contrato de escritura de la conversación →
-adjuntos/audio/drag & drop, y sacar las rutas del cotizador de App RAVN).
-"⚠️ DIRECCIÓN NUEVA" sigue siendo el brief.
+## 🔴 CAZA DE ERRORES — RONDA 1 HECHA (16/08 noche). SIN COMMITEAR.
 
-**Dónde mirar primero en esa caza** (lo que esta sesión sabe y no está probado):
+Eze pidió, textual: *"/loop de corrección de errores que no quede ni uno fuera y
+ya avanzamos para usarlo"*, y después *"segui con ronda 2 que no haya errores"*.
+
+**Estado: 4 bugs encontrados, arreglados y verificados. TODO EN EL WORKING TREE
+de `home-cards`, sin commit ni deploy** (Eze no lo pidió todavía; se le preguntó
+y contestó "seguí con ronda 2"). Base al empezar: commit `3357d9b`.
+
+Verificación de la ronda 1: **155 tests cotizador** (eran 150) · **572 App RAVN**
+· typecheck y lint limpios · `npm run build` OK con **171 kB** First Load JS (no
+engordó) · los tres fixes de UI probados en el navegador con Playwright contra
+`?preview=1`.
+
+### Los 4 bugs de la ronda 1
+
+1. **`src/domain/labor.ts` — el desvío recitado tenía la base invertida.** Con
+   SISMAT 100k y Fran 150k elegido escribía *"SISMAT está 50% abajo de Fran"*:
+   es **33,3%**. El 50% es cuánto está Fran ARRIBA, que es la otra cuenta (y es
+   la que alimenta el veredicto, que estaba bien). Pasaba en 3 frases; la rama
+   sin elegido estaba correcta y sirvió de control. Ahora conviven `contraOther`
+   (base = referencia, para el veredicto) y `delta` (base = elegido, para la
+   frase). **Dos tests existentes codificaban el bug** (24,9% y 25%) y se
+   corrigieron con la cuenta verificada a mano; se sumó un test de dirección.
+
+2. **`src/domain/margin.ts` + `MarginConsole` — la MO elegida y los ítems a mano
+   entraban al costo SIN imprevistos ni zona.** El más caro. `core.costRange` es
+   un TOTAL (`subtotal × (1+imprevistos%) × factor_zona`), pero el postulante
+   marcado y el add-on son subtotales crudos y se sumaban derecho. Se agregó
+   `subtotalToTotalScale()` (puro, con tests) y se escala antes de sumar.
+   Medido contra la base real: Glorietas `3.909.708,65 × 1,10 × 1,20 = 5.160.815
+   = total_max` → **factor ×1,32**. Verificado en navegador: un add-on de
+   $370.000 ahora pesa $407.000 (factor 1,1000 exacto en el fixture, que no es
+   zona premium).
+
+3. **`MarginConsole` — el precio que ponía Eze se borraba solo.** El `useEffect`
+   dependía de `opening`, que se recalcula con `costMax`: marcar un postulante o
+   tocar el interruptor de ítems a mano pisaba el precio con el piso del 30%. Y
+   ese precio es el que viaja en el pase (`precioPropuesta`). Ahora la reapertura
+   se dispara por `snapshot.quote.id` con un `useRef`, que era la intención
+   declarada en el comentario original.
+
+4. **`MarginConsole` — vaciar el campo de precio desarmaba el panel.** `price`
+   quedaba en null → `band` null → el early-return se comía el input (no había
+   forma de volver a escribir) y encima mentía *"el motor todavía no cerró el
+   costo"*. Se separó el early-return del costo del de "todavía no hay precio", y
+   el campo se extrajo a `PriceField` para que sea el MISMO en los dos estados.
+
+## 🔴 CAZA DE ERRORES — RONDA 2 HECHA (16/08 noche). SIN COMMITEAR.
+
+**6 bugs encontrados, arreglados y verificados**, encima del working tree de la
+ronda 1 (sigue todo sin commit ni deploy sobre `3357d9b`).
+
+Verificación: **160 tests cotizador** (eran 155) · **572 App RAVN** · typecheck
+raíz y del cotizador limpios · lint limpio · `npm run build` **171 kB** (no
+engordó) · probado en el navegador contra `?preview=1` a las 22:08 de Buenos
+Aires, que es justo la hora en la que muerde el bug de fechas.
+
+### Los 6 bugs de la ronda 2
+
+**Los tres primeros son la misma falla, en tres lugares: la fecha se tomaba de
+UTC o de la zona de la máquina, nunca de Buenos Aires por su nombre.** La ronda
+1 arregló esto sólo en `labor.ts` y con `getTimezoneOffset()`, que tapa el
+navegador y deja roto el servidor. Ahora hay UN helper —`hoyIsoAR()` en
+`src/lib/cotizador/vencimiento.ts`, con la zona NOMBRADA, mismo criterio que
+`src/lib/semana.ts`— y lo usan los dos lados.
+
+1. **`labor.ts` — `hoyLocalIso` daba distinto en el servidor que en el
+   navegador.** `getTimezoneOffset()` es la zona de la MÁQUINA y en Vercel eso
+   es UTC; esta consola la renderiza Next del lado del servidor antes de
+   hidratar. Entre las 21 y las 00 el HTML llegaba con un día y el navegador
+   calculaba otro → mismatch de hidratación en el `value` del campo de fecha y
+   en los "N días" de antigüedad. **El test que lo cubría derivaba el esperado
+   con la misma cuenta que la función, así que pasaba siempre** — incluso en
+   UTC, donde la respuesta era el día equivocado. Reescrito con el día a mano.
+2. **`quote-workspace.ts` — la antigüedad de precios se medía contra UTC**
+   mientras la MO ya usaba la local. Después de las 21 el MISMO precio se leía
+   un día más viejo en el ledger de materiales que en el de MO: uno lo cantaba
+   vencido y el otro no, y eso levanta un bloqueo y una tarjeta en la cola.
+3. **App RAVN sellaba los precios con la fecha de MAÑANA.** `mesa-merge.hoyIso`
+   y el `hoy` de `cotizar.ts` eran UTC: un precio cerrado a la noche quedaba
+   guardado con el día siguiente en `precio_eze.fecha` y en `precios_items` —
+   dato equivocado que PERSISTE, y el vencimiento después mide contra una fecha
+   que todavía no pasó. Medido en vivo a las 22:06: UTC decía `2026-08-17`,
+   Buenos Aires `2026-08-16`.
+4. **`taller/store.ts` — el rubro podía quedar SIN NADIE elegido y la consola
+   mostrando un elegido.** Elegir son dos escrituras (desmarcar el rubro, marcar
+   al nuevo). El segundo PATCH filtra por rubro Y por id: si el id no es de ese
+   rubro no actualiza nada y PostgREST contesta 200 igual (el no-op silencioso
+   que la ronda 1 dejó anotado). Peor: si ese segundo paso falla, el primero ya
+   desmarcó, y el cliente revertía a `previous` — el elegido ANTERIOR, que
+   tampoco es lo que hay en la base. La consola decía "va con Fran", el margen
+   calculaba con Fran, y el pase no mandaba nada. Ahora el segundo PATCH pide la
+   representación y 0 filas es error; y ante el fallo el cliente **relee la
+   mesa** en vez de inventar un estado. 3 tests nuevos.
+5. **El pase afirmaba "no entró" cuando no lo sabía.** Un timeout (10 s) o un
+   corte de red después de que App RAVN escribió decía *"el pase no entró"*: es
+   la regla anti-slop al revés, un estado que no se verificó. Podía mandar a Eze
+   a corregir a mano algo que ya estaba pasado. Ahora dice que puede haber
+   entrado, que verifique, y que reintentar es seguro (el pase es idempotente).
+6. **El cartel "Pasado a App RAVN" no se caía al cambiar de proveedor.** El
+   reseteo dependía de la CANTIDAD de rubros cerrados, así que cambiar el
+   elegido de Fran a Pacheco dentro del mismo rubro dejaba el número igual, la
+   mesa distinta y el cartel mintiendo. Ahora depende de una huella de lo que
+   realmente viajaría (ids y precios de manuales, decisiones y elegidos).
+
+### Lo que se revisó y quedó limpio
+
+`app-ravn-read-adapter.ts`, `pase.ts` (traducción taller→extracto), la ruta
+`/api/cotizaciones/[id]/pase` de App RAVN y `mesa-merge.ts`, `price-decision.ts`,
+`rubros.ts`, `persistence.ts`, `types.ts` y las rutas de `/api/taller`.
+
+**`retail.ts`, `contraste.ts` y `contraste-obra.ts` NO se auditaron y no hace
+falta para el visor: el cotizador no los importa.** Sólo importa
+`cotizador/{tipos, cotizar, vencimiento, rubros}`. Son código de App RAVN.
+
+## 🔴 RONDA 3 HECHA (16/08 noche) — 3 arreglos más + la pregunta abierta, CERRADA
+
+Eze salió a caminar y dejó dicho: *"seguí con todo vos mismo"* y *"sigo todas
+las recomendaciones que vos me des, dale para adelante en todo"*.
+
+1. **`live-terminals.tsx` — la terminal duplicaba TODA la salida al reconectar.**
+   El stream SSE se corta seguido (el bridge se reinicia, la máquina duerme) y
+   al volver el bridge replica la ola desde el principio. Las líneas viejas se
+   apilaban sobre las que ya estaban: cada línea dos veces, y React chocando las
+   keys porque la key ES la seq. Ahora se descarta lo que ya está (mismo agente
+   + misma seq).
+2. **`live-terminals.tsx` — el aviso de error quedaba clavado para siempre.**
+   Sólo se limpiaba al lanzar una ola. Escribías un mensaje sin bridge, después
+   levantabas el bridge, y el cartel seguía diciendo "sin bridge configurado no
+   hay ola que lanzar" mientras la lámpara al lado ya decía "Bridge listo": dos
+   cosas contradictorias en la misma cabecera. Ahora se limpia en cuanto el
+   bridge contesta.
+3. **La pregunta abierta, resuelta con mi criterio** (`price-decision.ts`): un
+   ítem que Eze ya cerró con su número **ya no vuelve a la cola** porque el
+   SISMAT de al lado esté vencido. La regla de la mesa es que su número pisa; una
+   referencia vieja no lo mueve, así que la tarjeta era ruido en la única cola
+   que tiene que llegar a cero para que se despliegue el tablero. **La referencia
+   vencida se sigue mostrando con su nota** — no se esconde ningún número, deja
+   de pedir una decisión que ya está tomada. Si el vencido ES el que está en el
+   costo, sigue volviendo a la cola igual que antes. 3 tests nuevos que fijan las
+   tres ramas (antes NINGÚN test cubría esto).
+
+**Anotado y NO arreglado:** el tope de líneas (`MAX_LINES * 2`) es global para
+los dos agentes, así que un Codex charlatán puede desalojar todas las líneas de
+Fable. Y el token del bridge viaja en la query string del `EventSource` (no se
+le pueden poner headers); es localhost, pero queda en logs e historial.
+
+### ⏭️ CÓMO RETOMAR (sesión nueva, en frío)
+
+Base: `3357d9b` en `home-cards`. **Todo lo de las rondas 1 y 2 está en el
+working tree, sin commit ni deploy** — Eze no lo pidió todavía. No commitear sin
+que lo pida. Archivos tocados por las dos cazas:
+
+```
+apps/cotizador-ravn/src/domain/{labor,margin,quote-workspace}.ts (+ sus tests)
+apps/cotizador-ravn/src/components/control-center.tsx
+apps/cotizador-ravn/src/taller/store.ts (+ store.test.ts)
+apps/cotizador-ravn/src/adapters/app-ravn-write-adapter.ts
+src/lib/cotizador/{vencimiento,cotizar,mesa-merge}.ts
+```
+
+Cómo verificar, siempre las cuatro cosas antes de decir que algo está hecho:
+
+```
+cd apps/cotizador-ravn && npm test        # 160
+cd /Users/ezeotero/Documents/ravn && npm test   # 572
+cd apps/cotizador-ravn && npx tsc --noEmit && npm run lint && npm run build
+```
+
+Navegador: `pkill -f "next dev --port 3010"; rm -rf .next; COTIZADOR_PREVIEW_ENABLED=1 npm run dev`
+y entrar por `http://RAVN:APORTODO@localhost:3010/?preview=1`.
+
+**Autorización vigente de Eze (16/08, ~22:10):** *"salgo a caminar 30 minutos,
+seguí con todo vos mismo"*. O sea: seguir la caza sin esperar aprobación para
+BUSCAR y ARREGLAR. Sigue haciendo falta su OK para commit, deploy y para las
+preguntas de criterio.
+
+### ⏭️ RONDA 3 — lo que queda
+
+- **`control-center.tsx`**: quedan sin barrer las terminales, la conversación y
+  el bridge (~700 líneas). El tablero de MO, la consola de margen, el ledger y
+  el pase ya pasaron.
+- **Una pregunta de producto, NO un bug — para hablar con Eze:** un ítem cerrado
+  con su número propio, pero con el SISMAT viejo al lado, hoy cae igual en la
+  cola como *"precio vencido"* (`price-decision.ts`, el override del final).
+  El costo de ese ítem es el número de Eze y el SISMAT no lo toca, así que la
+  tarjeta es ruido en la única cola que tiene que llegar a cero para que se
+  despliegue el tablero. **No lo cambié solo: es criterio suyo.**
+- **Dos cosas chicas anotadas y no tocadas:** `PostulanteForm` divide por
+  `cantidad` sin guard (un ítem con cantidad 0 daría un precio infinito), y el
+  botón "Pasar" de la pantalla de confirmación no se bloquea al primer clic
+  (doble clic = dos pases, inofensivo porque es idempotente).
+
+**Lo de la ronda 1 que sigue sin probarse contra la nube** (no lo cubrió esta
+caza, sigue vigente del deploy):
 
 - **El CRUD de postulantes desde la UI contra la nube.** Probado por curl contra
   la base y en el navegador contra el fixture (mesa local), pero **no** la
@@ -43,12 +230,21 @@ adjuntos/audio/drag & drop, y sacar las rutas del cotizador de App RAVN).
 - **Cotizaciones viejas (Húsares y compañía)**: `desglose.items` con la forma
   vieja (`{item, costo}`); el visor las rechaza al elegirlas. **Sigue siendo
   decisión de producto** mostrarlas como "formato viejo, no legible" en el
-  selector en vez de romper.
+  selector en vez de romper. (Confirmado contra la base: Húsares, Lara y
+  Glorietas Lote 1 tienen `desglose.totales` en null.)
 - **Los rubros sin ítem de MO** no aparecen en el rubro de mano de obra (es
   correcto), pero conviene mirar una cotización real con muchos rubros para ver
   que el tablero no queda raro.
-- **First Load JS pasó de 167 a 171 kB.** Dentro de la vara, pero es el número
-  que Eze mira.
+
+**OJO al levantar el visor:** si la página carga pero no responde a nada, es el
+`.next` pisado (404 de `main-app.js`, React sin hidratar). `pkill -f "next dev
+--port 3010"`, `rm -rf .next`, `npm run dev`. Credenciales locales `RAVN` /
+`APORTODO`, y para Playwright entra por
+`http://RAVN:APORTODO@localhost:3010/?preview=1`.
+
+"⚠️ DIRECCIÓN NUEVA" sigue siendo el brief. Los pendientes viejos (contrato de
+escritura de la conversación → adjuntos/audio/drag & drop, y sacar las rutas del
+cotizador de App RAVN) siguen abiertos.
 
 ## Lo último: la MO como rubro propio (pedido 3, commit `78f3579`)
 

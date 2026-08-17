@@ -226,7 +226,16 @@ export function itemPricing(item: ItemDesglose, today: string): ItemPricing {
     };
   }
 
-  const expiredCost = cost.filter((offer) => offer.expired);
+  /**
+   * Un precio vencido devuelve el ítem a la cola — pero SÓLO si es el precio que
+   * está en el costo. Con el ítem cerrado por Eze, el número que manda es el
+   * suyo (esa es la regla de la mesa) y un SISMAT viejo al lado no lo mueve: la
+   * tarjeta era ruido en la única cola que tiene que llegar a cero para que se
+   * despliegue el tablero. La referencia vieja se sigue viendo en la oferta, con
+   * su nota de vencida — no se esconde nada, deja de pedir una decisión que ya
+   * está tomada.
+   */
+  const expiredCost = cost.filter((offer) => offer.expired && !(eze && offer.origin !== "eze"));
   if (decision.kind === "cerrado" && expiredCost.length > 0) {
     const worst = expiredCost.reduce((old, offer) => (offer.ageDays > old.ageDays ? offer : old));
     decision = {

@@ -10,6 +10,7 @@
 
 import { IMPREVISTOS_DEFAULT_PCT } from "./cotizar";
 import { RUBRO_POR_ID } from "./rubros";
+import { hoyIsoAR } from "./vencimiento";
 import type {
   AjusteItem,
   AjustesMesa,
@@ -33,8 +34,14 @@ export const ORIGENES: OrigenPrecio[] = ["sismat", "internet", "retail", "eze"];
 /** Etiqueta de `precios_items.fuente` cuando el número lo puso Eze a mano. */
 export const FUENTE_EZE = "Eze — mesa de revisión";
 
+/**
+ * La fecha con la que se sella un precio. Va en zona argentina, no en UTC: un
+ * precio cerrado a las 21 quedaba fechado MAÑANA en `precio_eze` y en
+ * `precios_items`, y el vencimiento después medía contra una fecha que todavía
+ * no pasó. La fecha de un precio es dato de obra y se mide donde se trabaja.
+ */
 export function hoyIso(): string {
-  return new Date().toISOString().slice(0, 10);
+  return hoyIsoAR();
 }
 
 export function esNumeroPositivo(v: unknown): v is number {

@@ -105,6 +105,14 @@ export function LiveTerminals({
         return;
       }
       setEvents((current) => {
+        // El stream se corta seguido (el bridge se reinicia, la máquina duerme)
+        // y al reconectar el bridge replica la ola desde el principio. Sin este
+        // filtro las líneas viejas se APILABAN sobre las que ya estaban: la
+        // terminal mostraba todo dos veces y React chocaba las keys, que son la
+        // seq. Una línea es la misma si es del mismo agente con la misma seq.
+        if (current.some((old) => old.agent === event.agent && old.seq === event.seq)) {
+          return current;
+        }
         const next = [...current, event];
         return next.length > MAX_LINES * 2 ? next.slice(next.length - MAX_LINES * 2) : next;
       });
@@ -133,6 +141,11 @@ export function LiveTerminals({
           wave: { status: "running" | "done" } | null;
         };
         setHealth(payload.wave?.status === "running" ? "running" : "ready");
+        // El bridge contestó: cualquier error viejo ya no describe la realidad.
+        // Sin esto, el aviso "sin bridge configurado no hay ola que lanzar"
+        // quedaba clavado para siempre y seguía en pantalla contradiciendo a la
+        // lámpara, que ya decía "Bridge listo".
+        setError(null);
         if (payload.wave) connectStream();
       } catch {
         if (!cancelled) setHealth("off");

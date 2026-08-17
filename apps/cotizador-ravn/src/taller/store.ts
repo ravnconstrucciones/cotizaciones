@@ -334,6 +334,13 @@ export function createTallerStore(config: TallerStoreConfig) {
      * "El que me cobran a mí". Se limpia el rubro entero ANTES de marcar: el
      * índice único de la base rechaza dos elegidos y, sin esta secuencia,
      * cambiar de proveedor fallaría siempre. `id` en `null` sólo desmarca.
+     *
+     * El segundo PATCH filtra por rubro Y por id, así que un id que no es de
+     * ese rubro no actualiza NADA — y PostgREST contesta 200 igual. Sin
+     * verificar las filas afectadas eso era un no-op silencioso: el rubro
+     * quedaba sin nadie elegido (el primer PATCH ya había desmarcado) mientras
+     * la consola mostraba al proveedor marcado y el margen calculaba con su
+     * número. Por eso se pide la representación y 0 filas es error.
      */
     async elegirPostulante(
       quoteId: string,
@@ -353,11 +360,21 @@ export function createTallerStore(config: TallerStoreConfig) {
 
       if (id === null) return;
 
-      await request(`${POSTULANTES}?${delRubro}&id=eq.${encodeURIComponent(id)}`, {
-        method: "PATCH",
-        headers: { Prefer: "return=minimal" },
-        body: JSON.stringify({ elegido: true }),
-      });
+      const marcado = await request(
+        `${POSTULANTES}?${delRubro}&id=eq.${encodeURIComponent(id)}`,
+        {
+          method: "PATCH",
+          headers: { Prefer: "return=representation" },
+          body: JSON.stringify({ elegido: true }),
+        }
+      );
+
+      if (!Array.isArray(marcado) || marcado.length === 0) {
+        throw new TallerError(
+          "invalid_input",
+          "Ese presupuesto ya no está en este rubro: nadie quedó marcado. Recargá la mesa."
+        );
+      }
     },
 
     /** Reabrir: se borra la fila y el ítem vuelve a la cola. */

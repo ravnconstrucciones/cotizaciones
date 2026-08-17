@@ -43,6 +43,7 @@ import {
   openingPrice,
   priceDialRange,
   roundUpToSellable,
+  subtotalToTotalScale,
   type MarginBand,
 } from "../domain/margin";
 import { decisionRank } from "../domain/price-decision";
@@ -454,19 +455,37 @@ export function ControlCenter({
   );
   const laborDelta = useMemo(() => laborOverrideDelta(labor), [labor]);
 
+  /**
+   * Elegir es la ÚNICA escritura que no se puede revertir en memoria. Son dos
+   * pasos en la base (desmarcar el rubro, marcar al nuevo) y si falla el
+   * segundo, el rubro queda sin nadie elegido: volver al estado anterior sería
+   * mostrar un marcado que ya no existe, y el margen calcularía con su número.
+   * Ante el fallo se relee la mesa, que es la única que sabe cómo quedó.
+   */
   const elegirPostulante = useCallback(
     async (batchId: string, id: string | null) => {
-      const previous = postulantes;
-      await persist(
-        () =>
-          setPostulantes((current) =>
-            current.map((p) => (p.batchId === batchId ? { ...p, elegido: p.id === id } : p))
-          ),
-        () => setPostulantes(previous),
-        () => taller().elegirPostulante(quoteId, batchId, id)
+      setPostulantes((current) =>
+        current.map((p) => (p.batchId === batchId ? { ...p, elegido: p.id === id } : p))
       );
+      setTallerError(null);
+      try {
+        await taller().elegirPostulante(quoteId, batchId, id);
+      } catch (error: unknown) {
+        const motivo =
+          error instanceof Error ? error.message : "No se pudo marcar ese presupuesto.";
+        try {
+          const state = await taller().load(quoteId);
+          setPostulantes(state.postulantes);
+          setTallerError(motivo);
+        } catch {
+          setPostulantes((current) =>
+            current.map((p) => (p.batchId === batchId ? { ...p, elegido: false } : p))
+          );
+          setTallerError(`${motivo} Además se perdió la conexión con la mesa: recargá.`);
+        }
+      }
     },
-    [persist, postulantes, quoteId, taller]
+    [quoteId, taller]
   );
 
   const decide = useCallback(
@@ -1072,7 +1091,7 @@ function BoardColumn({
         manualItems={manualItems}
         decided={decided}
         laborDelta={laborDelta}
-        laborChosen={labor.withChosen}
+        labor={labor}
       />
       <InstrumentRow snapshot={snapshot} queue={queue} />
       <RubroLedger
@@ -1182,22 +1201,72 @@ function Readout({
  * visor sigue siendo read-only en v1). El número final lo sigue fijando Eze en
  * la app; esto le dice contra qué lo está fijando.
  */
+/**
+ * El campo del precio. Vive aparte porque el instrumento lo muestra en dos
+ * estados —con margen medido y sin precio todavía— y en los dos tiene que ser
+ * el MISMO campo: si se duplicara el markup, uno de los dos se quedaría atrás.
+ */
+function PriceField({
+  price,
+  onPrice,
+}: {
+  price: number | null;
+  onPrice: (value: number | null) => void;
+}) {
+  return (
+    <label className="qz-margin__field">
+      <span>Precio de venta</span>
+      <input
+        inputMode="numeric"
+        value={price == null ? "" : price.toLocaleString("es-AR")}
+        onChange={(event) => {
+          const digits = event.target.value.replace(/\D/g, "");
+          onPrice(digits ? Number(digits) : null);
+        }}
+        aria-label="Precio de venta a simular"
+      />
+    </label>
+  );
+}
+
 function MarginConsole({
   snapshot,
   reduceMotion,
   manualItems,
   decided,
   laborDelta,
-  laborChosen,
+  labor,
 }: {
   snapshot: QuoteWorkspaceSnapshot;
   reduceMotion: boolean;
   manualItems: ManualItem[];
   decided: Record<string, Decision>;
   laborDelta: { min: number; max: number };
-  laborChosen: number;
+  labor: LaborBoard;
 }) {
   const manualTotal = sumManual(manualItems);
+  const laborChosen = labor.withChosen;
+  /**
+   * Huella de lo que hoy viajaría en el pase. Contar no alcanza: cambiar el
+   * proveedor elegido de un rubro deja el conteo igual y la mesa distinta, y el
+   * cartel "Pasado a App RAVN" seguía en pantalla describiendo un pase viejo.
+   */
+  const mesaFirma = useMemo(
+    () =>
+      [
+        manualItems.map((item) => `${item.id}@${item.cantidad}x${item.precioUnit}`).join("|"),
+        Object.entries(decided)
+          .filter(([, decision]) => decision.value != null)
+          .map(([key, decision]) => `${key}=${decision.origin}:${decision.value}`)
+          .sort()
+          .join("|"),
+        labor.rubros
+          .filter((rubro) => rubro.chosen)
+          .map((rubro) => `${rubro.batchId}=${rubro.chosen?.id}:${rubro.chosen?.unitPrice}`)
+          .join("|"),
+      ].join("//"),
+    [manualItems, decided, labor]
+  );
   /**
    * El ítem a mano lo cargás justo cuando el motor se quedó corto: ahí querés
    * ver el margen CON eso adentro. El interruptor lo suma al costo (las dos
@@ -1210,25 +1279,44 @@ function MarginConsole({
    * toque, sin confirmación (regla de Eze). El delta ya viene firmado: puede
    * bajar el costo tanto como subirlo.
    */
+  /**
+   * El costo persistido es un TOTAL (ya con imprevistos y zona adentro); el
+   * add-on a mano y el delta de la MO elegida son SUBTOTALES crudos. Se escalan
+   * antes de sumarlos o el margen mide contra un costo que el motor no va a
+   * confirmar cuando el pase recalcule en App RAVN.
+   */
+  const escala = subtotalToTotalScale(snapshot.core.composition);
   const costMin =
     snapshot.core.costRange.min == null
       ? null
-      : snapshot.core.costRange.min + addOn + laborDelta.min;
+      : snapshot.core.costRange.min + (addOn + laborDelta.min) * escala.min;
   const costMax =
     snapshot.core.costRange.max == null
       ? null
-      : snapshot.core.costRange.max + addOn + laborDelta.max;
+      : snapshot.core.costRange.max + (addOn + laborDelta.max) * escala.max;
   const persisted = snapshot.quote.finalNumber;
   const opening = useMemo(
     () => openingPrice({ persistedPrice: persisted, costMax }),
     [persisted, costMax]
   );
   const [price, setPrice] = useState<number | null>(opening?.price ?? null);
+  const cotizacionAbierta = useRef(snapshot.quote.id);
 
-  // Al cambiar de cotización el dial vuelve a abrir donde corresponde.
+  /**
+   * El dial vuelve a abrir al cambiar de COTIZACIÓN, no cada vez que se mueve el
+   * costo. Con la apertura como dependencia, marcar un postulante de MO o
+   * prender el interruptor de ítems a mano cambiaba `costMax`, recalculaba la
+   * apertura y **pisaba en silencio el precio que Eze había puesto** — que es
+   * justo el que viaja en el pase (`precioPropuesta`). La segunda rama sólo
+   * rellena cuando todavía no hay precio (el costo puede llegar después).
+   */
   useEffect(() => {
-    setPrice(opening?.price ?? null);
-  }, [opening]);
+    if (cotizacionAbierta.current !== snapshot.quote.id) {
+      cotizacionAbierta.current = snapshot.quote.id;
+      setPrice(opening?.price ?? null);
+      return;
+    }
+  }, [snapshot.quote.id, opening]);
 
   const band = useMemo(
     () => (price == null ? null : marginBand({ price, costMin, costMax })),
@@ -1236,12 +1324,33 @@ function MarginConsole({
   );
   const dial = costMax != null && costMax > 0 ? priceDialRange(costMax) : null;
 
-  if (costMin == null || costMax == null || !band || !dial) {
+  if (costMin == null || costMax == null || !dial) {
     return (
       <section className="qz-margin qz-panel" aria-label="Precio y margen">
         <span className="qz-readout__label">Precio y margen</span>
         <p className="qz-gauge__empty">
           El motor todavía no cerró el costo. Sin costo no hay margen que medir.
+        </p>
+      </section>
+    );
+  }
+
+  /**
+   * Campo vacío ≠ costo sin cerrar. Borrar el precio para tipear otro dejaba
+   * `price` en null, y el panel entero —el input incluido— se reemplazaba por
+   * "el motor todavía no cerró el costo": mentira, y sin campo no había forma
+   * de volver a escribir. El instrumento se queda, y dice lo que de verdad
+   * falta.
+   */
+  if (!band) {
+    return (
+      <section className="qz-margin qz-panel" aria-label="Precio y margen">
+        <span className="qz-readout__label">Precio y margen</span>
+        <div className="qz-margin__control">
+          <PriceField price={price} onPrice={setPrice} />
+        </div>
+        <p className="qz-gauge__empty">
+          Poné el precio de venta y el instrumento mide el margen contra el costo.
         </p>
       </section>
     );
@@ -1300,18 +1409,7 @@ function MarginConsole({
       </div>
 
       <div className="qz-margin__control">
-        <label className="qz-margin__field">
-          <span>Precio de venta</span>
-          <input
-            inputMode="numeric"
-            value={price == null ? "" : price.toLocaleString("es-AR")}
-            onChange={(event) => {
-              const digits = event.target.value.replace(/\D/g, "");
-              setPrice(digits ? Number(digits) : null);
-            }}
-            aria-label="Precio de venta a simular"
-          />
-        </label>
+        <PriceField price={price} onPrice={setPrice} />
         <input
           className="qz-margin__dial"
           type="range"
@@ -1351,6 +1449,7 @@ function MarginConsole({
             Object.values(decided).filter((decision) => decision.value != null).length
           }
           laborChosen={laborChosen}
+          mesaFirma={mesaFirma}
         />
       </div>
     </section>
@@ -1374,6 +1473,7 @@ function PaseExpediente({
   manualCount,
   decidedCount,
   laborChosen,
+  mesaFirma,
 }: {
   quoteId: string;
   price: number | null;
@@ -1381,6 +1481,8 @@ function PaseExpediente({
   decidedCount: number;
   /** Rubros con proveedor de MO marcado: viajan como precio cerrado del ítem. */
   laborChosen: number;
+  /** Qué hay hoy sobre la mesa, ítem por ítem: si cambia, el pase quedó viejo. */
+  mesaFirma: string;
 }) {
   type Estado =
     | { kind: "listo" }
@@ -1395,7 +1497,7 @@ function PaseExpediente({
   // Cambió el precio o la mesa: el "pasado" de antes ya no describe lo que hay.
   useEffect(() => {
     setEstado((current) => (current.kind === "hecho" ? { kind: "listo" } : current));
-  }, [price, manualCount, decidedCount, laborChosen]);
+  }, [price, mesaFirma]);
 
   const pasar = useCallback(async () => {
     setEstado({ kind: "pasando" });
@@ -1424,7 +1526,15 @@ function PaseExpediente({
         descartados: (cuerpo.descartados ?? []).map((d) => `${d.que}: ${d.motivo}`),
       });
     } catch {
-      setEstado({ kind: "error", motivo: "No se pudo llegar a App RAVN — el pase no entró." });
+      // Se cortó ANTES de leer la respuesta: puede haber entrado o no, y decir
+      // que no entró sería inventarlo. El pase es idempotente, así que la
+      // salida honesta es mirar y, si hace falta, volver a pasarlo.
+      setEstado({
+        kind: "error",
+        motivo:
+          "Se cortó la conexión con App RAVN y no sabemos si el pase entró. " +
+          "Fijate la cotización en la app; si no está, volvé a pasarlo (pasar dos veces da lo mismo).",
+      });
     }
   }, [price, quoteId]);
 

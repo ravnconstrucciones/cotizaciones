@@ -6,6 +6,7 @@ import {
   openingPrice,
   priceDialRange,
   priceForMargin,
+  subtotalToTotalScale,
   roundUpToSellable,
 } from "./margin";
 
@@ -140,5 +141,46 @@ describe("priceDialRange", () => {
     const range = priceDialRange(COSTO_MAX);
     expect(range.min).toBe(COSTO_MAX);
     expect(marginPct(range.max, COSTO_MAX)).toBe(60);
+  });
+});
+
+describe("subtotalToTotalScale", () => {
+  it("lleva un subtotal al espacio del total: imprevistos × zona, punta por punta", () => {
+    // Los factores reales de la cotización del intertrabado de Las Glorietas,
+    // que es zona premium: 3.909.708,65 × 1,10 × 1,20 = 5.160.815 = total_max.
+    const escala = subtotalToTotalScale({
+      imprevistosPct: 10,
+      factorZonaMin: 1.15,
+      factorZonaMax: 1.2,
+    });
+    expect(escala.min).toBeCloseTo(1.265, 5);
+    expect(escala.max).toBeCloseTo(1.32, 5);
+  });
+
+  it("fuera de zona premium sólo aplica imprevistos", () => {
+    const escala = subtotalToTotalScale({
+      imprevistosPct: 10,
+      factorZonaMin: 1,
+      factorZonaMax: 1,
+    });
+    expect(escala.min).toBeCloseTo(1.1, 5);
+    expect(escala.max).toBeCloseTo(1.1, 5);
+  });
+
+  it("sin composición persistida no escala: nunca inventa un factor", () => {
+    expect(subtotalToTotalScale(null)).toEqual({ min: 1, max: 1 });
+  });
+
+  it("un postulante de MO elegido entra al costo con imprevistos y zona adentro", () => {
+    // El caso que rompía: Eze marca a Fran en $1.000.000 sobre un ítem que el
+    // motor tenía en $700.000. El delta crudo es 300.000, pero al total le
+    // entran 396.000 — y eso es lo que App RAVN recalcula cuando llega el pase.
+    const escala = subtotalToTotalScale({
+      imprevistosPct: 10,
+      factorZonaMin: 1.15,
+      factorZonaMax: 1.2,
+    });
+    const deltaCrudo = 1_000_000 - 700_000;
+    expect(Math.round(deltaCrudo * escala.max)).toBe(396_000);
   });
 });

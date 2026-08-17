@@ -131,9 +131,32 @@ describe("laborRubro", () => {
   it("recita el desvío del elegido contra cada investigación, en %", () => {
     const rubro = laborRubro(batch([laborBatchItem()]), [postulante({ elegido: true })], HOY);
     const texto = rubro?.readout.lines.join(" ") ?? "";
-    // 35.241 contra 44.000 = 24,9% abajo · 40.000 contra 44.000 = 10% abajo
-    expect(texto).toContain("SISMAT está 24,9% abajo de lo que te cobra Fran");
-    expect(texto).toContain("internet está 10% abajo de lo que te cobra Fran");
+    // La frase habla de la referencia, así que la base es el elegido:
+    // 35.241 sobre 44.000 = 19,9% abajo · 40.000 sobre 44.000 = 9,1% abajo.
+    expect(texto).toContain("SISMAT está 19,9% abajo de lo que te cobra Fran");
+    expect(texto).toContain("internet está 9,1% abajo de lo que te cobra Fran");
+  });
+
+  it("el veredicto mide al elegido contra la referencia, y la frase a la referencia contra el elegido", () => {
+    // 100.000 contra 150.000: Fran está 50% ARRIBA de SISMAT y SISMAT está
+    // 33,3% ABAJO de Fran. Las dos son ciertas y no son la misma cuenta — cada
+    // una lleva su base. Ver `readout()` en labor.ts.
+    const item = laborBatchItem({
+      offers: [offer({ origin: "sismat", value: 100_000 })],
+      cantidad: 1,
+      subtotalMin: 100_000,
+      subtotalMax: 100_000,
+    });
+    const rubro = laborRubro(
+      batch([item]),
+      [postulante({ precioUnit: 150_000, elegido: true })],
+      HOY
+    );
+
+    expect(rubro?.readout.headline).toContain("Fran está 50% arriba de la referencia más barata");
+    expect(rubro?.readout.lines.join(" ")).toContain(
+      "SISMAT está 33,3% abajo de lo que te cobra Fran"
+    );
   });
 
   it("marca warning cuando el elegido se va arriba del umbral del motor (25%)", () => {
@@ -225,7 +248,9 @@ describe("laborRubro", () => {
     );
 
     const texto = rubro?.readout.lines.join(" ") ?? "";
-    expect(texto).toContain("tu número está 25% abajo de lo que te cobra Fran");
+    // 12.000 sobre 15.000 = 20% abajo (la base es el elegido, que es de quien
+    // habla la frase). Que Fran esté 25% arriba de tu número es la otra cuenta.
+    expect(texto).toContain("tu número está 20% abajo de lo que te cobra Fran");
     // 10.000 contra 15.000 = 50% ⇒ arriba del umbral de 25 del motor
     expect(rubro?.readout.severity).toBe("warning");
   });
@@ -252,14 +277,22 @@ describe("laborRubro", () => {
 });
 
 describe("hoyLocalIso", () => {
-  it("usa el día de la máquina, no el de UTC — a la noche en Buenos Aires no salta al día siguiente", () => {
+  // La versión anterior de este test derivaba el esperado con la MISMA cuenta
+  // que la función, así que pasaba siempre — incluso en un servidor UTC, donde
+  // la respuesta era el día equivocado. Acá el esperado va escrito a mano.
+  it("a la noche en Buenos Aires no salta al día siguiente", () => {
     // 16/08 21:00 en Buenos Aires (UTC−3) es 17/08 00:00 en UTC.
-    const nocheEnBuenosAires = new Date("2026-08-17T00:00:00.000Z");
-    const offsetMin = nocheEnBuenosAires.getTimezoneOffset();
-    const esperado = new Date(nocheEnBuenosAires.getTime() - offsetMin * 60_000)
-      .toISOString()
-      .slice(0, 10);
-    expect(hoyLocalIso(nocheEnBuenosAires)).toBe(esperado);
+    expect(hoyLocalIso(new Date("2026-08-17T00:00:00.000Z"))).toBe("2026-08-16");
+  });
+
+  it("da el mismo día corra donde corra: el servidor en UTC no puede contestar otra cosa", () => {
+    const instante = new Date("2026-08-17T02:59:00.000Z"); // 23:59 en Buenos Aires
+    expect(hoyLocalIso(instante)).toBe("2026-08-16");
+    expect(hoyLocalIso(new Date("2026-08-17T03:00:00.000Z"))).toBe("2026-08-17");
+  });
+
+  it("de día es el día que uno esperaría", () => {
+    expect(hoyLocalIso(new Date("2026-08-16T12:00:00.000Z"))).toBe("2026-08-16");
   });
 });
 

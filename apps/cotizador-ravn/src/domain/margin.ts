@@ -203,6 +203,37 @@ export function openingPrice(args: {
   return { price: roundUpToSellable(floorPrice), basis: "piso_sobre_costo_techo" };
 }
 
+/**
+ * Lo que hay que multiplicar a un número del espacio SUBTOTAL para llevarlo al
+ * espacio TOTAL, que es donde vive el costo persistido.
+ *
+ * El motor cierra `total = subtotal × (1 + imprevistos%) × factor_zona`
+ * (`src/lib/cotizador/totales.ts`). Pero un postulante de MO elegido y un ítem
+ * agregado a mano son SUBTOTALES crudos: sumarlos derecho al total los deja sin
+ * imprevistos y sin zona, cuando el resto del costo sí los tiene. En un barrio
+ * privado eso son 1,10 × 1,20 = **1,32**: por cada $100.000 de mano de obra que
+ * Eze marca, el margen se estaba comiendo $32.000 que no veía. Y al pasar el
+ * expediente App RAVN recalcula con el motor de verdad, así que el número se
+ * movía DESPUÉS de haber decidido el precio.
+ *
+ * Las dos puntas usan su propio factor de zona, igual que el motor.
+ */
+export function subtotalToTotalScale(
+  composition: {
+    imprevistosPct: number;
+    factorZonaMin: number;
+    factorZonaMax: number;
+  } | null
+): { min: number; max: number } {
+  if (!composition) return { min: 1, max: 1 };
+  const { imprevistosPct, factorZonaMin, factorZonaMax } = composition;
+  const imprevistos = Number.isFinite(imprevistosPct) ? 1 + imprevistosPct / 100 : 1;
+  return {
+    min: imprevistos * (Number.isFinite(factorZonaMin) ? factorZonaMin : 1),
+    max: imprevistos * (Number.isFinite(factorZonaMax) ? factorZonaMax : 1),
+  };
+}
+
 /** Extremos del dial de precio: de costo techo (margen 0) al techo del dial. */
 export function priceDialRange(costMax: number): { min: number; max: number } {
   return {

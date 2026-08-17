@@ -9,6 +9,7 @@ import type {
   TipoItem,
   Unidad,
 } from "../../../../src/lib/cotizador/tipos";
+import { hoyIsoAR } from "../../../../src/lib/cotizador/vencimiento";
 import { itemPricing, type ItemDecision, type ItemOffer } from "./price-decision";
 
 export type { ItemDecision, ItemOffer } from "./price-decision";
@@ -1244,7 +1245,10 @@ export function projectQuoteWorkspace(input: ProjectQuoteWorkspaceInput): QuoteW
   const desglose = asDesglose(input.quote.desglose);
   const activeItems = (desglose?.items ?? []).filter((item) => item.activo !== false);
   const revision = input.quote.revision;
-  const today = input.hoy ?? new Date().toISOString().slice(0, 10);
+  // Mismo "hoy" que el rubro de mano de obra (`labor.ts`) y que el motor. Con
+  // UTC acá, después de las 21 el MISMO precio se leía un día más viejo en el
+  // ledger de materiales que en el de MO: uno lo cantaba vencido y el otro no.
+  const today = input.hoy ?? hoyIsoAR();
   const batches = groupedBatches(activeItems, revision, today);
   const blockers = buildBlockers({ quote: input.quote, desglose, activeItems, revision });
   const costRange = persistedCostRange(input.quote, desglose);

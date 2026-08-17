@@ -3,7 +3,7 @@ import { evaluarChecklist } from "./checklist";
 import { instanciarItems, validarParametros } from "./instanciar";
 import { evaluarSanidad, type BandaM2 } from "./sanidad";
 import { calcularTiempo, calcularTotales } from "./totales";
-import { avisosVencidos } from "./vencimiento";
+import { avisosVencidos, hoyIsoAR } from "./vencimiento";
 import type {
   AjustesMesa,
   Desglose,
@@ -61,15 +61,11 @@ export type CotizacionCalculada = {
   total_max: number;
 };
 
-function hoyIso(): string {
-  return new Date().toISOString().slice(0, 10);
-}
-
 export function cotizar(entrada: EntradaCotizacion): CotizacionCalculada {
   const faltan = validarParametros(entrada.receta, entrada.parametros);
   if (faltan.length > 0) throw new FaltanParametrosError(faltan);
 
-  const hoy = entrada.hoy ?? hoyIso();
+  const hoy = entrada.hoy ?? hoyIsoAR();
   const extras = entrada.extras ?? [];
   const imprevistos = entrada.imprevistos_pct ?? IMPREVISTOS_DEFAULT_PCT;
 

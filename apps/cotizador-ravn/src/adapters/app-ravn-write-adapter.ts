@@ -195,8 +195,15 @@ export function createAppRavnWriteAdapter(configInput: WriteAdapterConfig): {
         });
       } catch (error) {
         const name = isRecord(error) && typeof error.name === "string" ? error.name : "";
+        // OJO: acá NO se sabe si entró. La request salió y se cortó la espera,
+        // así que App RAVN pudo haber escrito igual. Afirmar "no entró" sería
+        // el mismo slop al revés: un estado que no se verificó. El pase es
+        // idempotente, así que reintentar es seguro y hay que decirlo.
         if (name === "AbortError" || name === "TimeoutError") {
-          throw new QuoteWriteError("timeout", "App RAVN no respondió — el pase no entró.");
+          throw new QuoteWriteError(
+            "timeout",
+            "App RAVN no contestó a tiempo: el pase puede haber entrado igual. Verificá la cotización antes de reintentar."
+          );
         }
         throw new QuoteWriteError("network_error", "No se pudo conectar con App RAVN.");
       }

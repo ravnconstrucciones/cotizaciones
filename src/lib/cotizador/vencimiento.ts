@@ -15,6 +15,28 @@ export const VENCIMIENTO_EZE_DIAS = 30;
 
 const MS_DIA = 24 * 60 * 60 * 1000;
 
+const CALENDARIO_AR = new Intl.DateTimeFormat("en-CA", {
+  timeZone: "America/Argentina/Buenos_Aires",
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+});
+
+/**
+ * HOY como fecha civil argentina (YYYY-MM-DD), la única que sirve acá.
+ *
+ * `new Date().toISOString()` es UTC: a las 21 de Buenos Aires ya es el día
+ * siguiente, así que un precio cerrado de noche quedaba fechado MAÑANA y todo
+ * lo que se mide contra "hoy" corría un día. Y `getTimezoneOffset()` tampoco
+ * alcanza: da la zona de la MÁQUINA, que en Vercel es UTC — el servidor y el
+ * navegador de Eze calculaban días distintos para el mismo instante.
+ *
+ * La zona se nombra, no se hereda. Mismo criterio que `src/lib/semana.ts`.
+ */
+export function hoyIsoAR(now: Date = new Date()): string {
+  return CALENDARIO_AR.format(now);
+}
+
 /** Días de calendario entre dos fechas YYYY-MM-DD (UTC, sin horas). */
 export function diasEntre(desde: string, hasta: string): number {
   const a = Date.parse(`${desde}T00:00:00Z`);

@@ -142,3 +142,49 @@ describe("itemPricing", () => {
     expect(decision.severity).toBe("warning");
   });
 });
+
+/**
+ * Criterio cerrado con Eze (16/08): un precio vencido devuelve el ítem a la cola
+ * SÓLO si es el precio que está en el costo. Con el ítem cerrado por él, el
+ * número que manda es el suyo y una referencia vieja al lado no lo mueve.
+ */
+describe("vencimiento de una referencia que no está en el costo", () => {
+  const viejo = { valor: 1000, fuente: "SISMAT", fecha: "2026-06-01" }; // 76 días
+
+  it("no devuelve a la cola un ítem cerrado con tu número por un SISMAT vencido", () => {
+    const { decision } = itemPricing(
+      item({
+        sin_precio: false,
+        precios: { eze: precio(1200, "2026-08-14"), sismat: viejo },
+      }),
+      HOY
+    );
+
+    expect(decision.kind).toBe("cerrado");
+    expect(decision.severity).toBe("ok");
+  });
+
+  it("la referencia vencida se sigue viendo, con su nota: no se esconde nada", () => {
+    const { offers } = itemPricing(
+      item({
+        sin_precio: false,
+        precios: { eze: precio(1200, "2026-08-14"), sismat: viejo },
+      }),
+      HOY
+    );
+
+    const sismat = offers.find((o) => o.origin === "sismat");
+    expect(sismat?.expired).toBe(true);
+    expect(sismat?.note).toContain("Vencido");
+  });
+
+  it("pero si el vencido ES el que está en el costo, sigue volviendo a la cola", () => {
+    const { decision } = itemPricing(
+      item({ sin_precio: false, precios: { eze: { ...viejo, fuente: "tu número" } } }),
+      HOY
+    );
+
+    expect(decision.kind).toBe("precio_vencido");
+    expect(decision.severity).toBe("warning");
+  });
+});
