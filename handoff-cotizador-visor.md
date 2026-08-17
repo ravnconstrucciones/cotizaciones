@@ -10,7 +10,17 @@ y CONSTRUIDO ENTERO. Commits en `home-cards` (local): `14bf381` spec ·
 `c4eed54` plan · `84c5e80` helpers · `a43ad47` intake-client · `c33f1f4`
 composer · `49d162f` caja+panel · `e49992a` bridge · `e5827fe` home ·
 `968d120` borra gate · `873146f` fixes de la prueba real.
-**⚠️ SIN PUSH y SIN DEPLOY a producción — esperando el OK de Eze.**
+**✅ PUSHEADO y EN PRODUCCIÓN (17/08 ~12:50, Eze aprobó):** deploy
+`dpl_VEjG3Ka47bn2AEs5CmNanJkkQ18S` READY sobre `e51ea91`. Verificado en la
+nube: 401 sin clave · 200 con la cookie de acceso · la home sirve la puerta
+("Tirá la OT…").
+
+**🔌 PUENTE LEGACY APAGADO (orden de Eze: "las cotizaciones NACEN POR LA
+PUERTA"):** `com.ravn.puente-cotizador` (el daemon que contestaba
+`cotizacion_mensajes` por Realtime) quedó bootout + disable, y su plist movido
+a `~/Library/LaunchAgents/com.ravn.puente-cotizador.plist.apagado-20260817`.
+No recarga al login. El código en `daemon/puente-cotizador/` queda en el repo
+como archivo muerto — si alguien lo quiere revivir, primero hablarlo con Eze.
 
 **Lo que quedó:** el visor abre en la caja vacía (estilo ChatGPT); el primer
 envío crea el expediente (título provisional del primer renglón; el real lo
