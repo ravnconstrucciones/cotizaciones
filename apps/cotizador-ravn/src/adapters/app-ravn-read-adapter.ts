@@ -354,11 +354,15 @@ export function createAppRavnReadAdapter(configInput: AdapterConfig): {
         .sort((left, right) => right.creado_at.localeCompare(left.creado_at));
       const quotes = rows.map(projectQuoteSummary);
       const explicitId = selectedId?.trim();
-      const quoteId = explicitId || rows.find((row) => isActiveLegacyState(row.estado))?.id;
+      // Sin activa se cae a la más nueva (el selector ya abre cualquier
+      // estado): con la puerta conversacional como home, el visor tiene que
+      // abrir igual. Sólo la base VACÍA sigue siendo fallo cerrado.
+      const quoteId =
+        explicitId || rows.find((row) => isActiveLegacyState(row.estado))?.id || rows[0]?.id;
       if (!quoteId) {
         throw new QuoteReadError(
           "no_active_quote",
-          "No hay una cotización activa disponible para mostrar."
+          "No hay ninguna cotización para mostrar todavía."
         );
       }
 

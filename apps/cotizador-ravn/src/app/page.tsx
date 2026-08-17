@@ -30,7 +30,19 @@ export default async function CotizadorPage({ searchParams }: PageProps) {
       ? createPreviewData()
       : await loadQuoteWorkspace(first(query.quote));
 
-    return <ControlCenter initialData={data} preview={preview} bridge={bridge} />;
+    // La puerta conversacional ES el home (spec 2026-08-17): sin una
+    // cotización pedida por URL, el visor abre en la caja. El preview
+    // conserva su demo del tablero.
+    const initialEntrada = !preview && !first(query.quote);
+
+    return (
+      <ControlCenter
+        initialData={data}
+        preview={preview}
+        bridge={bridge}
+        initialEntrada={initialEntrada}
+      />
+    );
   } catch (error) {
     const message =
       error instanceof QuoteReadError
