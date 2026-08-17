@@ -136,9 +136,9 @@ function pushEvent(agent, kind, text) {
 
 function agentCommand(agent, prompt, opciones = {}) {
   if (agent === "fable") {
-    // El intake necesita Read: los archivos que bajó el bridge se leen del
-    // disco (PDF y fotos incluidos). Fuera del intake, Read no se habilita.
-    const tools = opciones.intake ? ["Read", "WebSearch", "WebFetch"] : ["WebSearch", "WebFetch"];
+    // Read se habilita SOLO cuando el bridge bajó archivos del expediente a
+    // disco (intake siempre; charla si el expediente tiene adjuntos).
+    const tools = opciones.leerArchivos ? ["Read", "WebSearch", "WebFetch"] : ["WebSearch", "WebFetch"];
     return {
       command: "claude",
       args: ["-p", prompt, "--output-format", "stream-json", "--verbose", "--allowedTools", ...tools],
@@ -288,19 +288,33 @@ async function persistirIntake(cotizacionId, cambios) {
  * contrato compartido y deja la propuesta en cotizador_intake. Si algo no
  * cierra, el estado queda en `error` con el motivo — nunca se simula éxito.
  */
-async function startIntakeWave({ cotizacionId, texto, archivos }) {
-  const dir = await mkdtemp(join(tmpdir(), "ravn-intake-"));
+/**
+ * Baja los archivos persistidos del expediente al directorio temporal de la
+ * ola. Los usan las DOS olas: intake (siempre) y charla (si hay adjuntos).
+ */
+async function bajarArchivos(dir, archivos) {
   const locales = [];
   for (const [i, archivo] of archivos.entries()) {
     const res = await fetch(archivo.url);
     if (!res.ok) {
-      await rm(dir, { recursive: true, force: true }).catch(() => {});
       throw new Error(`No se pudo bajar "${archivo.titulo}" (${res.status})`);
     }
     const ext = extname(new URL(archivo.url).pathname) || ".bin";
     const pathLocal = join(dir, `archivo-${i + 1}${ext}`);
     await writeFile(pathLocal, Buffer.from(await res.arrayBuffer()));
     locales.push({ titulo: archivo.titulo, pathLocal });
+  }
+  return locales;
+}
+
+async function startIntakeWave({ cotizacionId, texto, archivos }) {
+  const dir = await mkdtemp(join(tmpdir(), "ravn-intake-"));
+  let locales;
+  try {
+    locales = await bajarArchivos(dir, archivos);
+  } catch (error) {
+    await rm(dir, { recursive: true, force: true }).catch(() => {});
+    throw error;
   }
   const hoy = new Intl.DateTimeFormat("en-CA", {
     timeZone: "America/Argentina/Buenos_Aires",
@@ -331,6 +345,23 @@ async function startIntakeWave({ cotizacionId, texto, archivos }) {
           propuesta: v.propuesta,
           error: null,
         });
+        // Fable saluda en el hilo (spec puerta conversacional): el resumen del
+        // reconocimiento entra a la conversación, con el panel debajo. Si no
+        // entra, se canta — la propuesta ya está persistida igual.
+        const p = v.propuesta;
+        const items = p.rubros.reduce((n, r) => n + r.items.length, 0);
+        const resumenHilo =
+          `Reconocí "${p.titulo}": ${p.rubros.length} rubro(s), ${items} ítem(s)` +
+          (p.preguntas_abiertas.length > 0
+            ? ` y tengo ${p.preguntas_abiertas.length} pregunta(s).`
+            : `.`) +
+          ` ${p.resumen}`.trimEnd() +
+          " Revisá la propuesta acá abajo y confirmala para que el motor ponga los precios.";
+        await persistirMensaje(cotizacionId, {
+          autor: "fable",
+          texto: resumenHilo.slice(0, 4000),
+          tipo: "reconocimiento",
+        }).catch((e) => pushEvent("wave", "raw", `✗ El resumen no entró al hilo: ${e.message}`));
         pushEvent("wave", "result", "Propuesta de reconocimiento persistida — abrila en el visor");
       } catch (error) {
         const motivo = String(error?.message ?? error);
@@ -344,7 +375,7 @@ async function startIntakeWave({ cotizacionId, texto, archivos }) {
     },
   };
   pushEvent("wave", "status", `Ola de intake · ${locales.length} archivo(s) · desmenuzando con Fable`);
-  spawnAgent("fable", prompt, { intake: true, captura: true });
+  spawnAgent("fable", prompt, { leerArchivos: true, captura: true });
   wave.timeout = setTimeout(() => stopWave("Corte por tiempo máximo de ola"), WAVE_TIMEOUT_MS);
   wave.timeout.unref();
   return wave.id;
@@ -357,7 +388,7 @@ async function startIntakeWave({ cotizacionId, texto, archivos }) {
  * no puede responder, el motivo también queda en el hilo (autor `sistema`):
  * un fallo que solo se ve en una terminal es un fallo invisible.
  */
-async function startCharlaWave({ cotizacionId, mensajeId, texto }) {
+async function startCharlaWave({ cotizacionId, mensajeId, texto, archivos = [] }) {
   const [cotizaciones, hiloDesc] = await Promise.all([
     pgLeer(
       `cotizaciones?id=eq.${encodeURIComponent(cotizacionId)}&select=titulo,zona,estado,desglose,total_min,total_max,precio_propuesta`
@@ -370,10 +401,24 @@ async function startCharlaWave({ cotizacionId, mensajeId, texto }) {
   if (!cotizacion) throw new Error("La cotización de la charla no existe en la base.");
   const hilo = hiloDesc.reverse();
 
+  // Los adjuntos del expediente, bajados a disco para que Fable los lea
+  // (spec puerta conversacional: "la próxima ola lo ve").
+  let dir = null;
+  let locales = [];
+  if (archivos.length > 0) {
+    dir = await mkdtemp(join(tmpdir(), "ravn-charla-"));
+    try {
+      locales = await bajarArchivos(dir, archivos);
+    } catch (error) {
+      await rm(dir, { recursive: true, force: true }).catch(() => {});
+      throw error;
+    }
+  }
+
   const hoy = new Intl.DateTimeFormat("en-CA", {
     timeZone: "America/Argentina/Buenos_Aires",
   }).format(new Date());
-  const prompt = charlaPrompt({ cotizacion, hilo, texto, hoy });
+  const prompt = charlaPrompt({ cotizacion, hilo, texto, hoy, archivos: locales });
 
   wave = {
     id: randomUUID(),
@@ -405,11 +450,19 @@ async function startCharlaWave({ cotizacionId, mensajeId, texto }) {
           tipo: "aviso",
         }).catch((e) => pushEvent("wave", "raw", `✗ No se pudo dejar el aviso en el hilo: ${e.message}`));
         pushEvent("wave", "raw", `✗ Charla sin respuesta: ${motivo.slice(0, 300)}`);
+      } finally {
+        if (dir) await rm(dir, { recursive: true, force: true }).catch(() => {});
       }
     },
   };
-  pushEvent("wave", "status", "Ola de charla · Fable contesta con el expediente a la vista");
-  spawnAgent("fable", prompt, { captura: true });
+  pushEvent(
+    "wave",
+    "status",
+    locales.length > 0
+      ? `Ola de charla · ${locales.length} adjunto(s) a la vista · Fable contesta`
+      : "Ola de charla · Fable contesta con el expediente a la vista"
+  );
+  spawnAgent("fable", prompt, { captura: true, leerArchivos: locales.length > 0 });
   wave.timeout = setTimeout(() => stopWave("Corte por tiempo máximo de ola"), WAVE_TIMEOUT_MS);
   wave.timeout.unref();
   return wave.id;
@@ -511,6 +564,11 @@ const server = createServer(async (req, res) => {
       const cotizacionId = typeof body.cotizacionId === "string" ? body.cotizacionId.trim() : "";
       const mensajeId = typeof body.mensajeId === "string" ? body.mensajeId.trim() : "";
       const texto = typeof body.texto === "string" ? body.texto.slice(0, MAX_PROMPT_LENGTH) : "";
+      const archivos = Array.isArray(body.archivos)
+        ? body.archivos.filter(
+            (a) => a && typeof a.titulo === "string" && typeof a.url === "string" && a.url.startsWith("https://")
+          )
+        : [];
       if (!cotizacionId || !texto) {
         json(res, 400, { error: "A la charla le falta la cotización o el mensaje." });
         return;
@@ -522,7 +580,7 @@ const server = createServer(async (req, res) => {
         return;
       }
       try {
-        const id = await startCharlaWave({ cotizacionId, mensajeId, texto });
+        const id = await startCharlaWave({ cotizacionId, mensajeId, texto, archivos });
         json(res, 201, { waveId: id });
       } catch (error) {
         json(res, 502, { error: `La ola de charla no arrancó: ${error.message}` });

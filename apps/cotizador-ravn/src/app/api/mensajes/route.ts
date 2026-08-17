@@ -1,4 +1,5 @@
 import { NextRequest } from "next/server";
+import { loadQuoteArchivos } from "../../../adapters/app-ravn-read-adapter";
 import { dejarMensaje } from "../../../adapters/app-ravn-write-adapter";
 import { tallerJson, requireQuoteId } from "../../../taller/http";
 import { isPersistableQuoteId } from "../../../taller/types";
@@ -37,10 +38,24 @@ export async function POST(request: NextRequest) {
     }
 
     const { id } = await dejarMensaje(quoteId, texto);
+    // Los adjuntos del expediente viajan con la ola para que Fable los lea.
+    // Si la firma de URLs falla, el mensaje YA persistió: la charla sale sin
+    // adjuntos en vez de caerse.
+    const archivos = await loadQuoteArchivos(quoteId).catch(
+      () => [] as Awaited<ReturnType<typeof loadQuoteArchivos>>
+    );
     return tallerJson(
       {
         mensajeId: id,
-        wave: { kind: "charla", cotizacionId: quoteId, mensajeId: id, texto },
+        wave: {
+          kind: "charla",
+          cotizacionId: quoteId,
+          mensajeId: id,
+          texto,
+          archivos: archivos
+            .filter((a) => typeof a.url === "string" && a.url)
+            .map((a) => ({ titulo: a.titulo ?? "archivo", url: a.url })),
+        },
       },
       201
     );

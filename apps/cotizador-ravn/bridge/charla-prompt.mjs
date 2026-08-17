@@ -6,7 +6,7 @@
  * sitio con la fecha). Lo que la charla no puede hacer (cerrar precios,
  * elegir mano de obra, aprobar) se dice y se señala dónde se hace.
  */
-export function charlaPrompt({ cotizacion, hilo, texto, hoy }) {
+export function charlaPrompt({ cotizacion, hilo, texto, hoy, archivos = [] }) {
   const lineasHilo = hilo.length
     ? hilo
         .map((m) => `[${m.autor}] ${String(m.texto ?? "").slice(0, 600)}`)
@@ -17,6 +17,13 @@ export function charlaPrompt({ cotizacion, hilo, texto, hoy }) {
     ? JSON.stringify(cotizacion.desglose).slice(0, 8000)
     : "(sin desglose todavía)";
 
+  const seccionArchivos = archivos.length
+    ? `
+
+ARCHIVOS DEL EXPEDIENTE (bajados a disco; leelos con Read si el mensaje los menciona o si aportan a la respuesta):
+${archivos.map((a) => `- ${a.titulo} → ${a.pathLocal}`).join("\n")}`
+    : "";
+
   return `Sos la voz del Cotizador RAVN (empresa de construcción y reformas, zona norte GBA) en la mesa de una cotización. Eze —el dueño— te escribió en el hilo y tenés que contestarle. Hoy es ${hoy}.
 
 LA COTIZACIÓN SOBRE LA MESA:
@@ -24,7 +31,7 @@ LA COTIZACIÓN SOBRE LA MESA:
 - Zona: ${cotizacion.zona ?? "(sin zona)"}
 - Estado: ${cotizacion.estado ?? "?"}
 - Total del motor: ${cotizacion.total_min ?? "?"} a ${cotizacion.total_max ?? "?"} · Precio propuesta: ${cotizacion.precio_propuesta ?? "(sin definir)"}
-- Desglose persistido (JSON): ${desglose}
+- Desglose persistido (JSON): ${desglose}${seccionArchivos}
 
 EL HILO HASTA ACÁ (viejo → nuevo):
 ${lineasHilo}
