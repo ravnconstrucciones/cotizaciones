@@ -57,6 +57,13 @@ import {
   type LaborRubro,
 } from "../domain/labor";
 import { apiUrl } from "../lib/api-url";
+import {
+  momentoDelExpediente,
+  textoConAdjuntos,
+  tituloProvisional,
+  type MomentoExpediente,
+} from "../lib/entrada";
+import { despacharOla, subirUno } from "../lib/intake-client";
 import { localTaller, remoteTaller, type TallerPersistence } from "../taller/persistence";
 import {
   isPersistableQuoteId,
@@ -228,29 +235,48 @@ export function ControlCenter({
   initialData,
   preview,
   bridge,
+  initialEntrada = false,
 }: {
   initialData: ControlCenterData;
   preview: boolean;
   bridge: BridgeConfig | null;
+  initialEntrada?: boolean;
 }) {
   const reduceMotion = Boolean(useReducedMotion());
   const [data, setData] = useState(initialData);
-  const [mobileTab, setMobileTab] = useState<MobileTab>("tablero");
+  const [mobileTab, setMobileTab] = useState<MobileTab>(
+    initialEntrada && !preview ? "conversar" : "tablero"
+  );
   const [busy, setBusy] = useState(false);
   const [refreshError, setRefreshError] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
+  const [archivos, setArchivos] = useState<File[]>([]);
   const [localMessages, setLocalMessages] = useState<LocalPreviewMessage[]>([]);
   const [composerNotice, setComposerNotice] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
   const [wave, setWave] = useState<WaveRequest | null>(null);
   const [health, setHealth] = useState<BridgeHealth>("off");
-  // La puerta de entrada: "+ Nueva cotización" en el picker abre el gate.
-  const [intakeMode, setIntakeMode] = useState(false);
+  // La puerta de entrada ES la conversación (spec 2026-08-17): en entrada la
+  // caja crea el expediente con el primer envío. El visor abre acá.
+  const [entrada, setEntrada] = useState(initialEntrada && !preview);
   const [focusedItem, setFocusedItem] = useState<string | null>(null);
   const waveSeq = useRef(0);
   const requestInFlight = useRef(false);
   const composerRef = useRef<HTMLTextAreaElement>(null);
   const snapshot = data.snapshot;
+  const momento = momentoDelExpediente({
+    entrada,
+    legacyState: snapshot.quote.legacyState,
+    preview,
+  });
+  const agregarArchivos = useCallback((nuevos: FileList | File[]) => {
+    const lista = Array.from(nuevos).filter((f) => f.size > 0);
+    if (lista.length > 0) setArchivos((current) => [...current, ...lista]);
+  }, []);
+  const quitarArchivo = useCallback(
+    (index: number) => setArchivos((current) => current.filter((_, i) => i !== index)),
+    []
+  );
   const [decided, setDecided] = useState<Record<string, Decision>>({});
   const queue = useMemo(
     () => queueEntries(snapshot).filter((entry) => !decided[`${entry.batch.id}:${entry.item.name}`]),
@@ -593,6 +619,7 @@ export function ControlCenter({
    */
   useEffect(() => {
     setDraft("");
+    setArchivos([]);
     setLocalMessages([]);
     setComposerNotice(null);
   }, [quoteId]);
@@ -610,7 +637,7 @@ export function ControlCenter({
    * de la puerta de entrada y del reconocimiento. Si no está, la charla igual
    * persiste — pero no hay quién lance la ola, y eso se dice.
    */
-  const boardLive = !intakeMode && !(snapshot.quote.legacyState === "borrador" && !preview);
+  const boardLive = momento === "charla";
 
   /**
    * La respuesta de la charla entra al hilo DESPUÉS del "Ola terminada" (la
@@ -640,12 +667,140 @@ export function ControlCenter({
    * no puede salir (sin bridge, Mac apagada), el mensaje ya quedó guardado y
    * el aviso lo dice. En preview se mantiene la demostración local de siempre.
    */
+  /**
+   * La puerta conversacional (spec 2026-08-17): en `entrada` el primer envío
+   * CREA el expediente — borrador con título provisional, archivos, primer
+   * mensaje del hilo y recién después la ola de reconocimiento. Si algo del
+   * medio falla, el aviso dice exactamente qué quedó y qué no.
+   */
+  const enviarDesdeLaEntrada = async (text: string) => {
+    setComposerNotice("Creando el expediente…");
+    try {
+      const nombres = archivos.map((f) => f.name);
+      const res = await fetch(apiUrl("/api/intake"), {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ titulo: tituloProvisional(text, nombres), texto: text }),
+      });
+      const payload = (await res.json().catch(() => null)) as {
+        cotizacionId?: string;
+        advertencia?: string;
+        error?: string;
+      } | null;
+      if (!res.ok || typeof payload?.cotizacionId !== "string") {
+        throw new Error(payload?.error ?? "El expediente no se pudo crear.");
+      }
+      const id = payload.cotizacionId;
+
+      let aviso = payload.advertencia ?? null;
+      setComposerNotice("Expediente creado · subiendo archivos…");
+      for (const file of archivos) {
+        try {
+          await subirUno(id, file);
+        } catch (error) {
+          const motivo = error instanceof Error ? error.message : "subida rechazada";
+          aviso = `${aviso ? `${aviso} ` : ""}El archivo "${file.name}" no subió (${motivo}).`;
+        }
+      }
+
+      // El primer mensaje del hilo: el expediente arranca con su historia.
+      const mensaje = textoConAdjuntos(text, nombres);
+      if (mensaje.trim().length > 0) {
+        await fetch(apiUrl(`/api/mensajes?quote=${encodeURIComponent(id)}`), {
+          method: "POST",
+          headers: { "content-type": "application/json", Accept: "application/json" },
+          body: JSON.stringify({ texto: mensaje }),
+        }).catch(() => {
+          aviso = `${aviso ? `${aviso} ` : ""}El mensaje no quedó en el hilo (el intake sí).`;
+        });
+      }
+
+      const ola = await despacharOla(id, bridge);
+      setDraft("");
+      setArchivos([]);
+      setEntrada(false);
+      // loadQuote limpia el aviso al traer el expediente: se setea DESPUÉS.
+      await loadQuote(id);
+      setComposerNotice(aviso ? `${aviso} ${ola.mensaje}` : ola.mensaje);
+    } catch (error) {
+      // Nada nació: el borrador no existe y lo escrito sigue en la caja.
+      setComposerNotice(
+        error instanceof Error ? error.message : "El expediente no se pudo crear."
+      );
+    }
+  };
+
+  /**
+   * Momentos reconocimiento y charla: mismo orden inquebrantable de siempre —
+   * archivos y mensaje persisten PRIMERO, la ola sale después. En
+   * reconocimiento la ola es la de intake (relanzada); en charla, la banda del
+   * tablero la despacha como hoy.
+   */
+  const enviarAlExpediente = async (text: string) => {
+    const nombres = archivos.map((f) => f.name);
+    setComposerNotice("Guardando el mensaje en el hilo…");
+    try {
+      let aviso: string | null = null;
+      for (const file of archivos) {
+        try {
+          await subirUno(quoteId, file);
+        } catch (error) {
+          const motivo = error instanceof Error ? error.message : "subida rechazada";
+          aviso = `${aviso ? `${aviso} ` : ""}El archivo "${file.name}" no subió (${motivo}).`;
+        }
+      }
+      const mensaje = textoConAdjuntos(text, nombres);
+      const response = await fetch(apiUrl(`/api/mensajes?quote=${encodeURIComponent(quoteId)}`), {
+        method: "POST",
+        headers: { "content-type": "application/json", Accept: "application/json" },
+        body: JSON.stringify({ texto: mensaje }),
+      });
+      const payload = (await response.json().catch(() => null)) as {
+        mensajeId?: string;
+        error?: string;
+      } | null;
+      if (!response.ok || typeof payload?.mensajeId !== "string") {
+        throw new Error(payload?.error ?? "El mensaje no se pudo guardar en el hilo.");
+      }
+      // El borrador recién se suelta cuando el mensaje ESTÁ guardado: un
+      // fallo no se come lo que Eze escribió.
+      setDraft("");
+      setArchivos([]);
+      setLocalMessages((current) => [
+        ...current,
+        { id: `local:${payload.mensajeId}`, text: mensaje, occurredAt: new Date().toISOString() },
+      ]);
+
+      if (momento === "reconocimiento") {
+        const ola = await despacharOla(quoteId, bridge);
+        setComposerNotice(aviso ? `${aviso} ${ola.mensaje}` : ola.mensaje);
+        return;
+      }
+      waveSeq.current += 1;
+      setWave({
+        prompt: mensaje,
+        seq: waveSeq.current,
+        charla: { cotizacionId: quoteId, mensajeId: payload.mensajeId },
+      });
+      setComposerNotice(
+        aviso
+          ? `${aviso} Mensaje guardado · despachando la ola…`
+          : "Mensaje guardado en el hilo · despachando la ola…"
+      );
+    } catch (error) {
+      setComposerNotice(
+        error instanceof Error ? error.message : "El mensaje no se pudo guardar en el hilo."
+      );
+    }
+  };
+
   const submitMessage = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const text = draft.trim();
-    if (!text || sending) return;
+    if ((!text && archivos.length === 0) || sending) return;
 
     if (preview) {
+      if (!text) return;
       setLocalMessages((current) => [
         ...current,
         { id: `local:${Date.now()}`, text, occurredAt: new Date().toISOString() },
@@ -659,47 +814,12 @@ export function ControlCenter({
 
     void (async () => {
       setSending(true);
-      setComposerNotice("Guardando el mensaje en el hilo…");
       try {
-        const response = await fetch(
-          apiUrl(`/api/mensajes?quote=${encodeURIComponent(quoteId)}`),
-          {
-            method: "POST",
-            headers: { "content-type": "application/json", Accept: "application/json" },
-            body: JSON.stringify({ texto: text }),
-          }
-        );
-        const payload = (await response.json().catch(() => null)) as {
-          mensajeId?: string;
-          error?: string;
-        } | null;
-        if (!response.ok || typeof payload?.mensajeId !== "string") {
-          throw new Error(payload?.error ?? "El mensaje no se pudo guardar en el hilo.");
+        if (momento === "entrada") {
+          await enviarDesdeLaEntrada(text);
+          return;
         }
-        // El borrador recién se suelta cuando el mensaje ESTÁ guardado: un
-        // fallo no se come lo que Eze escribió.
-        setDraft("");
-        setLocalMessages((current) => [
-          ...current,
-          { id: `local:${payload.mensajeId}`, text, occurredAt: new Date().toISOString() },
-        ]);
-        if (boardLive) {
-          waveSeq.current += 1;
-          setWave({
-            prompt: text,
-            seq: waveSeq.current,
-            charla: { cotizacionId: quoteId, mensajeId: payload.mensajeId },
-          });
-          setComposerNotice("Mensaje guardado en el hilo · despachando la ola…");
-        } else {
-          setComposerNotice(
-            "Mensaje guardado en el hilo. Esta cotización está en la puerta de entrada: la ola de charla corre desde el tablero normal."
-          );
-        }
-      } catch (error) {
-        setComposerNotice(
-          error instanceof Error ? error.message : "El mensaje no se pudo guardar en el hilo."
-        );
+        await enviarAlExpediente(text);
       } finally {
         setSending(false);
       }
@@ -731,15 +851,19 @@ export function ControlCenter({
           </label>
           <select
             id="quote-picker"
-            value={intakeMode ? "__nueva__" : snapshot.quote.id}
+            value={entrada ? "__nueva__" : snapshot.quote.id}
             disabled={busy || preview}
             onChange={(event) => {
               if (event.target.value === "__nueva__") {
-                setIntakeMode(true);
-                setMobileTab("tablero");
+                setEntrada(true);
+                // La puerta ES la conversación: en mobile se abre esa solapa.
+                setMobileTab("conversar");
+                setDraft("");
+                setArchivos([]);
+                setComposerNotice(null);
                 return;
               }
-              setIntakeMode(false);
+              setEntrada(false);
               void loadQuote(event.target.value);
             }}
           >
@@ -839,12 +963,12 @@ export function ControlCenter({
           label="Ancho de la conversación"
         />
 
-        {intakeMode ? (
+        {entrada ? (
           <IntakeGate
             bridge={bridge}
             active={mobileTab === "tablero"}
             onCreated={(id, avisoDeLaPuerta) => {
-              setIntakeMode(false);
+              setEntrada(false);
               setComposerNotice(avisoDeLaPuerta);
               void loadQuote(id);
             }}
