@@ -15,11 +15,21 @@ import { createServer } from "node:http";
 import { spawn } from "node:child_process";
 import { createInterface } from "node:readline";
 import { randomUUID, timingSafeEqual } from "node:crypto";
+import { mkdtemp, writeFile, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join, extname } from "node:path";
 import { formatCliLine } from "../src/bridge/stream-format.ts";
+import { extraerJson, validarPropuesta } from "../src/bridge/intake-contract.ts";
+import { intakePrompt } from "./intake-prompt.mjs";
 
 const HOST = "127.0.0.1";
 const PORT = Number(process.env.COTIZADOR_BRIDGE_PORT ?? 3011);
 const TOKEN = process.env.COTIZADOR_BRIDGE_TOKEN ?? "";
+// La ola de intake persiste la propuesta directo en la base compartida
+// (cotizador_intake, PostgREST). Sin estas dos, el intake se rechaza al
+// despachar — nunca se corre una ola cuyo resultado no tiene dónde guardarse.
+const SUPABASE_URL = (process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL ?? "").replace(/\/+$/, "");
+const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY ?? "";
 const ALLOWED_ORIGIN = process.env.COTIZADOR_BRIDGE_ALLOWED_ORIGIN ?? "http://localhost:3010";
 const WAVE_TIMEOUT_MS = Number(process.env.COTIZADOR_BRIDGE_WAVE_TIMEOUT_MS ?? 10 * 60 * 1000);
 const IDLE_EXIT_MS = 30 * 60 * 1000;
@@ -114,20 +124,14 @@ function pushEvent(agent, kind, text) {
   touch();
 }
 
-function agentCommand(agent, prompt) {
+function agentCommand(agent, prompt, opciones = {}) {
   if (agent === "fable") {
+    // El intake necesita Read: los archivos que bajó el bridge se leen del
+    // disco (PDF y fotos incluidos). Fuera del intake, Read no se habilita.
+    const tools = opciones.intake ? ["Read", "WebSearch", "WebFetch"] : ["WebSearch", "WebFetch"];
     return {
       command: "claude",
-      args: [
-        "-p",
-        prompt,
-        "--output-format",
-        "stream-json",
-        "--verbose",
-        "--allowedTools",
-        "WebSearch",
-        "WebFetch",
-      ],
+      args: ["-p", prompt, "--output-format", "stream-json", "--verbose", "--allowedTools", ...tools],
     };
   }
   return {
@@ -148,11 +152,14 @@ function markAgentDone(agent, code) {
     wave.status = "done";
     if (wave.timeout) clearTimeout(wave.timeout);
     pushEvent("wave", "result", "Ola terminada");
+    // La ola de intake tiene un después: validar el JSON y persistir la
+    // propuesta. Corre acá, cuando el último agente cerró.
+    if (wave.alTerminar) void wave.alTerminar();
   }
 }
 
-function spawnAgent(agent, prompt) {
-  const { command, args } = agentCommand(agent, prompt);
+function spawnAgent(agent, prompt, opciones = {}) {
+  const { command, args } = agentCommand(agent, prompt, opciones);
   let child;
   try {
     child = spawn(command, args, { cwd: process.cwd(), env: process.env, stdio: ["ignore", "pipe", "pipe"] });
@@ -165,6 +172,19 @@ function spawnAgent(agent, prompt) {
   pushEvent(agent, "status", `Lanzado ${command} (pid ${child.pid})`);
 
   createInterface({ input: child.stdout }).on("line", (line) => {
+    // En el intake, la línea `result` del stream-json de claude trae el texto
+    // final ENTERO — de ahí sale el JSON de la propuesta. Se captura crudo
+    // antes de formatear (el formateador lo resume a "Terminó · Ns").
+    if (opciones.intake && agent === "fable" && wave) {
+      try {
+        const parsed = JSON.parse(line);
+        if (parsed?.type === "result" && typeof parsed.result === "string") {
+          wave.resultadoIntake = parsed.result;
+        }
+      } catch {
+        // línea no-JSON: sigue al formateador como siempre
+      }
+    }
     for (const formatted of formatCliLine(agent, line)) {
       pushEvent(agent, formatted.kind, formatted.text);
     }
@@ -185,6 +205,98 @@ function stopWave(reason) {
   if (!wave || wave.status !== "running") return;
   pushEvent("wave", "status", reason);
   for (const child of wave.children.values()) child.kill("SIGTERM");
+}
+
+/** PATCH a cotizador_intake por PostgREST. 0 filas afectadas nunca es éxito. */
+async function persistirIntake(cotizacionId, cambios) {
+  if (!SUPABASE_URL || !SUPABASE_KEY) {
+    throw new Error("faltan SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY en .env.local");
+  }
+  const res = await fetch(
+    `${SUPABASE_URL}/rest/v1/cotizador_intake?cotizacion_id=eq.${encodeURIComponent(cotizacionId)}`,
+    {
+      method: "PATCH",
+      headers: {
+        apikey: SUPABASE_KEY,
+        Authorization: `Bearer ${SUPABASE_KEY}`,
+        "Content-Type": "application/json",
+        Prefer: "return=representation",
+      },
+      body: JSON.stringify({ ...cambios, actualizado_at: new Date().toISOString() }),
+    }
+  );
+  const filas = res.ok ? await res.json().catch(() => []) : [];
+  if (!res.ok || !Array.isArray(filas) || filas.length === 0) {
+    throw new Error(`PATCH cotizador_intake: ${res.status}, filas ${Array.isArray(filas) ? filas.length : "?"}`);
+  }
+}
+
+/**
+ * La ola de INTAKE (puerta de entrada): baja los archivos persistidos, corre
+ * SOLO Fable con Read habilitado y, al terminar, valida el JSON contra el
+ * contrato compartido y deja la propuesta en cotizador_intake. Si algo no
+ * cierra, el estado queda en `error` con el motivo — nunca se simula éxito.
+ */
+async function startIntakeWave({ cotizacionId, texto, archivos }) {
+  const dir = await mkdtemp(join(tmpdir(), "ravn-intake-"));
+  const locales = [];
+  for (const [i, archivo] of archivos.entries()) {
+    const res = await fetch(archivo.url);
+    if (!res.ok) {
+      await rm(dir, { recursive: true, force: true }).catch(() => {});
+      throw new Error(`No se pudo bajar "${archivo.titulo}" (${res.status})`);
+    }
+    const ext = extname(new URL(archivo.url).pathname) || ".bin";
+    const pathLocal = join(dir, `archivo-${i + 1}${ext}`);
+    await writeFile(pathLocal, Buffer.from(await res.arrayBuffer()));
+    locales.push({ titulo: archivo.titulo, pathLocal });
+  }
+  const hoy = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Argentina/Buenos_Aires",
+  }).format(new Date());
+  const prompt = intakePrompt({ texto, archivos: locales, hoy });
+
+  wave = {
+    id: randomUUID(),
+    prompt: `[intake ${cotizacionId}]`,
+    startedAt: new Date().toISOString(),
+    status: "running",
+    seq: 0,
+    events: [],
+    children: new Map(),
+    timeout: null,
+    resultadoIntake: null,
+    alTerminar: async () => {
+      try {
+        const crudo = wave.resultadoIntake ?? "";
+        const json = extraerJson(crudo);
+        if (json === null) {
+          throw new Error(crudo.trim() ? crudo.slice(0, 500) : "La ola no devolvió una propuesta.");
+        }
+        const v = validarPropuesta(json);
+        if (!v.ok) throw new Error(`Propuesta inválida: ${v.motivo}`);
+        await persistirIntake(cotizacionId, {
+          estado: "propuesta_lista",
+          propuesta: v.propuesta,
+          error: null,
+        });
+        pushEvent("wave", "result", "Propuesta de reconocimiento persistida — abrila en el visor");
+      } catch (error) {
+        const motivo = String(error?.message ?? error);
+        await persistirIntake(cotizacionId, { estado: "error", error: motivo }).catch((e) =>
+          pushEvent("wave", "raw", `✗ No se pudo persistir el error: ${e.message}`)
+        );
+        pushEvent("wave", "raw", `✗ Intake sin propuesta: ${motivo.slice(0, 300)}`);
+      } finally {
+        await rm(dir, { recursive: true, force: true }).catch(() => {});
+      }
+    },
+  };
+  pushEvent("wave", "status", `Ola de intake · ${locales.length} archivo(s) · desmenuzando con Fable`);
+  spawnAgent("fable", prompt, { intake: true });
+  wave.timeout = setTimeout(() => stopWave("Corte por tiempo máximo de ola"), WAVE_TIMEOUT_MS);
+  wave.timeout.unref();
+  return wave.id;
 }
 
 function startWave(prompt) {
@@ -241,11 +353,42 @@ const server = createServer(async (req, res) => {
       return;
     }
     let prompt = "";
+    let body;
     try {
-      const body = await readBody(req);
+      body = await readBody(req);
       prompt = typeof body.prompt === "string" ? body.prompt.trim() : "";
     } catch {
       json(res, 400, { error: "Body inválido." });
+      return;
+    }
+    if (body.kind === "intake") {
+      const cotizacionId = typeof body.cotizacionId === "string" ? body.cotizacionId.trim() : "";
+      const texto = typeof body.texto === "string" ? body.texto.slice(0, 16_000) : "";
+      const archivos = Array.isArray(body.archivos)
+        ? body.archivos.filter(
+            (a) => a && typeof a.titulo === "string" && typeof a.url === "string" && a.url.startsWith("https://")
+          )
+        : [];
+      if (!cotizacionId) {
+        json(res, 400, { error: "Falta la cotización del intake." });
+        return;
+      }
+      if (!texto && archivos.length === 0) {
+        json(res, 400, { error: "No hay nada que desmenuzar." });
+        return;
+      }
+      if (!SUPABASE_URL || !SUPABASE_KEY) {
+        json(res, 503, {
+          error: "El bridge no tiene SUPABASE_URL/SERVICE_ROLE_KEY: la propuesta no tendría dónde persistir.",
+        });
+        return;
+      }
+      try {
+        const id = await startIntakeWave({ cotizacionId, texto, archivos });
+        json(res, 201, { waveId: id });
+      } catch (error) {
+        json(res, 502, { error: `La ola de intake no arrancó: ${error.message}` });
+      }
       return;
     }
     if (!prompt || prompt.length > MAX_PROMPT_LENGTH) {
