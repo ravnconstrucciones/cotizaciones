@@ -7,7 +7,7 @@ import type {
   PropuestaReconocimiento,
 } from "../bridge/intake-contract";
 import { apiUrl } from "../lib/api-url";
-import { despacharOla } from "./intake-gate";
+import { despacharOla } from "../lib/intake-client";
 import type { BridgeConfig, BridgeHealth } from "./live-terminals";
 
 /**
