@@ -56,6 +56,7 @@ import {
   type LaborContender,
   type LaborRubro,
 } from "../domain/labor";
+import { apiUrl } from "../lib/api-url";
 import { localTaller, remoteTaller, type TallerPersistence } from "../taller/persistence";
 import {
   isPersistableQuoteId,
@@ -67,7 +68,10 @@ import {
   type PostulanteDraft,
   type PostulanteMO,
 } from "../taller/types";
-import { formatObservedDate as dateTime } from "./format-observed-date";
+import {
+  formatObservedDate as dateTime,
+  formatObservedTime as eventTime,
+} from "./format-observed-date";
 import {
   LiveTerminals,
   type BridgeConfig,
@@ -126,8 +130,6 @@ const COMPACT_MONEY = new Intl.NumberFormat("es-AR", {
   maximumFractionDigits: 2,
 });
 
-const TIME = new Intl.DateTimeFormat("es-AR", { hour: "2-digit", minute: "2-digit" });
-
 const STAGE_LABELS: Record<QuoteWorkspaceSnapshot["core"]["stage"], string> = {
   intake: "Relevando",
   cost_review: "Armando el costo",
@@ -175,11 +177,6 @@ function signedPct(value: number): string {
   const rounded = Math.round(value * 10) / 10;
   if (rounded === 0) return "=";
   return `${rounded > 0 ? "+" : ""}${rounded.toLocaleString("es-AR")}%`;
-}
-
-function eventTime(value: string): string {
-  const parsed = new Date(value);
-  return Number.isNaN(parsed.getTime()) ? "—" : TIME.format(parsed);
 }
 
 function sourceUrl(source: string): string | null {
@@ -538,7 +535,7 @@ export function ControlCenter({
       setRefreshError(null);
 
       try {
-        const response = await fetch(`/api/quotes?quote=${encodeURIComponent(quoteId)}`, {
+        const response = await fetch(apiUrl(`/api/quotes?quote=${encodeURIComponent(quoteId)}`), {
           cache: "no-store",
           headers: { Accept: "application/json" },
         });
@@ -583,6 +580,26 @@ export function ControlCenter({
    * Pedido 14: la ola arranca DESDE EL CHAT. Lo que escribe acá se muestra en la
    * conversación y, con bridge configurado, dispara la ola real.
    */
+  /**
+   * La conversación es del EXPEDIENTE, no de la pantalla. Al cambiar de
+   * cotización se iba el hilo pero quedaban el borrador a medio escribir, los
+   * mensajes locales del preview y el último aviso: texto de la cotización
+   * anterior arriba de la nueva, y si le daba enviar entraba en la que no era.
+   */
+  useEffect(() => {
+    setDraft("");
+    setLocalMessages([]);
+    setComposerNotice(null);
+  }, [quoteId]);
+
+  /**
+   * El único que sabe qué pasó con la ola es el que la despachó. El aviso del
+   * composer sale de ahí y no de una suposición: antes decía "Ola despachada"
+   * apenas se apretaba enviar, así que un bridge que rechazaba la ola dejaba
+   * dos carteles contradiciéndose —y en mobile, en solapas distintas—.
+   */
+  const noteWave = useCallback((message: string) => setComposerNotice(message), []);
+
   const submitPreviewMessage = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const text = draft.trim();
@@ -594,16 +611,16 @@ export function ControlCenter({
     setDraft("");
     waveSeq.current += 1;
     setWave({ prompt: text, seq: waveSeq.current });
-    setComposerNotice(
-      bridge
-        ? "Ola despachada: Codex y Fable la están trabajando."
-        : "Entrada agregada a esta demostración. Sin bridge configurado no salió ninguna ola."
-    );
+    setComposerNotice("Despachando la ola…");
   };
 
   const answerInConversation = (question: string) => {
     setMobileTab("conversar");
-    setDraft((current) => (current.length > 0 ? current : `${question} `));
+    // Con algo escrito, antes la pregunta NO entraba: el botón cambiaba de
+    // solapa y no pasaba nada más. Ahora se suma al final y no pisa el borrador.
+    setDraft((current) =>
+      current.trim().length > 0 ? `${current.trimEnd()}\n\n${question} ` : `${question} `
+    );
     window.requestAnimationFrame(() => composerRef.current?.focus());
   };
 
@@ -728,6 +745,7 @@ export function ControlCenter({
           bridge={bridge}
           wave={wave}
           onHealth={setHealth}
+          onWaveOutcome={noteWave}
           focusedItem={focusedItem}
           manualItems={manualItems}
           onAddManual={addManual}
@@ -864,10 +882,13 @@ function Splitter({
       onPointerCancel={stop}
       onDoubleClick={() => onWidth(side === "chat" ? 360 : 356)}
       onKeyDown={(event) => {
+        if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+        // sin esto la flecha redimensiona Y scrollea el tablero al mismo tiempo
+        event.preventDefault();
         const step = event.shiftKey ? 48 : 16;
         const towards = side === "chat" ? 1 : -1;
-        if (event.key === "ArrowLeft") onWidth(clamp(width - step * towards, min, max));
-        if (event.key === "ArrowRight") onWidth(clamp(width + step * towards, min, max));
+        const direction = event.key === "ArrowLeft" ? -1 : 1;
+        onWidth(clamp(width + direction * step * towards, min, max));
       }}
     />
   );
@@ -906,11 +927,17 @@ function ConversationColumn({
       (event.message.autor === "eze" || event.message.autor === "sistema")
   );
   const threadRef = useRef<HTMLDivElement>(null);
+  const quoteId = snapshot.quote.id;
 
+  /**
+   * Un log se lee por el final. Antes esto sólo miraba los mensajes locales, así
+   * que al abrir OTRA cotización el hilo aparecía arrancado desde el mensaje más
+   * viejo y lo último hablado quedaba abajo del scroll.
+   */
   useEffect(() => {
     const node = threadRef.current;
     if (node) node.scrollTop = node.scrollHeight;
-  }, [localMessages.length]);
+  }, [quoteId, thread.length, localMessages.length]);
 
   return (
     <section
@@ -1033,6 +1060,7 @@ function BoardColumn({
   bridge,
   wave,
   onHealth,
+  onWaveOutcome,
   focusedItem,
   manualItems,
   onAddManual,
@@ -1055,6 +1083,7 @@ function BoardColumn({
   bridge: BridgeConfig | null;
   wave: WaveRequest | null;
   onHealth: (health: BridgeHealth) => void;
+  onWaveOutcome: (message: string) => void;
   focusedItem: string | null;
   manualItems: ManualItem[];
   onAddManual: (draft: ManualDraft) => void;
@@ -1117,7 +1146,12 @@ function BoardColumn({
         onDrop={onDropPostulante}
         onElegir={onElegirPostulante}
       />
-      <LiveTerminals bridge={bridge} request={wave} onHealth={onHealth} />
+      <LiveTerminals
+        bridge={bridge}
+        request={wave}
+        onHealth={onHealth}
+        onWaveOutcome={onWaveOutcome}
+      />
     </section>
   );
 }
@@ -1502,7 +1536,7 @@ function PaseExpediente({
   const pasar = useCallback(async () => {
     setEstado({ kind: "pasando" });
     try {
-      const response = await fetch("/api/pase", {
+      const response = await fetch(apiUrl("/api/pase"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ quote: quoteId, precioPropuesta: price }),

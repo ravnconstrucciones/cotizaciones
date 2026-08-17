@@ -62,6 +62,12 @@ function formatClaudeLine(event: Record<string, unknown>): TerminalLine[] | null
 
   if (type === "assistant" || type === "user") {
     const message = asRecord(event.message);
+    // El SDK manda `content` como lista de bloques o, a veces, como texto
+    // pelado. La segunda forma caía en la lista vacía y el mensaje se perdía
+    // entero — la regla del módulo es no descartar actividad.
+    const plain = str(message?.content);
+    if (plain) return [{ kind: "text", text: plain.trim() }];
+
     const content = Array.isArray(message?.content) ? message.content : [];
     const lines: TerminalLine[] = [];
     for (const block of content) {
@@ -86,7 +92,9 @@ function formatClaudeLine(event: Record<string, unknown>): TerminalLine[] | null
         });
       }
     }
-    return lines;
+    // Ningún bloque reconocido = un mensaje que existió y no se ve. Devolver
+    // null lo manda a crudo, que es lo que promete la cabecera del módulo.
+    return lines.length > 0 ? lines : null;
   }
 
   if (type === "result") {
@@ -107,8 +115,19 @@ function formatClaudeLine(event: Record<string, unknown>): TerminalLine[] | null
   return null;
 }
 
-function describeCodexItem(item: Record<string, unknown>, completed: boolean): TerminalLine[] {
+/**
+ * Un ítem de Codex pasa por tres fases y la terminal sólo tiene algo NUEVO que
+ * decir en dos: cuando arranca y cuando termina. `item.updated` llega muchas
+ * veces mientras el ítem corre; tratarlo como "todavía no terminó" repetía la
+ * línea del comando una vez por actualización, y el filtro de la terminal no
+ * lo tapa porque cada evento trae su propia seq.
+ */
+function describeCodexItem(
+  item: Record<string, unknown>,
+  phase: "started" | "updated" | "completed"
+): TerminalLine[] {
   const itemType = str(item.item_type) ?? str(item.type);
+  const completed = phase === "completed";
   if (itemType === "assistant_message" || itemType === "agent_message") {
     const text = str(item.text) ?? str(item.message);
     return text && completed ? [{ kind: "text", text: text.trim() }] : [];
@@ -118,25 +137,36 @@ function describeCodexItem(item: Record<string, unknown>, completed: boolean): T
     return text && completed ? [{ kind: "status", text: `Pensando · ${truncate(text, 160)}` }] : [];
   }
   if (itemType === "command_execution") {
-    const command = str(item.command);
     if (!completed) {
+      if (phase !== "started") return [];
+      const command = str(item.command);
       return command ? [{ kind: "tool", text: `▸ shell · ${truncate(command, 160)}` }] : [];
     }
-    const exit = typeof item.exit_code === "number" ? item.exit_code : null;
-    return [
-      {
-        kind: exit === 0 || exit === null ? "status" : "raw",
-        text: exit === 0 || exit === null ? "✓ Comando terminado" : `✗ Comando salió con código ${exit}`,
-      },
-    ];
+    return [exitLine(item.exit_code)];
   }
   if (itemType === "web_search") {
+    if (completed) return [{ kind: "status", text: "✓ Búsqueda web terminada" }];
+    if (phase !== "started") return [];
     const query = str(item.query);
-    return completed
-      ? [{ kind: "status", text: "✓ Búsqueda web terminada" }]
-      : [{ kind: "tool", text: query ? `▸ búsqueda web · ${truncate(query, 160)}` : "▸ búsqueda web" }];
+    return [
+      { kind: "tool", text: query ? `▸ búsqueda web · ${truncate(query, 160)}` : "▸ búsqueda web" },
+    ];
   }
   return [];
+}
+
+/**
+ * El código de salida es el que dice si el comando anduvo. Cuando no viene, no
+ * se sabe: cantarlo como ✓ era afirmar algo no verificado, y un comando que
+ * falló sin reportar código se leía como terminado bien.
+ */
+function exitLine(value: unknown): TerminalLine {
+  if (typeof value !== "number") {
+    return { kind: "status", text: "Comando terminado · sin código de salida" };
+  }
+  return value === 0
+    ? { kind: "status", text: "✓ Comando terminado" }
+    : { kind: "raw", text: `✗ Comando salió con código ${value}` };
 }
 
 function formatCodexLine(event: Record<string, unknown>): TerminalLine[] | null {
@@ -156,7 +186,10 @@ function formatCodexLine(event: Record<string, unknown>): TerminalLine[] | null 
     }
     if (type === "item.started" || type === "item.updated" || type === "item.completed") {
       const item = asRecord(event.item);
-      return item ? describeCodexItem(item, type === "item.completed") : [];
+      if (!item) return [];
+      const phase =
+        type === "item.completed" ? "completed" : type === "item.started" ? "started" : "updated";
+      return describeCodexItem(item, phase);
     }
   }
 
@@ -178,15 +211,7 @@ function formatCodexLine(event: Record<string, unknown>): TerminalLine[] | null 
       const command = Array.isArray(msg.command) ? msg.command.join(" ") : str(msg.command);
       return [{ kind: "tool", text: command ? `▸ shell · ${truncate(command, 160)}` : "▸ shell" }];
     }
-    if (msgType === "exec_command_end") {
-      const exit = typeof msg.exit_code === "number" ? msg.exit_code : null;
-      return [
-        {
-          kind: exit === 0 || exit === null ? "status" : "raw",
-          text: exit === 0 || exit === null ? "✓ Comando terminado" : `✗ Comando salió con código ${exit}`,
-        },
-      ];
-    }
+    if (msgType === "exec_command_end") return [exitLine(msg.exit_code)];
     if (msgType === "token_count") return [];
     if (msgType === "error") {
       const message = str(msg.message);

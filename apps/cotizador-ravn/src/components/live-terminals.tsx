@@ -63,10 +63,18 @@ export function LiveTerminals({
   bridge,
   request,
   onHealth,
+  onWaveOutcome,
 }: {
   bridge: BridgeConfig | null;
   request: WaveRequest | null;
   onHealth?: (health: BridgeHealth) => void;
+  /**
+   * Lo que REALMENTE pasó con la ola, para el que la disparó. El composer vive
+   * en la conversación y esta banda en el tablero: en mobile son solapas
+   * distintas, así que sin esto el error de despacho quedaba en una pantalla
+   * que Eze no está mirando mientras la otra le decía que ya estaba lanzada.
+   */
+  onWaveOutcome?: (message: string) => void;
 }) {
   const [health, setHealth] = useState<BridgeHealth>("off");
   const [events, setEvents] = useState<TerminalEvent[]>([]);
@@ -182,26 +190,30 @@ export function LiveTerminals({
         setWaveNote(null);
         setHealth("running");
         connectStream();
+        onWaveOutcome?.("Ola despachada: Codex y Fable la están trabajando.");
       } catch (cause) {
-        setError(cause instanceof Error ? cause.message : "No se pudo lanzar la ola.");
+        const message = cause instanceof Error ? cause.message : "No se pudo lanzar la ola.";
+        setError(message);
+        onWaveOutcome?.(`La ola no salió: ${message}`);
       } finally {
         setLaunching(false);
       }
     },
-    [bridge, connectStream]
+    [bridge, connectStream, onWaveOutcome]
   );
 
   useEffect(() => {
     if (!request || request.seq <= handledSeqRef.current) return;
     handledSeqRef.current = request.seq;
     if (!bridge) {
-      setError(
-        "El mensaje quedó en la conversación: sin bridge configurado no hay ola que lanzar."
-      );
+      const message =
+        "El mensaje quedó en la conversación: sin bridge configurado no hay ola que lanzar.";
+      setError(message);
+      onWaveOutcome?.(message);
       return;
     }
     void launchWave(request.prompt);
-  }, [request, bridge, launchWave]);
+  }, [request, bridge, launchWave, onWaveOutcome]);
 
   const stopWave = async () => {
     if (!bridge) return;

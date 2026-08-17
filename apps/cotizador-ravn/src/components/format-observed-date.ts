@@ -23,6 +23,13 @@ const DATE_TIME = new Intl.DateTimeFormat("es-AR", {
   timeZone: "America/Argentina/Buenos_Aires",
 });
 
+const TIME_ONLY = new Intl.DateTimeFormat("es-AR", {
+  hour: "2-digit",
+  minute: "2-digit",
+  hour12: false,
+  timeZone: "America/Argentina/Buenos_Aires",
+});
+
 function civilDate(value: string): string | null {
   const match = DATE_ONLY.exec(value);
   if (!match) return null;
@@ -48,4 +55,16 @@ export function formatObservedDate(value: string | null): string {
 
   const parsed = new Date(value);
   return Number.isNaN(parsed.valueOf()) ? value : DATE_TIME.format(parsed);
+}
+
+/**
+ * La hora de un mensaje del hilo. Va con la zona NOMBRADA por la misma razón
+ * que `DATE_TIME`: esta consola la renderiza el servidor antes de hidratar, y
+ * en Vercel el servidor es UTC. Sin la zona, el HTML llegaba con una hora y el
+ * navegador pintaba otra — tres horas de diferencia y un mismatch de
+ * hidratación en cada `<time>` del hilo.
+ */
+export function formatObservedTime(value: string): string {
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.valueOf()) ? "—" : TIME_ONLY.format(parsed);
 }

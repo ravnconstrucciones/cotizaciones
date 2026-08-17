@@ -43,6 +43,23 @@ describe("formatCliLine · fable (claude stream-json)", () => {
     }
   });
 
+  it("no se traga un mensaje cuyos bloques no reconoce", () => {
+    const line = JSON.stringify({
+      type: "assistant",
+      message: { content: [{ type: "redacted_thinking", data: "abc" }] },
+    });
+    const [only] = formatCliLine("fable", line);
+    expect(only.kind).toBe("raw");
+    expect(only.text).toContain("redacted_thinking");
+  });
+
+  it("lee el contenido cuando viene como texto pelado y no como bloques", () => {
+    const line = JSON.stringify({ type: "user", message: { content: "seguí con la ronda 4" } });
+    expect(formatCliLine("fable", line)).toEqual([
+      { kind: "text", text: "seguí con la ronda 4" },
+    ]);
+  });
+
   it("muestra crudo un evento no reconocido, truncado", () => {
     const line = JSON.stringify({ type: "algo_nuevo", payload: "x".repeat(600) });
     const [only] = formatCliLine("fable", line);
@@ -68,6 +85,56 @@ describe("formatCliLine · codex (codex exec --json)", () => {
     expect(formatCliLine("codex", message)).toEqual([
       { kind: "text", text: "El m2 ronda $18.000." },
     ]);
+  });
+
+  it("no repite la línea del comando en cada item.updated", () => {
+    const item = { item_type: "command_execution", command: "rg precios" };
+    expect(formatCliLine("codex", JSON.stringify({ type: "item.started", item }))).toEqual([
+      { kind: "tool", text: "▸ shell · rg precios" },
+    ]);
+    expect(formatCliLine("codex", JSON.stringify({ type: "item.updated", item }))).toEqual([]);
+    expect(
+      formatCliLine("codex", JSON.stringify({ type: "item.updated", item: { ...item, aggregated_output: "x" } }))
+    ).toEqual([]);
+  });
+
+  it("tampoco repite la búsqueda web mientras corre", () => {
+    const item = { item_type: "web_search", query: "precio adoquín" };
+    expect(formatCliLine("codex", JSON.stringify({ type: "item.started", item }))).toEqual([
+      { kind: "tool", text: "▸ búsqueda web · precio adoquín" },
+    ]);
+    expect(formatCliLine("codex", JSON.stringify({ type: "item.updated", item }))).toEqual([]);
+  });
+
+  it("no canta éxito cuando no vino el código de salida", () => {
+    const sinCodigo = JSON.stringify({
+      type: "item.completed",
+      item: { item_type: "command_execution", command: "rg precios" },
+    });
+    expect(formatCliLine("codex", sinCodigo)).toEqual([
+      { kind: "status", text: "Comando terminado · sin código de salida" },
+    ]);
+
+    const conCero = JSON.stringify({
+      type: "item.completed",
+      item: { item_type: "command_execution", exit_code: 0 },
+    });
+    expect(formatCliLine("codex", conCero)).toEqual([
+      { kind: "status", text: "✓ Comando terminado" },
+    ]);
+
+    const conError = JSON.stringify({
+      type: "item.completed",
+      item: { item_type: "command_execution", exit_code: 2 },
+    });
+    expect(formatCliLine("codex", conError)).toEqual([
+      { kind: "raw", text: "✗ Comando salió con código 2" },
+    ]);
+
+    // la forma vieja mide con la misma vara
+    expect(
+      formatCliLine("codex", JSON.stringify({ id: "9", msg: { type: "exec_command_end" } }))
+    ).toEqual([{ kind: "status", text: "Comando terminado · sin código de salida" }]);
   });
 
   it("formatea la forma vieja basada en msg", () => {

@@ -1,3 +1,4 @@
+import { apiUrl } from "../lib/api-url";
 import {
   EMPTY_TALLER,
   parseManualItem,
@@ -145,7 +146,7 @@ async function send(
   url: string,
   init?: RequestInit
 ): Promise<unknown> {
-  const response = await fetchImpl(url, {
+  const response = await fetchImpl(apiUrl(url), {
     cache: "no-store",
     ...init,
     headers: { Accept: "application/json", "Content-Type": "application/json", ...init?.headers },
