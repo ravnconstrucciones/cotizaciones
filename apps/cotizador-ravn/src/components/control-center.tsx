@@ -256,6 +256,11 @@ export function ControlCenter({
   const [sending, setSending] = useState(false);
   const [wave, setWave] = useState<WaveRequest | null>(null);
   const [health, setHealth] = useState<BridgeHealth>("off");
+  // Motor encendido/apagado (spec 2026-08-17): la voluntad del bridge vive en
+  // App RAVN. Entrar al visor prende; la pestaña abierta marca presencia (y de
+  // paso refresca el latido); el chip del header es el botón.
+  const [motor, setMotor] = useState<{ deseado: "encendido" | "apagado"; vistoAt: string | null } | null>(null);
+  const [motorBusy, setMotorBusy] = useState(false);
   // La puerta de entrada ES la conversación (spec 2026-08-17): en entrada la
   // caja crea el expediente con el primer envío. El visor abre acá.
   const [entrada, setEntrada] = useState(initialEntrada && !preview);
@@ -717,6 +722,64 @@ export function ControlCenter({
   }, [momento, bridge]);
 
   /**
+   * Motor encendido/apagado (spec 2026-08-17): toda orden pasa por /api/motor
+   * (App RAVN decide, el bridge obedece). La respuesta trae la fila fresca —
+   * presencia y estado en un solo viaje.
+   */
+  const ordenMotor = useCallback(
+    async (accion: "encender" | "apagar" | "presencia") => {
+      if (preview) return;
+      try {
+        const res = await fetch(apiUrl("/api/motor"), {
+          method: "POST",
+          headers: { "content-type": "application/json", Accept: "application/json" },
+          body: JSON.stringify({ accion }),
+        });
+        const payload = (await res.json().catch(() => null)) as {
+          deseado?: string;
+          visto_at?: string | null;
+        } | null;
+        if (!res.ok || (payload?.deseado !== "encendido" && payload?.deseado !== "apagado")) return;
+        setMotor({ deseado: payload.deseado, vistoAt: payload.visto_at ?? null });
+      } catch {
+        // Sin red no se miente estado: el chip cae al latido del snapshot.
+      }
+    },
+    [preview]
+  );
+
+  // Entrar al visor prende el motor; se dispara al montar, no en loop — si Eze
+  // lo apaga a mano queda apagado hasta que toque el botón o vuelva a entrar.
+  // El ping de presencia sostiene el auto-apagado de 30 min del bridge.
+  useEffect(() => {
+    if (preview) return;
+    void ordenMotor("encender");
+    const timer = window.setInterval(() => void ordenMotor("presencia"), 60_000);
+    return () => window.clearInterval(timer);
+  }, [preview, ordenMotor]);
+
+  const latidoFresco = motor?.vistoAt
+    ? Date.now() - new Date(motor.vistoAt).getTime() < 90_000
+    : false;
+  // `desconocido` = /api/motor nunca contestó: el chip cae al latido legacy.
+  const motorEstado: "encendido" | "apagado" | "sin_senal" | "desconocido" = !motor
+    ? "desconocido"
+    : !latidoFresco
+      ? "sin_senal"
+      : motor.deseado === "encendido"
+        ? "encendido"
+        : "apagado";
+
+  const toggleMotor = () => {
+    if (motorBusy) return;
+    // Con el bridge sin señal el click igual deja la voluntad escrita: cuando
+    // la Mac despierte, arranca como Eze lo dejó.
+    const objetivo = motor?.deseado === "encendido" ? "apagar" : "encender";
+    setMotorBusy(true);
+    void ordenMotor(objetivo).finally(() => setMotorBusy(false));
+  };
+
+  /**
    * La puerta conversacional (spec 2026-08-17): en `entrada` el primer envío
    * CREA el expediente — borrador con título provisional, archivos, primer
    * mensaje del hilo y recién después la ola de reconocimiento. Si algo del
@@ -931,14 +994,38 @@ export function ControlCenter({
 
         <div className="qz-rail__state">
           {preview ? <span className="qz-tag qz-tag--preview">PREVIEW</span> : null}
-          <span className="qz-lamp" data-state={snapshot.observability.bridge.heartbeat}>
-            <i aria-hidden="true" />
-            {snapshot.observability.bridge.heartbeat === "fresh"
-              ? "Lectura fresca"
-              : snapshot.observability.bridge.heartbeat === "stale_or_absent"
-                ? "Lectura demorada"
-                : "Lectura no consultada"}
-          </span>
+          {preview || motorEstado === "desconocido" ? (
+            <span className="qz-lamp" data-state={snapshot.observability.bridge.heartbeat}>
+              <i aria-hidden="true" />
+              {snapshot.observability.bridge.heartbeat === "fresh"
+                ? "Lectura fresca"
+                : snapshot.observability.bridge.heartbeat === "stale_or_absent"
+                  ? "Lectura demorada"
+                  : "Lectura no consultada"}
+            </span>
+          ) : (
+            <button
+              type="button"
+              className="qz-lamp qz-lamp--btn"
+              data-state={motorEstado}
+              disabled={motorBusy}
+              onClick={toggleMotor}
+              title={
+                motorEstado === "encendido"
+                  ? "El motor procesa la mesa. Click para apagarlo."
+                  : motorEstado === "apagado"
+                    ? "El motor no procesa nada. Click para prenderlo."
+                    : "La Mac está dormida o el bridge murió. El click deja la orden para cuando despierte."
+              }
+            >
+              <i aria-hidden="true" />
+              {motorEstado === "encendido"
+                ? "Motor encendido"
+                : motorEstado === "apagado"
+                  ? "Motor apagado"
+                  : "Sin señal"}
+            </button>
+          )}
           <motion.button
             type="button"
             className="qz-icon-action"

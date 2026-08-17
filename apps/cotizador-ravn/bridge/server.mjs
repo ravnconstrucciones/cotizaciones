@@ -1,8 +1,11 @@
 /**
  * cotizador-bridge — F1 (terminales crudas).
  *
- * Proceso local A DEMANDA (no daemon): se levanta con `npm run bridge` solo
- * mientras se cotiza y se apaga solo tras 30 min sin ola ni clientes.
+ * Dos modos (spec 2026-08-17 motor-encendido-apagado):
+ * - A DEMANDA (`npm run bridge`): se apaga solo tras 30 min sin ola ni clientes.
+ * - RESIDENTE (`COTIZADOR_BRIDGE_RESIDENTE=1`, bajo launchd): el proceso queda
+ *   siempre; lo que se prende/apaga es la voluntad de procesar (`deseado` en
+ *   puente_latidos, manejada desde el chip del visor). Late cada 30 s.
  * Expone en 127.0.0.1 (nunca 0.0.0.0) un endpoint SSE con el stream en vivo
  * de una ola: una sesión headless de Claude Code (`claude -p`) y una de
  * Codex CLI (`codex exec`), ambas por suscripción local, nunca API.
@@ -41,6 +44,12 @@ const WAVE_TIMEOUT_MS = Number(process.env.COTIZADOR_BRIDGE_WAVE_TIMEOUT_MS ?? 1
 const IDLE_EXIT_MS = 30 * 60 * 1000;
 const MAX_EVENTS = 3000;
 const MAX_PROMPT_LENGTH = 4000;
+// Modo residente (spec 2026-08-17 motor-encendido-apagado): bajo launchd el
+// bridge NO se apaga solo — queda dormido y lo que se prende/apaga es su
+// voluntad de procesar (`deseado` en puente_latidos). Suspendido no gasta nada.
+const RESIDENTE = process.env.COTIZADOR_BRIDGE_RESIDENTE === "1";
+const LATIDO_MS = 30_000;
+const FILA_CONTROL = "puente-cotizador";
 
 if (!TOKEN) {
   console.error(
@@ -70,14 +79,113 @@ function touch() {
   lastActivity = Date.now();
 }
 
+/**
+ * Voluntad y presencia compartidas (fila puente_latidos). El cache evita que
+ * un hipo de Supabase tumbe una ola: ante error de red se decide con lo último
+ * sabido y se loguea — nunca se inventa un estado que no se leyó.
+ */
+let deseadoCache = "encendido";
+let presenciaCache = 0;
+
+function pgHeaders(extra = {}) {
+  return { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}`, ...extra };
+}
+
+function absorberFilaControl(fila) {
+  if (!fila) return;
+  if (fila.deseado === "encendido" || fila.deseado === "apagado") deseadoCache = fila.deseado;
+  presenciaCache = fila.presencia_at ? new Date(fila.presencia_at).getTime() : presenciaCache;
+}
+
+/** Latido: visto_at + estado, y de paso trae deseado/presencia en la misma llamada. */
+async function latir() {
+  if (!SUPABASE_URL || !SUPABASE_KEY) return;
+  const cuerpo = {
+    visto_at: new Date().toISOString(),
+    estado: deseadoCache === "encendido" ? "activo" : "suspendido",
+  };
+  try {
+    const res = await fetch(
+      `${SUPABASE_URL}/rest/v1/puente_latidos?id=eq.${FILA_CONTROL}`,
+      {
+        method: "PATCH",
+        headers: pgHeaders({ "Content-Type": "application/json", Prefer: "return=representation" }),
+        body: JSON.stringify(cuerpo),
+      }
+    );
+    const filas = res.ok ? await res.json().catch(() => []) : [];
+    if (res.ok && Array.isArray(filas) && filas.length > 0) {
+      absorberFilaControl(filas[0]);
+      return;
+    }
+    if (res.ok && Array.isArray(filas) && filas.length === 0) {
+      // Primera corrida: la fila no existe todavía.
+      await fetch(`${SUPABASE_URL}/rest/v1/puente_latidos`, {
+        method: "POST",
+        headers: pgHeaders({ "Content-Type": "application/json" }),
+        body: JSON.stringify({ id: FILA_CONTROL, ...cuerpo }),
+      });
+      return;
+    }
+    console.error(`cotizador-bridge: latido rechazado (${res.status})`);
+  } catch (error) {
+    console.error(`cotizador-bridge: latido sin red: ${error.message}`);
+  }
+}
+
+/** Lectura fresca de `deseado` (guard de cada ola). Ante error, el cache decide. */
+async function consultarDeseado() {
+  if (!SUPABASE_URL || !SUPABASE_KEY) return deseadoCache;
+  try {
+    const filas = await pgLeer(
+      `puente_latidos?id=eq.${FILA_CONTROL}&select=deseado,presencia_at`
+    );
+    absorberFilaControl(filas[0]);
+  } catch (error) {
+    console.error(`cotizador-bridge: no pude leer deseado (${error.message}) — decido con el cache.`);
+  }
+  return deseadoCache;
+}
+
+async function escribirDeseado(valor) {
+  deseadoCache = valor;
+  if (!SUPABASE_URL || !SUPABASE_KEY) return;
+  try {
+    await fetch(`${SUPABASE_URL}/rest/v1/puente_latidos?id=eq.${FILA_CONTROL}`, {
+      method: "PATCH",
+      headers: pgHeaders({ "Content-Type": "application/json" }),
+      body: JSON.stringify({ deseado: valor, estado: valor === "encendido" ? "activo" : "suspendido" }),
+    });
+  } catch (error) {
+    console.error(`cotizador-bridge: no pude escribir deseado: ${error.message}`);
+  }
+}
+
 setInterval(() => {
   const idle = Date.now() - lastActivity;
   const busy = (wave && wave.status === "running") || clients.size > 0;
-  if (!busy && idle >= IDLE_EXIT_MS) {
+  if (busy) return;
+  if (!RESIDENTE && idle >= IDLE_EXIT_MS) {
     console.log("cotizador-bridge: 30 min sin actividad, me apago (no soy un daemon).");
     process.exit(0);
   }
+  // Residente: a los 30 min sin uso (ni actividad local ni presencia del
+  // visor) el motor se suspende solo — el proceso queda, la voluntad se apaga.
+  if (RESIDENTE && deseadoCache === "encendido") {
+    const uso = Math.max(lastActivity, presenciaCache);
+    if (Date.now() - uso >= IDLE_EXIT_MS) {
+      console.log("cotizador-bridge: 30 min sin uso — motor suspendido (deseado=apagado).");
+      void escribirDeseado("apagado");
+    }
+  }
 }, 60_000).unref();
+
+if (SUPABASE_URL && SUPABASE_KEY) {
+  void latir();
+  setInterval(() => void latir(), LATIDO_MS).unref();
+} else {
+  console.error("cotizador-bridge: sin SUPABASE_URL/SERVICE_ROLE_KEY no hay latido — el chip del visor va a mostrar 'Sin señal'.");
+}
 
 function tokenOk(candidate) {
   if (typeof candidate !== "string" || candidate.length === 0) return false;
@@ -539,6 +647,36 @@ const server = createServer(async (req, res) => {
       json(res, 400, { error: "Body inválido." });
       return;
     }
+
+    // Directiva de apagado por chat (spec motor-encendido-apagado): "apagate"
+    // no corre Fable — apaga la voluntad y lo deja dicho en el hilo.
+    const DIRECTIVA_APAGAR = /^\s*(apagate|apag[áa]\s+el\s+motor|apagar\s+(el\s+)?motor)\s*[.!]*\s*$/i;
+    if (body.kind === "charla" && typeof body.texto === "string" && DIRECTIVA_APAGAR.test(body.texto)) {
+      const cotizacionId = typeof body.cotizacionId === "string" ? body.cotizacionId.trim() : "";
+      const mensajeId = typeof body.mensajeId === "string" ? body.mensajeId.trim() : "";
+      await escribirDeseado("apagado");
+      if (cotizacionId && SUPABASE_URL && SUPABASE_KEY) {
+        await persistirMensaje(cotizacionId, {
+          autor: "sistema",
+          texto: "Motor apagado a pedido. Prendelo desde el botón del visor cuando lo necesites.",
+          respuestaA: mensajeId || undefined,
+          tipo: "aviso",
+        }).catch((e) => console.error(`cotizador-bridge: aviso de apagado sin persistir: ${e.message}`));
+      }
+      json(res, 200, { ok: true, apagado: true });
+      return;
+    }
+
+    // Guard de voluntad: con el motor apagado ninguna ola corre. El mensaje ya
+    // persistió del lado del visor — acá solo se niega el gasto.
+    if ((await consultarDeseado()) === "apagado") {
+      json(res, 409, {
+        error: "El motor está apagado. Prendelo desde el botón del visor y relanzá.",
+        motorApagado: true,
+      });
+      return;
+    }
+
     if (body.kind === "intake") {
       const cotizacionId = typeof body.cotizacionId === "string" ? body.cotizacionId.trim() : "";
       const texto = typeof body.texto === "string" ? body.texto.slice(0, 16_000) : "";
@@ -641,7 +779,11 @@ const server = createServer(async (req, res) => {
 
 server.listen(PORT, HOST, () => {
   console.log(`cotizador-bridge escuchando en http://${HOST}:${PORT} (orígenes permitidos: ${ALLOWED_ORIGINS.join(", ")})`);
-  console.log("Se apaga solo tras 30 min sin ola ni clientes conectados.");
+  console.log(
+    RESIDENTE
+      ? "Modo residente: el proceso queda; a los 30 min sin uso se suspende la voluntad (deseado=apagado)."
+      : "Se apaga solo tras 30 min sin ola ni clientes conectados."
+  );
 });
 
 process.on("SIGINT", () => {

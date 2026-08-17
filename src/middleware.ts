@@ -124,6 +124,8 @@ const RUTAS_BYPASS_COTIZADOR_READ: Array<{ patron: RegExp; metodos: string[] }> 
   // ola de intake baja para leer. Solo GET — subir es de la credencial de
   // escritura.
   { patron: /^\/api\/cotizaciones\/[^/]+\/archivos$/, metodos: ["GET"] },
+  // Motor encendido/apagado (17/08): el visor lee el estado del bridge.
+  { patron: /^\/api\/puente\/control$/, metodos: ["GET"] },
 ];
 
 /**
@@ -147,6 +149,8 @@ const RUTAS_BYPASS_COTIZADOR_WRITE: Array<{ patron: RegExp; metodos: string[] }>
   { patron: /^\/api\/cotizaciones\/[^/]+\/confirmar-reconocimiento$/, metodos: ["POST"] },
   // Conversación operativa (17/08): el composer del visor escribe la charla.
   { patron: /^\/api\/cotizaciones\/[^/]+\/mensajes$/, metodos: ["POST"] },
+  // Motor encendido/apagado (17/08): encender/apagar/presencia desde el visor.
+  { patron: /^\/api\/puente\/control$/, metodos: ["POST"] },
 ];
 
 /** true si `metodo` sobre `pathname` está en la allowlist de arriba. */

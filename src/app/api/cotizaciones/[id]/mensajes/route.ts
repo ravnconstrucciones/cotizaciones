@@ -59,7 +59,11 @@ export async function GET(_req: Request, ctx: Params) {
       .eq("cotizacion_id", id)
       .order("creado_at", { ascending: true })
       .limit(500),
-    sb.from("puente_latidos").select("visto_at").eq("id", "puente-cotizador").maybeSingle(),
+    sb
+      .from("puente_latidos")
+      .select("visto_at, deseado, estado, presencia_at")
+      .eq("id", "puente-cotizador")
+      .maybeSingle(),
   ]);
 
   const err = trabajosR.error ?? eventosR.error ?? nuevosR.error;
@@ -73,9 +77,23 @@ export async function GET(_req: Request, ctx: Params) {
   const nuevos = mensajesDeTabla((nuevosR.data ?? []) as MensajeNuevoRow[]);
 
   const vistoAt = latidoR.data?.visto_at ? new Date(latidoR.data.visto_at).getTime() : 0;
-  const motor_conectado = Date.now() - vistoAt < LATIDO_MAX_MS;
+  const latidoFresco = Date.now() - vistoAt < LATIDO_MAX_MS;
+  // Conectado = puede responder AHORA: bridge vivo Y con voluntad de procesar
+  // (spec 2026-08-17 motor-encendido-apagado). El booleano legacy se mantiene
+  // para los chips existentes; `motor` trae el detalle para el toggle.
+  const deseado = latidoR.data?.deseado ?? "encendido";
+  const motor_conectado = latidoFresco && deseado === "encendido";
 
-  return NextResponse.json({ mensajes: mezclarHilos(legacy, nuevos), motor_conectado });
+  return NextResponse.json({
+    mensajes: mezclarHilos(legacy, nuevos),
+    motor_conectado,
+    motor: {
+      latido_fresco: latidoFresco,
+      visto_at: latidoR.data?.visto_at ?? null,
+      deseado,
+      estado: latidoR.data?.estado ?? "suspendido",
+    },
+  });
 }
 
 type Adjunto = { archivo_id: string; storage_path: string; titulo?: string };

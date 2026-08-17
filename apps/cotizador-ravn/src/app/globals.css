@@ -370,6 +370,40 @@ code {
   box-shadow: var(--qz-glow-warn);
 }
 
+/* Motor encendido/apagado (spec 17/08): el chip es un botón. */
+.qz-lamp--btn {
+  border: 0;
+  background: transparent;
+  padding: 0;
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  cursor: pointer;
+}
+
+.qz-lamp--btn:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.qz-lamp[data-state="encendido"] {
+  color: var(--qz-muted);
+}
+
+.qz-lamp[data-state="encendido"] i {
+  background: var(--qz-ok);
+  box-shadow: var(--qz-glow-ok);
+}
+
+.qz-lamp[data-state="apagado"] i {
+  background: var(--qz-warn);
+  box-shadow: var(--qz-glow-warn);
+}
+
+.qz-lamp[data-state="sin_senal"] i {
+  background: var(--qz-dim);
+}
+
 .qz-icon-action {
   display: grid;
   place-items: center;
