@@ -68,7 +68,8 @@ describe("bypassCotizadorReadPermitido", () => {
     ["/api/cotizaciones/abc-123/mensajes", "POST"],
     ["/api/cotizaciones/abc-123/desglose", "PATCH"],
     ["/api/cotizaciones/abc-123/documento-borrador", "PATCH"],
-    ["/api/cotizaciones/abc-123/archivos", "GET"],
+    // GET /archivos entró al contrato read-only el 17/08 (puerta de entrada):
+    // el visor firma las URLs que la ola de intake baja para leer.
     ["/api/cotizaciones/abc-123/archivos", "POST"],
     ["/api/cotizaciones/abc-123/aprobar", "POST"],
     ["/api/cotizaciones/abc-123/emitir", "POST"],
@@ -144,5 +145,38 @@ describe("credencialCotizadorWriteValida", () => {
   it("falla cerrada si lo provisionaron igual que la lectura o que el legacy", () => {
     expect(credencialCotizadorWriteValida(LECTURA, LECTURA, LECTURA, LEGACY)).toBe(false);
     expect(credencialCotizadorWriteValida(LEGACY, LEGACY, LECTURA, LEGACY)).toBe(false);
+  });
+});
+
+describe("puerta de entrada (17/08): allowlists nuevas", () => {
+  it("la write credential puede crear el borrador de la puerta", () => {
+    expect(bypassCotizadorWritePermitido("/api/cotizaciones/intake", "POST")).toBe(true);
+    expect(bypassCotizadorWritePermitido("/api/cotizaciones/intake", "GET")).toBe(false);
+  });
+
+  it("la write credential puede adjuntar por las tres puertas de subida", () => {
+    for (const p of [
+      "/api/cotizaciones/abc/archivos",
+      "/api/cotizaciones/abc/archivos/firmar",
+      "/api/cotizaciones/abc/archivos/confirmar",
+    ]) {
+      expect(bypassCotizadorWritePermitido(p, "POST")).toBe(true);
+    }
+  });
+
+  it("la write credential NO lee archivos ni toca otras subrutas", () => {
+    expect(bypassCotizadorWritePermitido("/api/cotizaciones/abc/archivos", "GET")).toBe(false);
+    expect(bypassCotizadorWritePermitido("/api/cotizaciones/abc/archivos/xyz", "PATCH")).toBe(false);
+  });
+
+  it("la write credential puede confirmar el reconocimiento y nada más", () => {
+    expect(bypassCotizadorWritePermitido("/api/cotizaciones/abc/confirmar-reconocimiento", "POST")).toBe(true);
+    expect(bypassCotizadorWritePermitido("/api/cotizaciones/abc/aprobar", "POST")).toBe(false);
+    expect(bypassCotizadorWritePermitido("/api/cotizaciones/abc/emitir", "POST")).toBe(false);
+  });
+
+  it("la read credential lee los archivos (URLs firmadas para la ola) y no escribe", () => {
+    expect(bypassCotizadorReadPermitido("/api/cotizaciones/abc/archivos", "GET")).toBe(true);
+    expect(bypassCotizadorReadPermitido("/api/cotizaciones/abc/archivos", "POST")).toBe(false);
   });
 });
