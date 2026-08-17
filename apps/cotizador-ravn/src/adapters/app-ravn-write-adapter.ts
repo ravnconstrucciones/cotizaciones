@@ -201,6 +201,7 @@ export function createAppRavnWriteAdapter(configInput: WriteAdapterConfig): {
     quoteId: string,
     payload: ConfirmacionReconocimiento
   ): Promise<ConfirmacionResultado>;
+  dejarMensaje(quoteId: string, texto: string): Promise<{ id: string }>;
 } {
   const config = validateConfig(configInput);
 
@@ -333,6 +334,26 @@ export function createAppRavnWriteAdapter(configInput: WriteAdapterConfig): {
           ? cuerpo.sin_precio.filter((n): n is string => typeof n === "string")
           : [],
       };
+    },
+
+    /**
+     * Conversación operativa (17/08): el composer del visor deja el mensaje de
+     * Eze en el hilo REAL de la cotización (cotizacion_mensajes, autor eze).
+     * El mensaje persiste ANTES de que se despache ninguna ola — mismo orden
+     * inquebrantable que la puerta de entrada.
+     */
+    async dejarMensaje(quoteId: string, texto: string): Promise<{ id: string }> {
+      const cuerpo = await llamar(
+        `/api/cotizaciones/${encodeURIComponent(quoteId)}/mensajes`,
+        { texto }
+      );
+      if (!isRecord(cuerpo) || typeof cuerpo.id !== "string") {
+        throw new QuoteWriteError(
+          "invalid_response",
+          "App RAVN no confirmó el mensaje — recargá el hilo antes de reintentar."
+        );
+      }
+      return { id: cuerpo.id };
     },
 
     async pasarExpediente(quoteId: string, payload: PasePayload): Promise<PaseResultado> {
@@ -468,4 +489,8 @@ export async function confirmarReconocimiento(
   payload: ConfirmacionReconocimiento
 ): Promise<ConfirmacionResultado> {
   return adapterDesdeEnv().confirmarReconocimiento(quoteId, payload);
+}
+
+export async function dejarMensaje(quoteId: string, texto: string): Promise<{ id: string }> {
+  return adapterDesdeEnv().dejarMensaje(quoteId, texto);
 }

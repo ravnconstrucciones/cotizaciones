@@ -21,6 +21,7 @@ import { join, extname } from "node:path";
 import { formatCliLine } from "../src/bridge/stream-format.ts";
 import { extraerJson, validarPropuesta } from "../src/bridge/intake-contract.ts";
 import { intakePrompt } from "./intake-prompt.mjs";
+import { charlaPrompt } from "./charla-prompt.mjs";
 
 const HOST = "127.0.0.1";
 const PORT = Number(process.env.COTIZADOR_BRIDGE_PORT ?? 3011);
@@ -172,14 +173,14 @@ function spawnAgent(agent, prompt, opciones = {}) {
   pushEvent(agent, "status", `Lanzado ${command} (pid ${child.pid})`);
 
   createInterface({ input: child.stdout }).on("line", (line) => {
-    // En el intake, la línea `result` del stream-json de claude trae el texto
-    // final ENTERO — de ahí sale el JSON de la propuesta. Se captura crudo
-    // antes de formatear (el formateador lo resume a "Terminó · Ns").
-    if (opciones.intake && agent === "fable" && wave) {
+    // La línea `result` del stream-json de claude trae el texto final ENTERO —
+    // de ahí sale el JSON del intake o la respuesta de la charla. Se captura
+    // crudo antes de formatear (el formateador lo resume a "Terminó · Ns").
+    if (opciones.captura && agent === "fable" && wave) {
       try {
         const parsed = JSON.parse(line);
         if (parsed?.type === "result" && typeof parsed.result === "string") {
-          wave.resultadoIntake = parsed.result;
+          wave.resultadoFable = parsed.result;
         }
       } catch {
         // línea no-JSON: sigue al formateador como siempre
@@ -205,6 +206,47 @@ function stopWave(reason) {
   if (!wave || wave.status !== "running") return;
   pushEvent("wave", "status", reason);
   for (const child of wave.children.values()) child.kill("SIGTERM");
+}
+
+/** GET por PostgREST con el service role. Devuelve el array de filas. */
+async function pgLeer(pathConQuery) {
+  if (!SUPABASE_URL || !SUPABASE_KEY) {
+    throw new Error("faltan SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY en .env.local");
+  }
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/${pathConQuery}`, {
+    headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` },
+  });
+  if (!res.ok) throw new Error(`GET ${pathConQuery.split("?")[0]}: ${res.status}`);
+  const filas = await res.json().catch(() => null);
+  if (!Array.isArray(filas)) throw new Error(`GET ${pathConQuery.split("?")[0]}: respuesta ilegible`);
+  return filas;
+}
+
+/**
+ * La respuesta de la charla entra al hilo REAL (cotizacion_mensajes) por
+ * PostgREST. `respuesta_a` deja la traza de qué mensaje contesta — el mismo
+ * índice que ya usa el puente legacy.
+ */
+async function persistirMensaje(cotizacionId, { autor, texto, respuestaA, tipo }) {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/cotizacion_mensajes`, {
+    method: "POST",
+    headers: {
+      apikey: SUPABASE_KEY,
+      Authorization: `Bearer ${SUPABASE_KEY}`,
+      "Content-Type": "application/json",
+      Prefer: "return=representation",
+    },
+    body: JSON.stringify({
+      cotizacion_id: cotizacionId,
+      autor,
+      texto,
+      meta: { tipo, ...(respuestaA ? { respuesta_a: respuestaA } : {}) },
+    }),
+  });
+  const filas = res.ok ? await res.json().catch(() => []) : [];
+  if (!res.ok || !Array.isArray(filas) || filas.length === 0) {
+    throw new Error(`POST cotizacion_mensajes: ${res.status}`);
+  }
 }
 
 /** PATCH a cotizador_intake por PostgREST. 0 filas afectadas nunca es éxito. */
@@ -265,10 +307,10 @@ async function startIntakeWave({ cotizacionId, texto, archivos }) {
     events: [],
     children: new Map(),
     timeout: null,
-    resultadoIntake: null,
+    resultadoFable: null,
     alTerminar: async () => {
       try {
-        const crudo = wave.resultadoIntake ?? "";
+        const crudo = wave.resultadoFable ?? "";
         const json = extraerJson(crudo);
         if (json === null) {
           throw new Error(crudo.trim() ? crudo.slice(0, 500) : "La ola no devolvió una propuesta.");
@@ -293,7 +335,72 @@ async function startIntakeWave({ cotizacionId, texto, archivos }) {
     },
   };
   pushEvent("wave", "status", `Ola de intake · ${locales.length} archivo(s) · desmenuzando con Fable`);
-  spawnAgent("fable", prompt, { intake: true });
+  spawnAgent("fable", prompt, { intake: true, captura: true });
+  wave.timeout = setTimeout(() => stopWave("Corte por tiempo máximo de ola"), WAVE_TIMEOUT_MS);
+  wave.timeout.unref();
+  return wave.id;
+}
+
+/**
+ * La ola de CHARLA (conversación operativa, 17/08): el mensaje de Eze YA está
+ * persistido en el hilo — acá Fable lo lee con el expediente a la vista,
+ * contesta, y la respuesta entra al MISMO hilo como autor `fable`. Si la ola
+ * no puede responder, el motivo también queda en el hilo (autor `sistema`):
+ * un fallo que solo se ve en una terminal es un fallo invisible.
+ */
+async function startCharlaWave({ cotizacionId, mensajeId, texto }) {
+  const [cotizaciones, hiloDesc] = await Promise.all([
+    pgLeer(
+      `cotizaciones?id=eq.${encodeURIComponent(cotizacionId)}&select=titulo,zona,estado,desglose,total_min,total_max,precio_propuesta`
+    ),
+    pgLeer(
+      `cotizacion_mensajes?cotizacion_id=eq.${encodeURIComponent(cotizacionId)}&select=autor,texto,creado_at&order=creado_at.desc&limit=30`
+    ),
+  ]);
+  const cotizacion = cotizaciones[0];
+  if (!cotizacion) throw new Error("La cotización de la charla no existe en la base.");
+  const hilo = hiloDesc.reverse();
+
+  const hoy = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Argentina/Buenos_Aires",
+  }).format(new Date());
+  const prompt = charlaPrompt({ cotizacion, hilo, texto, hoy });
+
+  wave = {
+    id: randomUUID(),
+    prompt: `[charla ${cotizacionId}]`,
+    startedAt: new Date().toISOString(),
+    status: "running",
+    seq: 0,
+    events: [],
+    children: new Map(),
+    timeout: null,
+    resultadoFable: null,
+    alTerminar: async () => {
+      try {
+        const respuesta = (wave.resultadoFable ?? "").trim();
+        if (!respuesta) throw new Error("La ola terminó sin respuesta.");
+        await persistirMensaje(cotizacionId, {
+          autor: "fable",
+          texto: respuesta.slice(0, 4000),
+          respuestaA: mensajeId,
+          tipo: "charla",
+        });
+        pushEvent("wave", "result", "Respuesta persistida en el hilo — se ve en el visor");
+      } catch (error) {
+        const motivo = String(error?.message ?? error);
+        await persistirMensaje(cotizacionId, {
+          autor: "sistema",
+          texto: `La ola de charla no pudo responder: ${motivo.slice(0, 300)}. Reintentá desde el composer.`,
+          respuestaA: mensajeId,
+          tipo: "aviso",
+        }).catch((e) => pushEvent("wave", "raw", `✗ No se pudo dejar el aviso en el hilo: ${e.message}`));
+        pushEvent("wave", "raw", `✗ Charla sin respuesta: ${motivo.slice(0, 300)}`);
+      }
+    },
+  };
+  pushEvent("wave", "status", "Ola de charla · Fable contesta con el expediente a la vista");
+  spawnAgent("fable", prompt, { captura: true });
   wave.timeout = setTimeout(() => stopWave("Corte por tiempo máximo de ola"), WAVE_TIMEOUT_MS);
   wave.timeout.unref();
   return wave.id;
@@ -388,6 +495,28 @@ const server = createServer(async (req, res) => {
         json(res, 201, { waveId: id });
       } catch (error) {
         json(res, 502, { error: `La ola de intake no arrancó: ${error.message}` });
+      }
+      return;
+    }
+    if (body.kind === "charla") {
+      const cotizacionId = typeof body.cotizacionId === "string" ? body.cotizacionId.trim() : "";
+      const mensajeId = typeof body.mensajeId === "string" ? body.mensajeId.trim() : "";
+      const texto = typeof body.texto === "string" ? body.texto.slice(0, MAX_PROMPT_LENGTH) : "";
+      if (!cotizacionId || !texto) {
+        json(res, 400, { error: "A la charla le falta la cotización o el mensaje." });
+        return;
+      }
+      if (!SUPABASE_URL || !SUPABASE_KEY) {
+        json(res, 503, {
+          error: "El bridge no tiene SUPABASE_URL/SERVICE_ROLE_KEY: la respuesta no tendría dónde persistir.",
+        });
+        return;
+      }
+      try {
+        const id = await startCharlaWave({ cotizacionId, mensajeId, texto });
+        json(res, 201, { waveId: id });
+      } catch (error) {
+        json(res, 502, { error: `La ola de charla no arrancó: ${error.message}` });
       }
       return;
     }

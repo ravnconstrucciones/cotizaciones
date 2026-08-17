@@ -18,6 +18,13 @@ export type BridgeConfig = {
 export type WaveRequest = {
   prompt: string;
   seq: number;
+  /**
+   * Conversación operativa (17/08): el mensaje YA persistió en el hilo real y
+   * la ola es de CHARLA — Fable contesta con el expediente a la vista y su
+   * respuesta entra al mismo hilo. Sin esto, la ola es la genérica de dos
+   * agentes.
+   */
+  charla?: { cotizacionId: string; mensajeId: string };
 };
 
 export type BridgeHealth = "off" | "ready" | "running";
@@ -64,6 +71,7 @@ export function LiveTerminals({
   request,
   onHealth,
   onWaveOutcome,
+  onWaveResult,
 }: {
   bridge: BridgeConfig | null;
   request: WaveRequest | null;
@@ -75,6 +83,13 @@ export function LiveTerminals({
    * que Eze no está mirando mientras la otra le decía que ya estaba lanzada.
    */
   onWaveOutcome?: (message: string) => void;
+  /**
+   * Cada evento `result` de la ola, en orden. La charla persiste su respuesta
+   * DESPUÉS del "Ola terminada" (corre en el alTerminar del bridge), así que
+   * el que quiera refrescar el hilo tiene que escuchar TODOS los results, no
+   * solo el primero.
+   */
+  onWaveResult?: (text: string) => void;
 }) {
   const [health, setHealth] = useState<BridgeHealth>("off");
   const [events, setEvents] = useState<TerminalEvent[]>([]);
@@ -84,6 +99,12 @@ export function LiveTerminals({
   const sourceRef = useRef<EventSource | null>(null);
   const streamingRef = useRef(false);
   const handledSeqRef = useRef(0);
+  // Por ref para que un callback nuevo no reconecte el stream (dep de
+  // connectStream es solo el bridge).
+  const onWaveResultRef = useRef(onWaveResult);
+  useEffect(() => {
+    onWaveResultRef.current = onWaveResult;
+  }, [onWaveResult]);
 
   const effectiveHealth: BridgeHealth = bridge ? health : "off";
 
@@ -109,7 +130,10 @@ export function LiveTerminals({
       const event = parsed;
       if (event.agent === "wave") {
         setWaveNote(event.text);
-        if (event.kind === "result") setHealth("ready");
+        if (event.kind === "result") {
+          setHealth("ready");
+          onWaveResultRef.current?.(event.text);
+        }
         return;
       }
       setEvents((current) => {
@@ -172,17 +196,25 @@ export function LiveTerminals({
   }, [bridge, connectStream]);
 
   const launchWave = useCallback(
-    async (text: string) => {
+    async (waveRequest: WaveRequest) => {
       if (!bridge) return;
-      const trimmed = text.trim();
+      const trimmed = waveRequest.prompt.trim();
       if (!trimmed) return;
       setLaunching(true);
       setError(null);
       try {
+        const body = waveRequest.charla
+          ? {
+              kind: "charla",
+              cotizacionId: waveRequest.charla.cotizacionId,
+              mensajeId: waveRequest.charla.mensajeId,
+              texto: trimmed,
+            }
+          : { prompt: trimmed };
         const response = await fetch(`${bridge.url}/waves`, {
           method: "POST",
           headers: { "content-type": "application/json", "x-bridge-token": bridge.token },
-          body: JSON.stringify({ prompt: trimmed }),
+          body: JSON.stringify(body),
         });
         const payload = (await response.json()) as { error?: string };
         if (!response.ok) throw new Error(payload.error ?? "El bridge rechazó la ola.");
@@ -190,7 +222,11 @@ export function LiveTerminals({
         setWaveNote(null);
         setHealth("running");
         connectStream();
-        onWaveOutcome?.("Ola despachada: Codex y Fable la están trabajando.");
+        onWaveOutcome?.(
+          waveRequest.charla
+            ? "Ola despachada: Fable está contestando en el hilo."
+            : "Ola despachada: Codex y Fable la están trabajando."
+        );
       } catch (cause) {
         const message = cause instanceof Error ? cause.message : "No se pudo lanzar la ola.";
         setError(message);
@@ -206,13 +242,14 @@ export function LiveTerminals({
     if (!request || request.seq <= handledSeqRef.current) return;
     handledSeqRef.current = request.seq;
     if (!bridge) {
-      const message =
-        "El mensaje quedó en la conversación: sin bridge configurado no hay ola que lanzar.";
+      const message = request.charla
+        ? "El mensaje quedó guardado en el hilo. Sin bridge configurado no hay ola que conteste: levantalo en la Mac (npm run bridge) y reenviá."
+        : "El mensaje quedó en la conversación: sin bridge configurado no hay ola que lanzar.";
       setError(message);
       onWaveOutcome?.(message);
       return;
     }
-    void launchWave(request.prompt);
+    void launchWave(request);
   }, [request, bridge, launchWave, onWaveOutcome]);
 
   const stopWave = async () => {

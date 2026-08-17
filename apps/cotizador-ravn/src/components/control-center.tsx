@@ -241,6 +241,7 @@ export function ControlCenter({
   const [draft, setDraft] = useState("");
   const [localMessages, setLocalMessages] = useState<LocalPreviewMessage[]>([]);
   const [composerNotice, setComposerNotice] = useState<string | null>(null);
+  const [sending, setSending] = useState(false);
   const [wave, setWave] = useState<WaveRequest | null>(null);
   const [health, setHealth] = useState<BridgeHealth>("off");
   // La puerta de entrada: "+ Nueva cotización" en el picker abre el gate.
@@ -604,18 +605,105 @@ export function ControlCenter({
    */
   const noteWave = useCallback((message: string) => setComposerNotice(message), []);
 
-  const submitPreviewMessage = (event: FormEvent<HTMLFormElement>) => {
+  /**
+   * El tablero (y con él la banda que despacha olas) solo está montado fuera
+   * de la puerta de entrada y del reconocimiento. Si no está, la charla igual
+   * persiste — pero no hay quién lance la ola, y eso se dice.
+   */
+  const boardLive = !intakeMode && !(snapshot.quote.legacyState === "borrador" && !preview);
+
+  /**
+   * La respuesta de la charla entra al hilo DESPUÉS del "Ola terminada" (la
+   * persiste el alTerminar del bridge). Refrescar en el primer result llega
+   * temprano: se espera al último con un debounce corto y se relee en silencio.
+   */
+  const refreshTimer = useRef<number | null>(null);
+  const scheduleThreadRefresh = useCallback(() => {
+    if (preview) return;
+    if (refreshTimer.current) window.clearTimeout(refreshTimer.current);
+    refreshTimer.current = window.setTimeout(() => {
+      refreshTimer.current = null;
+      void loadQuote(quoteId, false);
+    }, 900);
+  }, [preview, loadQuote, quoteId]);
+  useEffect(
+    () => () => {
+      if (refreshTimer.current) window.clearTimeout(refreshTimer.current);
+    },
+    []
+  );
+
+  /**
+   * Conversación operativa (17/08): el composer escribe DE VERDAD. El orden es
+   * el inquebrantable de la puerta — primero persiste el mensaje en el hilo
+   * real de App RAVN, recién después se despacha la ola de charla. Si la ola
+   * no puede salir (sin bridge, Mac apagada), el mensaje ya quedó guardado y
+   * el aviso lo dice. En preview se mantiene la demostración local de siempre.
+   */
+  const submitMessage = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const text = draft.trim();
-    if (!preview || !text) return;
-    setLocalMessages((current) => [
-      ...current,
-      { id: `local:${Date.now()}`, text, occurredAt: new Date().toISOString() },
-    ]);
-    setDraft("");
-    waveSeq.current += 1;
-    setWave({ prompt: text, seq: waveSeq.current });
-    setComposerNotice("Despachando la ola…");
+    if (!text || sending) return;
+
+    if (preview) {
+      setLocalMessages((current) => [
+        ...current,
+        { id: `local:${Date.now()}`, text, occurredAt: new Date().toISOString() },
+      ]);
+      setDraft("");
+      waveSeq.current += 1;
+      setWave({ prompt: text, seq: waveSeq.current });
+      setComposerNotice("Despachando la ola…");
+      return;
+    }
+
+    void (async () => {
+      setSending(true);
+      setComposerNotice("Guardando el mensaje en el hilo…");
+      try {
+        const response = await fetch(
+          apiUrl(`/api/mensajes?quote=${encodeURIComponent(quoteId)}`),
+          {
+            method: "POST",
+            headers: { "content-type": "application/json", Accept: "application/json" },
+            body: JSON.stringify({ texto: text }),
+          }
+        );
+        const payload = (await response.json().catch(() => null)) as {
+          mensajeId?: string;
+          error?: string;
+        } | null;
+        if (!response.ok || typeof payload?.mensajeId !== "string") {
+          throw new Error(payload?.error ?? "El mensaje no se pudo guardar en el hilo.");
+        }
+        // El borrador recién se suelta cuando el mensaje ESTÁ guardado: un
+        // fallo no se come lo que Eze escribió.
+        setDraft("");
+        setLocalMessages((current) => [
+          ...current,
+          { id: `local:${payload.mensajeId}`, text, occurredAt: new Date().toISOString() },
+        ]);
+        if (boardLive) {
+          waveSeq.current += 1;
+          setWave({
+            prompt: text,
+            seq: waveSeq.current,
+            charla: { cotizacionId: quoteId, mensajeId: payload.mensajeId },
+          });
+          setComposerNotice("Mensaje guardado en el hilo · despachando la ola…");
+        } else {
+          setComposerNotice(
+            "Mensaje guardado en el hilo. Esta cotización está en la puerta de entrada: la ola de charla corre desde el tablero normal."
+          );
+        }
+      } catch (error) {
+        setComposerNotice(
+          error instanceof Error ? error.message : "El mensaje no se pudo guardar en el hilo."
+        );
+      } finally {
+        setSending(false);
+      }
+    })();
   };
 
   const answerInConversation = (question: string) => {
@@ -734,7 +822,8 @@ export function ControlCenter({
           active={mobileTab === "conversar"}
           draft={draft}
           onDraftChange={setDraft}
-          onSubmit={submitPreviewMessage}
+          onSubmit={submitMessage}
+          sending={sending}
           localMessages={localMessages}
           notice={composerNotice}
           composerRef={composerRef}
@@ -778,6 +867,7 @@ export function ControlCenter({
           wave={wave}
           onHealth={setHealth}
           onWaveOutcome={noteWave}
+          onWaveResult={scheduleThreadRefresh}
           focusedItem={focusedItem}
           manualItems={manualItems}
           onAddManual={addManual}
@@ -937,6 +1027,7 @@ function ConversationColumn({
   draft,
   onDraftChange,
   onSubmit,
+  sending,
   localMessages,
   notice,
   composerRef,
@@ -949,15 +1040,17 @@ function ConversationColumn({
   draft: string;
   onDraftChange: (value: string) => void;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
+  sending: boolean;
   localMessages: LocalPreviewMessage[];
   notice: string | null;
   composerRef: RefObject<HTMLTextAreaElement | null>;
   reduceMotion: boolean;
 }) {
+  // El hilo entero, las cuatro voces: eze, fable, codex y sistema. Antes fable
+  // y codex se filtraban — con la conversación operativa (17/08) la respuesta
+  // de Fable ES el producto: esconderla sería una charla contra una pared.
   const thread = snapshot.events.filter(
-    (event): event is Extract<QuoteEvent, { type: "message" }> =>
-      event.type === "message" &&
-      (event.message.autor === "eze" || event.message.autor === "sistema")
+    (event): event is Extract<QuoteEvent, { type: "message" }> => event.type === "message"
   );
   const threadRef = useRef<HTMLDivElement>(null);
   const quoteId = snapshot.quote.id;
@@ -1043,13 +1136,9 @@ function ConversationColumn({
           id="quote-command"
           ref={composerRef}
           value={draft}
-          disabled={!preview}
+          disabled={sending}
           onChange={(event) => onDraftChange(event.target.value)}
-          placeholder={
-            preview
-              ? "Ej.: El porcelanato es 60 × 60 y la grifería va embutida…"
-              : "La conversación todavía no está habilitada en esta versión."
-          }
+          placeholder="Ej.: El porcelanato es 60 × 60 y la grifería va embutida…"
           rows={3}
         />
         <div className="qz-composer__footer">
@@ -1065,7 +1154,7 @@ function ConversationColumn({
           <motion.button
             className="qz-send"
             type="submit"
-            disabled={!preview || draft.trim().length === 0}
+            disabled={sending || draft.trim().length === 0}
             whileTap={reduceMotion ? undefined : { scale: 0.96 }}
             aria-label="Enviar al cotizador"
           >
@@ -1076,7 +1165,7 @@ function ConversationColumn({
           {notice ??
             (preview
               ? "Demostración local: la entrada no modifica datos de App RAVN."
-              : "Esta versión lee la conversación pero todavía no puede escribir.")}
+              : "Lo que escribas queda en el hilo del expediente y dispara la ola de charla.")}
         </p>
       </form>
     </section>
@@ -1094,6 +1183,7 @@ function BoardColumn({
   wave,
   onHealth,
   onWaveOutcome,
+  onWaveResult,
   focusedItem,
   manualItems,
   onAddManual,
@@ -1117,6 +1207,7 @@ function BoardColumn({
   wave: WaveRequest | null;
   onHealth: (health: BridgeHealth) => void;
   onWaveOutcome: (message: string) => void;
+  onWaveResult: (text: string) => void;
   focusedItem: string | null;
   manualItems: ManualItem[];
   onAddManual: (draft: ManualDraft) => void;
@@ -1180,6 +1271,7 @@ function BoardColumn({
         onElegir={onElegirPostulante}
       />
       <LiveTerminals
+        onWaveResult={onWaveResult}
         bridge={bridge}
         request={wave}
         onHealth={onHealth}

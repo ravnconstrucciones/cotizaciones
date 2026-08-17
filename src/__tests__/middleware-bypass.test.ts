@@ -114,8 +114,13 @@ describe("bypassCotizadorWritePermitido", () => {
   it("NO abre las otras escrituras de la mesa ni /api/* entero", () => {
     expect(bypassCotizadorWritePermitido("/api/cotizaciones/abc-123/desglose", "PATCH")).toBe(false);
     expect(bypassCotizadorWritePermitido("/api/cotizaciones/abc-123", "PATCH")).toBe(false);
-    expect(bypassCotizadorWritePermitido("/api/cotizaciones/abc-123/mensajes", "POST")).toBe(false);
     expect(bypassCotizadorWritePermitido("/api/dinero/espejo", "POST")).toBe(false);
+  });
+
+  it("conversación operativa (17/08): la write credential deja mensajes de charla y nada más del hilo", () => {
+    expect(bypassCotizadorWritePermitido("/api/cotizaciones/abc-123/mensajes", "POST")).toBe(true);
+    // Leer el hilo sigue siendo de la credencial de lectura.
+    expect(bypassCotizadorWritePermitido("/api/cotizaciones/abc-123/mensajes", "GET")).toBe(false);
   });
 
   it("no acepta otros métodos sobre la misma ruta", () => {

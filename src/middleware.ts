@@ -130,10 +130,10 @@ const RUTAS_BYPASS_COTIZADOR_READ: Array<{ patron: RegExp; metodos: string[] }> 
  * Frontera de ESCRITURA del Cotizador: el pase del expediente + la puerta de
  * entrada (17/08). Es la línea taller / oficina sostenida por permisos y no
  * por buena voluntad — con esta credencial el Cotizador puede dejar el
- * extracto y el número, crear un BORRADOR, adjuntarle archivos y confirmar el
- * reconocimiento (receta candidata + en_revision), y NADA más: aprobar,
- * emitir, crear obra, mover plata o tocar mensajes quedan afuera aunque el
- * secreto se filtre.
+ * extracto y el número, crear un BORRADOR, adjuntarle archivos, confirmar el
+ * reconocimiento (receta candidata + en_revision) y dejar mensajes de CHARLA
+ * en el hilo (conversación operativa, 17/08), y NADA más: aprobar, emitir,
+ * crear obra o mover plata quedan afuera aunque el secreto se filtre.
  *
  * Se mantiene separada de la credencial de lectura a propósito: la de lectura
  * sigue siendo incapaz de escribir.
@@ -145,6 +145,8 @@ const RUTAS_BYPASS_COTIZADOR_WRITE: Array<{ patron: RegExp; metodos: string[] }>
   { patron: /^\/api\/cotizaciones\/[^/]+\/archivos\/firmar$/, metodos: ["POST"] },
   { patron: /^\/api\/cotizaciones\/[^/]+\/archivos\/confirmar$/, metodos: ["POST"] },
   { patron: /^\/api\/cotizaciones\/[^/]+\/confirmar-reconocimiento$/, metodos: ["POST"] },
+  // Conversación operativa (17/08): el composer del visor escribe la charla.
+  { patron: /^\/api\/cotizaciones\/[^/]+\/mensajes$/, metodos: ["POST"] },
 ];
 
 /** true si `metodo` sobre `pathname` está en la allowlist de arriba. */
