@@ -53,10 +53,20 @@ obra de verdad).
 - Copy institucional: "trabajo", nunca "laburo" (corrección de Eze en vivo).
 
 **OJO para la próxima sesión:**
-- `RAVN_COTIZADOR_WRITE_SECRET` del `.env.local` RAÍZ **difiere del de Vercel
-  prod** (sensitive, ilegible). Local-a-local anda; prod-a-prod anda; lo que NO
-  anda es curl local→prod con el valor del archivo. No es bug, es rotación
-  vieja. Si molesta, regenerar y alinear los cuatro lugares.
+- **SECRETS ROTADOS Y ALINEADOS (17/08, pedido de Eze "alinea eso"):**
+  `RAVN_COTIZADOR_READ_SECRET` y `RAVN_COTIZADOR_WRITE_SECRET` se regeneraron y
+  quedaron IGUALES en las cuatro puntas: Vercel `ravn-app-one` + `ravn-cotizador`
+  (Production y Preview, ahora tipo `encrypted` — legibles por API, ya no
+  sensitive) y los dos `.env.local` (raíz y cotizador). Verificado contra prod:
+  read 200 · intake 400 · pase 404 · aprobar 401 · secret trucho 401. Cualquier
+  copia vieja del secret quedó inválida.
+- **El "desalineado" de anoche era el DECOY:** `ravn-app-one.vercel.app` sirve
+  un deployment CLAVADO de julio (la memoria ya lo marcaba). La URL real de
+  App RAVN prod es **`ravn-app-one-five.vercel.app`** — toda verificación por
+  curl va SIEMPRE ahí. El `targets.production` del proyecto sí apunta al deploy
+  nuevo.
+- Deploys finales de la alineación: App RAVN `dpl_jsPBmJ4QrgvJVYe4FByyNjT7HiC7`
+  · Cotizador `dpl_2p8zetnsBJDSTLyZkmpGu2RgGAd8`, los dos READY y verificados.
 - El bridge necesita `SUPABASE_URL` (o NEXT_PUBLIC) + `SUPABASE_SERVICE_ROLE_KEY`
   en `apps/cotizador-ravn/.env.local` para persistir la propuesta (ya están).
   Sin ellas rechaza la ola de intake con 503 y lo dice.
