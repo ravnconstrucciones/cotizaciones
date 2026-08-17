@@ -864,9 +864,11 @@ export function ControlCenter({
 
   /**
    * Momentos reconocimiento y charla: mismo orden inquebrantable de siempre —
-   * archivos y mensaje persisten PRIMERO, la ola sale después. En
-   * reconocimiento la ola es la de intake (relanzada); en charla, la banda del
-   * tablero la despacha como hoy.
+   * archivos y mensaje persisten PRIMERO, la ola sale después. En los DOS
+   * momentos la ola es la de charla (rápida); en reconocimiento viaja con
+   * `momento` y es Fable quien rutea (pedido de Eze 17/08): pregunta →
+   * respuesta directa en el hilo; dato o cambio de alcance → respuesta + el
+   * bridge encadena el re-reconocimiento completo solo.
    */
   const enviarAlExpediente = async (text: string) => {
     const nombres = archivos.map((f) => f.name);
@@ -903,16 +905,15 @@ export function ControlCenter({
         { id: `local:${payload.mensajeId}`, text: mensaje, occurredAt: new Date().toISOString() },
       ]);
 
-      if (momento === "reconocimiento") {
-        const ola = await despacharOla(quoteId, bridge);
-        setComposerNotice(aviso ? `${aviso} ${ola.mensaje}` : ola.mensaje);
-        return;
-      }
       waveSeq.current += 1;
       setWave({
         prompt: mensaje,
         seq: waveSeq.current,
-        charla: { cotizacionId: quoteId, mensajeId: payload.mensajeId },
+        charla: {
+          cotizacionId: quoteId,
+          mensajeId: payload.mensajeId,
+          ...(momento === "reconocimiento" ? { momento: "reconocimiento" as const } : {}),
+        },
       });
       setComposerNotice(
         aviso
@@ -1138,8 +1139,10 @@ export function ControlCenter({
             bridge={bridge}
             health={health}
             active={mobileTab === "tablero"}
+            wave={wave}
             onHealth={setHealth}
             onWaveResult={scheduleThreadRefresh}
+            onWaveOutcome={noteWave}
           />
         ) : (
         <BoardColumn

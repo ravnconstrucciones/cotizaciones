@@ -23,6 +23,7 @@ import { tmpdir } from "node:os";
 import { join, extname } from "node:path";
 import { formatCliLine } from "../src/bridge/stream-format.ts";
 import { extraerJson, validarPropuesta } from "../src/bridge/intake-contract.ts";
+import { extraerRelanzamiento } from "../src/bridge/charla-ruteo.ts";
 import { intakePrompt } from "./intake-prompt.mjs";
 import { charlaPrompt } from "./charla-prompt.mjs";
 
@@ -48,6 +49,17 @@ const MAX_PROMPT_LENGTH = 4000;
 // bridge NO se apaga solo — queda dormido y lo que se prende/apaga es su
 // voluntad de procesar (`deseado` en puente_latidos). Suspendido no gasta nada.
 const RESIDENTE = process.env.COTIZADOR_BRIDGE_RESIDENTE === "1";
+// Modelo de Codex en las olas (pedido de Eze 17/08): spark, el ultrarrápido.
+// Va por flag -m — NUNCA tocando ~/.codex/config.toml, que comparten sus
+// sesiones interactivas de Codex. Verificado contra el roster del CLI.
+const CODEX_MODEL = process.env.COTIZADOR_CODEX_MODEL ?? "gpt-5.3-codex-spark";
+// App RAVN es quien firma las URLs de los archivos del expediente: la cadena
+// charla→re-reconocimiento arma el payload de intake desde acá. El bridge vive
+// en la Mac y el RAVN_APP_URL de .env.local apunta al dev (localhost:3000,
+// normalmente apagado): COTIZADOR_BRIDGE_APP_URL lo pisa con la App RAVN de
+// prod ("la FIVE") sin cambiar el comportamiento del visor local.
+const RAVN_APP_URL = (process.env.COTIZADOR_BRIDGE_APP_URL ?? process.env.RAVN_APP_URL ?? "").replace(/\/+$/, "");
+const RAVN_READ_SECRET = process.env.RAVN_COTIZADOR_READ_SECRET ?? "";
 const LATIDO_MS = 30_000;
 const FILA_CONTROL = "puente-cotizador";
 
@@ -254,7 +266,7 @@ function agentCommand(agent, prompt, opciones = {}) {
   }
   return {
     command: "codex",
-    args: ["exec", "--json", "--sandbox", "read-only", "--skip-git-repo-check", "--color", "never", prompt],
+    args: ["exec", "--json", "-m", CODEX_MODEL, "--sandbox", "read-only", "--skip-git-repo-check", "--color", "never", prompt],
   };
 }
 
@@ -499,24 +511,66 @@ async function startIntakeWave({ cotizacionId, texto, archivos }) {
 }
 
 /**
+ * Arma el payload de una ola de intake desde lo PERSISTIDO — el mismo material
+ * que junta /api/intake/ola del visor, pero desde el bridge (para la cadena
+ * charla→re-reconocimiento): texto de cotizador_intake por PostgREST y
+ * archivos con URL firmada por App RAVN (read secret). Nunca se relanza sobre
+ * una pantalla: solo sobre lo guardado.
+ */
+async function payloadIntakeDesdeBase(cotizacionId) {
+  const filas = await pgLeer(
+    `cotizador_intake?cotizacion_id=eq.${encodeURIComponent(cotizacionId)}&select=texto`
+  );
+  if (filas.length === 0) throw new Error("La cotización no tiene intake.");
+  const texto = typeof filas[0].texto === "string" ? filas[0].texto : "";
+  let archivos = [];
+  if (RAVN_APP_URL && RAVN_READ_SECRET) {
+    const res = await fetch(
+      `${RAVN_APP_URL}/api/cotizaciones/${encodeURIComponent(cotizacionId)}/archivos`,
+      { headers: { Accept: "application/json", "x-ravn-cotizador-read": RAVN_READ_SECRET } }
+    );
+    if (!res.ok) throw new Error(`App RAVN no listó los archivos (${res.status})`);
+    const payload = await res.json().catch(() => null);
+    archivos = Array.isArray(payload?.archivos)
+      ? payload.archivos
+          .filter((a) => a && typeof a.url === "string" && a.url.startsWith("https://"))
+          .map((a) => ({ titulo: typeof a.titulo === "string" && a.titulo ? a.titulo : "archivo", url: a.url }))
+      : [];
+  }
+  if (!texto && archivos.length === 0) {
+    throw new Error("No hay ni texto ni archivos que desmenuzar.");
+  }
+  return { cotizacionId, texto, archivos };
+}
+
+/**
  * La ola de CHARLA (conversación operativa, 17/08): el mensaje de Eze YA está
  * persistido en el hilo — acá Fable lo lee con el expediente a la vista,
  * contesta, y la respuesta entra al MISMO hilo como autor `fable`. Si la ola
  * no puede responder, el motivo también queda en el hilo (autor `sistema`):
  * un fallo que solo se ve en una terminal es un fallo invisible.
  */
-async function startCharlaWave({ cotizacionId, mensajeId, texto, archivos = [] }) {
-  const [cotizaciones, hiloDesc] = await Promise.all([
+async function startCharlaWave({ cotizacionId, mensajeId, texto, archivos = [], momento = "charla" }) {
+  // En reconocimiento la charla contesta CON la propuesta sin confirmar a la
+  // vista (es de eso de lo que Eze habla) y puede rutear al re-reconocimiento.
+  const esReconocimiento = momento === "reconocimiento";
+  const [cotizaciones, hiloDesc, intakeFilas] = await Promise.all([
     pgLeer(
       `cotizaciones?id=eq.${encodeURIComponent(cotizacionId)}&select=titulo,zona,estado,desglose,total_min,total_max,precio_propuesta`
     ),
     pgLeer(
       `cotizacion_mensajes?cotizacion_id=eq.${encodeURIComponent(cotizacionId)}&select=autor,texto,creado_at&order=creado_at.desc&limit=30`
     ),
+    esReconocimiento
+      ? pgLeer(
+          `cotizador_intake?cotizacion_id=eq.${encodeURIComponent(cotizacionId)}&select=propuesta`
+        ).catch(() => [])
+      : Promise.resolve([]),
   ]);
   const cotizacion = cotizaciones[0];
   if (!cotizacion) throw new Error("La cotización de la charla no existe en la base.");
   const hilo = hiloDesc.reverse();
+  const propuesta = intakeFilas[0]?.propuesta ?? null;
 
   // Los adjuntos del expediente, bajados a disco para que Fable los lea
   // (spec puerta conversacional: "la próxima ola lo ve").
@@ -535,7 +589,15 @@ async function startCharlaWave({ cotizacionId, mensajeId, texto, archivos = [] }
   const hoy = new Intl.DateTimeFormat("en-CA", {
     timeZone: "America/Argentina/Buenos_Aires",
   }).format(new Date());
-  const prompt = charlaPrompt({ cotizacion, hilo, texto, hoy, archivos: locales });
+  const prompt = charlaPrompt({
+    cotizacion,
+    hilo,
+    texto,
+    hoy,
+    archivos: locales,
+    propuesta,
+    permitirRelanzar: esReconocimiento,
+  });
 
   wave = {
     id: randomUUID(),
@@ -549,15 +611,35 @@ async function startCharlaWave({ cotizacionId, mensajeId, texto, archivos = [] }
     resultadoFable: null,
     alTerminar: async () => {
       try {
-        const respuesta = (wave.resultadoFable ?? "").trim();
-        if (!respuesta) throw new Error("La ola terminó sin respuesta.");
+        // El marcador de relanzamiento es protocolo bridge↔prompt: se separa
+        // ANTES de persistir — al hilo entra solo la respuesta limpia.
+        const { texto: respuesta, relanzar } = extraerRelanzamiento(wave.resultadoFable ?? "");
+        if (!respuesta && !relanzar) throw new Error("La ola terminó sin respuesta.");
         await persistirMensaje(cotizacionId, {
           autor: "fable",
-          texto: respuesta.slice(0, 4000),
+          texto: (respuesta || "Tomo lo nuevo del mensaje: relanzo el reconocimiento.").slice(0, 4000),
           respuestaA: mensajeId,
           tipo: "charla",
         });
         pushEvent("wave", "result", "Respuesta persistida en el hilo — se ve en el visor");
+        if (relanzar && esReconocimiento) {
+          // Ruteo dato/alcance (pedido de Eze 17/08): la charla ya contestó
+          // rápido; el reconocimiento completo corre detrás, encadenado.
+          pushEvent("wave", "status", "La charla detectó un dato nuevo — relanzo el reconocimiento");
+          try {
+            const payload = await payloadIntakeDesdeBase(cotizacionId);
+            await startIntakeWave(payload);
+          } catch (errorCadena) {
+            const motivoCadena = String(errorCadena?.message ?? errorCadena);
+            await persistirMensaje(cotizacionId, {
+              autor: "sistema",
+              texto: `El re-reconocimiento no arrancó solo: ${motivoCadena.slice(0, 300)}. Relanzalo desde el panel.`,
+              respuestaA: mensajeId,
+              tipo: "aviso",
+            }).catch((e) => pushEvent("wave", "raw", `✗ No se pudo dejar el aviso en el hilo: ${e.message}`));
+            pushEvent("wave", "raw", `✗ Cadena de reconocimiento: ${motivoCadena.slice(0, 300)}`);
+          }
+        }
       } catch (error) {
         const motivo = String(error?.message ?? error);
         await persistirMensaje(cotizacionId, {
@@ -576,10 +658,13 @@ async function startCharlaWave({ cotizacionId, mensajeId, texto, archivos = [] }
     "wave",
     "status",
     locales.length > 0
-      ? `Ola de charla · ${locales.length} adjunto(s) a la vista · Fable contesta`
-      : "Ola de charla · Fable contesta con el expediente a la vista"
+      ? `Ola de charla · ${locales.length} adjunto(s) a la vista · Fable contesta, Codex (${CODEX_MODEL}) segunda voz`
+      : `Ola de charla · Fable contesta con el expediente a la vista · Codex (${CODEX_MODEL}) segunda voz`
   );
   spawnAgent("fable", prompt, { captura: true, leerArchivos: locales.length > 0 });
+  // Segunda voz (decisión de Eze 17/08): Codex corre la misma charla con
+  // spark. Su lectura queda en la terminal — al hilo escribe SOLO Fable.
+  spawnAgent("codex", prompt);
   wave.timeout = setTimeout(() => stopWave("Corte por tiempo máximo de ola"), WAVE_TIMEOUT_MS);
   wave.timeout.unref();
   return wave.id;
@@ -726,8 +811,9 @@ const server = createServer(async (req, res) => {
         });
         return;
       }
+      const momento = body.momento === "reconocimiento" ? "reconocimiento" : "charla";
       try {
-        const id = await startCharlaWave({ cotizacionId, mensajeId, texto, archivos });
+        const id = await startCharlaWave({ cotizacionId, mensajeId, texto, archivos, momento });
         json(res, 201, { waveId: id });
       } catch (error) {
         json(res, 502, { error: `La ola de charla no arrancó: ${error.message}` });

@@ -24,7 +24,16 @@ export type WaveRequest = {
    * respuesta entra al mismo hilo. Sin esto, la ola es la genérica de dos
    * agentes.
    */
-  charla?: { cotizacionId: string; mensajeId: string };
+  charla?: {
+    cotizacionId: string;
+    mensajeId: string;
+    /**
+     * Ruteo del reconocimiento (pedido de Eze 17/08): con `momento:
+     * "reconocimiento"` la ola de charla puede decidir que el mensaje trae un
+     * dato nuevo y encadenar el re-reconocimiento en el bridge.
+     */
+    momento?: "reconocimiento";
+  };
 };
 
 export type BridgeHealth = "off" | "ready" | "running";
@@ -209,6 +218,7 @@ export function LiveTerminals({
               cotizacionId: waveRequest.charla.cotizacionId,
               mensajeId: waveRequest.charla.mensajeId,
               texto: trimmed,
+              ...(waveRequest.charla.momento ? { momento: waveRequest.charla.momento } : {}),
             }
           : { prompt: trimmed };
         const response = await fetch(`${bridge.url}/waves`, {
@@ -223,9 +233,11 @@ export function LiveTerminals({
         setHealth("running");
         connectStream();
         onWaveOutcome?.(
-          waveRequest.charla
-            ? "Ola despachada: Fable está contestando en el hilo."
-            : "Ola despachada: Codex y Fable la están trabajando."
+          waveRequest.charla?.momento === "reconocimiento"
+            ? "Ola despachada: Fable contesta en el hilo — si el mensaje trae un dato nuevo, relanza el reconocimiento solo."
+            : waveRequest.charla
+              ? "Ola despachada: Fable está contestando en el hilo."
+              : "Ola despachada: Codex y Fable la están trabajando."
         );
       } catch (cause) {
         const message = cause instanceof Error ? cause.message : "No se pudo lanzar la ola.";

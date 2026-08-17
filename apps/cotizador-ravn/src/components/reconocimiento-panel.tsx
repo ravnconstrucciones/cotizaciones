@@ -8,7 +8,7 @@ import type {
 } from "../bridge/intake-contract";
 import { apiUrl } from "../lib/api-url";
 import { despacharOla } from "../lib/intake-client";
-import { LiveTerminals, type BridgeConfig, type BridgeHealth } from "./live-terminals";
+import { LiveTerminals, type BridgeConfig, type BridgeHealth, type WaveRequest } from "./live-terminals";
 
 /**
  * El momento RECONOCIMIENTO en tres columnas (spec 2026-08-17
@@ -231,15 +231,24 @@ export function RecoBoard({
   bridge,
   health,
   active,
+  wave = null,
   onHealth,
   onWaveResult,
+  onWaveOutcome,
 }: {
   reco: Reconocimiento;
   bridge: BridgeConfig | null;
   health: BridgeHealth;
   active: boolean;
+  /**
+   * Ola pedida desde el composer (ruteo 17/08): en reconocimiento el mensaje
+   * sale como ola de CHARLA con `momento`, y las terminales de este tablero
+   * son quienes la despachan al bridge — acá la ola se VE trabajar.
+   */
+  wave?: WaveRequest | null;
   onHealth: (health: BridgeHealth) => void;
   onWaveResult?: (text: string) => void;
+  onWaveOutcome?: (message: string) => void;
 }) {
   const { intake, archivos, cargado, propuesta, aviso, leer } = reco;
 
@@ -535,7 +544,13 @@ export function RecoBoard({
         ) : null}
         {cuerpo}
       </div>
-      <LiveTerminals bridge={bridge} request={null} onHealth={onHealth} onWaveResult={alResultado} />
+      <LiveTerminals
+        bridge={bridge}
+        request={wave}
+        onHealth={onHealth}
+        onWaveResult={alResultado}
+        onWaveOutcome={onWaveOutcome}
+      />
     </section>
   );
 }
