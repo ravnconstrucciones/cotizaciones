@@ -1,22 +1,93 @@
 # Handoff — Visor Cotizador RAVN (consola de instrumentos)
 
-**Al día:** 16/08/2026 noche · **PASOS 0, 1, 2, 3 y EL PASE CERRADOS.** El
-cotizador está en la nube (https://ravn-cotizador.vercel.app, usuario `eze`) y
-ahora **deja el número y el extracto en App RAVN con un botón**.
+**Al día:** 16/08/2026 noche · **PASOS 0, 1, 2, 3, EL PASE y LOS TRES PEDIDOS
+DEL 16/08 CERRADOS.** El cotizador está en la nube
+(https://ravn-cotizador.vercel.app, usuario `RAVN`), deja el número y el
+extracto en App RAVN con un botón, y **la mano de obra ya es un rubro propio con
+postulantes**.
 
-**EL PASE ESTÁ EN PRODUCCIÓN Y VERIFICADO.** De los tres pedidos nuevos del
-16/08 noche, **los dos de layout están HECHOS, COMMITEADOS Y EN PRODUCCIÓN**
-(consolas apretadas y conversación cortada abajo — ver "⏭️ PEDIDOS NUEVOS DE
-EZE"). Commit `c8da187`, pusheado a `origin/home-cards` y deployado a prod por
-API contra ese ref.
+**⏭️ POR ACÁ SE SIGUE — DOS APROBACIONES DE EZE, NADA MÁS.** El pedido 3 está
+construido y verificado en local (commit `78f3579`, sin pushear). Para que entre:
 
-**⏭️ POR ACÁ SE SIGUE: el pedido 3, MO como RUBRO APARTE con postulantes.** Eze
-corrigió el alcance en persona y es bastante más grande de lo que decía este
-handoff: no son tres puntas fijas, es una lista abierta de postulantes por rubro
-(proveedores con nombre) contra dos investigaciones (SISMAT e internet), con el
-desvío narrado. **La versión buena está escrita entera en el pedido 3 y NO
-queda nada por preguntar** — el elegido pisa el costo y recalcula al toque, sin
-confirmación. Se puede arrancar a construir de una.
+1. **Aplicar la migración `20260817090000_cotizador_taller_postulantes_mo.sql`**
+   (esquema de producción = aprobación de Eze). **Es bloqueante:** sin la tabla,
+   `tallerStore().read()` falla y la mesa entera queda fail-closed con el error
+   a la vista — o sea, no se puede deployar el código antes que la migración.
+2. **Push a `origin/home-cards` + deploy de los dos proyectos** (el pase tocó
+   App RAVN: `mesa-merge.ts` y la ruta del pase). Recordatorio de siempre: el
+   push solo NO deploya a prod (`productionBranch` es `main`), va por
+   `POST /v13/deployments` con `target: production` y
+   `gitSource {repoId: 1200117728, ref: "home-cards"}`.
+
+Después de eso, lo que queda son los pendientes viejos (contrato de escritura de
+la conversación → adjuntos/audio/drag & drop, y sacar las rutas del cotizador de
+App RAVN). "⚠️ DIRECCIÓN NUEVA" sigue siendo el brief.
+
+## Lo último: la MO como rubro propio (pedido 3, commit `78f3579`)
+
+**El hallazgo que definió el diseño, medido contra la base y no supuesto:
+ninguna cotización tiene más de UN ítem de mano de obra por rubro** (consulta
+sobre `desglose.items` de todas las cotizaciones). Por eso el postulante elegido
+cae justo sobre la maquinaria que ya existía —el precio cerrado del ítem— y el
+contrato del pase no hubo que tocarlo.
+
+Cómo quedó:
+
+- **Tabla `cotizador_taller_postulantes_mo`** (proveedor, rubro, ítem,
+  `precio_unit`, fecha, procedencia, `elegido`). Es dato del TALLER, va al lado
+  de `cotizador_taller_items`. **Índice único parcial: un solo elegido por
+  rubro, lo hace cumplir la base y no la UI** — dos marcados dejarían el costo
+  del rubro ambiguo. Por eso `elegirPostulante` limpia el rubro ANTES de marcar.
+- **`src/domain/labor.ts` (+ 20 tests).** Arma el rubro y sobre todo **la
+  LECTURA**: cada postulante contra los otros y contra las dos investigaciones,
+  en %, con la frase. Umbrales **del motor** (`UMBRAL_DIVERGENCIA_PCT` 25,
+  `CRITICA` 100) y vencimiento de MO (30 días): **no hay criterio paralelo al de
+  materiales**. Si el motor mueve un umbral, se mueve también la MO.
+- **El elegido pisa el costo y recalcula al toque**, sin confirmación ni freno
+  por desvío. La consola de margen suma `laborOverrideDelta` y dice cuánto le
+  movió al piso y al techo.
+- **Precio total o por unidad, a elección.** La cantidad ya se conoce, así que
+  traducir uno al otro es una división. El formulario muestra los dos mientras
+  tipea.
+- **En el pase viaja el elegido, nunca los descartados** — como precio cerrado
+  del ítem de MO, origen `eze`, y **con el NOMBRE del proveedor como fuente**.
+  Eso hizo falta extender `PrecioCerrado` con un `fuente?` opcional (mesa-merge
+  + ruta del pase de App RAVN): sin eso `precios_items` aprendía "Eze — mesa de
+  revisión" y se perdía de quién era el precio, que es el dato que sirve dentro
+  de tres meses. Si hay decisión previa sobre el mismo ítem, **manda el
+  postulante**: marcarlo es un acto más explícito.
+- **La MO salió del ledger de materiales y de la cola de decisiones.** El ledger
+  ahora es "Materiales por rubro" y usa `materialsRange`; la cola filtra los
+  ítems de MO. Dejarla en los dos lados era pedir la misma decisión dos veces.
+
+**Bug encontrado en preview y arreglado (era anti-slop):** los rubros cuya MO ya
+estaba cerrada por Eze (`precios.eze`) se leían como *"sin precio de mano de
+obra"* mientras mostraban plata. Al principio había excluido `eze` de los
+contendientes por prolijidad conceptual — pero ES el número que está en el costo.
+Ahora entra como contendiente `propio` ("tu número · ya cerrado por vos"), no se
+puede elegir ni sacar, y el rubro lo declara. **Regla que queda: no se descarta
+ninguna fuente persistida; un precio guardado que no se muestra es un número que
+desaparece.**
+
+**Fecha local, no UTC (`hoyLocalIso`).** `toISOString()` a las 21 de Buenos
+Aires ya es el día siguiente: un presupuesto cargado de noche aparecía fechado
+mañana. La fecha de un presupuesto es dato de obra y se mide donde se trabaja.
+
+Verificado: **150 tests cotizador** (eran 125) · **572 App RAVN** (eran 569) ·
+lint y typecheck limpios · y probado en el navegador de punta a punta contra el
+fixture (alta de dos presupuestos, elección, desvío recitado —"Cuadrilla Pacheco
+está 15,4% arriba de lo que te cobra Fran"— y el margen recalculado solo).
+Captura: `.impeccable/finish/mo-rubro-postulantes.png`.
+
+**Lo único sin probar contra la base real: el CRUD de postulantes**, porque la
+tabla todavía no existe (aprobación 1). El resto del taller sí está probado
+contra Supabase de sesiones anteriores y este código sigue el mismo molde.
+
+**Queda como idea, no como pendiente:** `mo_acuerdos` de App RAVN guarda lo que
+de verdad se le terminó pagando a cada uno por obra. Sería la cuarta vara del
+rubro —"lo que le pagaste a Fran la última vez"— pero son montos globales por
+obra, sin precio unitario, así que no se puede comparar sin decidir cómo. **No
+lo pidió Eze: no construir sin hablarlo.**
 
 ## Lo último: EL PASE DEL EXPEDIENTE (16/08 noche)
 
@@ -166,9 +237,10 @@ empezado. **El 3 es el más grande y es de producto, no de diseño.**
    proyecto (`productionBranch` es `main`), el disparo va por
    `POST /v13/deployments` con `target: production` y
    `gitSource {repoId: 1200117728, ref: "home-cards"}`.
-3. **Mano de obra = RUBRO APARTE con postulantes.** ⚠️ **ALCANCE CERRADO CON EZE
-   EL 16/08 NOCHE — el pedido es más grande que "tres puntas" y esta es la
-   versión que manda.** Textual: *"yo puedo poner mano de obra 1, mano de obra 2,
+3. ~~**Mano de obra = RUBRO APARTE con postulantes.**~~ **HECHO** (16/08 noche,
+   commit `78f3579`) — ver "Lo último" arriba. Falta sólo aplicar la migración y
+   deployar. El alcance que se construyó es el que sigue, tal como lo dictó Eze:
+   Textual: *"yo puedo poner mano de obra 1, mano de obra 2,
    mano de obra 3, porque yo puedo hacer una investigación entre 3 proveedores y
    ver cuál es el que me cobra más o menos… como que haya varios"*. Y: *"la que
    vale es la que yo voy a poner como la que me cobran a mí"*.
