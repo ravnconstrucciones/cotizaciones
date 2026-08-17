@@ -31,7 +31,12 @@ const TOKEN = process.env.COTIZADOR_BRIDGE_TOKEN ?? "";
 // despachar — nunca se corre una ola cuyo resultado no tiene dónde guardarse.
 const SUPABASE_URL = (process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL ?? "").replace(/\/+$/, "");
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY ?? "";
-const ALLOWED_ORIGIN = process.env.COTIZADOR_BRIDGE_ALLOWED_ORIGIN ?? "http://localhost:3010";
+// Lista separada por comas: el visor local Y el de la nube (la Mac abierta con
+// ravn-cotizador.vercel.app también tiene que poder hablarle al bridge).
+const ALLOWED_ORIGINS = (process.env.COTIZADOR_BRIDGE_ALLOWED_ORIGIN ?? "http://localhost:3010")
+  .split(",")
+  .map((o) => o.trim().replace(/\/+$/, ""))
+  .filter(Boolean);
 const WAVE_TIMEOUT_MS = Number(process.env.COTIZADOR_BRIDGE_WAVE_TIMEOUT_MS ?? 10 * 60 * 1000);
 const IDLE_EXIT_MS = 30 * 60 * 1000;
 const MAX_EVENTS = 3000;
@@ -85,16 +90,20 @@ function authorized(req, url) {
   return tokenOk(req.headers["x-bridge-token"] ?? url.searchParams.get("token") ?? "");
 }
 
-function corsHeaders() {
+function corsHeaders(req) {
+  const origin = req?.headers?.origin ?? "";
   return {
-    "Access-Control-Allow-Origin": ALLOWED_ORIGIN,
+    "Access-Control-Allow-Origin": ALLOWED_ORIGINS.includes(origin.replace(/\/+$/, ""))
+      ? origin
+      : ALLOWED_ORIGINS[0],
+    Vary: "Origin",
     "Access-Control-Allow-Headers": "content-type, x-bridge-token",
     "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
   };
 }
 
 function json(res, status, body) {
-  res.writeHead(status, { "content-type": "application/json", ...corsHeaders() });
+  res.writeHead(status, { "content-type": "application/json", ...corsHeaders(res.req) });
   res.end(JSON.stringify(body));
 }
 
@@ -439,7 +448,7 @@ const server = createServer(async (req, res) => {
   touch();
 
   if (req.method === "OPTIONS") {
-    res.writeHead(204, corsHeaders());
+    res.writeHead(204, corsHeaders(req));
     res.end();
     return;
   }
@@ -544,7 +553,7 @@ const server = createServer(async (req, res) => {
       "content-type": "text/event-stream",
       "cache-control": "no-store",
       connection: "keep-alive",
-      ...corsHeaders(),
+      ...corsHeaders(req),
     });
     res.write(`data: ${JSON.stringify({ seq: 0, at: new Date().toISOString(), agent: "wave", kind: "status", text: wave ? "Conectado al bridge" : "Conectado al bridge · sin ola lanzada" })}\n\n`);
     if (wave) {
@@ -564,7 +573,7 @@ const server = createServer(async (req, res) => {
 });
 
 server.listen(PORT, HOST, () => {
-  console.log(`cotizador-bridge escuchando en http://${HOST}:${PORT} (origen permitido: ${ALLOWED_ORIGIN})`);
+  console.log(`cotizador-bridge escuchando en http://${HOST}:${PORT} (orígenes permitidos: ${ALLOWED_ORIGINS.join(", ")})`);
   console.log("Se apaga solo tras 30 min sin ola ni clientes conectados.");
 });
 
