@@ -167,12 +167,174 @@ function bodyDelPase(payload: PasePayload): Record<string, unknown> {
   };
 }
 
+/** La confirmación del reconocimiento, tal como la espera App RAVN. */
+export type ConfirmacionReconocimiento = {
+  receta: unknown;
+  parametros: Record<string, number | string>;
+  zona: string | null;
+  precios_referencia: Array<{
+    nombre: string;
+    valor: number;
+    fuente: string;
+    fecha: string;
+    origen: "sismat" | "internet";
+  }>;
+};
+
+export type ConfirmacionResultado = {
+  recetaId: string;
+  totalMin: number | null;
+  totalMax: number | null;
+  sinPrecio: string[];
+};
+
 export function createAppRavnWriteAdapter(configInput: WriteAdapterConfig): {
   pasarExpediente(quoteId: string, payload: PasePayload): Promise<PaseResultado>;
+  crearIntake(titulo: string): Promise<{ id: string }>;
+  subirArchivo(quoteId: string, file: File, titulo: string): Promise<void>;
+  firmarSubida(
+    quoteId: string,
+    args: { nombre: string; size: number; contentType: string }
+  ): Promise<{ path: string; token: string; maxBytes: number }>;
+  confirmarSubida(quoteId: string, args: { path: string; titulo: string }): Promise<void>;
+  confirmarReconocimiento(
+    quoteId: string,
+    payload: ConfirmacionReconocimiento
+  ): Promise<ConfirmacionResultado>;
 } {
   const config = validateConfig(configInput);
 
+  /**
+   * Molde único de llamada a App RAVN con la credencial de escritura: mismo
+   * manejo de timeout/red/rechazo que estrenó el pase. `body` FormData viaja
+   * sin Content-Type manual (lo arma fetch con su boundary).
+   */
+  async function llamar(path: string, body: FormData | Record<string, unknown>): Promise<unknown> {
+    const url = new URL(path, `${config.baseUrl}/`);
+    const esForm = typeof FormData !== "undefined" && body instanceof FormData;
+
+    let response: Response;
+    try {
+      response = await config.fetchImpl(url, {
+        method: "POST",
+        cache: "no-store",
+        redirect: "error",
+        headers: {
+          Accept: "application/json",
+          "x-ravn-cotizador-write": config.writeSecret,
+          ...(esForm ? {} : { "Content-Type": "application/json" }),
+        },
+        body: esForm ? body : JSON.stringify(body),
+        signal: AbortSignal.timeout(config.timeoutMs),
+      });
+    } catch (error) {
+      const name = isRecord(error) && typeof error.name === "string" ? error.name : "";
+      // OJO: acá NO se sabe si entró (regla anti-slop): la request salió y se
+      // cortó la espera, App RAVN pudo haber escrito igual.
+      if (name === "AbortError" || name === "TimeoutError") {
+        throw new QuoteWriteError(
+          "timeout",
+          "App RAVN no contestó a tiempo: la operación puede haber entrado igual. Verificá antes de reintentar."
+        );
+      }
+      throw new QuoteWriteError("network_error", "No se pudo conectar con App RAVN.");
+    }
+
+    const cuerpo: unknown = await response.json().catch(() => null);
+    if (!response.ok) {
+      const detalle =
+        isRecord(cuerpo) && typeof cuerpo.error === "string" ? cuerpo.error : null;
+      if (response.status === 409) {
+        throw new QuoteWriteError("conflict", detalle ?? "La operación entró en conflicto — recargá.");
+      }
+      if (response.status === 400 || response.status === 404 || response.status === 413) {
+        throw new QuoteWriteError("rejected", detalle ?? "App RAVN rechazó la operación.");
+      }
+      throw new QuoteWriteError("upstream_error", detalle ?? "App RAVN no pudo completar la operación.");
+    }
+    return cuerpo;
+  }
+
   return {
+    async crearIntake(titulo: string): Promise<{ id: string }> {
+      const cuerpo = await llamar("/api/cotizaciones/intake", { titulo });
+      if (!isRecord(cuerpo) || typeof cuerpo.id !== "string") {
+        throw new QuoteWriteError(
+          "invalid_response",
+          "App RAVN no confirmó el borrador — revisá el selector antes de reintentar."
+        );
+      }
+      return { id: cuerpo.id };
+    },
+
+    async subirArchivo(quoteId: string, file: File, titulo: string): Promise<void> {
+      const form = new FormData();
+      form.set("file", file);
+      form.set("titulo", titulo);
+      const cuerpo = await llamar(
+        `/api/cotizaciones/${encodeURIComponent(quoteId)}/archivos`,
+        form
+      );
+      if (!isRecord(cuerpo) || cuerpo.ok !== true) {
+        throw new QuoteWriteError("invalid_response", "App RAVN no confirmó la subida del archivo.");
+      }
+    },
+
+    async firmarSubida(quoteId, args) {
+      const cuerpo = await llamar(
+        `/api/cotizaciones/${encodeURIComponent(quoteId)}/archivos/firmar`,
+        { nombre: args.nombre, size: args.size, contentType: args.contentType }
+      );
+      if (
+        !isRecord(cuerpo) ||
+        typeof cuerpo.path !== "string" ||
+        typeof cuerpo.token !== "string"
+      ) {
+        throw new QuoteWriteError("invalid_response", "App RAVN no firmó la subida.");
+      }
+      return {
+        path: cuerpo.path,
+        token: cuerpo.token,
+        maxBytes: typeof cuerpo.max_bytes === "number" ? cuerpo.max_bytes : 0,
+      };
+    },
+
+    async confirmarSubida(quoteId, args) {
+      const cuerpo = await llamar(
+        `/api/cotizaciones/${encodeURIComponent(quoteId)}/archivos/confirmar`,
+        { path: args.path, titulo: args.titulo }
+      );
+      if (!isRecord(cuerpo) || cuerpo.ok !== true) {
+        throw new QuoteWriteError("invalid_response", "App RAVN no confirmó el archivo subido.");
+      }
+    },
+
+    async confirmarReconocimiento(quoteId, payload) {
+      const cuerpo = await llamar(
+        `/api/cotizaciones/${encodeURIComponent(quoteId)}/confirmar-reconocimiento`,
+        {
+          receta: payload.receta,
+          parametros: payload.parametros,
+          zona: payload.zona,
+          precios_referencia: payload.precios_referencia,
+        }
+      );
+      if (!isRecord(cuerpo) || cuerpo.ok !== true || typeof cuerpo.receta_id !== "string") {
+        throw new QuoteWriteError(
+          "invalid_response",
+          "App RAVN contestó algo que no se puede confirmar — revisá la cotización."
+        );
+      }
+      return {
+        recetaId: cuerpo.receta_id,
+        totalMin: nullableNumber(cuerpo.total_min),
+        totalMax: nullableNumber(cuerpo.total_max),
+        sinPrecio: Array.isArray(cuerpo.sin_precio)
+          ? cuerpo.sin_precio.filter((n): n is string => typeof n === "string")
+          : [],
+      };
+    },
+
     async pasarExpediente(quoteId: string, payload: PasePayload): Promise<PaseResultado> {
       const url = new URL(
         `/api/cotizaciones/${encodeURIComponent(quoteId)}/pase`,
@@ -257,20 +419,53 @@ export function createAppRavnWriteAdapter(configInput: WriteAdapterConfig): {
   };
 }
 
-/** Entry point server-only: usa secretos privados, nunca se importa del cliente. */
-export async function pasarExpediente(
-  quoteId: string,
-  payload: PasePayload
-): Promise<PaseResultado> {
+/** Entry points server-only: usan secretos privados, nunca se importan del cliente. */
+function adapterDesdeEnv() {
   if (typeof window !== "undefined") {
     throw new QuoteWriteError(
       "configuration_error",
-      "El pase sólo puede salir del lado del servidor."
+      "La escritura sólo puede salir del lado del servidor."
     );
   }
   return createAppRavnWriteAdapter({
     baseUrl: process.env.RAVN_APP_URL ?? "",
     writeSecret: process.env.RAVN_COTIZADOR_WRITE_SECRET ?? "",
     timeoutMs: DEFAULT_TIMEOUT_MS,
-  }).pasarExpediente(quoteId, payload);
+  });
+}
+
+export async function pasarExpediente(
+  quoteId: string,
+  payload: PasePayload
+): Promise<PaseResultado> {
+  return adapterDesdeEnv().pasarExpediente(quoteId, payload);
+}
+
+export async function crearIntake(titulo: string): Promise<{ id: string }> {
+  return adapterDesdeEnv().crearIntake(titulo);
+}
+
+export async function subirArchivo(quoteId: string, file: File, titulo: string): Promise<void> {
+  return adapterDesdeEnv().subirArchivo(quoteId, file, titulo);
+}
+
+export async function firmarSubida(
+  quoteId: string,
+  args: { nombre: string; size: number; contentType: string }
+): Promise<{ path: string; token: string; maxBytes: number }> {
+  return adapterDesdeEnv().firmarSubida(quoteId, args);
+}
+
+export async function confirmarSubida(
+  quoteId: string,
+  args: { path: string; titulo: string }
+): Promise<void> {
+  return adapterDesdeEnv().confirmarSubida(quoteId, args);
+}
+
+export async function confirmarReconocimiento(
+  quoteId: string,
+  payload: ConfirmacionReconocimiento
+): Promise<ConfirmacionResultado> {
+  return adapterDesdeEnv().confirmarReconocimiento(quoteId, payload);
 }

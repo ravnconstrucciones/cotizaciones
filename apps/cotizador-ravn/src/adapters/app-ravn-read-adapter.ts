@@ -95,7 +95,7 @@ function isLegacyItem(value: unknown): value is ItemDesglose {
     priceSlotsValid &&
     typeof value.nombre === "string" &&
     typeof value.etapa === "string" &&
-    (value.tipo === "material" || value.tipo === "mano_de_obra") &&
+    (value.tipo === "material" || value.tipo === "mano_de_obra" || value.tipo === "maquinaria") &&
     typeof value.subtotal_min === "number" &&
     Number.isFinite(value.subtotal_min) &&
     typeof value.subtotal_max === "number" &&
@@ -410,6 +410,57 @@ export function createAppRavnReadAdapter(configInput: AdapterConfig): {
       };
     },
   };
+}
+
+export type ArchivoCotizacion = {
+  id: string;
+  titulo: string | null;
+  url: string | null;
+};
+
+/**
+ * Archivos adjuntos de la cotización con su URL firmada (puerta de entrada):
+ * el visor los muestra y arma con ellos la ola de intake que baja el bridge.
+ */
+export function createAppRavnArchivosReader(configInput: AdapterConfig): {
+  loadQuoteArchivos(quoteId: string): Promise<ArchivoCotizacion[]>;
+} {
+  const config = validateConfig(configInput);
+  return {
+    async loadQuoteArchivos(quoteId: string): Promise<ArchivoCotizacion[]> {
+      const payload = await getJson(
+        config,
+        `/api/cotizaciones/${encodeURIComponent(quoteId)}/archivos`
+      );
+      if (!isRecord(payload) || !Array.isArray(payload.archivos)) {
+        throw new QuoteReadError("invalid_response", "La lista de archivos es inválida.");
+      }
+      const archivos: ArchivoCotizacion[] = [];
+      for (const fila of payload.archivos) {
+        if (!isRecord(fila) || typeof fila.id !== "string") continue;
+        archivos.push({
+          id: fila.id,
+          titulo: isNullableString(fila.titulo) ? fila.titulo : null,
+          url: isNullableString(fila.url) ? fila.url : null,
+        });
+      }
+      return archivos;
+    },
+  };
+}
+
+export async function loadQuoteArchivos(quoteId: string): Promise<ArchivoCotizacion[]> {
+  if (typeof window !== "undefined") {
+    throw new QuoteReadError(
+      "configuration_error",
+      "La lectura de App RAVN sólo está disponible del lado del servidor."
+    );
+  }
+  return createAppRavnArchivosReader({
+    baseUrl: process.env.RAVN_APP_URL ?? "",
+    readSecret: process.env.RAVN_COTIZADOR_READ_SECRET ?? "",
+    timeoutMs: DEFAULT_TIMEOUT_MS,
+  }).loadQuoteArchivos(quoteId);
 }
 
 /** Entry point server-only: usa secretos privados y nunca se importa desde un Client Component. */
