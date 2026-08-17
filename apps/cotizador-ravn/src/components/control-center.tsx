@@ -362,7 +362,13 @@ export function ControlCenter({
       setRailOpen(false);
       return;
     }
-    if (pending > 0) autoFolded.current = false;
+    // El espejo del pliegue: si el rail se cerró SOLO (no a mano) y aparecen
+    // pendientes —las preguntas de la ola llegan después del primer render—,
+    // se reabre solo. Un pliegue manual de Eze no se toca.
+    if (pending > 0 && autoFolded.current) {
+      autoFolded.current = false;
+      setRailOpen(true);
+    }
   }, [pending]);
 
   /**
