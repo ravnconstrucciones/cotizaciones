@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { extraerRelanzamiento, MARCADOR_RELANZAR } from "./charla-ruteo";
+import {
+  extraerRelanzamiento,
+  extraerRuteo,
+  MARCADOR_PRECIOS,
+  MARCADOR_RELANZAR,
+} from "./charla-ruteo";
 
 describe("extraerRelanzamiento", () => {
   it("una respuesta sin marcador queda entera y no relanza", () => {
@@ -42,5 +47,37 @@ describe("extraerRelanzamiento", () => {
   it("vacío o nulo no rompe", () => {
     expect(extraerRelanzamiento("")).toEqual({ texto: "", relanzar: false });
     expect(extraerRelanzamiento("   \n \n")).toEqual({ texto: "", relanzar: false });
+  });
+});
+
+describe("extraerRuteo (marcador de precios)", () => {
+  it("el marcador de precios como última línea encadena la ola y no llega al hilo", () => {
+    const r = extraerRuteo(
+      `La arena y el adoquín no tienen precio en el expediente: los investigo y cargo el tablero.\n${MARCADOR_PRECIOS}`
+    );
+    expect(r.investigarPrecios).toBe(true);
+    expect(r.relanzar).toBe(false);
+    expect(r.texto).not.toContain(MARCADOR_PRECIOS);
+  });
+
+  it("tolera el marcador de precios decorado", () => {
+    for (const cierre of [`[${MARCADOR_PRECIOS}]`, `**${MARCADOR_PRECIOS}**`, `${MARCADOR_PRECIOS}.`]) {
+      const r = extraerRuteo(`Voy a buscar esos precios.\n${cierre}`);
+      expect(r.investigarPrecios).toBe(true);
+      expect(r.texto).toBe("Voy a buscar esos precios.");
+    }
+  });
+
+  it("mencionado en el medio no encadena nada", () => {
+    const r = extraerRuteo(
+      `Si querés disparo ${MARCADOR_PRECIOS} más tarde.\nPor ahora el total es la investigación persistida.`
+    );
+    expect(r.investigarPrecios).toBe(false);
+  });
+
+  it("los dos marcadores son excluyentes: el último manda", () => {
+    const r = extraerRuteo(`Tomo el dato.\n${MARCADOR_RELANZAR}`);
+    expect(r.relanzar).toBe(true);
+    expect(r.investigarPrecios).toBe(false);
   });
 });

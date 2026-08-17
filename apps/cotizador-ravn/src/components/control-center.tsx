@@ -278,13 +278,21 @@ export function ControlCenter({
   // rail vean LA MISMA cosa. `loadQuote` se define más abajo — ref mediante.
   const loadQuoteRef = useRef<(id: string, announce?: boolean) => Promise<void>>(async () => {});
   const recoQuoteId = snapshot.quote.id;
+  // La cadena confirmación → ola de PRECIOS (pedido 1 de Eze, 17/08: "no me
+  // tira un solo precio"): si la confirmación dejó ítems sin precio, la
+  // investigación arranca sola apenas el tablero monta.
+  const preciosPendientes = useRef(false);
   const reco = useReconocimiento({
     quoteId: recoQuoteId,
     bridge,
     activo: momento === "reconocimiento",
-    onConfirmada: useCallback(() => {
-      void loadQuoteRef.current(recoQuoteId);
-    }, [recoQuoteId]),
+    onConfirmada: useCallback(
+      (sinPrecio: number) => {
+        preciosPendientes.current = sinPrecio > 0;
+        void loadQuoteRef.current(recoQuoteId);
+      },
+      [recoQuoteId]
+    ),
   });
   const agregarArchivos = useCallback((nuevos: FileList | File[]) => {
     const lista = Array.from(nuevos).filter((f) => f.size > 0);
@@ -681,6 +689,47 @@ export function ControlCenter({
   const noteWave = useCallback((message: string) => setComposerNotice(message), []);
 
   /**
+   * Al cambiar de momento o de expediente, el último pedido de ola muere: la
+   * banda de terminales del momento nuevo monta con su contador en cero y un
+   * pedido viejo se le vería como fresco — re-despacharía una ola que ya
+   * corrió (pasaba al confirmar el reconocimiento con una charla reciente).
+   */
+  useEffect(() => {
+    setWave(null);
+  }, [momento, quoteId]);
+
+  /**
+   * Cadena confirmación → precios: corre DESPUÉS del efecto de limpieza (orden
+   * de declaración) para que el pedido nuevo no muera recién nacido.
+   */
+  useEffect(() => {
+    if (momento === "reconocimiento" || momento === "entrada" || !preciosPendientes.current) {
+      return;
+    }
+    preciosPendientes.current = false;
+    waveSeq.current += 1;
+    setWave({
+      prompt: "investigar precios",
+      seq: waveSeq.current,
+      precios: { cotizacionId: quoteId },
+    });
+  }, [momento, quoteId]);
+
+  /**
+   * Ola de precios a pedido (botón de la cola de decisiones): investiga TODOS
+   * los ítems sin precio del desglose y el motor recalcula solo.
+   */
+  const investigarPrecios = useCallback(() => {
+    waveSeq.current += 1;
+    setWave({
+      prompt: "investigar precios",
+      seq: waveSeq.current,
+      precios: { cotizacionId: quoteId },
+    });
+    setComposerNotice("Ola de precios despachada: mirala en la banda del tablero.");
+  }, [quoteId]);
+
+  /**
    * La respuesta de la charla entra al hilo DESPUÉS del "Ola terminada" (la
    * persiste el alTerminar del bridge). Refrescar en el primer result llega
    * temprano: se espera al último con un debounce corto y se relee en silencio.
@@ -870,6 +919,56 @@ export function ControlCenter({
    * respuesta directa en el hilo; dato o cambio de alcance → respuesta + el
    * bridge encadena el re-reconocimiento completo solo.
    */
+  /**
+   * El corazón del flujo del composer, reutilizable: persiste el mensaje en el
+   * hilo real y despacha la ola de charla. Lo usan el composer Y las
+   * respuestas inline del rail (pedido 3 de Eze, 17/08: contestar ahí mismo).
+   * Tira si el mensaje no se pudo guardar — el que llama decide el aviso.
+   */
+  const enviarMensajeYOla = useCallback(
+    async (mensaje: string): Promise<void> => {
+      const response = await fetch(apiUrl(`/api/mensajes?quote=${encodeURIComponent(quoteId)}`), {
+        method: "POST",
+        headers: { "content-type": "application/json", Accept: "application/json" },
+        body: JSON.stringify({ texto: mensaje }),
+      });
+      const payload = (await response.json().catch(() => null)) as {
+        mensajeId?: string;
+        error?: string;
+      } | null;
+      if (!response.ok || typeof payload?.mensajeId !== "string") {
+        throw new Error(payload?.error ?? "El mensaje no se pudo guardar en el hilo.");
+      }
+      setLocalMessages((current) => [
+        ...current,
+        { id: `local:${payload.mensajeId}`, text: mensaje, occurredAt: new Date().toISOString() },
+      ]);
+      waveSeq.current += 1;
+      setWave({
+        prompt: mensaje,
+        seq: waveSeq.current,
+        charla: {
+          cotizacionId: quoteId,
+          mensajeId: payload.mensajeId,
+          ...(momento === "reconocimiento" ? { momento: "reconocimiento" as const } : {}),
+        },
+      });
+    },
+    [quoteId, momento]
+  );
+
+  /**
+   * Respuesta inline del rail (pedido 3): la pregunta y la respuesta viajan
+   * juntas al hilo — mismo flujo que el composer, sin cambiar de columna.
+   */
+  const responderPregunta = useCallback(
+    async (pregunta: string, respuesta: string) => {
+      await enviarMensajeYOla(`${pregunta}\n${respuesta}`);
+      setComposerNotice("Respuesta guardada en el hilo · despachando la ola…");
+    },
+    [enviarMensajeYOla]
+  );
+
   const enviarAlExpediente = async (text: string) => {
     const nombres = archivos.map((f) => f.name);
     setComposerNotice("Guardando el mensaje en el hilo…");
@@ -884,37 +983,11 @@ export function ControlCenter({
         }
       }
       const mensaje = textoConAdjuntos(text, nombres);
-      const response = await fetch(apiUrl(`/api/mensajes?quote=${encodeURIComponent(quoteId)}`), {
-        method: "POST",
-        headers: { "content-type": "application/json", Accept: "application/json" },
-        body: JSON.stringify({ texto: mensaje }),
-      });
-      const payload = (await response.json().catch(() => null)) as {
-        mensajeId?: string;
-        error?: string;
-      } | null;
-      if (!response.ok || typeof payload?.mensajeId !== "string") {
-        throw new Error(payload?.error ?? "El mensaje no se pudo guardar en el hilo.");
-      }
+      await enviarMensajeYOla(mensaje);
       // El borrador recién se suelta cuando el mensaje ESTÁ guardado: un
       // fallo no se come lo que Eze escribió.
       setDraft("");
       setArchivos([]);
-      setLocalMessages((current) => [
-        ...current,
-        { id: `local:${payload.mensajeId}`, text: mensaje, occurredAt: new Date().toISOString() },
-      ]);
-
-      waveSeq.current += 1;
-      setWave({
-        prompt: mensaje,
-        seq: waveSeq.current,
-        charla: {
-          cotizacionId: quoteId,
-          mensajeId: payload.mensajeId,
-          ...(momento === "reconocimiento" ? { momento: "reconocimiento" as const } : {}),
-        },
-      });
       setComposerNotice(
         aviso
           ? `${aviso} Mensaje guardado · despachando la ola…`
@@ -1200,6 +1273,8 @@ export function ControlCenter({
             focusedItem={focusedItem}
             onFold={() => setRailOpen(false)}
             onDecide={decide}
+            onAnswerInline={responderPregunta}
+            onInvestigar={investigarPrecios}
           />
         )}
 
@@ -3253,6 +3328,91 @@ function ControlsDrawer({ snapshot }: { snapshot: QuoteWorkspaceSnapshot }) {
 
 /* --------------------------------------------------------------- decisión */
 
+/**
+ * Una pregunta abierta con respuesta INLINE (pedido 3 de Eze, 17/08: "quiere
+ * contestar ahí mismo"): el campo vive en la tarjeta y el envío dispara el
+ * mismo flujo que el composer — hilo real + ola de charla. El botón viejo de
+ * copiar a la conversación queda como salida secundaria para respuestas largas.
+ */
+function PreguntaInline({
+  question,
+  onAnswer,
+  onAnswerInline,
+}: {
+  question: string;
+  onAnswer: (question: string) => void;
+  onAnswerInline: (pregunta: string, respuesta: string) => Promise<void>;
+}) {
+  const [valor, setValor] = useState("");
+  const [estado, setEstado] = useState<"lista" | "enviando" | "enviada" | "error">("lista");
+  const [motivo, setMotivo] = useState<string | null>(null);
+
+  const enviar = async () => {
+    const respuesta = valor.trim();
+    if (!respuesta || estado === "enviando") return;
+    setEstado("enviando");
+    setMotivo(null);
+    try {
+      await onAnswerInline(question, respuesta);
+      setEstado("enviada");
+    } catch (error) {
+      setMotivo(error instanceof Error ? error.message : "La respuesta no se pudo enviar.");
+      setEstado("error");
+    }
+  };
+
+  if (estado === "enviada") {
+    return (
+      <li data-done="true">
+        <p>{question}</p>
+        <p className="qz-preg-inline__hecha">
+          <Check size={12} aria-hidden="true" /> Respondida: “{valor.trim()}” — Fable la está
+          tomando en el hilo.
+        </p>
+      </li>
+    );
+  }
+
+  return (
+    <li>
+      <p>{question}</p>
+      <form
+        className="qz-preg-inline"
+        onSubmit={(event) => {
+          event.preventDefault();
+          void enviar();
+        }}
+      >
+        <input
+          type="text"
+          value={valor}
+          placeholder="Respondé corto acá"
+          aria-label={`Respuesta a: ${question}`}
+          disabled={estado === "enviando"}
+          onChange={(event) => setValor(event.target.value)}
+        />
+        <button
+          type="submit"
+          className="qz-preg-inline__enviar"
+          disabled={estado === "enviando" || !valor.trim()}
+          aria-label="Enviar la respuesta al hilo"
+        >
+          {estado === "enviando" ? "Enviando…" : "Responder"}
+        </button>
+      </form>
+      {motivo ? (
+        <p className="qz-preg-inline__error" role="alert">
+          {motivo}
+        </p>
+      ) : null}
+      <button type="button" className="qz-preg-inline__larga" onClick={() => onAnswer(question)}>
+        Contestar largo en la conversación
+        <ArrowUp size={11} aria-hidden="true" />
+      </button>
+    </li>
+  );
+}
+
 function DecisionColumn({
   snapshot,
   queue,
@@ -3264,6 +3424,8 @@ function DecisionColumn({
   focusedItem,
   onFold,
   onDecide,
+  onAnswerInline,
+  onInvestigar,
 }: {
   snapshot: QuoteWorkspaceSnapshot;
   queue: QueueEntry[];
@@ -3275,9 +3437,12 @@ function DecisionColumn({
   focusedItem: string | null;
   onFold: () => void;
   onDecide: (key: string, origin: string, value: number | null) => void;
+  onAnswerInline: (pregunta: string, respuesta: string) => Promise<void>;
+  onInvestigar: () => void;
 }) {
   const questions = snapshot.decision.questions;
   const blocking = queue.filter((entry) => entry.item.decision.severity === "blocking").length;
+  const sinPrecio = queue.filter((entry) => entry.item.decision.kind === "sin_precio").length;
 
   return (
     <section
@@ -3302,6 +3467,19 @@ function DecisionColumn({
       </header>
 
       <div className="qz-decisions__scroll">
+        {sinPrecio > 0 ? (
+          <div className="qz-investigar">
+            <p>
+              {sinPrecio === 1
+                ? "1 ítem sigue sin precio de costo."
+                : `${sinPrecio} ítems siguen sin precio de costo.`}{" "}
+              La ola los investiga en vivo (fuente + fecha) y el motor recalcula solo.
+            </p>
+            <button type="button" onClick={onInvestigar}>
+              Investigar precios en internet
+            </button>
+          </div>
+        ) : null}
         <AnimatePresence initial={false}>
           {queue.map((entry) => {
             const key = `${entry.batch.id}:${entry.item.name}`;
@@ -3404,13 +3582,12 @@ function DecisionColumn({
             <h3>Preguntas abiertas de la cotización</h3>
             <ul>
               {questions.map((question) => (
-                <li key={question}>
-                  <p>{question}</p>
-                  <button type="button" onClick={() => onAnswer(question)}>
-                    Responder
-                    <ArrowUp size={12} aria-hidden="true" />
-                  </button>
-                </li>
+                <PreguntaInline
+                  key={question}
+                  question={question}
+                  onAnswer={onAnswer}
+                  onAnswerInline={onAnswerInline}
+                />
               ))}
             </ul>
           </section>

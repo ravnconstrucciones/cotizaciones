@@ -1946,10 +1946,20 @@ code {
 
 .qz-wave__head {
   display: grid;
-  grid-template-columns: auto auto minmax(0, 1fr) auto;
+  grid-template-columns: auto auto auto minmax(0, 1fr) auto;
   align-items: center;
   gap: 16px;
   padding: 10px 20px;
+}
+
+/* ETA de la ola (pedido 7): el reloj corre al lado de la lámpara. La cifra
+   usa tabular-nums para que el segundo a segundo no baile. */
+.qz-wave__eta {
+  font-size: 0.65rem;
+  letter-spacing: 0.08em;
+  color: var(--qz-dim);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 
 .qz-wave__head h2 {
@@ -2537,6 +2547,103 @@ code {
   font-size: 0.76rem;
   line-height: 1.5;
   color: var(--qz-ok);
+}
+
+/* La ola de precios a pedido (pedido 1, 17/08): un solo botón arriba de la
+   cola — investiga TODOS los sin-precio de una, no tarjeta por tarjeta. */
+.qz-investigar {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 11px;
+  margin-bottom: 10px;
+  background: var(--qz-inset);
+  border: 1px solid var(--qz-line-strong);
+  border-radius: var(--qz-r-control);
+}
+
+.qz-investigar p {
+  margin: 0;
+  font-size: 0.72rem;
+  line-height: 1.5;
+  color: var(--qz-dim);
+}
+
+.qz-investigar button {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 11px;
+  background: var(--qz-fg);
+  border: 1px solid var(--qz-fg);
+  color: #070707;
+  font-size: 0.66rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.qz-investigar button:hover {
+  background: none;
+  color: var(--qz-fg);
+}
+
+/* Respuesta inline de las preguntas abiertas (pedido 3, 17/08). */
+.qz-preg-inline {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+
+.qz-preg-inline input {
+  flex: 1;
+  min-width: 0;
+  padding: 6px 9px;
+  background: var(--qz-ground);
+  border: 1px solid var(--qz-line-strong);
+  color: var(--qz-fg);
+  font: inherit;
+  font-size: 0.75rem;
+}
+
+.qz-preg-inline input:focus-visible {
+  outline: 1px solid var(--qz-fg);
+  outline-offset: -1px;
+}
+
+.qz-questions .qz-preg-inline__enviar[disabled] {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.qz-questions .qz-preg-inline__larga {
+  border: none;
+  padding: 2px 0;
+  font-size: 0.6rem;
+  letter-spacing: 0.1em;
+  color: var(--qz-dim);
+}
+
+.qz-questions .qz-preg-inline__larga:hover {
+  background: none;
+  color: var(--qz-fg);
+}
+
+.qz-preg-inline__hecha {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  color: var(--qz-ok);
+}
+
+.qz-preg-inline__error {
+  color: var(--qz-alert);
+}
+
+.qz-questions li[data-done="true"] {
+  border-color: var(--qz-line);
+  opacity: 0.85;
 }
 
 .qz-questions {

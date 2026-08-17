@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { preciosParaConfirmacion, validarReferencia } from "../confirmacion";
-import type { PrecioItemRow } from "../tipos";
+import { aplicarReferencias, preciosParaConfirmacion, validarReferencia } from "../confirmacion";
+import type { PrecioItem, PrecioItemRow } from "../tipos";
 
 const row = (
   item: string,
@@ -44,6 +44,33 @@ describe("preciosParaConfirmacion", () => {
       { nombre: "Otro", valor: 1, fuente: "x", fecha: "2026-08-17", origen: "internet" },
     ]);
     expect(Object.keys(p)).toEqual([]);
+  });
+});
+
+describe("aplicarReferencias (ola de precios post-confirmación)", () => {
+  it("carga un slot vacío y respeta la fecha más nueva en uno ocupado", () => {
+    const precios: Record<string, PrecioItem> = {
+      "Látex": { internet: { valor: 100, fuente: "easy", fecha: "2026-08-10" } },
+    };
+    const aplicadas = aplicarReferencias(precios, [
+      { nombre: "Látex", valor: 120, fuente: "easy.com.ar", fecha: "2026-08-17", origen: "internet" },
+      { nombre: "Arena gruesa", valor: 30000, fuente: "blaisten.com.ar", fecha: "2026-08-17", origen: "internet" },
+      { nombre: "Látex", valor: 80, fuente: "vieja", fecha: "2026-07-01", origen: "internet" },
+    ]);
+    expect(aplicadas).toBe(2);
+    expect(precios["Látex"].internet?.valor).toBe(120);
+    expect(precios["Arena gruesa"].internet?.valor).toBe(30000);
+  });
+
+  it("jamás toca el slot eze aunque exista", () => {
+    const precios: Record<string, PrecioItem> = {
+      "Látex": { eze: { valor: 90, fuente: "Eze", fecha: "2026-08-01" } },
+    };
+    aplicarReferencias(precios, [
+      { nombre: "Látex", valor: 120, fuente: "easy", fecha: "2026-08-17", origen: "internet" },
+    ]);
+    expect(precios["Látex"].eze?.valor).toBe(90);
+    expect(precios["Látex"].internet?.valor).toBe(120);
   });
 });
 

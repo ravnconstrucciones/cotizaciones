@@ -23,9 +23,10 @@ import { tmpdir } from "node:os";
 import { join, extname } from "node:path";
 import { formatCliLine } from "../src/bridge/stream-format.ts";
 import { extraerJson, validarPropuesta } from "../src/bridge/intake-contract.ts";
-import { extraerRelanzamiento } from "../src/bridge/charla-ruteo.ts";
+import { extraerRuteo } from "../src/bridge/charla-ruteo.ts";
 import { intakePrompt } from "./intake-prompt.mjs";
 import { charlaPrompt } from "./charla-prompt.mjs";
+import { preciosPrompt } from "./precios-prompt.mjs";
 
 const HOST = "127.0.0.1";
 const PORT = Number(process.env.COTIZADOR_BRIDGE_PORT ?? 3011);
@@ -60,6 +61,10 @@ const CODEX_MODEL = process.env.COTIZADOR_CODEX_MODEL ?? "gpt-5.3-codex-spark";
 // prod ("la FIVE") sin cambiar el comportamiento del visor local.
 const RAVN_APP_URL = (process.env.COTIZADOR_BRIDGE_APP_URL ?? process.env.RAVN_APP_URL ?? "").replace(/\/+$/, "");
 const RAVN_READ_SECRET = process.env.RAVN_COTIZADOR_READ_SECRET ?? "";
+// La ola de PRECIOS deja sus referencias en App RAVN (endpoint /referencias)
+// con la credencial de ESCRITURA del Cotizador — la misma frontera que el
+// pase: puede cargar precios de investigación, jamás aprobar ni emitir.
+const RAVN_WRITE_SECRET = process.env.RAVN_COTIZADOR_WRITE_SECRET ?? "";
 const LATIDO_MS = 30_000;
 const FILA_CONTROL = "puente-cotizador";
 
@@ -234,6 +239,9 @@ function waveSummary() {
     prompt: wave.prompt,
     startedAt: wave.startedAt,
     status: wave.status,
+    // El visor muestra el ETA por tipo de ola (pedido 7 de Eze, 17/08):
+    // charla ~15-25 s, reconocimiento ~1-2 min, precios ~2-5 min.
+    tipo: wave.tipo ?? "generica",
     eventCount: wave.events.length,
   };
 }
@@ -455,6 +463,7 @@ async function startIntakeWave({ cotizacionId, texto, archivos }) {
     prompt: `[intake ${cotizacionId}]`,
     startedAt: new Date().toISOString(),
     status: "running",
+    tipo: "intake",
     seq: 0,
     events: [],
     children: new Map(),
@@ -597,6 +606,7 @@ async function startCharlaWave({ cotizacionId, mensajeId, texto, archivos = [], 
     archivos: locales,
     propuesta,
     permitirRelanzar: esReconocimiento,
+    permitirInvestigarPrecios: !esReconocimiento,
   });
 
   wave = {
@@ -604,6 +614,7 @@ async function startCharlaWave({ cotizacionId, mensajeId, texto, archivos = [], 
     prompt: `[charla ${cotizacionId}]`,
     startedAt: new Date().toISOString(),
     status: "running",
+    tipo: "charla",
     seq: 0,
     events: [],
     children: new Map(),
@@ -611,17 +622,44 @@ async function startCharlaWave({ cotizacionId, mensajeId, texto, archivos = [], 
     resultadoFable: null,
     alTerminar: async () => {
       try {
-        // El marcador de relanzamiento es protocolo bridge↔prompt: se separa
+        // Los marcadores de ruteo son protocolo bridge↔prompt: se separan
         // ANTES de persistir — al hilo entra solo la respuesta limpia.
-        const { texto: respuesta, relanzar } = extraerRelanzamiento(wave.resultadoFable ?? "");
-        if (!respuesta && !relanzar) throw new Error("La ola terminó sin respuesta.");
+        const { texto: respuesta, relanzar, investigarPrecios } = extraerRuteo(
+          wave.resultadoFable ?? ""
+        );
+        if (!respuesta && !relanzar && !investigarPrecios) {
+          throw new Error("La ola terminó sin respuesta.");
+        }
         await persistirMensaje(cotizacionId, {
           autor: "fable",
-          texto: (respuesta || "Tomo lo nuevo del mensaje: relanzo el reconocimiento.").slice(0, 4000),
+          texto: (
+            respuesta ||
+            (relanzar
+              ? "Tomo lo nuevo del mensaje: relanzo el reconocimiento."
+              : "Investigo esos precios en vivo y cargo el tablero.")
+          ).slice(0, 4000),
           respuestaA: mensajeId,
           tipo: "charla",
         });
         pushEvent("wave", "result", "Respuesta persistida en el hilo — se ve en el visor");
+        if (investigarPrecios && !esReconocimiento) {
+          // La charla alimenta el tablero (pedido 5 de Eze, 17/08): si Eze
+          // pidió números que el expediente no tiene, la respuesta ya salió
+          // rápida y la investigación corre detrás, encadenada.
+          pushEvent("wave", "status", "La charla pidió precios — encadeno la ola de investigación");
+          try {
+            await startPreciosWave({ cotizacionId });
+          } catch (errorCadena) {
+            const motivoCadena = String(errorCadena?.message ?? errorCadena);
+            await persistirMensaje(cotizacionId, {
+              autor: "sistema",
+              texto: `La investigación de precios no arrancó sola: ${motivoCadena.slice(0, 300)}. Relanzala desde el tablero.`,
+              respuestaA: mensajeId,
+              tipo: "aviso",
+            }).catch((e) => pushEvent("wave", "raw", `✗ No se pudo dejar el aviso en el hilo: ${e.message}`));
+            pushEvent("wave", "raw", `✗ Cadena de precios: ${motivoCadena.slice(0, 300)}`);
+          }
+        }
         if (relanzar && esReconocimiento) {
           // Ruteo dato/alcance (pedido de Eze 17/08): la charla ya contestó
           // rápido; el reconocimiento completo corre detrás, encadenado.
@@ -670,12 +708,171 @@ async function startCharlaWave({ cotizacionId, mensajeId, texto, archivos = [], 
   return wave.id;
 }
 
+/**
+ * Valida bridge-side una referencia que devolvió la ola de precios. La
+ * validación de verdad la hace App RAVN (validarReferencia) — acá solo se
+ * filtra lo obviamente roto para no mandar basura.
+ */
+function referenciaValida(r) {
+  return (
+    r &&
+    typeof r.nombre === "string" &&
+    r.nombre.trim() &&
+    typeof r.valor === "number" &&
+    Number.isFinite(r.valor) &&
+    r.valor > 0 &&
+    typeof r.fuente === "string" &&
+    r.fuente.trim() &&
+    typeof r.fecha === "string" &&
+    /^\d{4}-\d{2}-\d{2}$/.test(r.fecha) &&
+    r.origen === "internet"
+  );
+}
+
+/**
+ * La ola de PRECIOS (pedido de Eze 17/08: "no me tira un solo precio"): toma
+ * los ítems SIN precio del desglose vigente —materiales, maquinaria de
+ * alquiler Y mano de obra—, los investiga EN VIVO (WebSearch, fuente + fecha,
+ * jamás memoria) y deja las referencias en App RAVN, que re-corre el motor.
+ * El tablero se enciende solo; el resultado queda contado en el hilo.
+ */
+async function startPreciosWave({ cotizacionId }) {
+  if (!RAVN_APP_URL || !RAVN_WRITE_SECRET) {
+    throw new Error(
+      "faltan COTIZADOR_BRIDGE_APP_URL / RAVN_COTIZADOR_WRITE_SECRET: las referencias no tendrían dónde entrar"
+    );
+  }
+  const filas = await pgLeer(
+    `cotizaciones?id=eq.${encodeURIComponent(cotizacionId)}&select=titulo,zona,estado,desglose`
+  );
+  const cotizacion = filas[0];
+  if (!cotizacion) throw new Error("La cotización no existe en la base.");
+  if (cotizacion.estado !== "en_revision" && cotizacion.estado !== "borrador") {
+    throw new Error(`La cotización está ${cotizacion.estado}: los precios ya no se investigan desde acá.`);
+  }
+  const itemsDesglose = Array.isArray(cotizacion.desglose?.items) ? cotizacion.desglose.items : [];
+  const sinPrecio = itemsDesglose.filter(
+    (item) =>
+      item.sin_precio === true &&
+      !item.manual &&
+      !(item.tipo === "maquinaria" && item.modalidad === "propia")
+  );
+  if (sinPrecio.length === 0) {
+    throw new Error("Ningún ítem del desglose está sin precio: no hay nada que investigar.");
+  }
+
+  const hoy = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Argentina/Buenos_Aires",
+  }).format(new Date());
+  const prompt = preciosPrompt({
+    titulo: cotizacion.titulo ?? "(sin título)",
+    zona: cotizacion.zona ?? null,
+    hoy,
+    items: sinPrecio.map((item) => ({
+      nombre: item.nombre,
+      tipo: item.tipo,
+      modalidad: item.modalidad,
+      unidad: item.unidad,
+      cantidad: item.cantidad,
+      etapa: item.etapa,
+    })),
+  });
+
+  wave = {
+    id: randomUUID(),
+    prompt: `[precios ${cotizacionId}]`,
+    startedAt: new Date().toISOString(),
+    status: "running",
+    tipo: "precios",
+    seq: 0,
+    events: [],
+    children: new Map(),
+    timeout: null,
+    resultadoFable: null,
+    alTerminar: async () => {
+      try {
+        const crudo = wave.resultadoFable ?? "";
+        const json = extraerJson(crudo);
+        if (json === null || !Array.isArray(json.referencias)) {
+          throw new Error(crudo.trim() ? crudo.slice(0, 400) : "La ola no devolvió referencias.");
+        }
+        const referencias = json.referencias.filter(referenciaValida);
+        const malFormadas = json.referencias.length - referencias.length;
+        const sinEncontrar = Array.isArray(json.sin_encontrar) ? json.sin_encontrar : [];
+
+        let resumen;
+        if (referencias.length === 0) {
+          resumen = "Investigué los precios y no pude cerrar ninguno con fuente confiable.";
+        } else {
+          const res = await fetch(
+            `${RAVN_APP_URL}/api/cotizaciones/${encodeURIComponent(cotizacionId)}/referencias`,
+            {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                Accept: "application/json",
+                "x-ravn-cotizador-write": RAVN_WRITE_SECRET,
+              },
+              body: JSON.stringify({ referencias: referencias.map(({ nota, ...ref }) => ref) }),
+            }
+          );
+          const payload = await res.json().catch(() => null);
+          if (!res.ok || payload?.ok !== true) {
+            throw new Error(payload?.error ?? `App RAVN rechazó las referencias (${res.status})`);
+          }
+          const rango =
+            payload.total_min != null && payload.total_max != null
+              ? ` Costo ahora: $${Number(payload.total_min).toLocaleString("es-AR")}–$${Number(payload.total_max).toLocaleString("es-AR")}.`
+              : "";
+          resumen =
+            `Investigué precios en vivo y cargué ${payload.aplicadas} al tablero (fuente y fecha en cada ítem).${rango}` +
+            (Array.isArray(payload.ignoradas) && payload.ignoradas.length > 0
+              ? ` Sin aplicar por nombre distinto: ${payload.ignoradas.join(", ")}.`
+              : "");
+        }
+        if (sinEncontrar.length > 0) {
+          resumen += ` Sin precio confiable: ${sinEncontrar
+            .map((s) => `${s?.nombre ?? "?"} (${s?.motivo ?? "sin motivo"})`)
+            .join("; ")}.`;
+        }
+        if (malFormadas > 0) {
+          resumen += ` ${malFormadas} referencia(s) llegaron mal formadas y no entraron.`;
+        }
+        await persistirMensaje(cotizacionId, {
+          autor: "fable",
+          texto: resumen.slice(0, 4000),
+          tipo: "precios",
+        }).catch((e) => pushEvent("wave", "raw", `✗ El resumen de precios no entró al hilo: ${e.message}`));
+        pushEvent("wave", "result", "Precios investigados y aplicados — el tablero se actualiza solo");
+      } catch (error) {
+        const motivo = String(error?.message ?? error);
+        await persistirMensaje(cotizacionId, {
+          autor: "sistema",
+          texto: `La ola de precios no pudo cargar el tablero: ${motivo.slice(0, 300)}. Relanzala desde el tablero.`,
+          tipo: "aviso",
+        }).catch((e) => pushEvent("wave", "raw", `✗ No se pudo dejar el aviso en el hilo: ${e.message}`));
+        pushEvent("wave", "raw", `✗ Ola de precios: ${motivo.slice(0, 300)}`);
+      }
+    },
+  };
+  pushEvent(
+    "wave",
+    "status",
+    `Ola de precios · ${sinPrecio.length} ítem(s) sin precio · Fable investiga en vivo (fuente + fecha)`
+  );
+  spawnAgent("fable", prompt, { captura: true });
+  wave.timeout = setTimeout(() => stopWave("Corte por tiempo máximo de ola"), WAVE_TIMEOUT_MS);
+  wave.timeout.unref();
+  return wave.id;
+}
+
 function startWave(prompt) {
   wave = {
     id: randomUUID(),
     prompt,
     startedAt: new Date().toISOString(),
     status: "running",
+    tipo: "generica",
     seq: 0,
     events: [],
     children: new Map(),
@@ -789,6 +986,26 @@ const server = createServer(async (req, res) => {
         json(res, 201, { waveId: id });
       } catch (error) {
         json(res, 502, { error: `La ola de intake no arrancó: ${error.message}` });
+      }
+      return;
+    }
+    if (body.kind === "precios") {
+      const cotizacionId = typeof body.cotizacionId === "string" ? body.cotizacionId.trim() : "";
+      if (!cotizacionId) {
+        json(res, 400, { error: "Falta la cotización de la ola de precios." });
+        return;
+      }
+      if (!SUPABASE_URL || !SUPABASE_KEY) {
+        json(res, 503, {
+          error: "El bridge no tiene SUPABASE_URL/SERVICE_ROLE_KEY: no puede leer el desglose.",
+        });
+        return;
+      }
+      try {
+        const id = await startPreciosWave({ cotizacionId });
+        json(res, 201, { waveId: id });
+      } catch (error) {
+        json(res, 502, { error: `La ola de precios no arrancó: ${error.message}` });
       }
       return;
     }

@@ -50,7 +50,11 @@ export function useReconocimiento({
   bridge: BridgeConfig | null;
   /** Solo en momento reconocimiento se lee y se pollea — en charla/entrada no. */
   activo: boolean;
-  onConfirmada: () => void;
+  /**
+   * Recibe cuántos ítems quedaron SIN precio tras la confirmación: si hay,
+   * el ControlCenter encadena la ola de precios solo (pedido 1, 17/08).
+   */
+  onConfirmada: (sinPrecio: number) => void;
 }) {
   const [intake, setIntake] = useState<FilaIntake | null>(null);
   const [archivos, setArchivos] = useState<ArchivoIntake[]>([]);
@@ -189,9 +193,9 @@ export function useReconocimiento({
           ? `$${dato.total_min.toLocaleString("es-AR")}–$${dato.total_max.toLocaleString("es-AR")}`
           : "sin rango todavía";
       setAviso(
-        `Confirmada: ${rango}.${sinPrecio.length ? ` ${sinPrecio.length} ítem(s) sin precio van a la cola de decisiones.` : ""}`
+        `Confirmada: ${rango}.${sinPrecio.length ? ` ${sinPrecio.length} ítem(s) sin precio: la ola los investiga en internet ahora.` : ""}`
       );
-      onConfirmada();
+      onConfirmada(sinPrecio.length);
     } catch (error) {
       setAviso(error instanceof Error ? error.message : "La confirmación no entró.");
       setConfirmando(false);

@@ -147,6 +147,9 @@ const RUTAS_BYPASS_COTIZADOR_WRITE: Array<{ patron: RegExp; metodos: string[] }>
   { patron: /^\/api\/cotizaciones\/[^/]+\/archivos\/firmar$/, metodos: ["POST"] },
   { patron: /^\/api\/cotizaciones\/[^/]+\/archivos\/confirmar$/, metodos: ["POST"] },
   { patron: /^\/api\/cotizaciones\/[^/]+\/confirmar-reconocimiento$/, metodos: ["POST"] },
+  // Ola de precios (17/08): referencias investigadas en vivo → el motor
+  // re-corre. Solo precios de investigación; nunca aprueba ni emite.
+  { patron: /^\/api\/cotizaciones\/[^/]+\/referencias$/, metodos: ["POST"] },
   // Conversación operativa (17/08): el composer del visor escribe la charla.
   { patron: /^\/api\/cotizaciones\/[^/]+\/mensajes$/, metodos: ["POST"] },
   // Motor encendido/apagado (17/08): encender/apagar/presencia desde el visor.

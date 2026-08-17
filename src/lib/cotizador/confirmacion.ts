@@ -66,3 +66,26 @@ export function preciosParaConfirmacion(
   }
   return out;
 }
+
+/**
+ * Funde referencias fechadas sobre un mapa de precios ya armado (la hoja viva
+ * POST-confirmación: la ola de precios del bridge alimenta el tablero). Misma
+ * regla que la confirmación: para sismat/internet gana la fecha más nueva. El
+ * slot `eze` jamás se toca desde acá — ese número lo escribe solo la mesa.
+ * Muta `precios` y devuelve cuántas referencias entraron.
+ */
+export function aplicarReferencias(
+  precios: Record<string, PrecioItem>,
+  referencias: ReferenciaPrecio[]
+): number {
+  let aplicadas = 0;
+  for (const ref of referencias) {
+    const slot = (precios[ref.nombre] ??= {});
+    const actual = slot[ref.origen];
+    if (!actual || ref.fecha > actual.fecha) {
+      slot[ref.origen] = { valor: ref.valor, fuente: ref.fuente, fecha: ref.fecha };
+      aplicadas += 1;
+    }
+  }
+  return aplicadas;
+}

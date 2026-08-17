@@ -34,6 +34,14 @@ export type WaveRequest = {
      */
     momento?: "reconocimiento";
   };
+  /**
+   * Ola de PRECIOS (pedido de Eze 17/08: "no me tira un solo precio"): el
+   * bridge lee los ítems sin precio del desglose, los investiga en vivo y
+   * las referencias entran al motor — el tablero se enciende solo.
+   */
+  precios?: {
+    cotizacionId: string;
+  };
 };
 
 export type BridgeHealth = "off" | "ready" | "running";
@@ -59,6 +67,33 @@ const HEALTH_LABELS: Record<BridgeHealth, string> = {
   ready: "Bridge listo",
   running: "Ola corriendo",
 };
+
+/**
+ * ETA por tipo de ola (pedido 7 de Eze, 17/08: "no esperar sin saber nada").
+ * Rangos medidos en producción: charla ~15-25 s, reconocimiento ~1-2 min,
+ * precios (investigación en vivo) ~2-5 min.
+ */
+type WaveTipo = "charla" | "intake" | "precios" | "generica";
+
+const ETA_LABELS: Record<WaveTipo, string | null> = {
+  charla: "una charla suele estar en 15–25 s",
+  intake: "un reconocimiento suele tardar 1–2 min",
+  precios: "la investigación de precios suele tardar 2–5 min",
+  generica: null,
+};
+
+type WaveMeta = { tipo: WaveTipo; startedAt: string };
+
+function waveTipoValido(v: unknown): v is WaveTipo {
+  return v === "charla" || v === "intake" || v === "precios" || v === "generica";
+}
+
+function formatElapsed(ms: number): string {
+  const total = Math.max(0, Math.floor(ms / 1000));
+  const min = Math.floor(total / 60);
+  const seg = total % 60;
+  return min > 0 ? `${min}:${String(seg).padStart(2, "0")} min` : `${seg} s`;
+}
 
 function isTerminalEvent(value: unknown): value is TerminalEvent {
   if (!value || typeof value !== "object") return false;
@@ -105,6 +140,10 @@ export function LiveTerminals({
   const [waveNote, setWaveNote] = useState<string | null>(null);
   const [launching, setLaunching] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // ETA de la ola (pedido 7): tipo + arranque vienen del /health del bridge
+  // (o se fijan localmente al despachar); el reloj corre mientras la ola vive.
+  const [waveMeta, setWaveMeta] = useState<WaveMeta | null>(null);
+  const [ahora, setAhora] = useState(() => Date.now());
   const sourceRef = useRef<EventSource | null>(null);
   const streamingRef = useRef(false);
   const handledSeqRef = useRef(0);
@@ -179,9 +218,17 @@ export function LiveTerminals({
         if (cancelled) return;
         if (!response.ok) throw new Error();
         const payload = (await response.json()) as {
-          wave: { status: "running" | "done" } | null;
+          wave: { status: "running" | "done"; startedAt?: string; tipo?: string } | null;
         };
         setHealth(payload.wave?.status === "running" ? "running" : "ready");
+        setWaveMeta(
+          payload.wave?.status === "running" && typeof payload.wave.startedAt === "string"
+            ? {
+                tipo: waveTipoValido(payload.wave.tipo) ? payload.wave.tipo : "generica",
+                startedAt: payload.wave.startedAt,
+              }
+            : null
+        );
         // El bridge contestó: cualquier error viejo ya no describe la realidad.
         // Sin esto, el aviso "sin bridge configurado no hay ola que lanzar"
         // quedaba clavado para siempre y seguía en pantalla contradiciendo a la
@@ -212,15 +259,20 @@ export function LiveTerminals({
       setLaunching(true);
       setError(null);
       try {
-        const body = waveRequest.charla
+        const body = waveRequest.precios
           ? {
-              kind: "charla",
-              cotizacionId: waveRequest.charla.cotizacionId,
-              mensajeId: waveRequest.charla.mensajeId,
-              texto: trimmed,
-              ...(waveRequest.charla.momento ? { momento: waveRequest.charla.momento } : {}),
+              kind: "precios",
+              cotizacionId: waveRequest.precios.cotizacionId,
             }
-          : { prompt: trimmed };
+          : waveRequest.charla
+            ? {
+                kind: "charla",
+                cotizacionId: waveRequest.charla.cotizacionId,
+                mensajeId: waveRequest.charla.mensajeId,
+                texto: trimmed,
+                ...(waveRequest.charla.momento ? { momento: waveRequest.charla.momento } : {}),
+              }
+            : { prompt: trimmed };
         const response = await fetch(`${bridge.url}/waves`, {
           method: "POST",
           headers: { "content-type": "application/json", "x-bridge-token": bridge.token },
@@ -231,13 +283,19 @@ export function LiveTerminals({
         setEvents([]);
         setWaveNote(null);
         setHealth("running");
+        setWaveMeta({
+          tipo: waveRequest.precios ? "precios" : waveRequest.charla ? "charla" : "generica",
+          startedAt: new Date().toISOString(),
+        });
         connectStream();
         onWaveOutcome?.(
-          waveRequest.charla?.momento === "reconocimiento"
-            ? "Ola despachada: Fable contesta en el hilo — si el mensaje trae un dato nuevo, relanza el reconocimiento solo."
-            : waveRequest.charla
-              ? "Ola despachada: Fable está contestando en el hilo."
-              : "Ola despachada: Codex y Fable la están trabajando."
+          waveRequest.precios
+            ? "Ola de precios despachada: Fable investiga en vivo y carga el tablero solo."
+            : waveRequest.charla?.momento === "reconocimiento"
+              ? "Ola despachada: Fable contesta en el hilo — si el mensaje trae un dato nuevo, relanza el reconocimiento solo."
+              : waveRequest.charla
+                ? "Ola despachada: Fable está contestando en el hilo."
+                : "Ola despachada: Codex y Fable la están trabajando."
         );
       } catch (cause) {
         const message = cause instanceof Error ? cause.message : "No se pudo lanzar la ola.";
@@ -264,6 +322,14 @@ export function LiveTerminals({
     void launchWave(request);
   }, [request, bridge, launchWave, onWaveOutcome]);
 
+  // El reloj del ETA late por segundo SOLO mientras hay ola corriendo.
+  useEffect(() => {
+    if (effectiveHealth !== "running") return;
+    setAhora(Date.now());
+    const timer = window.setInterval(() => setAhora(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, [effectiveHealth]);
+
   const stopWave = async () => {
     if (!bridge) return;
     try {
@@ -286,6 +352,12 @@ export function LiveTerminals({
           <i aria-hidden="true" />
           {HEALTH_LABELS[effectiveHealth]}
         </span>
+        {effectiveHealth === "running" && waveMeta ? (
+          <span className="qz-wave__eta" role="timer">
+            {formatElapsed(ahora - new Date(waveMeta.startedAt).getTime())}
+            {ETA_LABELS[waveMeta.tipo] ? ` · ${ETA_LABELS[waveMeta.tipo]}` : ""}
+          </span>
+        ) : null}
         <p role="status" aria-live="polite">
           {error ??
             (!bridge ? (

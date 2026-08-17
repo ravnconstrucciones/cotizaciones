@@ -1,4 +1,4 @@
-import { MARCADOR_RELANZAR } from "../src/bridge/charla-ruteo.ts";
+import { MARCADOR_PRECIOS, MARCADOR_RELANZAR } from "../src/bridge/charla-ruteo.ts";
 
 /**
  * Prompt de la ola de CHARLA (conversación operativa, 17/08). Fable es la voz
@@ -21,6 +21,7 @@ export function charlaPrompt({
   archivos = [],
   propuesta = null,
   permitirRelanzar = false,
+  permitirInvestigarPrecios = false,
 }) {
   const lineasHilo = hilo.length
     ? hilo
@@ -44,6 +45,11 @@ ${archivos.map((a) => `- ${a.titulo} → ${a.pathLocal}`).join("\n")}`
 
 LA PROPUESTA DE RECONOCIMIENTO SOBRE LA MESA (todavía sin confirmar — es de esto de lo que Eze suele estar hablando):
 ${JSON.stringify(propuesta).slice(0, 8000)}`
+    : "";
+
+  const reglaPrecios = permitirInvestigarPrecios
+    ? `
+6. PRECIOS QUE FALTAN (la charla alimenta el tablero, pedido de Eze 17/08): si Eze pide un costo o un precio y el desglose tiene ese ítem SIN precio (sin_precio), contestá con lo que el expediente SÍ tiene, avisá que disparás la investigación en vivo, y cerrá tu mensaje con una ÚLTIMA línea aparte que diga exactamente ${MARCADOR_PRECIOS} — esa línea es una señal para el sistema (encadena la ola que investiga y carga el tablero), Eze no la ve. NO la uses si los precios que pidió ya están en el desglose o si su mensaje no pide números.`
     : "";
 
   const reglaRuteo = permitirRelanzar
@@ -73,7 +79,7 @@ REGLAS, sin excepción:
 2. Números SOLO con origen. Del desglose persistido o de la propuesta de reconocimiento → decí de qué ítem sale. De internet → buscalo AHORA con WebSearch y citá sitio y fecha (${hoy}); jamás un precio de memoria. Si no lo tenés, decí que no está y qué falta para tenerlo.
 3. La charla NO ejecuta: no cerrás precios, no elegís mano de obra, no aprobás ni emitís. Si el pedido de Eze es una de esas acciones, explicá qué harías y decile dónde se hace (la cola de decisiones, el rubro de mano de obra, la consola de margen o App RAVN según corresponda).
 4. Si el mensaje trae un dato de obra nuevo (medida, material, decisión), reconocelo explícitamente y decí qué cambia en el expediente — pero el dato lo asienta Eze por la mesa, no vos.
-5. Nada de relleno ni disculpas. Si el hilo ya contestó algo, no lo repitas.${reglaRuteo}
+5. Nada de relleno ni disculpas. Si el hilo ya contestó algo, no lo repitas.${reglaPrecios}${reglaRuteo}
 
 SALIDA: tu último mensaje es el texto PLANO que va a aparecer en el hilo como respuesta. Sin JSON, sin encabezados, sin firma.`;
 }
