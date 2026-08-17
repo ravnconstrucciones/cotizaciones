@@ -52,6 +52,33 @@ export function instanciarItems(
         redondeo
       );
 
+      // Maquinaria PROPIA (capex): se reconoce y se lista, pero no lleva precio
+      // ni suma al costo — y no puede caer a la cola de decisiones como
+      // "sin precio", porque no hay precio que decidir.
+      if (item.tipo === "maquinaria" && item.modalidad === "propia") {
+        items.push({
+          nombre: item.nombre,
+          etapa: etapa.nombre,
+          tipo: item.tipo,
+          modalidad: item.modalidad,
+          unidad: item.unidad,
+          formula: item.formula,
+          cantidad_base: roundArs2(cantidadBase),
+          desperdicio_pct: desperdicio,
+          cantidad,
+          precios: {},
+          precio_min: null,
+          precio_max: null,
+          subtotal_min: 0,
+          subtotal_max: 0,
+          divergencia_pct: null,
+          sin_precio: false,
+          rango_fisico: item.rango_fisico,
+          notas: item.notas,
+        });
+        continue;
+      }
+
       const precioItem = precios[item.nombre] ?? {};
       const valores = [precioItem.sismat?.valor, precioItem.internet?.valor].filter(
         (v): v is number => typeof v === "number" && Number.isFinite(v) && v > 0
@@ -83,6 +110,8 @@ export function instanciarItems(
         nombre: item.nombre,
         etapa: etapa.nombre,
         tipo: item.tipo,
+        ...(item.modalidad ? { modalidad: item.modalidad } : {}),
+        ...(item.artefacto ? { artefacto: true } : {}),
         unidad: item.unidad,
         formula: item.formula,
         cantidad_base: roundArs2(cantidadBase),

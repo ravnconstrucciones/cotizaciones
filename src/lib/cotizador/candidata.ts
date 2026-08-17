@@ -8,10 +8,11 @@
  * `preguntas_abiertas` y el panel lo muestra en rojo hasta que Eze lo conteste.
  */
 import { evaluarFormula } from "./formula";
-import type { FuenteReceta, ItemReceta, Receta, Unidad } from "./tipos";
+import type { FuenteReceta, ItemReceta, Receta, TipoItem, Unidad } from "./tipos";
 
 const UNIDADES: Unidad[] = ["m2", "ml", "u", "kg", "l", "bolsa", "caja", "m3", "rollo", "dia", "global"];
 const TIPOS_FUENTE: FuenteReceta["tipo"][] = ["fabricante", "seia", "internet", "tarifario", "obra"];
+const TIPOS_ITEM: TipoItem[] = ["material", "mano_de_obra", "maquinaria"];
 
 export type ResultadoValidacion =
   | { ok: true; receta: Receta }
@@ -73,7 +74,19 @@ function validarItem(item: ItemReceta, etapa: string, vars: Record<string, numbe
   const v: string[] = [];
   const ref = `"${item?.nombre ?? "?"}" (${etapa})`;
   if (!item?.nombre) v.push(`ítem sin nombre en etapa "${etapa}"`);
-  if (item?.tipo !== "material" && item?.tipo !== "mano_de_obra") v.push(`${ref}: tipo inválido`);
+  if (!TIPOS_ITEM.includes(item?.tipo)) v.push(`${ref}: tipo inválido`);
+  // Maquinaria (capex o alquiler, decisión 09/08): sin modalidad no se sabe si
+  // suma al costo, así que la candidata rebota. Y la modalidad fuera de
+  // maquinaria es un dato sin sentido que se rechaza para que no se acumule.
+  if (item?.tipo === "maquinaria" && item?.modalidad !== "alquiler" && item?.modalidad !== "propia") {
+    v.push(`${ref}: maquinaria sin modalidad (alquiler | propia)`);
+  }
+  if (item?.tipo !== "maquinaria" && item?.modalidad != null) {
+    v.push(`${ref}: modalidad solo aplica a maquinaria`);
+  }
+  if (item?.artefacto != null && (typeof item.artefacto !== "boolean" || item.tipo !== "material")) {
+    v.push(`${ref}: artefacto solo aplica a materiales (boolean)`);
+  }
   if (!UNIDADES.includes(item?.unidad)) v.push(`${ref}: unidad inválida`);
   const fuenteOk = typeof item?.origen?.fuente === "string" && item.origen.fuente.trim() !== "";
   const confianzaOk = item?.origen?.confianza === "verificado" || item?.origen?.confianza === "estimado";

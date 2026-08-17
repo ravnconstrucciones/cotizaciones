@@ -159,3 +159,45 @@ describe("validarRecetaCandidata", () => {
     if (!out.ok) expect(out.violaciones.join(" ")).toMatch(/parametros/);
   });
 });
+
+describe("maquinaria y artefacto (puerta de entrada, 17/08)", () => {
+  const conItem = (sobre: Record<string, unknown>) => {
+    const r = base();
+    r.etapas[0].items.push({
+      nombre: "Ítem de prueba",
+      tipo: "material",
+      unidad: "u",
+      formula: "1",
+      origen: { fuente: "test", confianza: "estimado" },
+      ...sobre,
+    } as (typeof r.etapas)[0]["items"][0]);
+    return r;
+  };
+
+  it("acepta maquinaria con modalidad alquiler", () => {
+    const r = conItem({ nombre: "Andamio", tipo: "maquinaria", modalidad: "alquiler", unidad: "dia" });
+    expect(validarRecetaCandidata(r).ok).toBe(true);
+  });
+
+  it("acepta maquinaria propia", () => {
+    const r = conItem({ nombre: "Sierra de sable", tipo: "maquinaria", modalidad: "propia" });
+    expect(validarRecetaCandidata(r).ok).toBe(true);
+  });
+
+  it("rebota maquinaria sin modalidad", () => {
+    const out = validarRecetaCandidata(conItem({ nombre: "Andamio", tipo: "maquinaria" }));
+    expect(out.ok).toBe(false);
+    if (!out.ok) expect(out.violaciones.join(" ")).toMatch(/modalidad/);
+  });
+
+  it("rebota modalidad en un ítem que no es maquinaria", () => {
+    expect(validarRecetaCandidata(conItem({ nombre: "Látex", modalidad: "alquiler" })).ok).toBe(false);
+  });
+
+  it("acepta artefacto en material y lo rebota en MO", () => {
+    expect(validarRecetaCandidata(conItem({ nombre: "Grifería", artefacto: true })).ok).toBe(true);
+    expect(
+      validarRecetaCandidata(conItem({ nombre: "Colocación", tipo: "mano_de_obra", artefacto: true })).ok
+    ).toBe(false);
+  });
+});

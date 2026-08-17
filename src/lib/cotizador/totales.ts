@@ -34,8 +34,16 @@ export function calcularTotales(
   let materialesMax = 0;
   let moMin = 0;
   let moMax = 0;
+  let maquinariaMin = 0;
+  let maquinariaMax = 0;
   for (const it of items) {
-    if (it.tipo === "material") {
+    if (it.tipo === "maquinaria") {
+      // La propia (capex) ya viene con subtotales 0 desde instanciar; saltearla
+      // igual deja el criterio explícito acá: nunca suma al costo de la obra.
+      if (it.modalidad === "propia") continue;
+      maquinariaMin += it.subtotal_min;
+      maquinariaMax += it.subtotal_max;
+    } else if (it.tipo === "material") {
       materialesMin += it.subtotal_min;
       materialesMax += it.subtotal_max;
     } else {
@@ -50,8 +58,8 @@ export function calcularTotales(
     extrasMax += ex.monto_max;
   }
 
-  const subtotalMin = materialesMin + moMin + extrasMin;
-  const subtotalMax = materialesMax + moMax + extrasMax;
+  const subtotalMin = materialesMin + moMin + maquinariaMin + extrasMin;
+  const subtotalMax = materialesMax + moMax + maquinariaMax + extrasMax;
 
   const premium = esZonaPremium(opciones.zona);
   const factorMin = premium ? FACTOR_ZONA_PREMIUM.min : 1;
@@ -63,6 +71,8 @@ export function calcularTotales(
     materiales_max: materialesMax,
     mano_de_obra_min: moMin,
     mano_de_obra_max: moMax,
+    maquinaria_min: maquinariaMin,
+    maquinaria_max: maquinariaMax,
     extras_min: extrasMin,
     extras_max: extrasMax,
     subtotal_min: subtotalMin,

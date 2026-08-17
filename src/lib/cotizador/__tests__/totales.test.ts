@@ -76,3 +76,19 @@ describe("calcularTiempo", () => {
     expect(calcularTiempo(receta)).toEqual({ dias_min: 3, dias_max: 5, cuadrilla_max: 3 });
   });
 });
+
+describe("maquinaria en los totales (puerta de entrada, 17/08)", () => {
+  it("la alquilada suma en su bucket y la propia no suma nada", () => {
+    const items: ItemDesglose[] = [
+      item({ nombre: "Andamio", tipo: "maquinaria", modalidad: "alquiler", subtotal_min: 100, subtotal_max: 100 }),
+      item({ nombre: "Sierra propia", tipo: "maquinaria", modalidad: "propia", precio_min: null, precio_max: null, subtotal_min: 0, subtotal_max: 0 }),
+      item({ nombre: "Látex", tipo: "material", subtotal_min: 50, subtotal_max: 50 }),
+    ];
+    const t = calcularTotales(items, [], { imprevistos_pct: 0 });
+    expect(t.maquinaria_min).toBe(100);
+    expect(t.maquinaria_max).toBe(100);
+    expect(t.materiales_min).toBe(50);
+    expect(t.subtotal_min).toBe(150);
+    expect(t.total_min).toBe(150);
+  });
+});

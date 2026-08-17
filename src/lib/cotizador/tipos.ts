@@ -18,7 +18,15 @@ export type Unidad =
   | "dia"
   | "global";
 
-export type TipoItem = "material" | "mano_de_obra";
+export type TipoItem = "material" | "mano_de_obra" | "maquinaria";
+
+/**
+ * Maquinaria (decisión de Eze 09/08, caso sierra de sable Húsares): las
+ * herramientas de capital nunca se cargan como costo de una obra puntual.
+ * `alquiler` entra al costo con precio fechado; `propia` (capex) se reconoce
+ * y se LISTA (logística, OT) pero no suma al costo. Sin amortización en v1.
+ */
+export type ModalidadMaquinaria = "alquiler" | "propia";
 
 /** recetas.parametros — qué datos pide la receta para instanciarse. */
 export type ParametroReceta = {
@@ -53,6 +61,10 @@ export type OrigenDato = {
 export type ItemReceta = {
   nombre: string; // "Látex interior 20L"
   tipo: TipoItem;
+  /** Obligatoria cuando tipo === "maquinaria"; inválida en los demás tipos. */
+  modalidad?: ModalidadMaquinaria;
+  /** Solo materiales: se compra E instala (grifería, sanitarios). El visor los agrupa aparte. */
+  artefacto?: boolean;
   unidad: Unidad;
   formula: string; // "ceil(superficie_m2 / 10)" — ver formula.ts
   desperdicio_pct?: number; // 0–100; default 0
@@ -134,6 +146,8 @@ export type ItemDesglose = {
   nombre: string;
   etapa: string;
   tipo: TipoItem;
+  modalidad?: ModalidadMaquinaria;
+  artefacto?: boolean;
   unidad: Unidad;
   formula: string;
   cantidad_base: number; // resultado crudo de la fórmula
@@ -201,6 +215,9 @@ export type TotalesDesglose = {
   materiales_max: number;
   mano_de_obra_min: number;
   mano_de_obra_max: number;
+  /** Maquinaria ALQUILADA (la propia no suma — capex). Opcional: desgloses viejos no lo traen. */
+  maquinaria_min?: number;
+  maquinaria_max?: number;
   extras_min: number;
   extras_max: number;
   subtotal_min: number;

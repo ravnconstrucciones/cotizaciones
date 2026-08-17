@@ -94,3 +94,62 @@ describe("instanciarItems", () => {
     expect(latex.subtotal_min).toBe(0);
   });
 });
+
+describe("maquinaria (puerta de entrada, 17/08)", () => {
+  const recetaCon = (items: Receta["etapas"][0]["items"]): Receta => ({
+    ...RECETA,
+    etapas: [{ nombre: "Etapa", orden: 1, items }],
+  });
+
+  it("maquinaria propia se lista sin precio ni subtotal, y no pide decisión", () => {
+    const [it_] = instanciarItems(
+      recetaCon([
+        {
+          nombre: "Sierra de sable",
+          tipo: "maquinaria",
+          modalidad: "propia",
+          unidad: "u",
+          formula: "1",
+          origen: { fuente: "t", confianza: "estimado" },
+        },
+      ]),
+      { superficie_m2: 10 },
+      {}
+    );
+    expect(it_.modalidad).toBe("propia");
+    expect(it_.sin_precio).toBe(false);
+    expect(it_.precio_min).toBeNull();
+    expect(it_.subtotal_min).toBe(0);
+    expect(it_.subtotal_max).toBe(0);
+  });
+
+  it("maquinaria alquiler se precia como un material y propaga la marca artefacto", () => {
+    const items = instanciarItems(
+      recetaCon([
+        {
+          nombre: "Andamio",
+          tipo: "maquinaria",
+          modalidad: "alquiler",
+          unidad: "dia",
+          formula: "3",
+          redondeo: "ninguno",
+          origen: { fuente: "t", confianza: "estimado" },
+        },
+        {
+          nombre: "Grifería FV",
+          tipo: "material",
+          artefacto: true,
+          unidad: "u",
+          formula: "1",
+          origen: { fuente: "t", confianza: "verificado" },
+        },
+      ]),
+      { superficie_m2: 10 },
+      { Andamio: { internet: { valor: 20000, fuente: "alquilerandamios.com.ar", fecha: "2026-08-17" } } }
+    );
+    expect(items[0].sin_precio).toBe(false);
+    expect(items[0].subtotal_min).toBe(60000);
+    expect(items[0].modalidad).toBe("alquiler");
+    expect(items[1].artefacto).toBe(true);
+  });
+});

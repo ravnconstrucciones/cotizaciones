@@ -39,7 +39,7 @@ export type Cruce = {
   margen: MargenCruce;
 };
 
-const ORDEN_TIPO: Record<PlanItemRow["tipo"], number> = { material: 0, extra: 1, mano_de_obra: 2 };
+const ORDEN_TIPO: Record<PlanItemRow["tipo"], number> = { material: 0, maquinaria: 1, extra: 2, mano_de_obra: 3 };
 
 function round1(n: number): number {
   return Math.round(n * 10) / 10;

@@ -1,6 +1,6 @@
 /** Tipos del plan de compra (espejo de la tabla obra_plan_items). */
 
-export type PlanTipo = "material" | "mano_de_obra" | "extra";
+export type PlanTipo = "material" | "mano_de_obra" | "maquinaria" | "extra";
 export type PlanOrigen = "cotizacion" | "manual";
 
 /** Foto congelada del ítem cotizado. La UI nunca la edita. */

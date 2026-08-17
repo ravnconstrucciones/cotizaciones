@@ -4,6 +4,9 @@ import type { AvisoVencido, ExtraDesglose, ItemDesglose, PrecioFechado, TipoItem
 export const VENCIMIENTO_DIAS: Record<TipoItem, number> = {
   material: 15,
   mano_de_obra: 30,
+  // Alquiler de maquinaria: precio de mercado, vence como un material. La
+  // propia no lleva precio, así que este valor nunca le aplica.
+  maquinaria: 15,
 };
 
 /**
