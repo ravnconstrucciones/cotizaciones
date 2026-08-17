@@ -1,6 +1,107 @@
 # Handoff — Visor Cotizador RAVN (consola de instrumentos)
 
-## 🚨 LO QUE EZE QUIERE Y LA HERRAMIENTA NO HACE (17/08, madrugada) — ES EL PRÓXIMO BUILD
+## ✅ PUERTA DE ENTRADA: CONSTRUIDA Y EN PRODUCCIÓN (17/08 madrugada)
+
+Eze dijo "terminalo para cuando me despierte" y quedó TERMINADA, verificada y
+deployada. Plan ejecutado completo:
+`docs/superpowers/plans/2026-08-17-puerta-entrada-cotizador.md` (spec en
+`docs/superpowers/specs/2026-08-17-puerta-entrada-cotizador-design.md`).
+
+**Commits en `origin/home-cards`:** `bae1280` (motor: maquinaria + artefacto) ·
+`98186d6` (migración `cotizador_intake` + check del plan de compra, APLICADA a
+prod) · `28e17d5` (App RAVN: `POST /api/cotizaciones/intake`,
+`POST .../confirmar-reconocimiento`, allowlists de archivos) · `9b84070`
+(cotizador: contrato de propuesta, traducción a candidata, intake store, rutas
+`/api/intake/*`) · `3286eaa` (bridge: ola de intake con Fable + Read) ·
+`21a61e3` (visor: IntakeGate + ReconocimientoPanel + maquinaria propia fuera de
+la cola) · `11ed5fd` (COPAIPA en el prompt) · `b925d9b` (fix 1ª ola real + copy
+institucional).
+
+**Deploys de prod verificados:** App RAVN `dpl_J4DgZpnPGfPBGNoHnvZsZsEkgiYb` ·
+Cotizador `dpl_BeGxXrpi8i27iWxv6Shp1QfQqS1E`, los dos READY sobre `b925d9b`.
+Circuito prod-a-prod probado: el visor cloud creó un borrador en App RAVN cloud
+por su write secret y lo leyó con intake+archivos (cotización de prueba borrada
+después).
+
+**El flujo que quedó andando (probado punta a punta con una OLA REAL):**
+"+ Nueva cotización" en el selector → gate (drop de archivos ≤4MB por proxy,
+>4MB directo a Storage con firmar/confirmar, texto pegado) → borrador +
+`cotizador_intake` persisten AL TOQUE → la ola corre en la Mac por el bridge
+(SOLO Fable, `claude -p` con Read+WebSearch) → propuesta de reconocimiento
+persistida por PostgREST → panel editable (rubros, ítems, cantidades,
+maquinaria alquiler/propia, artefactos, preguntas con respuesta) → Confirmar →
+receta candidata + `en_revision` + precios del motor (cache `precios_items` +
+referencias fechadas de la ola, fecha más nueva gana, `eze` solo del cache) →
+tablero normal con la cola de decisiones. Captura de la propuesta real:
+`.impeccable/finish/puerta-entrada-propuesta.png` (pintura 4x3: 9 ítems con
+origen, escalera reconocida como maquinaria PROPIA que no suma, 6 preguntas de
+obra de verdad).
+
+**Reglas que quedaron clavadas en código:**
+- Maquinaria = tipo nuevo del motor. `alquiler` suma en bucket propio
+  (`totales.maquinaria_min/max`); `propia` se lista (subtotal 0, no entra a la
+  cola: `price-decision.ts` la cierra como capex). Check de `obra_plan_items`
+  ampliado a maquinaria.
+- Artefacto = marca sobre material (`artefacto: true`), agrupado aparte en el
+  panel.
+- La write credential ahora abre: pase + intake + archivos (3 rutas de subida) +
+  confirmar-reconocimiento. Verificado en prod: `/aprobar` y `/emitir` siguen
+  401 con esa credencial.
+- La read credential suma `GET .../archivos` (URLs firmadas para la ola).
+- Fuente con tipo fuera del enum en la propuesta → se normaliza a `obra` (la 1ª
+  ola real vino con "Texto de Eze" tipo inventado y se tiró entera; ya no).
+- Copy institucional: "trabajo", nunca "laburo" (corrección de Eze en vivo).
+
+**OJO para la próxima sesión:**
+- `RAVN_COTIZADOR_WRITE_SECRET` del `.env.local` RAÍZ **difiere del de Vercel
+  prod** (sensitive, ilegible). Local-a-local anda; prod-a-prod anda; lo que NO
+  anda es curl local→prod con el valor del archivo. No es bug, es rotación
+  vieja. Si molesta, regenerar y alinear los cuatro lugares.
+- El bridge necesita `SUPABASE_URL` (o NEXT_PUBLIC) + `SUPABASE_SERVICE_ROLE_KEY`
+  en `apps/cotizador-ravn/.env.local` para persistir la propuesta (ya están).
+  Sin ellas rechaza la ola de intake con 503 y lo dice.
+- Bridge y dev servers quedaron APAGADOS. Levantar: `npm run bridge` (cotizador)
+  cuando se cotice.
+- COPAIPA (pedido de Eze 17/08) quedó como vara mensual en el prompt de intake y
+  documentada con calibre anti-transplante en
+  `vault/Conocimiento/Precios/copaipa.md`; calculatucasa.com.ar en
+  `calculatucasa.md` (obra nueva, no reformas).
+
+**⏭️ SIGUE: cotizar de verdad por la puerta** — tirar una OT real de
+`~/Documents/Plantillas/` o un checklist de visita y recorrer el flujo entero
+con Eze. Fuera de alcance v1 (spec): audio, amortización de maquinaria, perfil
+del cliente.
+
+## Historia: el diseño aprobado (17/08) — YA CONSTRUIDO, ver arriba
+
+El brainstorming YA ESTÁ HECHO y el diseño está APROBADO por Eze. **Spec
+completo y commiteado (`ff57a5b` en `home-cards`):
+`docs/superpowers/specs/2026-08-17-puerta-entrada-cotizador-design.md` — leerlo
+ANTES que cualquier otra cosa de esta sección.** Decisiones clavadas:
+
+- **Motor de lectura = Opción B, la ola** (bridge → Codex/Fable en la Mac).
+  Textual de Eze: *"necesito de todo el potencial y yo cotizo con la Mac
+  abierta, no quiero gastar un peso de más"*. Sin API de pago. Mac apagada =
+  no desmenuza, pero archivo + borrador persisten y se retoma.
+- **Formatos día 1 (eligió los cuatro):** PDF/OT · fotos · texto pegado/dictado
+  · checklist de visita (schema ya existe).
+- **Flujo:** subida → cotización `borrador` + `cotizacion_archivos` al toque →
+  ola desmenuza → propuesta de reconocimiento (rubros/ítems/artefactos/
+  maquinaria/MO, con origen; lo ambiguo = pregunta) → Eze edita y CONFIRMA →
+  receta candidata + `en_revision` → precios del motor → visor normal.
+- **Maquinaria = tipo de ítem nuevo** con modalidad `alquiler` (entra al costo,
+  precio fechado) / `propia` (capex, se lista, NO suma) — sale de la decisión
+  de Eze del 09/08 (sierra de sable). Artefactos = material con marca, no tipo
+  nuevo. Sin amortización en v1.
+- **Escritura por el molde del pase**: endpoints App RAVN + write secret +
+  allowlist. Estrena el contrato de escritura (ex PASO 5) y destraba adjuntos y
+  drag & drop.
+
+**⏭️ Próxima sesión: arrancar leyendo el spec e invocar
+`superpowers:writing-plans` para el plan de implementación. NO re-preguntar
+nada de lo de arriba.**
+
+## 🚨 EL BRIEF ORIGINAL (17/08, madrugada) — ya convertido en el spec de arriba
 
 Textual, después de entrar al visor y ver que no podía hacer nada con una OT:
 *"yo no quería eso!!! justamente lo que quería no era algo de lectura, era algo
