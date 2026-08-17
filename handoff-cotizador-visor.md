@@ -1,7 +1,8 @@
 # Handoff — Visor Cotizador RAVN (consola de instrumentos)
 
-**Al día:** 16/08/2026 noche · **PASOS 0, 1, 2, 3, EL PASE y LOS TRES PEDIDOS
-DEL 16/08 CERRADOS.** El cotizador está en la nube
+**Al día:** 16/08/2026 noche · **CAZA DE ERRORES CERRADA: 4 rondas, 19 bugs,
+commit `7587657` en `origin/home-cards`, sin deploy a producción.** · **PASOS 0,
+1, 2, 3, EL PASE y LOS TRES PEDIDOS DEL 16/08 CERRADOS.** El cotizador está en la nube
 (https://ravn-cotizador.vercel.app, usuario `RAVN`), deja el número y el
 extracto en App RAVN con un botón, y **la mano de obra ya es un rubro propio con
 postulantes**.
@@ -172,51 +173,120 @@ los dos agentes, así que un Codex charlatán puede desalojar todas las líneas 
 Fable. Y el token del bridge viaja en la query string del `EventSource` (no se
 le pueden poner headers); es localhost, pero queda en logs e historial.
 
+## 🔴 RONDA 4 HECHA (16/08 noche) — 6 bugs más. COMMITEADA: `7587657`
+
+Barrida la columna de conversación, el splitter y `bridge/stream-format.ts`, que
+era lo que quedaba. **Commit `7587657` pusheado a `origin/home-cards`. SIN
+DEPLOY a producción** (el push a esa rama sólo genera Preview).
+
+1. **El más gordo, y estaba tapando a los otros: con las credenciales en la URL
+   el visor no podía escribir NADA.** Se entra por basic auth, y la forma cómoda
+   —la que documenta este mismo handoff— es `http://RAVN:APORTODO@host/`. Con
+   ese documento abierto, Chrome rebota todo `fetch` de ruta relativa antes de
+   salir a la red (*"Request cannot be constructed from a URL that includes
+   credentials"*), y acá TODO es ruta relativa: `/api/quotes`, `/api/taller…`,
+   `/api/pase`. O sea: no se podía cambiar de cotización, la mesa no cargaba y
+   el pase no salía. **Se veía viva y no guardaba nada.** Helper único
+   `src/lib/api-url.ts`: resuelve contra `location.origin`, que nunca lleva las
+   credenciales. Verificado en el navegador con esa URL: antes el cambio de
+   cotización moría con el error en el cartel; ahora Garage → Glorietas → Lote 1
+   → Baño render dan **200** y cambia el tablero. (Las 502 de Húsares ×3 y Lara
+   son las viejas de formato, comportamiento conocido.) **Por el diálogo del
+   navegador nunca falló** — por eso no se había visto.
+2. **La hora de los mensajes salía de la zona de la MÁQUINA** (`TIME` en
+   `control-center.tsx` era el único `Intl` sin zona; `formatObservedDate` ya la
+   tenía nombrada desde antes). Medido: el formateador viejo en un servidor UTC
+   escribe **"09:31 a. m."** donde el navegador en Buenos Aires pinta **"06:31"**
+   — hora equivocada en el HTML y mismatch de hidratación en CADA `<time>` del
+   hilo. Ahora es `formatObservedTime`, al lado de las fechas, con la zona
+   nombrada. Probado con el dev server en `TZ=UTC` (como Vercel) y el navegador
+   en AR: **mismas horas y cero warnings de hidratación**.
+3. **El composer afirmaba "Ola despachada" sin saberlo** (tercera vez que
+   aparece este patrón). Si el bridge rechazaba la ola, el cartel del composer
+   decía que estaba corriendo y el de la ola decía el error — **y en mobile son
+   solapas distintas**, así que el error quedaba en una pantalla que él no está
+   mirando. Ahora el resultado real sube desde `LiveTerminals` por
+   `onWaveOutcome`. Probado interceptando el POST en el navegador (**sin
+   disparar una ola real**: el bridge de Eze estaba vivo): los dos carteles dicen
+   lo mismo.
+4. **Al cambiar de cotización quedaba pegada la anterior:** el borrador a medio
+   escribir, los mensajes locales y el último aviso. Si le daba enviar, el texto
+   entraba en la cotización que no era. Y el hilo no bajaba al último mensaje
+   (sólo miraba los mensajes locales), así que abría mostrando lo más viejo.
+5. **`stream-format.ts`, tres:** (a) `item.updated` repetía la línea del comando
+   en cada actualización —y el filtro de la terminal no lo tapa porque cada
+   evento trae su propia seq—; (b) un `exit_code` ausente se cantaba como
+   **✓ éxito** cuando lo que hay es un no-sabemos; (c) un mensaje del asistente
+   con bloques no reconocidos (o con `content` de texto pelado) **desaparecía
+   entero**, contra la regla que declara la cabecera del propio módulo.
+6. **Dos chicas:** las flechas del splitter redimensionaban **y** scrolleaban el
+   tablero (faltaba `preventDefault`; medido: ahora +32 px de ancho con el scroll
+   quieto en 0), y **"Resolver en la conversación" no hacía nada si ya había algo
+   escrito** — ahora la pregunta se suma al final sin pisar el borrador.
+
+Verificación: **175 tests cotizador** (eran 163) · **572 App RAVN** · typecheck
+del cotizador y de la raíz · lint limpio · build **171 kB** (no engordó).
+
+**Anotado y NO arreglado (sigue de la ronda 3):** el tope de líneas
+(`MAX_LINES * 2`) es global para los dos agentes; el token del bridge viaja en la
+query string del `EventSource`; `PostulanteForm` divide por `cantidad` sin guard;
+el botón "Pasar" no se bloquea al primer clic. **Nuevo de esta ronda:** sin
+`preview`, el botón "Resolver en la conversación" carga la pregunta en un
+composer deshabilitado — es coherente con "la conversación todavía no escribe",
+pero es un camino que no termina en ningún lado hasta que exista el contrato de
+escritura.
+
 ### ⏭️ CÓMO RETOMAR (sesión nueva, en frío)
 
-Base: `3357d9b` en `home-cards`. **Todo lo de las rondas 1 y 2 está en el
-working tree, sin commit ni deploy** — Eze no lo pidió todavía. No commitear sin
-que lo pida. Archivos tocados por las dos cazas:
-
-```
-apps/cotizador-ravn/src/domain/{labor,margin,quote-workspace}.ts (+ sus tests)
-apps/cotizador-ravn/src/components/control-center.tsx
-apps/cotizador-ravn/src/taller/store.ts (+ store.test.ts)
-apps/cotizador-ravn/src/adapters/app-ravn-write-adapter.ts
-src/lib/cotizador/{vencimiento,cotizar,mesa-merge}.ts
-```
+Base: **`7587657` en `home-cards`** (rondas 1 a 4, 19 bugs, todo commiteado y
+pusheado). **SIN DEPLOY a producción** — el push a esta rama sólo genera Preview;
+prod se dispara por API con `target: production`. En el working tree del repo hay
+cambios de OTRA sesión (`.ravn/`, `AGENTS.md`, `CLAUDE.md`, `docs/`,
+`daemon/memoria/`): **no son de esta caza, no commitearlos a ciegas.**
 
 Cómo verificar, siempre las cuatro cosas antes de decir que algo está hecho:
 
 ```
-cd apps/cotizador-ravn && npm test        # 160
+cd apps/cotizador-ravn && npm test        # 175
 cd /Users/ezeotero/Documents/ravn && npm test   # 572
-cd apps/cotizador-ravn && npx tsc --noEmit && npm run lint && npm run build
+cd apps/cotizador-ravn && npx tsc --noEmit && npm run lint && npm run build   # 171 kB
 ```
 
 Navegador: `pkill -f "next dev --port 3010"; rm -rf .next; COTIZADOR_PREVIEW_ENABLED=1 npm run dev`
 y entrar por `http://RAVN:APORTODO@localhost:3010/?preview=1`.
+Para el camino REAL (sin preview) hace falta App RAVN local:
+`npx next dev --port 3000` en `Documents/ravn` y entrar sin `?preview=1`.
+**Dos cosas que valen para probar bien:** (a) `TZ=UTC npm run dev` reproduce el
+servidor de Vercel y es lo único que destapa los bugs de zona horaria; (b) el
+bridge de Eze suele estar vivo — interceptar el `POST /waves` con `page.route`
+en vez de disparar una ola real, que despierta a Codex y Fable de verdad.
 
 **Autorización vigente de Eze (16/08, ~22:10):** *"salgo a caminar 30 minutos,
-seguí con todo vos mismo"*. O sea: seguir la caza sin esperar aprobación para
-BUSCAR y ARREGLAR. Sigue haciendo falta su OK para commit, deploy y para las
-preguntas de criterio.
+seguí con todo vos mismo"* y *"sigo todas las recomendaciones que vos me des,
+dale para adelante en todo"*. Buscar, arreglar, commitear y pushear a
+`home-cards` entra ahí. **El deploy a producción no**: eso se le pide.
 
-### ⏭️ RONDA 3 — lo que queda
+### ⏭️ QUÉ QUEDA DE LA CAZA
 
-- **`control-center.tsx`**: quedan sin barrer las terminales, la conversación y
-  el bridge (~700 líneas). El tablero de MO, la consola de margen, el ledger y
-  el pase ya pasaron.
-- **Una pregunta de producto, NO un bug — para hablar con Eze:** un ítem cerrado
-  con su número propio, pero con el SISMAT viejo al lado, hoy cae igual en la
-  cola como *"precio vencido"* (`price-decision.ts`, el override del final).
-  El costo de ese ítem es el número de Eze y el SISMAT no lo toca, así que la
-  tarjeta es ruido en la única cola que tiene que llegar a cero para que se
-  despliegue el tablero. **No lo cambié solo: es criterio suyo.**
-- **Dos cosas chicas anotadas y no tocadas:** `PostulanteForm` divide por
-  `cantidad` sin guard (un ítem con cantidad 0 daría un precio infinito), y el
-  botón "Pasar" de la pantalla de confirmación no se bloquea al primer clic
-  (doble clic = dos pases, inofensivo porque es idempotente).
+La caza de errores del visor **está terminada**: las cuatro rondas barrieron el
+dominio (`labor`, `margin`, `quote-workspace`, `price-decision`), el taller y su
+persistencia, el pase, el tablero, el ledger, la consola de margen, la
+conversación, el splitter, las terminales y el bridge. **Lo que sigue es usarlo
+cotizando de verdad con Eze**, que era el motivo del pedido.
+
+Sin probar todavía contra la nube (no lo cubrió ninguna ronda):
+
+- **El CRUD de postulantes desde la UI contra la base real**, y **el pase con un
+  postulante elegido punta a punta**. Ojo: hasta este commit, hacer esa prueba
+  entrando con las credenciales en la URL habría fallado por el bug 1 de la
+  ronda 4 — ahora sí se puede.
+- **Cotizaciones viejas (Húsares ×3 y Lara)**: dan **502** al elegirlas
+  (`desglose.items` con la forma vieja). Confirmado de nuevo en esta ronda. Sigue
+  siendo decisión de producto mostrarlas como "formato viejo, no legible" en el
+  selector en vez de tirar el error.
+- **Ninguna cotización real tiene mensajes de hilo** (las 13 dieron 0), así que
+  la conversación con datos de verdad no se pudo mirar: lo del hilo se verificó
+  contra el preview.
 
 **Lo de la ronda 1 que sigue sin probarse contra la nube** (no lo cubrió esta
 caza, sigue vigente del deploy):
