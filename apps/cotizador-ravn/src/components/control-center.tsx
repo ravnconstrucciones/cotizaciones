@@ -27,6 +27,7 @@ import {
   type CSSProperties,
   type FormEvent,
   type PointerEvent as ReactPointerEvent,
+  type ReactNode,
   type RefObject,
 } from "react";
 import type {
@@ -79,7 +80,6 @@ import {
   formatObservedDate as dateTime,
   formatObservedTime as eventTime,
 } from "./format-observed-date";
-import { IntakeGate } from "./intake-gate";
 import {
   LiveTerminals,
   type BridgeConfig,
@@ -931,10 +931,13 @@ export function ControlCenter({
 
       <main
         className="qz-body"
+        data-momento={momento}
         data-rail={railOpen ? "open" : "closed"}
         style={
           {
-            "--qz-chat-w": `${chatWidth}px`,
+            // Con el panel de reconocimiento embebido en el hilo, la columna
+            // de conversación necesita aire: piso de 520px (sigue arrastrable).
+            "--qz-chat-w": `${momento === "reconocimiento" ? Math.max(chatWidth, 520) : chatWidth}px`,
             "--qz-rail-w": railOpen ? `${railWidth}px` : `${RAIL_FOLDED}px`,
           } as CSSProperties
         }
@@ -952,6 +955,22 @@ export function ControlCenter({
           notice={composerNotice}
           composerRef={composerRef}
           reduceMotion={reduceMotion}
+          momento={momento}
+          archivos={archivos}
+          onArchivos={agregarArchivos}
+          onQuitarArchivo={quitarArchivo}
+          panel={
+            momento === "reconocimiento" ? (
+              <ReconocimientoPanel
+                quoteId={snapshot.quote.id}
+                bridge={bridge}
+                health={health}
+                active
+                variant="hilo"
+                onConfirmada={() => void loadQuote(snapshot.quote.id)}
+              />
+            ) : undefined
+          }
         />
 
         <Splitter
@@ -963,23 +982,15 @@ export function ControlCenter({
           label="Ancho de la conversación"
         />
 
-        {entrada ? (
-          <IntakeGate
-            bridge={bridge}
+        {momento !== "charla" ? (
+          <EstadoColumna
             active={mobileTab === "tablero"}
-            onCreated={(id, avisoDeLaPuerta) => {
-              setEntrada(false);
-              setComposerNotice(avisoDeLaPuerta);
-              void loadQuote(id);
-            }}
-          />
-        ) : snapshot.quote.legacyState === "borrador" && !preview ? (
-          <ReconocimientoPanel
-            quoteId={snapshot.quote.id}
-            bridge={bridge}
-            health={health}
-            active={mobileTab === "tablero"}
-            onConfirmada={() => void loadQuote(snapshot.quote.id)}
+            titulo={momento === "entrada" ? "Nueva cotización" : snapshot.quote.title}
+            detalle={
+              momento === "entrada"
+                ? "El expediente nace en la conversación: tirá la OT en la caja de al lado."
+                : "La propuesta se trabaja en la conversación. El tablero se enciende al confirmar el reconocimiento."
+            }
           />
         ) : (
         <BoardColumn
@@ -1156,6 +1167,11 @@ function ConversationColumn({
   notice,
   composerRef,
   reduceMotion,
+  momento,
+  archivos,
+  onArchivos,
+  onQuitarArchivo,
+  panel,
 }: {
   snapshot: QuoteWorkspaceSnapshot;
   preview: boolean;
@@ -1169,14 +1185,27 @@ function ConversationColumn({
   notice: string | null;
   composerRef: RefObject<HTMLTextAreaElement | null>;
   reduceMotion: boolean;
+  momento: MomentoExpediente;
+  archivos: File[];
+  onArchivos: (files: FileList | File[]) => void;
+  onQuitarArchivo: (index: number) => void;
+  panel?: ReactNode;
 }) {
   // El hilo entero, las cuatro voces: eze, fable, codex y sistema. Antes fable
   // y codex se filtraban — con la conversación operativa (17/08) la respuesta
   // de Fable ES el producto: esconderla sería una charla contra una pared.
-  const thread = snapshot.events.filter(
-    (event): event is Extract<QuoteEvent, { type: "message" }> => event.type === "message"
-  );
+  // En la ENTRADA el hilo del expediente anterior no se muestra: la puerta
+  // arranca en blanco.
+  const esEntrada = momento === "entrada";
+  const thread = esEntrada
+    ? []
+    : snapshot.events.filter(
+        (event): event is Extract<QuoteEvent, { type: "message" }> => event.type === "message"
+      );
+  const mensajesLocales = esEntrada ? [] : localMessages;
   const threadRef = useRef<HTMLDivElement>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [dragging, setDragging] = useState(false);
   const quoteId = snapshot.quote.id;
 
   /**
@@ -1187,13 +1216,24 @@ function ConversationColumn({
   useEffect(() => {
     const node = threadRef.current;
     if (node) node.scrollTop = node.scrollHeight;
-  }, [quoteId, thread.length, localMessages.length]);
+  }, [quoteId, thread.length, mensajesLocales.length, panel]);
 
   return (
     <section
       className="qz-chat qz-panel"
       data-mobile-active={active}
+      data-dragging={dragging}
       aria-labelledby="conversation-title"
+      onDragOver={(event) => {
+        event.preventDefault();
+        if (!sending) setDragging(true);
+      }}
+      onDragLeave={() => setDragging(false)}
+      onDrop={(event) => {
+        event.preventDefault();
+        setDragging(false);
+        if (!sending) onArchivos(event.dataTransfer.files);
+      }}
     >
       {/* Pedido 6: el monolito no ocupa celda propia — es el fondo vivo de la
           conversación y gira según el estado real del bridge. */}
@@ -1203,18 +1243,27 @@ function ConversationColumn({
         </div>
       </div>
 
-      <header className="qz-chat__head">
-        <h1 id="conversation-title">{snapshot.quote.title}</h1>
-        <p>
-          {snapshot.quote.zone ? `${snapshot.quote.zone} · ` : ""}
-          Escribí el alcance o respondé lo que falta: eso dispara la ola.
-        </p>
-      </header>
+      {esEntrada ? (
+        <header className="qz-chat__head">
+          <h1 id="conversation-title">Nueva cotización</h1>
+          <p>Tirá la OT: archivo, foto o contame el trabajo. Con el primer envío nace el expediente.</p>
+        </header>
+      ) : (
+        <header className="qz-chat__head">
+          <h1 id="conversation-title">{snapshot.quote.title}</h1>
+          <p>
+            {snapshot.quote.zone ? `${snapshot.quote.zone} · ` : ""}
+            Escribí el alcance o respondé lo que falta: eso dispara la ola.
+          </p>
+        </header>
+      )}
 
       <div className="qz-thread" role="log" aria-label="Conversación de la cotización" ref={threadRef}>
-        {thread.length === 0 && localMessages.length === 0 ? (
+        {thread.length === 0 && mensajesLocales.length === 0 ? (
           <p className="qz-thread__empty">
-            No hay conversación guardada para esta cotización.
+            {esEntrada
+              ? "El expediente nace acá: soltá archivos en esta columna o escribí el pedido."
+              : "No hay conversación guardada para esta cotización."}
           </p>
         ) : null}
 
@@ -1232,7 +1281,7 @@ function ConversationColumn({
         })}
 
         <AnimatePresence initial={false}>
-          {localMessages.map((message) => (
+          {mensajesLocales.map((message) => (
             <motion.article
               className="qz-message"
               data-author="eze"
@@ -1250,6 +1299,8 @@ function ConversationColumn({
             </motion.article>
           ))}
         </AnimatePresence>
+
+        {panel ? <div className="qz-thread__panel">{panel}</div> : null}
       </div>
 
       <form className="qz-composer" onSubmit={onSubmit}>
@@ -1262,23 +1313,63 @@ function ConversationColumn({
           value={draft}
           disabled={sending}
           onChange={(event) => onDraftChange(event.target.value)}
-          placeholder="Ej.: El porcelanato es 60 × 60 y la grifería va embutida…"
+          placeholder={
+            esEntrada
+              ? "Ej.: OT baño Pueyrredón — demoler revestimiento, impermeabilizar y…"
+              : "Ej.: El porcelanato es 60 × 60 y la grifería va embutida…"
+          }
           rows={3}
         />
+        {archivos.length > 0 ? (
+          <ul className="qz-composer__chips">
+            {archivos.map((file, i) => (
+              <li key={`${file.name}:${i}`}>
+                <Paperclip size={11} aria-hidden="true" />
+                <span>{file.name}</span>
+                <em>{(file.size / 1024 / 1024).toFixed(1)} MB</em>
+                {!sending ? (
+                  <button
+                    type="button"
+                    aria-label={`Quitar ${file.name}`}
+                    onClick={() => onQuitarArchivo(i)}
+                  >
+                    ×
+                  </button>
+                ) : null}
+              </li>
+            ))}
+          </ul>
+        ) : null}
         <div className="qz-composer__footer">
           <button
             type="button"
             className="qz-attach"
-            disabled
-            title="Los archivos entran por la puerta: elegí “+ Nueva cotización” en el selector."
+            disabled={sending || preview}
+            title={
+              preview
+                ? "Demostración local: los adjuntos no aplican."
+                : "Adjuntar archivos al expediente (PDF, fotos, checklist)."
+            }
+            onClick={() => fileRef.current?.click()}
           >
             <Paperclip size={15} aria-hidden="true" />
             <span>Adjuntar</span>
           </button>
+          <input
+            ref={fileRef}
+            type="file"
+            multiple
+            hidden
+            accept=".pdf,image/*,.json,.txt,.md"
+            onChange={(event) => {
+              if (event.target.files) onArchivos(event.target.files);
+              event.target.value = "";
+            }}
+          />
           <motion.button
             className="qz-send"
             type="submit"
-            disabled={sending || draft.trim().length === 0}
+            disabled={sending || (draft.trim().length === 0 && archivos.length === 0)}
             whileTap={reduceMotion ? undefined : { scale: 0.96 }}
             aria-label="Enviar al cotizador"
           >
@@ -1289,9 +1380,35 @@ function ConversationColumn({
           {notice ??
             (preview
               ? "Demostración local: la entrada no modifica datos de App RAVN."
-              : "Lo que escribas queda en el hilo del expediente y dispara la ola de charla.")}
+              : esEntrada
+                ? "Con el primer envío nace el expediente y Fable desmenuza la OT."
+                : "Lo que escribas queda en el hilo del expediente y dispara la ola.")}
         </p>
       </form>
+    </section>
+  );
+}
+
+/**
+ * La columna derecha cuando el tablero todavía no existe (entrada y
+ * reconocimiento): una tarjeta quieta que dice dónde está la acción. El
+ * trabajo pasa en la conversación; acá no se simula nada.
+ */
+function EstadoColumna({
+  active,
+  titulo,
+  detalle,
+}: {
+  active: boolean;
+  titulo: string;
+  detalle: string;
+}) {
+  return (
+    <section className="qz-board" data-mobile-active={active} aria-label="Estado del expediente">
+      <div className="qz-estado qz-panel">
+        <h2>{titulo}</h2>
+        <p>{detalle}</p>
+      </div>
     </section>
   );
 }

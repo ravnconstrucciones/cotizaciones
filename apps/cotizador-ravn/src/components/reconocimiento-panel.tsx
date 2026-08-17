@@ -36,12 +36,15 @@ export function ReconocimientoPanel({
   health,
   active,
   onConfirmada,
+  variant = "columna",
 }: {
   quoteId: string;
   bridge: BridgeConfig | null;
   health: BridgeHealth;
   active: boolean;
   onConfirmada: () => void;
+  /** "columna" = sección propia (histórico) · "hilo" = embebido en la conversación. */
+  variant?: "columna" | "hilo";
 }) {
   const [intake, setIntake] = useState<FilaIntake | null>(null);
   const [archivos, setArchivos] = useState<ArchivoIntake[]>([]);
@@ -452,17 +455,31 @@ export function ReconocimientoPanel({
     );
   }
 
+  const contenido = (
+    <>
+      {cabecera}
+      {intake?.estado !== "propuesta_lista" && aviso ? (
+        <p className="qz-reco__aviso" role="status" aria-live="polite">
+          {aviso}
+        </p>
+      ) : null}
+      {cuerpo}
+    </>
+  );
+
+  // Embebido en la conversación (spec 2026-08-17): la propuesta aparece en el
+  // hilo, debajo del resumen de Fable — sin sección-columna propia.
+  if (variant === "hilo") {
+    return (
+      <div className="qz-reco qz-reco--hilo" aria-label="Reconocimiento del trabajo">
+        {contenido}
+      </div>
+    );
+  }
+
   return (
     <section className="qz-board" data-mobile-active={active} aria-label="Reconocimiento del trabajo">
-      <div className="qz-reco qz-panel">
-        {cabecera}
-        {intake?.estado !== "propuesta_lista" && aviso ? (
-          <p className="qz-reco__aviso" role="status" aria-live="polite">
-            {aviso}
-          </p>
-        ) : null}
-        {cuerpo}
-      </div>
+      <div className="qz-reco qz-panel">{contenido}</div>
     </section>
   );
 }

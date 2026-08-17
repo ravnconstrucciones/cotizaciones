@@ -732,6 +732,70 @@ code {
   border-radius: 99px;
 }
 
+.qz-attach:not(:disabled) {
+  cursor: pointer;
+  color: var(--qz-muted);
+}
+
+.qz-attach:hover:not(:disabled) {
+  color: var(--qz-fg);
+  border-color: var(--qz-line-strong);
+}
+
+/* Los adjuntos elegidos, antes de enviar: chips arriba del pie del composer. */
+.qz-composer__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+  list-style: none;
+  padding: 0;
+}
+
+.qz-composer__chips li {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  border: 1px solid var(--qz-line);
+  background: var(--qz-inset);
+  font-size: 0.68rem;
+  color: var(--qz-muted);
+  max-width: 100%;
+}
+
+.qz-composer__chips span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 22ch;
+}
+
+.qz-composer__chips em {
+  color: var(--qz-dim);
+  font-style: normal;
+}
+
+.qz-composer__chips button {
+  background: none;
+  border: none;
+  color: var(--qz-dim);
+  cursor: pointer;
+  font-size: 0.85rem;
+  line-height: 1;
+  padding: 0;
+}
+
+.qz-composer__chips button:hover {
+  color: var(--qz-fg);
+}
+
+/* Soltar archivos sobre la conversación: misma marca que tenía la puerta. */
+.qz-chat[data-dragging="true"] {
+  outline: 1px dashed var(--qz-line-strong);
+  outline-offset: -8px;
+}
+
 .qz-send {
   display: grid;
   place-items: center;
@@ -3290,6 +3354,47 @@ code {
   cursor: pointer;
   font-size: 0.9rem;
   line-height: 1;
+}
+
+/* El panel de reconocimiento embebido en el hilo (spec 2026-08-17). */
+.qz-thread__panel {
+  margin-top: 14px;
+  border-top: 1px solid var(--qz-line);
+  padding-top: 14px;
+}
+
+.qz-reco--hilo {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  border: 1px solid var(--qz-line);
+  background: var(--qz-inset);
+  padding: 18px 20px;
+}
+
+/* La columna derecha cuando el tablero todavía no existe. */
+.qz-estado {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  justify-content: center;
+  padding: 22px 24px;
+  height: 100%;
+}
+
+.qz-estado h2 {
+  font-size: 0.82rem;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--qz-fg);
+}
+
+.qz-estado p {
+  font-size: 0.78rem;
+  line-height: 1.55;
+  color: var(--qz-muted);
+  max-width: 48ch;
 }
 
 .qz-intake__pie,
