@@ -1,7 +1,72 @@
 # Handoff — Visor Cotizador RAVN (consola de instrumentos)
 
-**Al día:** 16/08/2026 noche · **CAZA DE ERRORES CERRADA: 4 rondas, 19 bugs,
-commit `7587657` en `origin/home-cards`, sin deploy a producción.** · **PASOS 0,
+## 🚨 LO QUE EZE QUIERE Y LA HERRAMIENTA NO HACE (17/08, madrugada) — ES EL PRÓXIMO BUILD
+
+Textual, después de entrar al visor y ver que no podía hacer nada con una OT:
+*"yo no quería eso!!! justamente lo que quería no era algo de lectura, era algo
+que le tire la OT y cotice!!! o sea tiene que reconocer rubros, artefactos a
+utilizar, maquinaria, si no de qué me sirve"*. Y antes: *"probemos de 0, yo
+tirándole un archivo de OT y él desmenuzando"*.
+
+**El malentendido de fondo, para que no se repita:** el visor se construyó como
+LABORATORIO DE LECTURA sobre cotizaciones que ya nacieron en App RAVN — decidir
+precios, comparar fuentes, elegir mano de obra, pasar el expediente. Nunca tuvo
+puerta de ENTRADA. Para Eze la herramienta empieza antes: **la cotización nace
+cuando él tira la OT.** Sin esa puerta, el visor le pide un trabajo que ya está
+hecho, y por eso dice "no me sirve". No es un pedido de feature: es el arranque
+del flujo que faltaba.
+
+**Lo que hay que construir (el brief, en sus términos):** él suelta un archivo
+de OT / relevamiento / pedido del cliente, y la herramienta **desmenuza sola**:
+
+- **rubros** (los que salgan del trabajo, no una lista fija),
+- **ítems con cantidad y unidad**,
+- **artefactos** a utilizar (los que se compran e instalan),
+- **maquinaria** y herramienta necesaria — hoy NO existe como concepto en el
+  motor: es dato nuevo, no está en `desglose.items` ni en las recetas,
+- **mano de obra** con días y cuadrilla,
+
+y de ahí sale una cotización de verdad, con precios de las fuentes que ya
+existen (SISMAT + internet, jerarquía del cotizador-maestro), que **cae en el
+visor para que él la desmenuce**: cerrar precios, cargar postulantes de MO, ver
+desvíos y hacer el pase. O sea: el visor sigue siendo lo de después — lo que
+falta es lo de antes.
+
+**Restricciones duras que condicionan el diseño (verificadas, no supuestas):**
+
+1. **`trg_cotizaciones_guard`**: ninguna cotización `en_revision`/`aprobada`/
+   `documento_emitido` puede existir sin `receta_id`. "Manual" no existe. O sea:
+   el intake tiene que **producir una receta** o dejar la cotización en
+   `borrador` hasta que la tenga. Esto no se negocia por código, lo hace cumplir
+   la base.
+2. **La maquinaria es concepto nuevo.** Antes de construir hay que decidir si es
+   un rubro, un tipo de ítem o un campo del desglose — y si se alquila o se
+   amortiza, porque eso cambia el número.
+3. **El composer del visor no escribe todavía** (no hay contrato de escritura),
+   así que la puerta de entrada es trabajo nuevo de punta a punta: subida del
+   archivo, lectura, propuesta, confirmación de Eze, creación.
+4. **Los precios NO se inventan**: salen de la maquinaria que ya existe. La IA
+   interpreta el QUÉ y las cantidades; el CUÁNTO lo pone el motor con fuente
+   fechada. Es la regla del vault ("costo mío con fuente, margen suyo").
+
+**Cómo arrancar la sesión que lo construya:** brainstorming con Eze sobre la
+puerta de entrada (qué formatos entran, qué hace la herramienta cuando el
+archivo es ambiguo, cómo confirma él lo que reconoció antes de que se cree
+nada), y recién después el plan. NO empezar a codear el parser sin eso.
+
+
+**Al día:** 17/08/2026 · **LOS 19 ARREGLOS YA ESTÁN EN PRODUCCIÓN.** Eze aprobó
+el deploy y se dispararon los dos por API sobre `48bf735` (`home-cards`,
+`target: production`): Cotizador `dpl_Erva9uaLioNMKFs5XbPq1dJwuTsF` · App RAVN
+`dpl_3o6N4biwcHhAdeLsnV1putTBWhqR`. Los dos READY. Verificado en la nube:
+cotizador **401** sin credenciales y **200** con ellas, `/api/quotes` devuelve
+las cotizaciones REALES; App RAVN `/` 307 → login, `/login` 200. **App RAVN
+también había que deployarla** — tres de los arreglos viven en su código
+(`cotizar.ts`, `mesa-merge.ts`, `vencimiento.ts`: el sellado de precios con la
+fecha de mañana). **⏭️ Lo que sigue: cotizar de verdad con Eze.**
+
+**Al día previo:** 16/08/2026 noche · **CAZA DE ERRORES CERRADA: 4 rondas, 19 bugs,
+commit `7587657` en `origin/home-cards`.** · **PASOS 0,
 1, 2, 3, EL PASE y LOS TRES PEDIDOS DEL 16/08 CERRADOS.** El cotizador está en la nube
 (https://ravn-cotizador.vercel.app, usuario `RAVN`), deja el número y el
 extracto en App RAVN con un botón, y **la mano de obra ya es un rubro propio con
@@ -253,7 +318,7 @@ cd apps/cotizador-ravn && npx tsc --noEmit && npm run lint && npm run build   # 
 ```
 
 Navegador: `pkill -f "next dev --port 3010"; rm -rf .next; COTIZADOR_PREVIEW_ENABLED=1 npm run dev`
-y entrar por `http://RAVN:APORTODO@localhost:3010/?preview=1`.
+y entrar por `http://localhost:3010/?preview=1&k=$COTIZADOR_ACCESS_KEY`.
 Para el camino REAL (sin preview) hace falta App RAVN local:
 `npx next dev --port 3000` en `Documents/ravn` y entrar sin `?preview=1`.
 **Dos cosas que valen para probar bien:** (a) `TZ=UTC npm run dev` reproduce el
@@ -310,7 +375,7 @@ caza, sigue vigente del deploy):
 `.next` pisado (404 de `main-app.js`, React sin hidratar). `pkill -f "next dev
 --port 3010"`, `rm -rf .next`, `npm run dev`. Credenciales locales `RAVN` /
 `APORTODO`, y para Playwright entra por
-`http://RAVN:APORTODO@localhost:3010/?preview=1`.
+`http://localhost:3010/?preview=1&k=$COTIZADOR_ACCESS_KEY`.
 
 "⚠️ DIRECCIÓN NUEVA" sigue siendo el brief. Los pendientes viejos (contrato de
 escritura de la conversación → adjuntos/audio/drag & drop, y sacar las rutas del
@@ -623,16 +688,24 @@ configuración, no de código:
 Preview, no prod** — mismo flujo que ya conoce, `vercel promote` o disparo por
 API.
 
-**Credenciales de basic auth — LAS ELIGIÓ EZE, 16/08 noche.** Usuario `RAVN`,
-password `APORTODO`. Reemplazan la generada de 28 chars, que él no podía
-recordar. Cargadas en Vercel (Production y Preview) y en
-`Documents/ravn/apps/cotizador-ravn/.env.local` (gitignored).
+**EL BASIC AUTH SE FUE (17/08, commit `fcf35d5`, prod
+`dpl_GsQjJ1LjourawXs5J1uj7CeUhYRq`).** Eze, textual, viendo el diálogo del
+navegador: *"basta de esto!! sacáselo!!!"*. Pedía usuario y contraseña en cada
+dispositivo y cada sesión — fricción pura en la única herramienta que él tiene
+que abrir con ganas. **`RAVN`/`APORTODO` ya no sirven** (dan 401).
 
-**Se le avisó y decidió igual, así que no volver a insistir:** `APORTODO` son 8
-letras, palabra real, sin números — en una URL pública eso cae a un ataque de
-diccionario. Se le ofreció `APORTODO777` (su número clave) como la misma
-password pero no adivinable. Si en algún momento dice que sí, es cambiar las dos
-vars en Vercel y redeployar; no hay nada más que tocar.
+Ahora se entra **por enlace**: `https://ravn-cotizador.vercel.app/?k=<llave>`.
+La llave se canjea por una cookie firmada de un año (`qz_acceso`) y **se borra de
+la URL** con un 307. Sin `WWW-Authenticate` no hay diálogo posible. La cookie es
+un HMAC-SHA256 derivado de la llave, no la llave: leerla no reconstruye el
+enlace, y **rotar `COTIZADOR_ACCESS_KEY` invalida todas las cookies vivas de
+una** — esa es la forma de "cerrarle la puerta" a un dispositivo perdido.
+
+`COTIZADOR_ACCESS_KEY` está en Vercel (`ravn-cotizador`, Production y Preview,
+marcada `sensitive` → la API la devuelve vacía) y en
+`Documents/ravn/apps/cotizador-ravn/.env.local`, que **es el único lugar legible**.
+De ahí sale el enlace para un dispositivo nuevo. `COTIZADOR_BASIC_USER` y
+`COTIZADOR_BASIC_PASSWORD` quedaron huérfanas: ningún código las lee.
 
 **Dónde vive y qué NO se puede recuperar:** las dos vars están marcadas
 `sensitive` en Vercel, así que la API las devuelve vacías — el único lugar

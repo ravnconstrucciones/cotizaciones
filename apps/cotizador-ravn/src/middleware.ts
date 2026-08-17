@@ -21,7 +21,7 @@ html,body{margin:0;height:100%;background:#070707;color:#f2efe8;
 font-family:Raleway,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;font-weight:300}
 main{height:100%;display:flex;flex-direction:column;justify-content:center;padding:0 8vw;gap:1.5rem}
 .wordmark{font-size:0.92rem;letter-spacing:0.517em;font-weight:300}
-p{margin:0;max-width:44ch;line-height:1.7;color:#f2efe8;opacity:.72;font-size:0.8rem}
+p{margin:0;max-width:44ch;line-height:1.7;color:#f2efe8;opacity:.72;font-size:0.75rem}
 </style></head><body><main>
 <div class="wordmark">RAVN.</div><p>${mensaje}</p></main></body></html>`;
 
