@@ -127,8 +127,12 @@ export function validarPropuesta(
   if (!Array.isArray(p.fuentes) || p.fuentes.length === 0) return mal("sin fuentes");
   for (const f of p.fuentes) {
     if (!esTexto(f?.titulo) || !esFechaIso(f?.fecha)) return mal("fuente sin titulo o fecha");
+    // Tipo fuera del enum → "obra": la ley 1 exige título y fecha reales; el
+    // tipo es clasificación. Una ola entera no se tira porque el modelo
+    // escribió "cliente" o "texto" — el título dice de dónde salió igual.
+    // (Pasó en la primera ola real, 17/08: "Texto de Eze" con tipo inventado.)
     if (f.tipo !== "obra" && f.tipo !== "internet" && f.tipo !== "tarifario") {
-      return mal(`fuente "${f.titulo}": tipo inválido`);
+      f.tipo = "obra";
     }
   }
   return { ok: true, propuesta: p };

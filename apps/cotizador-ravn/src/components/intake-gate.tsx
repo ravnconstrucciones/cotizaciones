@@ -132,7 +132,7 @@ export function IntakeGate({
   const crear = async () => {
     const tituloFinal = titulo.trim() || texto.trim().slice(0, 60);
     if (!tituloFinal) {
-      setAviso("Poné un título o algo de texto: sin eso no hay laburo que nombrar.");
+      setAviso("Poné un título o algo de texto: sin eso no hay trabajo que nombrar.");
       return;
     }
     if (archivos.length === 0 && !texto.trim()) {
@@ -202,7 +202,7 @@ export function IntakeGate({
         </header>
 
         <label className="qz-intake__campo">
-          <span>Título del laburo</span>
+          <span>Título del trabajo</span>
           <input
             type="text"
             value={titulo}

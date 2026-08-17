@@ -72,16 +72,21 @@ describe("validarPropuesta", () => {
     expect(validarPropuesta(p).ok).toBe(false);
   });
 
-  it("rebota artefacto fuera de material y fuente de tipo desconocido", () => {
+  it("rebota artefacto fuera de material", () => {
     const conArtefactoMalo = structuredClone(propuestaOk);
     conArtefactoMalo.rubros[0].items[0].artefacto = true; // es mano_de_obra
     expect(validarPropuesta(conArtefactoMalo).ok).toBe(false);
+  });
 
-    const conFuenteMala = structuredClone(propuestaOk) as unknown as {
+  it("una fuente con tipo fuera del enum se normaliza a obra en vez de tirar la ola", () => {
+    // Pasó en la primera ola real (17/08): "Texto de Eze" con tipo inventado.
+    const conFuenteRara = structuredClone(propuestaOk) as unknown as {
       fuentes: { tipo: string }[];
     };
-    conFuenteMala.fuentes[0].tipo = "memoria";
-    expect(validarPropuesta(conFuenteMala).ok).toBe(false);
+    conFuenteRara.fuentes[0].tipo = "memoria";
+    const res = validarPropuesta(conFuenteRara);
+    expect(res.ok).toBe(true);
+    if (res.ok) expect(res.propuesta.fuentes[0].tipo).toBe("obra");
   });
 });
 

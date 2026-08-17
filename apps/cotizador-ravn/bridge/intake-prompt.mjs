@@ -35,5 +35,6 @@ SALIDA: tu último mensaje debe contener UN solo bloque \`\`\`json con exactamen
   "preguntas_abiertas": ["…"],
   "fuentes": [{"titulo": "OT adjunta", "tipo": "obra", "fecha": "${hoy}"}]
 }
+En "fuentes", el campo "tipo" acepta SOLO "obra" (archivos y texto de Eze), "internet" (lo que buscaste) o "tarifario".
 Los campos opcionales (modalidad, artefacto, precio_referencia, notas, dias_*, cuadrilla) se OMITEN si no aplican — no van en null.`;
 }

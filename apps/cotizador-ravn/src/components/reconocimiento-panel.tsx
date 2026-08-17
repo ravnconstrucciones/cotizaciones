@@ -164,7 +164,7 @@ export function ReconocimientoPanel({
 
   const cabecera = (
     <header className="qz-reco__head">
-      <h2>Reconocimiento del laburo</h2>
+      <h2>Reconocimiento del trabajo</h2>
       {archivos.length > 0 ? (
         <ul className="qz-reco__archivos">
           {archivos.map((archivo) => (
@@ -453,7 +453,7 @@ export function ReconocimientoPanel({
   }
 
   return (
-    <section className="qz-board" data-mobile-active={active} aria-label="Reconocimiento del laburo">
+    <section className="qz-board" data-mobile-active={active} aria-label="Reconocimiento del trabajo">
       <div className="qz-reco qz-panel">
         {cabecera}
         {intake?.estado !== "propuesta_lista" && aviso ? (
