@@ -3309,7 +3309,6 @@ code {
 }
 
 .qz-intake__campo span,
-.qz-reco__preguntas h3,
 .qz-reco__grupo h3 {
   font-size: 0.62rem;
   font-weight: 600;
@@ -3320,7 +3319,6 @@ code {
 
 .qz-intake__campo input,
 .qz-intake__campo textarea,
-.qz-reco__preguntas input,
 .qz-reco__rubro-nombre,
 .qz-reco__items input,
 .qz-reco__items select {
@@ -3334,7 +3332,6 @@ code {
 
 .qz-intake__campo input:focus-visible,
 .qz-intake__campo textarea:focus-visible,
-.qz-reco__preguntas input:focus-visible,
 .qz-reco__rubro-nombre:focus-visible,
 .qz-reco__items input:focus-visible,
 .qz-reco__items select:focus-visible {
@@ -3390,20 +3387,90 @@ code {
   line-height: 1;
 }
 
-/* El panel de reconocimiento embebido en el hilo (spec 2026-08-17). */
-.qz-thread__panel {
-  margin-top: 14px;
-  border-top: 1px solid var(--qz-line);
-  padding-top: 14px;
+/* Checklist de preguntas de la ola en el rail derecho (spec 2026-08-17
+   reconocimiento-tres-columnas): una por fila, orden estable, tilde al
+   responder. Nada salta, nada marea. */
+.qz-check__progreso {
+  font-size: 0.62rem;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--qz-dim);
 }
 
-.qz-reco--hilo {
+.qz-check {
   display: flex;
   flex-direction: column;
-  gap: 14px;
-  border: 1px solid var(--qz-line);
+  gap: 10px;
+  list-style: none;
+}
+
+.qz-check li {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  border: 1px solid rgb(211 168 98 / 0.4);
+  padding: 10px 12px;
+}
+
+.qz-check li[data-done="true"] {
+  border-color: var(--qz-line);
+}
+
+.qz-check li[data-done="true"] > label > span {
+  color: var(--qz-dim);
+}
+
+.qz-check__marca {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  margin-top: 1px;
+  border: 1px solid var(--qz-line-strong);
+  font-size: 0.62rem;
+  color: var(--qz-dim);
+}
+
+.qz-check li[data-done="true"] .qz-check__marca {
+  border-color: var(--qz-fg);
+  color: var(--qz-fg);
+}
+
+.qz-check li > label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex: 1;
+  min-width: 0;
+}
+
+.qz-check li > label > span {
+  font-size: 0.78rem;
+  line-height: 1.45;
+  color: var(--qz-fg);
+}
+
+.qz-check li > label > input {
   background: var(--qz-inset);
-  padding: 18px 20px;
+  border: 1px solid var(--qz-line);
+  color: var(--qz-fg);
+  font: inherit;
+  font-size: 0.8rem;
+  padding: 7px 9px;
+}
+
+.qz-check li > label > input:focus-visible {
+  outline: 1px solid var(--qz-focus);
+  outline-offset: 0;
+}
+
+.qz-check__nota {
+  font-size: 0.72rem;
+  line-height: 1.5;
+  color: var(--qz-dim);
 }
 
 /* La columna derecha cuando el tablero todavía no existe. */
@@ -3654,23 +3721,3 @@ code {
   color: var(--qz-muted);
 }
 
-.qz-reco__preguntas {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  border: 1px solid rgb(211 168 98 / 0.4);
-  padding: 12px 14px;
-}
-
-.qz-reco__preguntas label {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.qz-reco__preguntas label span {
-  font-size: 0.78rem;
-  letter-spacing: 0;
-  text-transform: none;
-  color: var(--qz-fg);
-}

@@ -1,21 +1,24 @@
 "use client";
 
-import { Check, Plus, RefreshCw, Trash2 } from "lucide-react";
-import { useCallback, useEffect, useState, type ReactNode } from "react";
+import { Check, ChevronsRight, Plus, RefreshCw, Trash2 } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type {
   PropuestaItem,
   PropuestaReconocimiento,
 } from "../bridge/intake-contract";
 import { apiUrl } from "../lib/api-url";
 import { despacharOla } from "../lib/intake-client";
-import type { BridgeConfig, BridgeHealth } from "./live-terminals";
+import { LiveTerminals, type BridgeConfig, type BridgeHealth } from "./live-terminals";
 
 /**
- * El PANEL DE RECONOCIMIENTO (spec 2026-08-17): lo que la ola desmenuzó,
- * editable por Eze. Antes de su confirmación NO existe receta ni cotización
- * activa — este panel es el único camino del borrador al número. Cada dato
- * muestra su origen; lo ambiguo está en preguntas; nada se muestra como
- * "desmenuzando" si el bridge está caído (regla anti-slop).
+ * El momento RECONOCIMIENTO en tres columnas (spec 2026-08-17
+ * reconocimiento-tres-columnas): la conversación solo orquesta; lo que la ola
+ * asumió —con origen y precio de referencia— vive en el tablero del MEDIO,
+ * siempre vivo (banda de terminales mientras la ola mastica); las preguntas
+ * van al rail DERECHO como checklist inline. Antes de la confirmación de Eze
+ * NO existe receta ni cotización activa — el pie del tablero es el único
+ * camino del borrador al número. Nada se muestra como "desmenuzando" si el
+ * bridge está caído (regla anti-slop).
  */
 
 type FilaIntake = {
@@ -30,21 +33,24 @@ type ArchivoIntake = { id: string; titulo: string | null; url: string | null };
 const UNIDADES = ["m2", "ml", "u", "kg", "l", "bolsa", "caja", "m3", "rollo", "dia", "global"];
 const POLL_MS = 5_000;
 
-export function ReconocimientoPanel({
+export type Reconocimiento = ReturnType<typeof useReconocimiento>;
+
+/**
+ * Estado y acciones del reconocimiento, compartidos por el tablero del medio
+ * y el checklist del rail. La instancia vive en ControlCenter: las dos
+ * columnas ven LA MISMA propuesta y las mismas respuestas.
+ */
+export function useReconocimiento({
   quoteId,
   bridge,
-  health,
-  active,
+  activo,
   onConfirmada,
-  variant = "columna",
 }: {
   quoteId: string;
   bridge: BridgeConfig | null;
-  health: BridgeHealth;
-  active: boolean;
+  /** Solo en momento reconocimiento se lee y se pollea — en charla/entrada no. */
+  activo: boolean;
   onConfirmada: () => void;
-  /** "columna" = sección propia (histórico) · "hilo" = embebido en la conversación. */
-  variant?: "columna" | "hilo";
 }) {
   const [intake, setIntake] = useState<FilaIntake | null>(null);
   const [archivos, setArchivos] = useState<ArchivoIntake[]>([]);
@@ -80,43 +86,68 @@ export function ReconocimientoPanel({
     setRespuestas({});
     setAviso(null);
     setCargado(false);
-    void leer();
-  }, [leer]);
+    hidratadaDe.current = null;
+    if (activo) void leer();
+  }, [leer, activo]);
 
-  // Mientras la ola trabaja, el panel espera el resultado persistido.
+  // Mientras la ola trabaja, se espera el resultado persistido.
   useEffect(() => {
-    if (intake?.estado !== "esperando_ola") return;
+    if (!activo || intake?.estado !== "esperando_ola") return;
     const timer = window.setInterval(() => {
       if (document.visibilityState === "visible") void leer();
     }, POLL_MS);
     return () => window.clearInterval(timer);
-  }, [intake?.estado, leer]);
+  }, [activo, intake?.estado, leer]);
 
-  // La propuesta pasa a estado local editable UNA vez, cuando llega.
+  // La propuesta pasa a estado local editable cuando llega — y se REEMPLAZA
+  // si una ola relanzada (charlando a la izquierda) persiste una distinta. Se
+  // compara contra lo último hidratado, no contra las ediciones locales de
+  // Eze: sus cambios a mano nunca se pisan por releer lo mismo.
+  const hidratadaDe = useRef<string | null>(null);
   useEffect(() => {
-    if (propuesta || intake?.estado !== "propuesta_lista" || !intake.propuesta) return;
+    if (intake?.estado !== "propuesta_lista" || !intake.propuesta) return;
+    const cruda = JSON.stringify(intake.propuesta);
+    if (hidratadaDe.current === cruda) return;
+    hidratadaDe.current = cruda;
     setPropuesta(structuredClone(intake.propuesta) as PropuestaReconocimiento);
-  }, [intake, propuesta]);
+    setRespuestas({});
+  }, [intake]);
 
-  const relanzar = async () => {
+  const relanzar = useCallback(async () => {
     setAviso("Relanzando la ola…");
     const r = await despacharOla(quoteId, bridge);
     setAviso(r.mensaje);
     if (r.ok) {
       setIntake((actual) => (actual ? { ...actual, estado: "esperando_ola", error: null } : actual));
     }
-  };
+  }, [quoteId, bridge]);
 
-  const editarItem = (r: number, i: number, cambios: Partial<PropuestaItem>) => {
-    setPropuesta((actual) => {
-      if (!actual) return actual;
-      const proxima = structuredClone(actual);
-      proxima.rubros[r].items[i] = { ...proxima.rubros[r].items[i], ...cambios };
-      return proxima;
-    });
-  };
+  const mutarPropuesta = useCallback(
+    (mutacion: (proxima: PropuestaReconocimiento) => void) => {
+      setPropuesta((actual) => {
+        if (!actual) return actual;
+        const proxima = structuredClone(actual);
+        mutacion(proxima);
+        return proxima;
+      });
+    },
+    []
+  );
 
-  const confirmar = async () => {
+  const editarItem = useCallback(
+    (r: number, i: number, cambios: Partial<PropuestaItem>) => {
+      mutarPropuesta((proxima) => {
+        proxima.rubros[r].items[i] = { ...proxima.rubros[r].items[i], ...cambios };
+      });
+    },
+    [mutarPropuesta]
+  );
+
+  const responder = useCallback((indice: number, valor: string) => {
+    setRespuestas((actual) => ({ ...actual, [indice]: valor }));
+  }, []);
+
+  const confirmar = useCallback(async () => {
     if (!propuesta || confirmando) return;
     setConfirmando(true);
     setAviso("Confirmando: receta candidata + precios del motor…");
@@ -133,7 +164,9 @@ export function ReconocimientoPanel({
       const cuerpo = {
         propuesta: {
           ...propuesta,
-          resumen: resumenExtra ? `${propuesta.resumen} · Respuestas de Eze: ${resumenExtra}` : propuesta.resumen,
+          resumen: resumenExtra
+            ? `${propuesta.resumen} · Respuestas de Eze: ${resumenExtra}`
+            : propuesta.resumen,
           preguntas_abiertas: finales,
         },
       };
@@ -163,7 +196,62 @@ export function ReconocimientoPanel({
       setAviso(error instanceof Error ? error.message : "La confirmación no entró.");
       setConfirmando(false);
     }
+  }, [propuesta, confirmando, respuestas, quoteId, onConfirmada]);
+
+  const preguntas = propuesta?.preguntas_abiertas ?? [];
+  const sinResponder = preguntas.filter((_, i) => !respuestas[i]?.trim()).length;
+
+  return {
+    intake,
+    archivos,
+    cargado,
+    propuesta,
+    respuestas,
+    aviso,
+    confirmando,
+    preguntas,
+    sinResponder,
+    leer,
+    relanzar,
+    mutarPropuesta,
+    editarItem,
+    responder,
+    confirmar,
   };
+}
+
+/* ------------------------------------------------------- tablero del medio */
+
+/**
+ * La mesa de trabajo del reconocimiento: lo que la ola asumió, editable, con
+ * la banda de terminales al pie — la ola se VE trabajar acá, no en un cartel.
+ */
+export function RecoBoard({
+  reco,
+  bridge,
+  health,
+  active,
+  onHealth,
+  onWaveResult,
+}: {
+  reco: Reconocimiento;
+  bridge: BridgeConfig | null;
+  health: BridgeHealth;
+  active: boolean;
+  onHealth: (health: BridgeHealth) => void;
+  onWaveResult?: (text: string) => void;
+}) {
+  const { intake, archivos, cargado, propuesta, aviso, leer } = reco;
+
+  // Al terminar la ola de intake, la propuesta ya está persistida: se relee al
+  // toque en vez de esperar el próximo poll de 5 segundos.
+  const alResultado = useCallback(
+    (text: string) => {
+      onWaveResult?.(text);
+      void leer();
+    },
+    [onWaveResult, leer]
+  );
 
   const cabecera = (
     <header className="qz-reco__head">
@@ -187,7 +275,7 @@ export function ReconocimientoPanel({
     </header>
   );
 
-  let cuerpo: ReactNode;
+  let cuerpo: React.ReactNode;
   if (!cargado) {
     cuerpo = <p className="qz-reco__estado">Leyendo el estado de la puerta…</p>;
   } else if (!intake) {
@@ -206,12 +294,15 @@ export function ReconocimientoPanel({
               <strong>Bridge apagado: la ola NO está corriendo.</strong> El borrador y los archivos
               persisten — levantá el bridge (<code>npm run bridge</code>) y relanzá.
             </p>
-            <button type="button" className="qz-reco__accion" onClick={() => void relanzar()}>
+            <button type="button" className="qz-reco__accion" onClick={() => void reco.relanzar()}>
               <RefreshCw size={14} aria-hidden="true" /> Relanzar la ola
             </button>
           </>
         ) : (
-          <p>La ola está desmenuzando — mirala trabajar en la banda de abajo. Esto se actualiza solo.</p>
+          <p>
+            La ola está desmenuzando el trabajo — mirala en la banda de abajo. Cuando termine, acá
+            aparece lo que asumió y a la derecha lo que te pregunta.
+          </p>
         )}
       </div>
     );
@@ -221,7 +312,7 @@ export function ReconocimientoPanel({
         <p>
           <strong>La ola no pudo desmenuzar:</strong> {intake.error ?? "motivo desconocido"}
         </p>
-        <button type="button" className="qz-reco__accion" onClick={() => void relanzar()}>
+        <button type="button" className="qz-reco__accion" onClick={() => void reco.relanzar()}>
           <RefreshCw size={14} aria-hidden="true" /> Relanzar la ola
         </button>
       </div>
@@ -231,7 +322,9 @@ export function ReconocimientoPanel({
   } else if (!propuesta) {
     cuerpo = <p className="qz-reco__estado">La propuesta llegó pero no se pudo leer — recargá.</p>;
   } else {
-    const maquinaria = propuesta.rubros.flatMap((rubro) => rubro.items.filter((i) => i.tipo === "maquinaria"));
+    const maquinaria = propuesta.rubros.flatMap((rubro) =>
+      rubro.items.filter((i) => i.tipo === "maquinaria")
+    );
     const artefactos = propuesta.rubros.flatMap((rubro) => rubro.items.filter((i) => i.artefacto));
     cuerpo = (
       <div className="qz-reco__cuerpo">
@@ -245,11 +338,8 @@ export function ReconocimientoPanel({
                 value={rubro.nombre}
                 aria-label={`Nombre del rubro ${r + 1}`}
                 onChange={(event) =>
-                  setPropuesta((actual) => {
-                    if (!actual) return actual;
-                    const proxima = structuredClone(actual);
+                  reco.mutarPropuesta((proxima) => {
                     proxima.rubros[r].nombre = event.target.value;
-                    return proxima;
                   })
                 }
               />
@@ -264,11 +354,8 @@ export function ReconocimientoPanel({
                 aria-label={`Sacar el rubro ${rubro.nombre}`}
                 title="Sacar rubro"
                 onClick={() =>
-                  setPropuesta((actual) => {
-                    if (!actual) return actual;
-                    const proxima = structuredClone(actual);
+                  reco.mutarPropuesta((proxima) => {
                     proxima.rubros.splice(r, 1);
-                    return proxima;
                   })
                 }
               >
@@ -283,14 +370,14 @@ export function ReconocimientoPanel({
                     className="qz-reco__item-nombre"
                     value={item.nombre}
                     aria-label="Nombre del ítem"
-                    onChange={(event) => editarItem(r, i, { nombre: event.target.value })}
+                    onChange={(event) => reco.editarItem(r, i, { nombre: event.target.value })}
                   />
                   <select
                     value={item.tipo}
                     aria-label="Tipo"
                     onChange={(event) => {
                       const tipo = event.target.value as PropuestaItem["tipo"];
-                      editarItem(r, i, {
+                      reco.editarItem(r, i, {
                         tipo,
                         modalidad: tipo === "maquinaria" ? (item.modalidad ?? "alquiler") : undefined,
                         artefacto: tipo === "material" ? item.artefacto : undefined,
@@ -306,7 +393,9 @@ export function ReconocimientoPanel({
                       value={item.modalidad ?? "alquiler"}
                       aria-label="Modalidad de maquinaria"
                       onChange={(event) =>
-                        editarItem(r, i, { modalidad: event.target.value as "alquiler" | "propia" })
+                        reco.editarItem(r, i, {
+                          modalidad: event.target.value as "alquiler" | "propia",
+                        })
                       }
                     >
                       <option value="alquiler">alquiler (suma)</option>
@@ -321,13 +410,13 @@ export function ReconocimientoPanel({
                     aria-label="Cantidad"
                     onChange={(event) => {
                       const cantidad = Number(event.target.value);
-                      if (Number.isFinite(cantidad)) editarItem(r, i, { cantidad });
+                      if (Number.isFinite(cantidad)) reco.editarItem(r, i, { cantidad });
                     }}
                   />
                   <select
                     value={UNIDADES.includes(item.unidad) ? item.unidad : "u"}
                     aria-label="Unidad"
-                    onChange={(event) => editarItem(r, i, { unidad: event.target.value })}
+                    onChange={(event) => reco.editarItem(r, i, { unidad: event.target.value })}
                   >
                     {UNIDADES.map((u) => (
                       <option key={u} value={u}>
@@ -343,7 +432,10 @@ export function ReconocimientoPanel({
                     {item.origen.fuente}
                   </span>
                   {item.precio_referencia ? (
-                    <span className="qz-reco__precio-ref" title={`Visto en ${item.precio_referencia.fuente} el ${item.precio_referencia.fecha}`}>
+                    <span
+                      className="qz-reco__precio-ref"
+                      title={`Visto en ${item.precio_referencia.fuente} el ${item.precio_referencia.fecha}`}
+                    >
                       ref ${item.precio_referencia.valor.toLocaleString("es-AR")}
                     </span>
                   ) : null}
@@ -352,12 +444,9 @@ export function ReconocimientoPanel({
                     aria-label={`Sacar ${item.nombre}`}
                     title="Sacar ítem"
                     onClick={() =>
-                      setPropuesta((actual) => {
-                        if (!actual) return actual;
-                        const proxima = structuredClone(actual);
+                      reco.mutarPropuesta((proxima) => {
                         proxima.rubros[r].items.splice(i, 1);
                         if (proxima.rubros[r].items.length === 0) proxima.rubros.splice(r, 1);
-                        return proxima;
                       })
                     }
                   >
@@ -371,9 +460,7 @@ export function ReconocimientoPanel({
               type="button"
               className="qz-reco__agregar"
               onClick={() =>
-                setPropuesta((actual) => {
-                  if (!actual) return actual;
-                  const proxima = structuredClone(actual);
+                reco.mutarPropuesta((proxima) => {
                   proxima.rubros[r].items.push({
                     nombre: "Ítem nuevo",
                     tipo: "material",
@@ -381,7 +468,6 @@ export function ReconocimientoPanel({
                     cantidad: 1,
                     origen: { fuente: "agregado por Eze", confianza: "verificado" },
                   });
-                  return proxima;
                 })
               }
             >
@@ -417,69 +503,129 @@ export function ReconocimientoPanel({
           </aside>
         ) : null}
 
-        {propuesta.preguntas_abiertas.length > 0 ? (
-          <section className="qz-reco__preguntas">
-            <h3>Lo que la ola no pudo determinar</h3>
-            {propuesta.preguntas_abiertas.map((pregunta, i) => (
-              <label key={i}>
-                <span>{pregunta}</span>
-                <input
-                  type="text"
-                  placeholder="Respondé acá (o dejala abierta: sigue como duda de la cotización)"
-                  value={respuestas[i] ?? ""}
-                  onChange={(event) =>
-                    setRespuestas((actual) => ({ ...actual, [i]: event.target.value }))
-                  }
-                />
-              </label>
-            ))}
-          </section>
-        ) : null}
-
         <footer className="qz-reco__pie">
           <p role="status" aria-live="polite">
             {aviso ??
-              "Revisá cantidades y rubros: al confirmar se crea la receta candidata y el motor pone los precios."}
+              (reco.sinResponder > 0
+                ? `Quedan ${reco.sinResponder} pregunta(s) a la derecha — respondelas o dejalas como dudas y confirmá.`
+                : "Revisá cantidades y rubros: al confirmar se crea la receta candidata y el motor pone los precios.")}
           </p>
           <button
             type="button"
             className="qz-send qz-reco__confirmar"
-            disabled={confirmando || propuesta.rubros.length === 0}
-            onClick={() => void confirmar()}
+            disabled={reco.confirmando || propuesta.rubros.length === 0}
+            onClick={() => void reco.confirmar()}
           >
             <Check size={15} aria-hidden="true" />
-            {confirmando ? "Confirmando…" : "Confirmar y cotizar"}
+            {reco.confirmando ? "Confirmando…" : "Confirmar y cotizar"}
           </button>
         </footer>
       </div>
     );
   }
 
-  const contenido = (
-    <>
-      {cabecera}
-      {intake?.estado !== "propuesta_lista" && aviso ? (
-        <p className="qz-reco__aviso" role="status" aria-live="polite">
-          {aviso}
-        </p>
-      ) : null}
-      {cuerpo}
-    </>
-  );
-
-  // Embebido en la conversación (spec 2026-08-17): la propuesta aparece en el
-  // hilo, debajo del resumen de Fable — sin sección-columna propia.
-  if (variant === "hilo") {
-    return (
-      <div className="qz-reco qz-reco--hilo" aria-label="Reconocimiento del trabajo">
-        {contenido}
-      </div>
-    );
-  }
-
   return (
     <section className="qz-board" data-mobile-active={active} aria-label="Reconocimiento del trabajo">
-      <div className="qz-reco qz-panel">{contenido}</div>
+      <div className="qz-reco qz-panel">
+        {cabecera}
+        {intake?.estado !== "propuesta_lista" && aviso ? (
+          <p className="qz-reco__aviso" role="status" aria-live="polite">
+            {aviso}
+          </p>
+        ) : null}
+        {cuerpo}
+      </div>
+      <LiveTerminals bridge={bridge} request={null} onHealth={onHealth} onWaveResult={alResultado} />
+    </section>
+  );
+}
+
+/* ------------------------------------------------------- checklist del rail */
+
+/**
+ * Las preguntas de la ola como checklist del rail derecho: una por fila, campo
+ * de respuesta inline, tilde al responder. El orden NO cambia al tipear (nada
+ * salta, nada marea); el contador de arriba dice cuántas faltan. Las vacías
+ * siguen como dudas de la cotización al confirmar.
+ */
+export function RecoDecisiones({
+  reco,
+  active,
+  onFold,
+}: {
+  reco: Reconocimiento;
+  active: boolean;
+  onFold: () => void;
+}) {
+  const { intake, preguntas, respuestas, sinResponder } = reco;
+  const respondidas = preguntas.length - sinResponder;
+
+  return (
+    <section
+      className="qz-decisions qz-panel"
+      data-mobile-active={active}
+      aria-labelledby="decisions-title"
+    >
+      <header className="qz-decisions__head">
+        <button
+          type="button"
+          className="qz-decisions__fold"
+          onClick={onFold}
+          aria-label="Plegar lo que falta decidir"
+          title="Plegar y dejarle la pantalla al tablero"
+        >
+          <ChevronsRight size={14} aria-hidden="true" />
+        </button>
+        <h2 id="decisions-title">Lo que falta decidir</h2>
+        <span className="qz-decisions__count" data-alert={sinResponder > 0}>
+          {sinResponder}
+        </span>
+      </header>
+
+      <div className="qz-decisions__scroll">
+        {preguntas.length > 0 ? (
+          <>
+            <p className="qz-check__progreso" role="status" aria-live="polite">
+              {respondidas} de {preguntas.length} respondidas
+            </p>
+            <ol className="qz-check">
+              {preguntas.map((pregunta, i) => {
+                const hecha = Boolean(respuestas[i]?.trim());
+                return (
+                  <li key={i} data-done={hecha}>
+                    <span className="qz-check__marca" aria-hidden="true">
+                      {hecha ? <Check size={12} /> : i + 1}
+                    </span>
+                    <label>
+                      <span>{pregunta}</span>
+                      <input
+                        type="text"
+                        placeholder="Respondé corto acá"
+                        value={respuestas[i] ?? ""}
+                        onChange={(event) => reco.responder(i, event.target.value)}
+                      />
+                    </label>
+                  </li>
+                );
+              })}
+            </ol>
+            <p className="qz-check__nota">
+              Las que dejes vacías siguen como dudas de la cotización. También podés contestarlas
+              charlando a la izquierda.
+            </p>
+          </>
+        ) : intake?.estado === "esperando_ola" ? (
+          <p className="qz-decisions__clear">
+            La ola está desmenuzando — cuando termine, sus preguntas aparecen acá.
+          </p>
+        ) : intake?.estado === "error" ? (
+          <p className="qz-decisions__clear">
+            La ola falló — relanzala desde el tablero del medio.
+          </p>
+        ) : (
+          <p className="qz-decisions__clear">La ola no dejó preguntas: todo asumido con fuente.</p>
+        )}
+      </div>
     </section>
   );
 }

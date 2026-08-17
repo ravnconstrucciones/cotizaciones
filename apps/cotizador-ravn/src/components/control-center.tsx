@@ -27,7 +27,6 @@ import {
   type CSSProperties,
   type FormEvent,
   type PointerEvent as ReactPointerEvent,
-  type ReactNode,
   type RefObject,
 } from "react";
 import type {
@@ -87,7 +86,7 @@ import {
   type WaveRequest,
 } from "./live-terminals";
 import { RavnIso } from "./ravn-iso";
-import { ReconocimientoPanel } from "./reconocimiento-panel";
+import { RecoBoard, RecoDecisiones, useReconocimiento } from "./reconocimiento-panel";
 import { RavnMark3D } from "./ravn-mark-3d";
 
 type ControlCenterData = {
@@ -274,6 +273,19 @@ export function ControlCenter({
     legacyState: snapshot.quote.legacyState,
     preview,
   });
+  // Reconocimiento en tres columnas (spec 2026-08-17): el estado de la
+  // propuesta vive acá arriba para que el tablero del medio y el checklist del
+  // rail vean LA MISMA cosa. `loadQuote` se define más abajo — ref mediante.
+  const loadQuoteRef = useRef<(id: string, announce?: boolean) => Promise<void>>(async () => {});
+  const recoQuoteId = snapshot.quote.id;
+  const reco = useReconocimiento({
+    quoteId: recoQuoteId,
+    bridge,
+    activo: momento === "reconocimiento",
+    onConfirmada: useCallback(() => {
+      void loadQuoteRef.current(recoQuoteId);
+    }, [recoQuoteId]),
+  });
   const agregarArchivos = useCallback((nuevos: FileList | File[]) => {
     const lista = Array.from(nuevos).filter((f) => f.size > 0);
     if (lista.length > 0) setArchivos((current) => [...current, ...lista]);
@@ -294,7 +306,12 @@ export function ControlCenter({
           ),
     [snapshot, decided, entrada]
   );
-  const pending = entrada ? 0 : queue.length + snapshot.decision.questions.length;
+  // En reconocimiento lo pendiente son las preguntas de la ola sin responder.
+  const pending = entrada
+    ? 0
+    : momento === "reconocimiento"
+      ? reco.sinResponder
+      : queue.length + snapshot.decision.questions.length;
   const snapshotDecision = useMemo(
     () =>
       entrada
@@ -619,6 +636,10 @@ export function ControlCenter({
   );
 
   useEffect(() => {
+    loadQuoteRef.current = loadQuote;
+  }, [loadQuote]);
+
+  useEffect(() => {
     // En la ENTRADA no se refresca nada: el snapshot de fondo es de otro
     // expediente y el poll reescribía la URL (?quote=) estando en la puerta.
     if (preview || entrada) return;
@@ -654,13 +675,6 @@ export function ControlCenter({
   const noteWave = useCallback((message: string) => setComposerNotice(message), []);
 
   /**
-   * El tablero (y con él la banda que despacha olas) solo está montado fuera
-   * de la puerta de entrada y del reconocimiento. Si no está, la charla igual
-   * persiste — pero no hay quién lance la ola, y eso se dice.
-   */
-  const boardLive = momento === "charla";
-
-  /**
    * La respuesta de la charla entra al hilo DESPUÉS del "Ola terminada" (la
    * persiste el alTerminar del bridge). Refrescar en el primer result llega
    * temprano: se espera al último con un debounce corto y se relee en silencio.
@@ -689,13 +703,13 @@ export function ControlCenter({
    * el aviso lo dice. En preview se mantiene la demostración local de siempre.
    */
   /**
-   * La lámpara del bridge la alimenta LiveTerminals — que vive en el tablero.
-   * En entrada y reconocimiento el tablero NO está montado, y `health` quedaba
-   * clavado en "off": el panel decía "Bridge apagado" mientras la ola corría.
-   * Acá se consulta el mismo /health con el mismo criterio.
+   * La lámpara del bridge la alimenta LiveTerminals — que en charla vive en el
+   * tablero y en reconocimiento en el RecoBoard del medio. Solo en la ENTRADA
+   * no hay banda montada: acá se consulta el mismo /health con el mismo
+   * criterio para que la lámpara no quede clavada en "off".
    */
   useEffect(() => {
-    if (momento === "charla" || !bridge) return;
+    if (momento !== "entrada" || !bridge) return;
     let cancelled = false;
     const check = async () => {
       try {
@@ -1073,9 +1087,7 @@ export function ControlCenter({
         data-rail={railOpen ? "open" : "closed"}
         style={
           {
-            // Con el panel de reconocimiento embebido en el hilo, la columna
-            // de conversación necesita aire: piso de 520px (sigue arrastrable).
-            "--qz-chat-w": `${momento === "reconocimiento" ? Math.max(chatWidth, 520) : chatWidth}px`,
+            "--qz-chat-w": `${chatWidth}px`,
             "--qz-rail-w": railOpen ? `${railWidth}px` : `${RAIL_FOLDED}px`,
           } as CSSProperties
         }
@@ -1097,18 +1109,6 @@ export function ControlCenter({
           archivos={archivos}
           onArchivos={agregarArchivos}
           onQuitarArchivo={quitarArchivo}
-          panel={
-            momento === "reconocimiento" ? (
-              <ReconocimientoPanel
-                quoteId={snapshot.quote.id}
-                bridge={bridge}
-                health={health}
-                active
-                variant="hilo"
-                onConfirmada={() => void loadQuote(snapshot.quote.id)}
-              />
-            ) : undefined
-          }
         />
 
         <Splitter
@@ -1120,15 +1120,20 @@ export function ControlCenter({
           label="Ancho de la conversación"
         />
 
-        {momento !== "charla" ? (
+        {momento === "entrada" ? (
           <EstadoColumna
             active={mobileTab === "tablero"}
-            titulo={momento === "entrada" ? "Nueva cotización" : snapshot.quote.title}
-            detalle={
-              momento === "entrada"
-                ? "El expediente nace en la conversación: tirá la OT en la caja de al lado."
-                : "La propuesta se trabaja en la conversación. El tablero se enciende al confirmar el reconocimiento."
-            }
+            titulo="Nueva cotización"
+            detalle="El expediente nace en la conversación: tirá la OT en la caja de al lado."
+          />
+        ) : momento === "reconocimiento" ? (
+          <RecoBoard
+            reco={reco}
+            bridge={bridge}
+            health={health}
+            active={mobileTab === "tablero"}
+            onHealth={setHealth}
+            onWaveResult={scheduleThreadRefresh}
           />
         ) : (
         <BoardColumn
@@ -1168,18 +1173,26 @@ export function ControlCenter({
           label="Ancho del rail de decisión"
         />
 
-        <DecisionColumn
-          snapshot={snapshotDecision}
-          queue={queue}
-          pending={pending}
-          active={mobileTab === "decidir"}
-          reduceMotion={reduceMotion}
-          onAnswer={answerInConversation}
-          onFocusItem={setFocusedItem}
-          focusedItem={focusedItem}
-          onFold={() => setRailOpen(false)}
-          onDecide={decide}
-        />
+        {momento === "reconocimiento" ? (
+          <RecoDecisiones
+            reco={reco}
+            active={mobileTab === "decidir"}
+            onFold={() => setRailOpen(false)}
+          />
+        ) : (
+          <DecisionColumn
+            snapshot={snapshotDecision}
+            queue={queue}
+            pending={pending}
+            active={mobileTab === "decidir"}
+            reduceMotion={reduceMotion}
+            onAnswer={answerInConversation}
+            onFocusItem={setFocusedItem}
+            focusedItem={focusedItem}
+            onFold={() => setRailOpen(false)}
+            onDecide={decide}
+          />
+        )}
 
         <button
           type="button"
@@ -1309,7 +1322,6 @@ function ConversationColumn({
   archivos,
   onArchivos,
   onQuitarArchivo,
-  panel,
 }: {
   snapshot: QuoteWorkspaceSnapshot;
   preview: boolean;
@@ -1327,7 +1339,6 @@ function ConversationColumn({
   archivos: File[];
   onArchivos: (files: FileList | File[]) => void;
   onQuitarArchivo: (index: number) => void;
-  panel?: ReactNode;
 }) {
   // El hilo entero, las cuatro voces: eze, fable, codex y sistema. Antes fable
   // y codex se filtraban — con la conversación operativa (17/08) la respuesta
@@ -1354,7 +1365,7 @@ function ConversationColumn({
   useEffect(() => {
     const node = threadRef.current;
     if (node) node.scrollTop = node.scrollHeight;
-  }, [quoteId, thread.length, mensajesLocales.length, panel]);
+  }, [quoteId, thread.length, mensajesLocales.length]);
 
   return (
     <section
@@ -1438,7 +1449,6 @@ function ConversationColumn({
           ))}
         </AnimatePresence>
 
-        {panel ? <div className="qz-thread__panel">{panel}</div> : null}
       </div>
 
       <form className="qz-composer" onSubmit={onSubmit}>
