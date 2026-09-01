@@ -43,7 +43,7 @@ export function PendientesScreen() {
               </p>
             </div>
             <Link
-              href="/"
+              href="/panel"
               className="text-xs uppercase tracking-widest text-zinc-500 transition-colors hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100"
             >
               ← Home

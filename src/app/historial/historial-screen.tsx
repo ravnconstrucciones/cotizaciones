@@ -567,7 +567,7 @@ export function HistorialScreen() {
           en dólares de la propuesta.
         </p>
         <Link
-          href="/"
+          href="/panel"
           className="mt-5 inline-flex w-fit items-center justify-center rounded-none border border-cdm-line bg-transparent px-5 py-2.5 text-xs font-medium uppercase tracking-[0.18em] text-cdm-muted transition-colors hover:border-cdm-accent/50 hover:text-cdm-fg focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cdm-accent"
         >
           Volver al inicio

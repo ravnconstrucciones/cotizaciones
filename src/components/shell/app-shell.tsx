@@ -98,7 +98,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       {/* Barra superior slim — única navegación persistente ahora que la sidebar
           murió. Logo + tema + disparador del menú overlay (con hint ⌘K). */}
       <header className="font-geist sticky top-0 z-40 flex items-center justify-between border-b border-cdm-line bg-cdm-bg/80 px-5 py-3 backdrop-blur-xl print:hidden">
-        <Link href="/" aria-label="Inicio">
+        <Link href="/panel" aria-label="Inicio">
           <RavnLogo
             align="start"
             showTagline={false}

@@ -690,7 +690,7 @@ export function GastoScreen({
         <header className="mb-6 flex items-center justify-between">
           <RavnLogo align="start" showTagline={false} sizeClassName="text-lg" />
           <Link
-            href="/"
+            href="/panel"
             className="font-mono-hud min-h-[44px] inline-flex items-center text-[10px] uppercase tracking-[0.14em] text-cdm-muted transition-colors hover:text-cdm-fg focus-visible:outline focus-visible:outline-1 focus-visible:outline-cdm-fg"
           >
             [CENTRO DE MANDO]
@@ -771,7 +771,7 @@ export function GastoScreen({
                   [CARGAR OTRO]
                 </motion.button>
                 <Link
-                  href="/"
+                  href="/panel"
                   className="font-mono-hud inline-flex min-h-[44px] items-center justify-center text-[10px] uppercase tracking-[0.14em] text-cdm-muted transition-colors hover:text-cdm-fg"
                 >
                   [CENTRO DE MANDO]

@@ -353,7 +353,7 @@ export function RemitoScreen({ presupuestoId }: { presupuestoId: string }) {
       </div>
 
       <Link
-        href="/"
+        href="/panel"
         aria-label="Inicio"
         className="fixed bottom-6 right-6 z-50 rounded-full border border-ravn-line/50 bg-ravn-surface/90 p-2.5 text-ravn-muted shadow-sm backdrop-blur-sm transition-colors hover:border-ravn-line hover:text-ravn-fg"
       >

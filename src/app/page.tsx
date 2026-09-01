@@ -1,20 +1,10 @@
-import { CockpitHome } from "@/components/cockpit/cockpit-home";
-import { PrefetchDatos } from "@/components/cockpit/prefetch-datos";
+import { redirect } from "next/navigation";
 
+/**
+ * La app abre DIRECTO en /gasto (pedido de Eze, 01/09/2026): el uso diario
+ * es cantar gastos; el cockpit completo vive ahora en /panel y se llega con
+ * [CENTRO DE MANDO] desde /gasto o con el logo/menú desde cualquier módulo.
+ */
 export default function Home() {
-  return (
-    <>
-      {/* Los datos del cockpit arrancan a bajar con el HTML, no después
-          de hidratar (ronda 6 — perf). Mismos paths que usan los módulos. */}
-      <PrefetchDatos
-        rutas={[
-          "/cashflow/resumen",
-          "/api/finanzas",
-          "/api/dinero",
-          "/api/referencias?limit=20",
-        ]}
-      />
-      <CockpitHome />
-    </>
-  );
+  redirect("/gasto");
 }

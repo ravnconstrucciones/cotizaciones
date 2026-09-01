@@ -55,7 +55,7 @@ const TODOS: ItemConGrupo[] = [
 ];
 
 function esActivo(href: string, pathname: string) {
-  return href === "/" ? pathname === "/" : pathname.startsWith(href);
+  return pathname.startsWith(href);
 }
 
 /** Normaliza para buscar sin acentos ni mayúsculas. */
@@ -281,7 +281,7 @@ export function MenuOverlay({
 
           {/* Cabecera: marca + cerrar */}
           <div className="relative flex items-center justify-between px-6 py-6 sm:px-10 sm:py-8">
-            <Link href="/" onClick={onClose} aria-label="Inicio">
+            <Link href="/panel" onClick={onClose} aria-label="Inicio">
               <RavnLogo align="start" showTagline={false} shimmer sizeClassName="text-xl" />
             </Link>
             <button

@@ -568,7 +568,7 @@ export function CatalogoScreen() {
           </p>
         </div>
         <Link
-          href="/"
+          href="/panel"
           className="font-mono-hud text-[10px] uppercase tracking-[0.14em] text-cdm-muted transition-colors hover:text-cdm-fg"
         >
           ← Inicio

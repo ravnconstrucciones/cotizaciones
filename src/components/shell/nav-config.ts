@@ -15,7 +15,7 @@
 export type NavItem = { href: string; label: string };
 
 export const NAV_COCKPIT: NavItem[] = [
-  { href: "/", label: "Inicio" },
+  { href: "/panel", label: "Panel" },
   // Captura rápida de gastos (obra/empresa/personal) — la misma pantalla que
   // abre el atajo "Gasto" del iPhone (/gasto, standalone).
   { href: "/gasto", label: "Cargar gasto" },

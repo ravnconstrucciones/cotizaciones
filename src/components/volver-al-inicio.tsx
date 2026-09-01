@@ -8,7 +8,7 @@ export function VolverAlInicio() {
   return (
     <nav className="mb-8" aria-label="Volver al inicio">
       <Link
-        href="/"
+        href="/panel"
         className="font-grotesk text-[10px] font-medium uppercase tracking-[0.2em] text-cdm-muted transition-colors hover:text-cdm-fg focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-cdm-accent"
       >
         ← Centro de mando
