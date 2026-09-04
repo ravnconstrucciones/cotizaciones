@@ -129,7 +129,7 @@ export default async function DocumentoPage({ params }: Params) {
           ))}
         </div>
         <div className="doc-footer">
-          <span>ravnconstrucciones.com.ar · 11 7385-6263</span>
+          <span>ravnconstrucciones.com.ar · 11 2498-4298</span>
           <span className="doc-brand" style={{ fontSize: "11pt" }}>
             R&nbsp;A&nbsp;V&nbsp;N&nbsp;.
           </span>

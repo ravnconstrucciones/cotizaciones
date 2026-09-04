@@ -29,3 +29,7 @@ __pycache__/
 
 # Config de Codex: contiene claves de MCP. La plantilla versionada es config/codex-config.toml
 .codex/
+
+# informe generado (20 MB con fotos embebidas) — se regenera con generar_vallas_antes_despues.py
+diagnosticos/Informe_Vallas_Glorietas_Antes_Despues.html
+diagnosticos/Informe_Vallas_Glorietas_Antes_Despues.pdf

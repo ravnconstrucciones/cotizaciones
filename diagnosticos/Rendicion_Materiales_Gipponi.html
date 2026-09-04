@@ -1,0 +1,503 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RAVN · Rendición de materiales — Depto Gipponi</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Raleway:wght@200;300;400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #1c1c1a; --fg: #f2efe8;
+    --muted: rgba(242,239,232,0.48);
+    --line: rgba(242,239,232,0.18);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #111; font-family: 'Raleway', sans-serif; -webkit-font-smoothing: antialiased; color: var(--fg); }
+  .page { background: var(--bg); width: 210mm; height: 297mm; padding: 14mm 16mm; margin: 0 auto 4mm; display: flex; flex-direction: column; position: relative; overflow: hidden; }
+  .header { display: flex; justify-content: flex-end; margin-bottom: 6mm; }
+  .brand { font-weight: 300; font-size: 15pt; letter-spacing: 0.28em; padding-right: 0.28em; text-transform: uppercase; color: var(--fg); }
+  .title { font-weight: 300; font-size: 30pt; line-height: 1.05; letter-spacing: -0.01em; margin-bottom: 6mm; }
+  .meta { display: grid; grid-template-columns: 26mm 1fr; gap: 1.5mm 0; margin-bottom: 6mm; }
+  .meta-label { font-size: 8.5pt; color: var(--muted); letter-spacing: 0.04em; }
+  .meta-value { font-size: 9.5pt; color: var(--fg); }
+  .intro { font-size: 8.5pt; font-weight: 300; color: rgba(242,239,232,0.7); line-height: 1.7; max-width: 160mm; margin-bottom: 6mm; }
+  .section-title { font-size: 13pt; font-weight: 400; color: var(--fg); margin-bottom: 2mm; }
+  .section-rule { height: 0.3pt; background: var(--line); margin-bottom: 4mm; }
+
+  .ticket { display: flex; align-items: baseline; gap: 5mm; padding: 2.8mm 0; border-bottom: 0.3pt solid var(--line); }
+  .tk-fecha { width: 13mm; flex: none; font-size: 8pt; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .tk-info { flex: 1; }
+  .tk-comercio { font-size: 9.5pt; font-weight: 600; color: var(--fg); }
+  .tk-comprobante { font-size: 7.5pt; font-weight: 400; color: var(--muted); margin-left: 2mm; }
+  .tk-detalle { font-size: 7.5pt; font-weight: 300; color: rgba(242,239,232,0.62); line-height: 1.55; max-width: 122mm; margin-top: 0.8mm; }
+  .tk-monto { font-size: 10.5pt; font-weight: 300; font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+  .subtotal { display: flex; justify-content: space-between; align-items: baseline; padding: 4mm 0 0; }
+  .subtotal-label { font-size: 8pt; font-weight: 600; letter-spacing: 0.18em; text-transform: uppercase; color: var(--muted); }
+  .subtotal-monto { font-size: 11pt; font-weight: 300; font-variant-numeric: tabular-nums; }
+
+  .total-block { margin-top: 9mm; }
+  .total-label { font-size: 8pt; font-weight: 600; letter-spacing: 0.18em; text-transform: uppercase; color: var(--muted); margin-bottom: 2mm; }
+  .total-number { font-size: 36pt; font-weight: 200; letter-spacing: -0.02em; line-height: 1; margin: 2mm 0; font-variant-numeric: tabular-nums; }
+  .total-letras { font-size: 7.5pt; letter-spacing: 0.2em; text-transform: uppercase; color: var(--muted); }
+
+  .nota { margin-top: auto; padding-top: 7mm; font-size: 8pt; font-weight: 300; color: rgba(242,239,232,0.55); line-height: 1.7; }
+  .footer { margin-top: 6mm; padding-top: 4mm; border-top: 0.3pt solid var(--line); display: flex; justify-content: space-between; font-size: 7.5pt; color: var(--muted); letter-spacing: 0.06em; }
+  .pagenum { position: absolute; bottom: 8mm; right: 16mm; font-size: 7pt; color: var(--muted); }
+  .annex-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6mm; }
+  .foto { display: flex; flex-direction: column; }
+  .foto img { width: 100%; height: 100mm; object-fit: contain; object-position: center; background: #141412; }
+  .foto-cap { font-size: 7.5pt; color: var(--muted); margin-top: 1.5mm; text-align: center; letter-spacing: 0.03em; }
+  @page { size: A4; margin: 0; }
+  @media print {
+    html, body { background: var(--bg); }
+    .page { margin: 0; page-break-after: always; }
+    .page:last-child { page-break-after: auto; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ═══════════ PÁGINA 1 ═══════════ -->
+<div class="page">
+  <div class="header"><span class="brand">R &nbsp;A &nbsp;V &nbsp;N .</span></div>
+
+  <div class="title">Rendición de materiales</div>
+
+  <div class="meta">
+    <div class="meta-label">Obra</div><div class="meta-value">Concepción 2931 — departamento</div>
+    <div class="meta-label">Cliente</div><div class="meta-value">Mariano Gipponi</div>
+    <div class="meta-label">Período</div><div class="meta-value">24 al 29 de agosto de 2026</div>
+    <div class="meta-label">Fecha</div><div class="meta-value">1 de septiembre de 2026</div>
+  </div>
+
+  <div class="section-title">Detalle por comprobante</div>
+  <div class="section-rule"></div>
+
+  <div class="ticket">
+    <div class="tk-fecha">24/08</div>
+    <div class="tk-info">
+      <span class="tk-comercio">Femattecs</span><span class="tk-comprobante">Factura B 00008-00012813</span>
+      <div class="tk-detalle">Insumos de protección y pintura: cartón corrugado, sintético 3 en 1 ½ L, tapa ciega autoadhesiva, cinta tramada, cintas de enmascarar.</div>
+    </div>
+    <div class="tk-monto">$ 68.500,00</div>
+  </div>
+
+  <div class="ticket">
+    <div class="tk-fecha">24/08</div>
+    <div class="tk-info">
+      <span class="tk-comercio">Ser Electric</span><span class="tk-comprobante">Factura B 0004-00028179</span>
+      <div class="tk-detalle">Caño corrugado K32 ¾ no propagante, cable unipolar 1×1,5 mm², soportes, tapas y puntos Cambre XXII.</div>
+    </div>
+    <div class="tk-monto">$ 93.730,53</div>
+  </div>
+
+  <div class="ticket">
+    <div class="tk-fecha">25/08</div>
+    <div class="tk-info">
+      <span class="tk-comercio">Centro Sec</span><span class="tk-comprobante">Factura B 0014-00048726</span>
+      <div class="tk-detalle">Montantes 69×35×2600, placa de yeso 12,5 mm 1,20×2,40, tornillos T2 aguja, yeso Tuyango 30 kg, enduido interior 15 L, fijador sellador 10 L.</div>
+    </div>
+    <div class="tk-monto">$ 112.070,27</div>
+  </div>
+
+  <div class="ticket">
+    <div class="tk-fecha">25/08</div>
+    <div class="tk-info">
+      <span class="tk-comercio">Ser Electric</span><span class="tk-comprobante">Factura A 0004-00015548 · Gimaju S.A.</span>
+      <div class="tk-detalle">Cinta LED 5 m interior 12 V, dos cintas LED 2835 220 V 10 m, fuente 12 V 8,33 A, dos perfiles anodizados 2 m.</div>
+    </div>
+    <div class="tk-monto">$ 164.789,40</div>
+  </div>
+
+  <div class="ticket">
+    <div class="tk-fecha">25/08</div>
+    <div class="tk-info">
+      <span class="tk-comercio">Ser Electric</span><span class="tk-comprobante">Factura A 0004-00015557 · Gimaju S.A.</span>
+      <div class="tk-detalle">Seis perfiles anodizados con grampa y puntera, 2 m.</div>
+    </div>
+    <div class="tk-monto">$ 44.245,63</div>
+  </div>
+
+  <div class="ticket">
+    <div class="tk-fecha">26/08</div>
+    <div class="tk-info">
+      <span class="tk-comercio">Femattecs</span><span class="tk-comprobante">Factura B 00008-00012870</span>
+      <div class="tk-detalle">Dos pinceletas N.º 40, tres pinceles N.º 20, pincel N.º 10, dos lijas, dos antigota N.º 22, dos cubremás N.º 17, cartón corrugado, dos cintas N.º 36.</div>
+    </div>
+    <div class="tk-monto">$ 81.600,00</div>
+  </div>
+
+  <div class="ticket">
+    <div class="tk-fecha">26/08</div>
+    <div class="tk-info">
+      <span class="tk-comercio">Ferretería Moro</span><span class="tk-comprobante">Factura B 00002-00087604</span>
+      <div class="tk-detalle">Plomería por termofusión: caño 20 mm, codo 90° 20×½, tee 20 mm, sella-agua, tubo Awaduct 40, manguito y cupla 40, cupla reducción 50×40, codo 63 a 90° HH.</div>
+    </div>
+    <div class="tk-monto">$ 24.579,28</div>
+  </div>
+
+  <div class="ticket">
+    <div class="tk-fecha">26/08</div>
+    <div class="tk-info">
+      <span class="tk-comercio">Ser Electric</span><span class="tk-comprobante">Factura A 0004-00015575 · Gimaju S.A.</span>
+      <div class="tk-detalle">Tres soportes Cambre XXI/XXII, tres tapas XXII blancas, módulo toma 10 A doble, dos módulos toma 10 A simples.</div>
+    </div>
+    <div class="tk-monto">$ 23.615,99</div>
+  </div>
+
+  <div class="ticket">
+    <div class="tk-fecha">26/08</div>
+    <div class="tk-info">
+      <span class="tk-comercio">Ferretería Moro</span><span class="tk-comprobante">Factura B 00002-00087607</span>
+      <div class="tk-detalle">Tres codos 40 mm a 90° HM, sobrepaso de fusión 20 mm.</div>
+    </div>
+    <div class="tk-monto">$ 7.111,32</div>
+  </div>
+
+  <div class="subtotal">
+    <div class="subtotal-label">Subtotal página 1</div>
+    <div class="subtotal-monto">$ 620.242,42</div>
+  </div>
+
+  <div class="footer" style="margin-top:auto;">
+    <div>RAVN Construcciones</div>
+    <div>ravn.construcciones@gmail.com · 11 2498-4298</div>
+  </div>
+  <div class="pagenum">1 / 9</div>
+</div>
+
+<!-- ═══════════ PÁGINA 2 ═══════════ -->
+<div class="page">
+  <div class="header"><span class="brand">R &nbsp;A &nbsp;V &nbsp;N .</span></div>
+
+  <div class="section-title">Detalle por comprobante — continuación</div>
+  <div class="section-rule"></div>
+
+  <div class="ticket">
+    <div class="tk-fecha">26/08</div>
+    <div class="tk-info">
+      <span class="tk-comercio">Femattecs</span><span class="tk-comprobante">Factura B 00008-00012876</span>
+      <div class="tk-detalle">Insumos de ferretería.</div>
+    </div>
+    <div class="tk-monto">$ 31.000,00</div>
+  </div>
+
+  <div class="ticket">
+    <div class="tk-fecha">26/08</div>
+    <div class="tk-info">
+      <span class="tk-comercio">Ser Electric</span><span class="tk-comprobante">Factura B 0004-00028261</span>
+      <div class="tk-detalle">Punto Cambre XXII 10 A y tapa XXII blanca.</div>
+    </div>
+    <div class="tk-monto">$ 6.318,35</div>
+  </div>
+
+  <div class="ticket">
+    <div class="tk-fecha">26/08</div>
+    <div class="tk-info">
+      <span class="tk-comercio">Pinturerías Elysee</span><span class="tk-comprobante">Factura B 00011-00024137</span>
+      <div class="tk-detalle">Filtros de pintura Filpint, caja por 10 unidades.</div>
+    </div>
+    <div class="tk-monto">$ 4.212,00</div>
+  </div>
+
+  <div class="ticket">
+    <div class="tk-fecha">26/08</div>
+    <div class="tk-info">
+      <span class="tk-comercio">Pinturerías Prestigio</span><span class="tk-comprobante">Ticket B 08015-00035913</span>
+      <div class="tk-detalle">Loxon larga duración interior mate blanco, 4 L.</div>
+    </div>
+    <div class="tk-monto">$ 66.634,50</div>
+  </div>
+
+  <div class="ticket">
+    <div class="tk-fecha">27/08</div>
+    <div class="tk-info">
+      <span class="tk-comercio">Ser Electric</span><span class="tk-comprobante">Factura B 0004-00028281</span>
+      <div class="tk-detalle">Cuatro puntos Cambre XXII 10 A.</div>
+    </div>
+    <div class="tk-monto">$ 14.993,27</div>
+  </div>
+
+  <div class="ticket">
+    <div class="tk-fecha">27/08</div>
+    <div class="tk-info">
+      <span class="tk-comercio">Ferretería Moro</span><span class="tk-comprobante">Factura B 00002-00087671</span>
+      <div class="tk-detalle">Dos codos 40 mm a 90° HH.</div>
+    </div>
+    <div class="tk-monto">$ 4.200,42</div>
+  </div>
+
+  <div class="ticket">
+    <div class="tk-fecha">27/08</div>
+    <div class="tk-info">
+      <span class="tk-comercio">Ser Electric</span><span class="tk-comprobante">Factura B 0004-00028306</span>
+      <div class="tk-detalle">Combinación Cambre XXII 10 A.</div>
+    </div>
+    <div class="tk-monto">$ 4.290,18</div>
+  </div>
+
+  <div class="ticket">
+    <div class="tk-fecha">27/08</div>
+    <div class="tk-info">
+      <span class="tk-comercio">Sanitarios Dorrego</span><span class="tk-comprobante">Ticket 00006-00016033</span>
+      <div class="tk-detalle">Repuestos sanitarios.</div>
+    </div>
+    <div class="tk-monto">$ 4.500,00</div>
+  </div>
+
+  <div class="ticket">
+    <div class="tk-fecha">28/08</div>
+    <div class="tk-info">
+      <span class="tk-comercio">Electroruta27</span><span class="tk-comprobante">Factura A 00003-00013961 · Gimaju S.A.</span>
+      <div class="tk-detalle">Dos cintas LED COB 10 W/m 24 V 320 LED, fuente 24 V 150 W slim, controlador monocromático 10 A.</div>
+    </div>
+    <div class="tk-monto">$ 153.322,25</div>
+  </div>
+
+  <div class="subtotal">
+    <div class="subtotal-label">Subtotal página 2</div>
+    <div class="subtotal-monto">$ 289.470,97</div>
+  </div>
+
+  <div class="footer" style="margin-top:auto;">
+    <div>RAVN Construcciones</div>
+    <div>ravn.construcciones@gmail.com · 11 2498-4298</div>
+  </div>
+  <div class="pagenum">2 / 9</div>
+</div>
+
+<!-- ═══════════ PÁGINA 3 ═══════════ -->
+<div class="page">
+  <div class="header"><span class="brand">R &nbsp;A &nbsp;V &nbsp;N .</span></div>
+
+  <div class="section-title">Detalle por comprobante — continuación</div>
+  <div class="section-rule"></div>
+
+  <div class="ticket">
+    <div class="tk-fecha">28/08</div>
+    <div class="tk-info">
+      <span class="tk-comercio">Ferretería Moro</span><span class="tk-comprobante">Factura B 00002-00087694</span>
+      <div class="tk-detalle">Sellador acrílico pintable.</div>
+    </div>
+    <div class="tk-monto">$ 10.700,56</div>
+  </div>
+
+  <div class="ticket">
+    <div class="tk-fecha">28/08</div>
+    <div class="tk-info">
+      <span class="tk-comercio">Ser Electric</span><span class="tk-comprobante">Factura B 0004-00028329</span>
+      <div class="tk-detalle">Tres tapas autoadhesivas.</div>
+    </div>
+    <div class="tk-monto">$ 3.241,39</div>
+  </div>
+
+  <div class="ticket">
+    <div class="tk-fecha">28/08</div>
+    <div class="tk-info">
+      <span class="tk-comercio">Ser Electric</span><span class="tk-comprobante">Factura B 0004-00028345</span>
+      <div class="tk-detalle">Cablecanal Zoloda 14×7 ABS con adhesivo y accesorios 14×7.</div>
+    </div>
+    <div class="tk-monto">$ 3.361,80</div>
+  </div>
+
+  <div class="ticket">
+    <div class="tk-fecha">29/08</div>
+    <div class="tk-info">
+      <span class="tk-comercio">Ser Electric</span><span class="tk-comprobante">Factura B 0004-00028376</span>
+      <div class="tk-detalle">Dos conectores plásticos monocromo para cinta LED 5050.</div>
+    </div>
+    <div class="tk-monto">$ 5.957,64</div>
+  </div>
+
+  <div class="ticket">
+    <div class="tk-fecha">29/08</div>
+    <div class="tk-info">
+      <span class="tk-comercio">Ferretería Moro</span><span class="tk-comprobante">Factura B 00002-00087752</span>
+      <div class="tk-detalle">Reducciones de rosca ¾-½ PPN M/M y M/H.</div>
+    </div>
+    <div class="tk-monto">$ 1.025,90</div>
+  </div>
+
+  <div class="subtotal">
+    <div class="subtotal-label">Subtotal página 3</div>
+    <div class="subtotal-monto">$ 24.287,29</div>
+  </div>
+
+  <div class="total-block">
+    <div class="total-label">Total a reintegrar — 23 comprobantes</div>
+    <div class="total-number">$ 934.000,68</div>
+    <div class="total-letras">Novecientos treinta y cuatro mil pesos con 68/100</div>
+  </div>
+
+  <div class="nota">
+    Cuatro comprobantes fueron emitidos como factura A a nombre de Gimaju S.A. por un total de
+    $ 385.973,27 (Ser Electric 0004-00015548, 0004-00015557 y 0004-00015575; Electroruta27
+    00003-00013961) y forman parte de la presente rendición. Los restantes son facturas B y
+    tickets a consumidor final por $ 548.027,41.
+  </div>
+
+  <div class="footer">
+    <div>RAVN Construcciones</div>
+    <div>ravn.construcciones@gmail.com · 11 2498-4298</div>
+  </div>
+  <div class="pagenum">3 / 9</div>
+</div>
+
+
+<!-- ═══════════ ANEXO PÁGINA 4 ═══════════ -->
+<div class="page">
+  <div class="header"><span class="brand">R &nbsp;A &nbsp;V &nbsp;N .</span></div>
+  <div class="section-title">Anexo — fotos de los comprobantes</div>
+  <div class="section-rule"></div>
+  <div class="annex-grid">
+    <div class="foto">
+      <img src="rendicion-gipponi-tickets/01.jpg" alt="Comprobante 1">
+      <div class="foto-cap">1 · 24/08 · Femattecs · Fact. B 00008-00012813 · $ 68.500,00</div>
+    </div>
+    <div class="foto">
+      <img src="rendicion-gipponi-tickets/02.jpg" alt="Comprobante 2">
+      <div class="foto-cap">2 · 24/08 · Ser Electric · Fact. B 0004-00028179 · $ 93.730,53</div>
+    </div>
+    <div class="foto">
+      <img src="rendicion-gipponi-tickets/03.jpg" alt="Comprobante 3">
+      <div class="foto-cap">3 · 25/08 · Centro Sec · Fact. B 0014-00048726 · $ 112.070,27</div>
+    </div>
+    <div class="foto">
+      <img src="rendicion-gipponi-tickets/04.jpg" alt="Comprobante 4">
+      <div class="foto-cap">4 · 25/08 · Ser Electric · Fact. A 0004-00015548 · $ 164.789,40</div>
+    </div>
+  </div>
+  <div class="pagenum">4 / 9</div>
+</div>
+
+<!-- ═══════════ ANEXO PÁGINA 5 ═══════════ -->
+<div class="page">
+  <div class="header"><span class="brand">R &nbsp;A &nbsp;V &nbsp;N .</span></div>
+  <div class="section-title">Anexo — fotos de los comprobantes</div>
+  <div class="section-rule"></div>
+  <div class="annex-grid">
+    <div class="foto">
+      <img src="rendicion-gipponi-tickets/05.jpg" alt="Comprobante 5">
+      <div class="foto-cap">5 · 25/08 · Ser Electric · Fact. A 0004-00015557 · $ 44.245,63</div>
+    </div>
+    <div class="foto">
+      <img src="rendicion-gipponi-tickets/06.jpg" alt="Comprobante 6">
+      <div class="foto-cap">6 · 26/08 · Femattecs · Fact. B 00008-00012870 · $ 81.600,00</div>
+    </div>
+    <div class="foto">
+      <img src="rendicion-gipponi-tickets/07.jpg" alt="Comprobante 7">
+      <div class="foto-cap">7 · 26/08 · Ferretería Moro · Fact. B 00002-00087604 · $ 24.579,28</div>
+    </div>
+    <div class="foto">
+      <img src="rendicion-gipponi-tickets/08.jpg" alt="Comprobante 8">
+      <div class="foto-cap">8 · 26/08 · Ser Electric · Fact. A 0004-00015575 · $ 23.615,99</div>
+    </div>
+  </div>
+  <div class="pagenum">5 / 9</div>
+</div>
+
+<!-- ═══════════ ANEXO PÁGINA 6 ═══════════ -->
+<div class="page">
+  <div class="header"><span class="brand">R &nbsp;A &nbsp;V &nbsp;N .</span></div>
+  <div class="section-title">Anexo — fotos de los comprobantes</div>
+  <div class="section-rule"></div>
+  <div class="annex-grid">
+    <div class="foto">
+      <img src="rendicion-gipponi-tickets/09.jpg" alt="Comprobante 9">
+      <div class="foto-cap">9 · 26/08 · Ferretería Moro · Fact. B 00002-00087607 · $ 7.111,32</div>
+    </div>
+    <div class="foto">
+      <img src="rendicion-gipponi-tickets/10.jpg" alt="Comprobante 10">
+      <div class="foto-cap">10 · 26/08 · Femattecs · Fact. B 00008-00012876 · $ 31.000,00</div>
+    </div>
+    <div class="foto">
+      <img src="rendicion-gipponi-tickets/11.jpg" alt="Comprobante 11">
+      <div class="foto-cap">11 · 26/08 · Ser Electric · Fact. B 0004-00028261 · $ 6.318,35</div>
+    </div>
+    <div class="foto">
+      <img src="rendicion-gipponi-tickets/12.jpg" alt="Comprobante 12">
+      <div class="foto-cap">12 · 26/08 · Pinturerías Elysee · Fact. B 00011-00024137 · $ 4.212,00</div>
+    </div>
+  </div>
+  <div class="pagenum">6 / 9</div>
+</div>
+
+<!-- ═══════════ ANEXO PÁGINA 7 ═══════════ -->
+<div class="page">
+  <div class="header"><span class="brand">R &nbsp;A &nbsp;V &nbsp;N .</span></div>
+  <div class="section-title">Anexo — fotos de los comprobantes</div>
+  <div class="section-rule"></div>
+  <div class="annex-grid">
+    <div class="foto">
+      <img src="rendicion-gipponi-tickets/13.jpg" alt="Comprobante 13">
+      <div class="foto-cap">13 · 26/08 · Pinturerías Prestigio · Ticket B 08015-00035913 · $ 66.634,50</div>
+    </div>
+    <div class="foto">
+      <img src="rendicion-gipponi-tickets/14.jpg" alt="Comprobante 14">
+      <div class="foto-cap">14 · 27/08 · Ser Electric · Fact. B 0004-00028281 · $ 14.993,27</div>
+    </div>
+    <div class="foto">
+      <img src="rendicion-gipponi-tickets/15.jpg" alt="Comprobante 15">
+      <div class="foto-cap">15 · 27/08 · Ferretería Moro · Fact. B 00002-00087671 · $ 4.200,42</div>
+    </div>
+    <div class="foto">
+      <img src="rendicion-gipponi-tickets/16.jpg" alt="Comprobante 16">
+      <div class="foto-cap">16 · 27/08 · Ser Electric · Fact. B 0004-00028306 · $ 4.290,18</div>
+    </div>
+  </div>
+  <div class="pagenum">7 / 9</div>
+</div>
+
+<!-- ═══════════ ANEXO PÁGINA 8 ═══════════ -->
+<div class="page">
+  <div class="header"><span class="brand">R &nbsp;A &nbsp;V &nbsp;N .</span></div>
+  <div class="section-title">Anexo — fotos de los comprobantes</div>
+  <div class="section-rule"></div>
+  <div class="annex-grid">
+    <div class="foto">
+      <img src="rendicion-gipponi-tickets/17.jpg" alt="Comprobante 17">
+      <div class="foto-cap">17 · 27/08 · Sanitarios Dorrego · Ticket 00006-00016033 · $ 4.500,00</div>
+    </div>
+    <div class="foto">
+      <img src="rendicion-gipponi-tickets/18.jpg" alt="Comprobante 18">
+      <div class="foto-cap">18 · 28/08 · Electroruta27 · Fact. A 00003-00013961 · $ 153.322,25</div>
+    </div>
+    <div class="foto">
+      <img src="rendicion-gipponi-tickets/19.jpg" alt="Comprobante 19">
+      <div class="foto-cap">19 · 28/08 · Ferretería Moro · Fact. B 00002-00087694 · $ 10.700,56</div>
+    </div>
+    <div class="foto">
+      <img src="rendicion-gipponi-tickets/20.jpg" alt="Comprobante 20">
+      <div class="foto-cap">20 · 28/08 · Ser Electric · Fact. B 0004-00028329 · $ 3.241,39</div>
+    </div>
+  </div>
+  <div class="pagenum">8 / 9</div>
+</div>
+
+<!-- ═══════════ ANEXO PÁGINA 9 ═══════════ -->
+<div class="page">
+  <div class="header"><span class="brand">R &nbsp;A &nbsp;V &nbsp;N .</span></div>
+  <div class="section-title">Anexo — fotos de los comprobantes</div>
+  <div class="section-rule"></div>
+  <div class="annex-grid">
+    <div class="foto">
+      <img src="rendicion-gipponi-tickets/21.jpg" alt="Comprobante 21">
+      <div class="foto-cap">21 · 28/08 · Ser Electric · Fact. B 0004-00028345 · $ 3.361,80</div>
+    </div>
+    <div class="foto">
+      <img src="rendicion-gipponi-tickets/22.jpg" alt="Comprobante 22">
+      <div class="foto-cap">22 · 29/08 · Ser Electric · Fact. B 0004-00028376 · $ 5.957,64</div>
+    </div>
+    <div class="foto">
+      <img src="rendicion-gipponi-tickets/23.jpg" alt="Comprobante 23">
+      <div class="foto-cap">23 · 29/08 · Ferretería Moro · Fact. B 00002-00087752 · $ 1.025,90</div>
+    </div>
+  </div>
+  <div class="pagenum">9 / 9</div>
+</div>
+
+</body>
+</html>

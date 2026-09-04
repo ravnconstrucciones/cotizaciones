@@ -220,7 +220,7 @@ export const InformeMOPrint = forwardRef<HTMLDivElement, InformeMOPrintProps>(
         >
           <div className="flex flex-col gap-2 text-[7.5pt] font-light" style={{ color: MUTED }}>
             <span>ravnconstrucciones.com.ar</span>
-            <span>11 7385-6263</span>
+            <span>11 2498-4298</span>
             <span>contacto@ravnconstrucciones.com.ar</span>
           </div>
           <div className="flex flex-col items-center">

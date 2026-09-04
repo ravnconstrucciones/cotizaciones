@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Triage gastos — Mercado Pago 15→21/08</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Raleway:wght@200;300;400;500&display=swap" rel="stylesheet">
+<style>
+  :root{--bg:#070707;--fg:#f2efe8;--dim:rgba(242,239,232,.42);--line:rgba(242,239,232,.14);--sel:#f2efe8}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--fg);font-family:Raleway,system-ui,sans-serif;font-weight:300;
+       padding:40px 20px 140px;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:760px;margin:0 auto}
+  header{border-bottom:1px solid var(--line);padding-bottom:22px;margin-bottom:34px}
+  .mark{font-weight:500;letter-spacing:.517em;font-size:13px;margin-bottom:18px}
+  h1{font-size:26px;font-weight:200;letter-spacing:-.01em;line-height:1.2}
+  .sub{color:var(--dim);font-size:14px;margin-top:8px}
+  .row{padding:22px 0;border-bottom:1px solid var(--line)}
+  .head{display:flex;justify-content:space-between;align-items:baseline;gap:16px;margin-bottom:4px}
+  .who{font-size:17px;font-weight:400}
+  .amt{font-size:17px;font-variant-numeric:tabular-nums;white-space:nowrap}
+  .meta{color:var(--dim);font-size:13px;margin-bottom:14px}
+  .opts{display:flex;flex-wrap:wrap;gap:8px}
+  button{font-family:inherit;font-weight:300;font-size:13px;letter-spacing:.02em;color:var(--fg);
+         background:transparent;border:1px solid var(--line);padding:9px 15px;border-radius:2px;
+         cursor:pointer;transition:border-color .15s,background .15s,color .15s}
+  button:hover{border-color:rgba(242,239,232,.4)}
+  button[aria-pressed="true"]{background:var(--sel);color:var(--bg);border-color:var(--sel);font-weight:400}
+  .hint{color:var(--dim);font-size:12px;margin-top:10px;font-style:italic}
+  footer{position:fixed;left:0;right:0;bottom:0;background:rgba(7,7,7,.94);
+         border-top:1px solid var(--line);padding:16px 20px;backdrop-filter:blur(8px)}
+  .fwrap{max-width:760px;margin:0 auto;display:flex;align-items:center;gap:16px;justify-content:space-between}
+  .count{color:var(--dim);font-size:13px}
+  #copiar{padding:12px 22px;font-size:14px}
+  #copiar:disabled{opacity:.3;cursor:default}
+  #out{margin-top:12px;font-size:12px;color:var(--dim);word-break:break-word;line-height:1.6}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="mark">RAVN.</div>
+    <h1>Qué es cada gasto</h1>
+    <p class="sub">Mercado Pago · 15 al 21 de agosto · tocá una opción por fila</p>
+  </header>
+  <div id="filas"></div>
+  <p class="hint">Si alguno no es ninguna de las cuatro, dejalo sin tocar y me lo decís aparte.</p>
+</div>
+<footer>
+  <div class="fwrap">
+    <span class="count" id="count"></span>
+    <button id="copiar" disabled>Copiar respuestas</button>
+  </div>
+  <div class="wrap"><div id="out"></div></div>
+</footer>
+<script>
+const ITEMS=[
+ {id:1,who:"Teglia Sa",amt:"$7.000",meta:"15/08 · 23:33 · Visa crédito · pago"},
+ {id:2,who:"Alex Coffee Roasters",amt:"$5.100",meta:"17/08 · 12:32 · Visa crédito · tienda física",sug:"personal"},
+ {id:3,who:"Jumbo",amt:"$10.029,36",meta:"18/08 · 16:37 · Visa crédito · tienda física",sug:"personal"},
+ {id:4,who:"Pacheco Francisco",amt:"$10.164,05",meta:"18/08 · 15:09 · Visa crédito · transferencia — es el electricista",sug:"pueyrredon"},
+ {id:5,who:"Crucesitasa191",amt:"$40.000",meta:"18/08 · 11:52 · Visa crédito · pago"},
+ {id:6,who:"Sanitarios BR (por Mercado Libre)",amt:"$18.200",meta:"20/08 · 09:32 · Visa crédito · 2 productos — vos dijiste personal, el comercio es sanitarista"},
+ {id:7,who:"Puma Energy",amt:"$40.000",meta:"20/08 · 17:19 · Visa crédito · combustible",sug:"empresa"},
+ {id:8,who:"Arca (ex AFIP)",amt:"$56.379,08",meta:"21/08 · 07:42 · dinero disponible · pago de servicio",sug:"empresa"},
+];
+const OPTS=[["personal","Personal"],["empresa","Empresa"],["pueyrredon","Obra Pueyrredón"],["islas","Pintura Islas del Golf"]];
+const elegido={};
+const cont=document.getElementById("filas");
+ITEMS.forEach(it=>{
+  const row=document.createElement("div");row.className="row";
+  row.innerHTML=`<div class="head"><span class="who">${it.who}</span><span class="amt">${it.amt}</span></div>
+                 <div class="meta">${it.meta}</div><div class="opts"></div>`;
+  const box=row.querySelector(".opts");
+  OPTS.forEach(([val,label])=>{
+    const b=document.createElement("button");
+    b.textContent=label;b.setAttribute("aria-pressed",String(it.sug===val));
+    if(it.sug===val)elegido[it.id]=val;
+    b.onclick=()=>{box.querySelectorAll("button").forEach(x=>x.setAttribute("aria-pressed","false"));
+                   b.setAttribute("aria-pressed","true");elegido[it.id]=val;pintar();};
+    box.appendChild(b);
+  });
+  cont.appendChild(row);
+});
+function pintar(){
+  const n=Object.keys(elegido).length;
+  document.getElementById("count").textContent=`${n} de ${ITEMS.length} marcados`;
+  const btn=document.getElementById("copiar");btn.disabled=n===0;
+  document.getElementById("out").textContent=texto();
+}
+function texto(){
+  return ITEMS.filter(i=>elegido[i.id]).map(i=>`${i.id}. ${i.who} ${i.amt} → ${elegido[i.id]}`).join(" | ");
+}
+document.getElementById("copiar").onclick=async()=>{
+  try{await navigator.clipboard.writeText(texto());
+      document.getElementById("copiar").textContent="Copiado ✓";
+      setTimeout(()=>document.getElementById("copiar").textContent="Copiar respuestas",1800);}
+  catch(e){document.getElementById("out").textContent="No pude copiar — seleccioná el texto de abajo:\n"+texto();}
+};
+pintar();
+</script>
+</body>
+</html>

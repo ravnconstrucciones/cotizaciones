@@ -303,7 +303,7 @@ function PdfFooterContactos({ muted }: { muted: string }) {
               <IconWhatsApp className="opacity-95" />
             </span>
           </span>
-          <span>11 7385-6263</span>
+          <span>11 2498-4298</span>
         </div>
         <div
           className={`${row} font-raleway font-normal`}

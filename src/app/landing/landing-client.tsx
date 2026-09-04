@@ -508,7 +508,7 @@ export default function LandingClient() {
             Escribinos y te contamos cómo trabajamos. Sin compromiso.
           </p>
           <motion.a
-            href="https://wa.me/5491173856263?text=Hola%20RAVN%2C%20quiero%20saber%20m%C3%A1s%20sobre%20sus%20servicios"
+            href="https://wa.me/5491124984298?text=Hola%20RAVN%2C%20quiero%20saber%20m%C3%A1s%20sobre%20sus%20servicios"
             target="_blank" rel="noopener noreferrer"
             style={{ display: "inline-flex", alignItems: "center", gap: "0.9rem", padding: "1.15rem 3.4rem", border: `1px solid rgba(254,247,242,0.6)`, color: W, fontFamily: "Raleway, sans-serif", fontSize: "0.7rem", fontWeight: 300, letterSpacing: "0.32em", textTransform: "uppercase", textDecoration: "none" }}
             whileHover={{ backgroundColor: W, color: BG, borderColor: W }}

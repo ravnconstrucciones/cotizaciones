@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>RAVN · Presupuesto — Lagomarsino</title>
+<title>RAVN · Presupuesto — Gipponi</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Raleway:wght@100;200;300;400;500;600;700;800;900&display=swap" rel="stylesheet">
@@ -132,13 +132,21 @@
 
   /* ── P2: IMPORTE ── */
   .importe-section { margin-bottom: 9mm; }
+  .importe-cat-label {
+    font-size: 8pt;
+    font-weight: 600;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-top: 5mm;
+  }
   .importe-number {
-    font-size: 48pt;
+    font-size: 30pt;
     font-weight: 200;
     letter-spacing: -0.02em;
     color: var(--fg);
-    line-height: 1;
-    margin: 3mm 0 2mm;
+    line-height: 1.15;
+    margin: 1.5mm 0 1mm;
     font-variant-numeric: tabular-nums;
   }
   .importe-letras {
@@ -147,13 +155,14 @@
     letter-spacing: 0.2em;
     text-transform: uppercase;
     color: var(--muted);
-    margin-bottom: 4mm;
+    margin-bottom: 2mm;
   }
   .importe-nota {
     font-size: 8pt;
     font-weight: 300;
     color: rgba(242,239,232,0.55);
     line-height: 1.6;
+    margin-top: 4mm;
   }
 
   /* ── P2: SECTIONS ── */
@@ -235,11 +244,13 @@
 
   <div class="meta">
     <span class="meta-label">Cliente</span>
-    <span class="meta-value">Lucila Lagomarsino</span>
+    <span class="meta-value">Mariano Gipponi</span>
     <span class="meta-label">Fecha</span>
-    <span class="meta-value">9 de junio de 2026</span>
-    <span class="meta-label">Lugar</span>
-    <span class="meta-value">Correa 3750</span>
+    <span class="meta-value">23 de agosto de 2026</span>
+    <span class="meta-label">Trabajo</span>
+    <span class="meta-value">Reforma de terminaciones — departamento en CABA</span>
+    <span class="meta-label">Modalidad</span>
+    <span class="meta-value">Mano de obra</span>
   </div>
 
   <div class="section-title">Servicios Presupuestados</div>
@@ -247,24 +258,27 @@
 
   <div class="body">
 
-    <p>El problema no está en la cerámica sino en lo que hay debajo. La cerámica y la pastina son terminación — no impermeabilizan. Lo que frena el agua es la carpeta impermeable bajo el piso, y esa capa está vencida y rota. Por eso filtra al departamento de abajo. Colocar cerámica nueva sin tratar el sustrato resuelve la estética, pero la filtración vuelve en pocas semanas. La solución definitiva será construir el sistema de impermeabilización desde cero y reparar los daños consecuentes en el departamento inferior.</p>
+    <p>Alcance tomado del listado de trabajos por ambiente y rubro del 20 de agosto.</p>
 
-    <div class="etapa-label">Etapa 1 — Baño · Departamento superior</div>
+    <div class="etapa-label">Etapa 1 — Plomería y eléctrico</div>
 
-    <div class="item-title">1 — Impermeabilización del piso de ducha</div>
-    <p>Retiro del revestimiento cerámico en el sector de ducha. Azotado hidrófugo sobre la losa expuesta. Carpeta de cemento con aditivo hidrófugo ejecutada con pendiente correcta al desagüe. Recolocación del sifón y rejilla de ducha con sello perimetral. Cerámica nueva con adhesivo impermeable Weber Superflex. Pastina impermeable y sellador siliconado en junta piso-pared.</p>
+    <div class="item-title">Empotrado de agua y desagüe en la cocina</div>
+    <p>Conexiones embutidas detrás de la mesada, para lavarropas y lavavajillas.</p>
 
-    <div class="item-title">2 — Impermeabilización de paredes y tabique de bañera</div>
-    <p>Retiro de la cerámica en los primeros 50 cm de pared en el sector de ducha y en la totalidad del tabique de bañera. Azotado hidrófugo sobre la mampostería expuesta. Nueva cerámica con adhesivo impermeable. Pastina impermeable en juntas. Sellador siliconado en el encuentro piso-pared y en el encuentro bañera-tabique.</p>
+    <div class="item-title">Cinco bocas nuevas</div>
+    <p>Punto de luz del comedor · alimentación del espejo del pasillo por dentro del tabique · tecla detrás del espejo redondo · dos puntos para las colgantes del cuarto principal.</p>
 
-    <div class="item-title">3 — Instalación de extractores de aire · Ambos departamentos</div>
-    <p>Reemplazo de las rejillas pasivas por extractores de aire de 4 pulgadas en cada departamento, conectados al conducto de ventilación existente del edificio.</p>
+    <div class="item-title">Cinco puntos con fuente para tira LED</div>
+    <p>Bajo mesada de cocina, encajonado del living, perímetro del cuarto principal y los dos espejos de baño.</p>
 
-    <div class="etapa-label">Etapa 2 — Cielorraso · Departamento inferior</div>
+    <div class="item-title">Tendido de tira LED</div>
+    <p>Bajo mesada de cocina, encajonado del living y perímetro del cuarto principal.</p>
 
-    <div class="item-title">4 — Reconstrucción del cielorraso</div>
-    <p>Retiro de la totalidad de las placas cerámicas en la zona afectada. Picado del revoque deteriorado hasta sustrato sano. Revoque grueso y fino con aditivo hidrófugo. Fijador. Masillado. Manos de pintura correspondientes.</p>
-    <div class="item-nota">Se ejecuta una vez finalizada la Etapa 1 y transcurrido el período de secado mínimo de 2 semanas.</div>
+    <div class="item-title">Desdoble de las teclas del pasillo</div>
+    <p>Dos comandos independientes: living y comedor.</p>
+
+    <div class="item-title">Colocación de tres plafones</div>
+    <p>Living, habitación extra y cuarto principal.</p>
 
   </div>
 
@@ -278,13 +292,96 @@
     <span class="brand">R &nbsp;A &nbsp;V &nbsp;N .</span>
   </div>
 
+  <div class="body">
+
+    <div class="etapa-label" style="margin-top:0;">Etapa 2 — Enduido, pintura y efectos</div>
+
+    <div class="item-title">Pintura de paredes</div>
+    <p>Pasillo blanco · pared del sillón beige · pared de proyección de la habitación extra blanca · cuarto principal, una beige y la de enfrente blanca · sector superior del toilette · cuarto restante.</p>
+
+    <div class="item-title">Base para el efecto</div>
+    <p>Pared de la TV del living y pared de la cabecera del cuarto principal. Enduido completo, lijado y mano de base.</p>
+
+    <div class="item-title">Aplicación del efecto</div>
+    <p>Terminación tipo limewash, látex aplicado en cruces. Dos pasadas.</p>
+
+    <div class="item-title">Zócalos</div>
+    <p>Esmalte, dos manos. Medición en obra.</p>
+
+    <div class="item-title">Tratamiento de la humedad de la cocina</div>
+    <p>Se trata el sector antes de pintar.</p>
+
+    <div class="etapa-label">Etapa 3 — Empapelado, revestimientos y colocación</div>
+
+    <div class="item-title">Preparación bajo empapelado</div>
+    <p>Pared del espejo redondo (3,63 m) y tramo corrido de la pared del split (1,67 m): 5,30 m de largo por 2,45 de alto, de piso a techo. Enduido completo, lijado y papel base.</p>
+
+    <div class="item-title">Colocación del empapelado</div>
+    <p>Empapelado pintable texturado, de una misma partida.</p>
+
+    <div class="item-title" style="margin-bottom:4.5mm;">Látex sobre el empapelado</div>
+
+    <div class="item-title">Varillado de WPC en el toilette</div>
+    <p>Perímetro de 5,20 m menos la puerta, a 70 cm de alto. Estructura de fijación, cortes y remates.</p>
+
+    <div class="item-title">Varilla de remate — 4,45 m</div>
+    <p>Sobre la línea del varillado, en el toilette.</p>
+
+    <div class="item-title">Vinilos autoadhesivos</div>
+    <p>Símil mármol sobre el frente de la mesada de la cocina, 2,00 m², con dos tomas recortados · pared del sofá cama en la habitación extra, 9,02 m².</p>
+
+  </div>
+
+</div>
+
+
+<!-- ══ PÁGINA 3 ══ -->
+<div class="page">
+
+  <div class="header">
+    <span class="brand">R &nbsp;A &nbsp;V &nbsp;N .</span>
+  </div>
+
+  <div class="body" style="flex:none; margin-bottom:9mm;">
+
+    <div class="item-title" style="margin-top:0;">Espejo redondo retroiluminado de 1,60 m</div>
+    <p>Apertura del durlock, refuerzo estructural, cierre, enduido y montaje.</p>
+
+    <div class="item-title">Espejo amorfo del pasillo</div>
+    <p>1,20 × 0,70, centrado.</p>
+
+    <div class="item-title">Espejos de los dos baños</div>
+    <p>Se despegan para montar las tiras LED laterales y se recolocan.</p>
+
+    <div class="item-title">Herrajes</div>
+    <p>Traba de la ventana del balcón y revisión del resto.</p>
+
+    <div class="section-title" style="margin-top:10mm;">No incluido</div>
+    <div class="section-rule"></div>
+
+    <p>El reemplazo de zócalos, que en esta propuesta se pintan. El origen de la humedad de la cocina, si es filtración desde la unidad superior. Y los materiales, que provee el cliente.</p>
+
+  </div>
+
+</div>
+
+
+<!-- ══ PÁGINA 4 ══ -->
+<div class="page">
+
+  <div class="header">
+    <span class="brand">R &nbsp;A &nbsp;V &nbsp;N .</span>
+  </div>
+
   <!-- IMPORTE -->
   <div class="importe-section">
     <div class="section-title">Importe</div>
     <div class="section-rule"></div>
-    <div class="importe-number">$2.900.000</div>
-    <div class="importe-letras">Dos millones novecientos mil pesos</div>
-    <div class="importe-nota">Incluye materiales y mano de obra. El presupuesto no contempla el Impuesto al Valor Agregado (IVA).</div>
+
+    <div class="importe-number">$3.500.000</div>
+    <div class="importe-letras">Tres millones quinientos mil pesos</div>
+
+    <div class="importe-nota">Incluye mano de obra, seguro del personal, herramientas, protección de pisos y muebles y limpieza fina. Los materiales los provee el cliente. Los consumibles de obra se rinden por ticket.</div>
   </div>
 
   <!-- FORMA DE PAGO -->
@@ -292,9 +389,7 @@
     <div class="section-title">Forma de Pago</div>
     <div class="section-rule"></div>
     <div class="p2-text">
-      <p>40% adelanto al inicio de obra — $1.160.000</p>
-      <p>30% al finalizar Etapa 1 — $870.000</p>
-      <p>30% al finalizar Etapa 2 — $870.000</p>
+      <p>40% al inicio de los trabajos, 30% al finalizar la etapa de pintura y 30% contra finalización.</p>
     </div>
   </div>
 
@@ -303,9 +398,7 @@
     <div class="section-title">Plazo</div>
     <div class="section-rule"></div>
     <div class="p2-text">
-      <p>Etapa 1: 4 a 5 días hábiles</p>
-      <p>Período de secado obligatorio: 2 semanas mínimo</p>
-      <p>Etapa 2: 2 a 3 días hábiles adicionales</p>
+      <p>8 días hábiles desde el inicio de los trabajos.</p>
     </div>
   </div>
 
@@ -314,7 +407,8 @@
     <div class="section-title">Notas</div>
     <div class="section-rule"></div>
     <div class="p2-text">
-      <p>VALIDEZ DE OFERTA: 10 DÍAS CORRIDOS</p>
+      <p>VALIDEZ DE OFERTA: 10 DÍAS.</p>
+      <p>CONDICIÓN FRENTE AL IVA: MONOTRIBUTISTA. Los importes son finales y no discriminan IVA.</p>
       <p>El presupuesto podrá modificarse en base a los cambios que reconvengan.</p>
     </div>
   </div>

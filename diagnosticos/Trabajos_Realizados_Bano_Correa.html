@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RAVN · Trabajos Realizados — Baño Correa</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Raleway:wght@200;300;400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #1c1c1a; --fg: #f2efe8;
+    --muted: rgba(242,239,232,0.48);
+    --line: rgba(242,239,232,0.18);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #111; font-family: 'Raleway', sans-serif; -webkit-font-smoothing: antialiased; color: var(--fg); }
+  .page { background: var(--bg); width: 210mm; min-height: 297mm; padding: 14mm 16mm; margin: 0 auto 4mm; display: flex; flex-direction: column; position: relative; overflow: hidden; }
+  .header { display: flex; justify-content: flex-end; margin-bottom: 9mm; }
+  .brand { font-weight: 300; font-size: 15pt; letter-spacing: 0.28em; padding-right: 0.28em; text-transform: uppercase; color: var(--fg); }
+  .title { font-weight: 300; font-size: 38pt; line-height: 1.05; letter-spacing: -0.01em; margin-bottom: 7mm; }
+  .meta { display: grid; grid-template-columns: 24mm 1fr; gap: 1.5mm 0; margin-bottom: 10mm; }
+  .meta-label { font-size: 8.5pt; color: var(--muted); letter-spacing: 0.04em; }
+  .meta-value { font-size: 9.5pt; color: var(--fg); }
+  .section-title { font-size: 13pt; font-weight: 400; color: var(--fg); margin-bottom: 2mm; }
+  .section-rule { height: 0.3pt; background: var(--line); margin-bottom: 6mm; }
+
+  .trabajo { display: flex; justify-content: space-between; align-items: baseline; gap: 10mm; padding: 5.5mm 0; border-bottom: 0.3pt solid var(--line); }
+  .trabajo:first-of-type { padding-top: 0; }
+  .t-info { flex: 1; }
+  .t-name { font-size: 11pt; font-weight: 600; color: var(--fg); margin-bottom: 2mm; }
+  .t-desc { font-size: 8.5pt; font-weight: 300; color: rgba(242,239,232,0.7); line-height: 1.65; max-width: 118mm; }
+  .t-monto { font-size: 15pt; font-weight: 300; font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+  .total-block { margin-top: 10mm; }
+  .total-label { font-size: 8pt; font-weight: 600; letter-spacing: 0.18em; text-transform: uppercase; color: var(--muted); margin-bottom: 2mm; }
+  .total-number { font-size: 40pt; font-weight: 200; letter-spacing: -0.02em; line-height: 1; margin: 2mm 0; font-variant-numeric: tabular-nums; }
+  .total-letras { font-size: 7.5pt; letter-spacing: 0.2em; text-transform: uppercase; color: var(--muted); }
+
+  .nota { margin-top: auto; padding-top: 8mm; font-size: 8pt; font-weight: 300; color: rgba(242,239,232,0.55); line-height: 1.7; }
+  .footer { margin-top: 8mm; padding-top: 4mm; border-top: 0.3pt solid var(--line); display: flex; justify-content: space-between; font-size: 7.5pt; color: var(--muted); letter-spacing: 0.06em; }
+  @page { size: A4; margin: 0; }
+  @media print {
+    html, body { background: var(--bg); width: 210mm; height: 297mm; overflow: hidden; }
+    .page { margin: 0; width: 210mm; height: 297mm; min-height: 0; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="header"><span class="brand">R &nbsp;A &nbsp;V &nbsp;N .</span></div>
+
+  <div class="title">Trabajos realizados</div>
+
+  <div class="meta">
+    <div class="meta-label">Obra</div><div class="meta-value">Correa 3750 — baño</div>
+    <div class="meta-label">Cliente</div><div class="meta-value">Lucila Lagomarsino</div>
+    <div class="meta-label">Fecha</div><div class="meta-value">31 de agosto de 2026</div>
+  </div>
+
+  <div class="section-title">Detalle</div>
+  <div class="section-rule"></div>
+
+  <div class="trabajo">
+    <div class="t-info">
+      <div class="t-name">Solución de filtración — impermeabilización del baño</div>
+      <div class="t-desc">Levantado de cerámicos y carpeta vencida en la zona afectada. Tratamiento hidrófugo de la superficie con revestimiento cementicio impermeable SikaTop Seal-107. Carpeta nueva, colocación de cerámicos con adhesivo flexible para zona húmeda, empastinado completo y cambio de la llave de paso. Incluye colocación de extractores de ventilación.</div>
+    </div>
+    <div class="t-monto">$ 2.900.000</div>
+  </div>
+
+  <div class="trabajo">
+    <div class="t-info">
+      <div class="t-name">Cielorraso — mano de obra</div>
+      <div class="t-desc">Reconstrucción del cielorraso dañado por la filtración, con terminación de pintura.</div>
+    </div>
+    <div class="t-monto">$ 450.000</div>
+  </div>
+
+  <div class="trabajo">
+    <div class="t-info">
+      <div class="t-name">Cielorraso — materiales</div>
+      <div class="t-desc">Materiales completos para la reconstrucción del cielorraso.</div>
+    </div>
+    <div class="t-monto">$ 180.000</div>
+  </div>
+
+  <div class="total-block">
+    <div class="total-label">Total de los trabajos</div>
+    <div class="total-number">$ 3.530.000</div>
+    <div class="total-letras">Tres millones quinientos treinta mil pesos</div>
+  </div>
+
+  <div class="nota">
+    Los trabajos de impermeabilización cuentan con garantía de un año desde su finalización (17/06/2026). La garantía no cubre vicios preexistentes u ocultos de la construcción ni intervenciones de terceros sobre lo realizado.
+  </div>
+
+  <div class="footer">
+    <div>RAVN Construcciones</div>
+    <div>ravn.construcciones@gmail.com · 11 2498-4298</div>
+  </div>
+</div>
+</body>
+</html>
