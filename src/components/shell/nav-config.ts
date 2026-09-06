@@ -1,65 +1,34 @@
-/**
- * Configuración de navegación del cockpit — fuente única de verdad.
- *
- * Hoy la consume SOLO el menú overlay (la sidebar murió: navegación 100% por
- * el overlay grande + ⌘K). Un solo lugar para agregar/sacar/reordenar ítems.
- *
- * Reorganización (pedido de Eze, 14/06):
- *   - Actividad pasó a DATOS (es control de que todo funcione, no operación).
- *   - Maestro de precios subió a DATOS como acceso rápido para corroborar
- *     precios; las herramientas de edición manual quedan abajo y secundarias.
- *     (OJO: "Maestro de precios" es la tabla propia de la app — NO es SISMAT.
- *     SISMAT es el servicio externo suscripto, sismat.com.ar, otra cosa.)
- */
-
+/** Navegación diaria y herramientas de apoyo. Las rutas históricas se conservan. */
 export type NavItem = { href: string; label: string };
-
 export const NAV_COCKPIT: NavItem[] = [
-  { href: "/panel", label: "Panel" },
-  // Captura rápida de gastos (obra/empresa/personal) — la misma pantalla que
-  // abre el atajo "Gasto" del iPhone (/gasto, standalone).
-  { href: "/gasto", label: "Cargar gasto" },
+  { href: "/panel", label: "Hoy" },
   { href: "/obras", label: "Proyectos" },
-  // Diagnósticos va ANTES de Cotizaciones: es el orden real del circuito
-  // (relevamiento → diagnóstico → "Enviar a cotizar" → mesa).
+  { href: "/finanzas", label: "Economía" },
+  { href: "/compras", label: "Compras" },
+  { href: "/gasto", label: "Registrar movimiento" },
+];
+export const NAV_DATOS: NavItem[] = [
+  { href: "/pendientes", label: "Pendientes y agenda" },
+  { href: "/dinero", label: "Cuentas y conciliación" },
+  { href: "/cashflow", label: "Cobros y pagos de obras" },
+  { href: "/empresa", label: "Gastos de empresa" },
+  { href: "/finanzas/presupuesto", label: "Presupuesto personal y fijos" },
+];
+export const NAV_HERRAMIENTAS: NavItem[] = [
   { href: "/diagnosticos", label: "Diagnósticos" },
   { href: "/cotizaciones", label: "Cotizaciones" },
-  // "/cotizar" es un redirect a "/cotizaciones" (26/07): apuntar el nav ahí
-  // duplicaba el destino. El panel viejo (recetas + take-off, Capítulo 1)
-  // sigue vivo en /cotizar/explorar pero se había quedado sin ningún link en
-  // la UI — este es el único acceso.
-  { href: "/cotizar/explorar", label: "Explorar recetas" },
   { href: "/proveedores", label: "Proveedores" },
   { href: "/mano-obra", label: "Mano de obra" },
-  { href: "/pendientes", label: "Pendientes" },
-  { href: "/archivados", label: "Archivados y pendientes" },
-  { href: "/adn", label: "ADN" },
-];
-
-export const NAV_DATOS: NavItem[] = [
-  { href: "/dinero", label: "Dinero" },
-  { href: "/inventario", label: "Depósito / Inventario" },
-  { href: "/cashflow", label: "Cashflow" },
-  { href: "/finanzas", label: "Finanzas personales" },
-  { href: "/actividad", label: "Actividad" },
+  { href: "/inventario", label: "Inventario" },
   { href: "/maestro-precios", label: "Maestro de precios" },
-];
-
-// El flujo viejo de presupuesto (Nuevo presupuesto → Rentabilidad → Propuesta)
-// se ELIMINÓ entero (pedido de Eze, 03/07): margen y emisión se manejan por
-// consola (cotizador-maestro); el remito sigue vivo en /remito/[id].
-
-/**
- * Herramientas secundarias. "SISMAT" es la pantalla /catalogo (recetas + rubros
- * = la data del tarifario SISMAT, como la piensa Eze). Historial salió: era
- * redundante con Proyectos (los documentos ya viven en el orbital de cada obra).
- */
-export const NAV_HERRAMIENTAS: NavItem[] = [
   { href: "/catalogo", label: "SISMAT" },
+  { href: "/cotizar/explorar", label: "Explorar recetas" },
+  { href: "/archivados", label: "Archivo" },
+  { href: "/actividad", label: "Actividad del sistema" },
+  { href: "/adn", label: "ADN de RAVN" },
 ];
-
-export const NAV_GRUPOS: Array<{ titulo: string; items: NavItem[] }> = [
-  { titulo: "Cockpit", items: NAV_COCKPIT },
-  { titulo: "Datos", items: NAV_DATOS },
-  { titulo: "Herramientas", items: NAV_HERRAMIENTAS },
+export const NAV_GRUPOS = [
+  { titulo: "Todos los días", items: NAV_COCKPIT },
+  { titulo: "Administrar", items: NAV_DATOS },
+  { titulo: "Herramientas y archivo", items: NAV_HERRAMIENTAS },
 ];

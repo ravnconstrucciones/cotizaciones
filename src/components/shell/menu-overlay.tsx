@@ -49,8 +49,8 @@ const ITEM_V: Variants = {
 
 type ItemConGrupo = NavItem & { grupo: string };
 const TODOS: ItemConGrupo[] = [
-  ...NAV_COCKPIT.map((i) => ({ ...i, grupo: "Cockpit" })),
-  ...NAV_DATOS.map((i) => ({ ...i, grupo: "Datos" })),
+  ...NAV_COCKPIT.map((i) => ({ ...i, grupo: "Todos los días" })),
+  ...NAV_DATOS.map((i) => ({ ...i, grupo: "Administrar" })),
   ...NAV_HERRAMIENTAS.map((i) => ({ ...i, grupo: "Herramientas" })),
 ];
 
@@ -357,10 +357,10 @@ export function MenuOverlay({
               onClick={(e) => e.stopPropagation()}
               className="relative mx-auto grid w-full max-w-6xl grid-cols-1 gap-x-16 gap-y-12 px-6 pb-24 pt-8 sm:px-10 lg:grid-cols-2"
             >
-              <Grupo titulo="Cockpit" items={NAV_COCKPIT} pathname={pathname} archivados={archivados} onClose={onClose} />
+              <Grupo titulo="Todos los días" items={NAV_COCKPIT} pathname={pathname} archivados={archivados} onClose={onClose} />
               <div className="space-y-12">
-                <Grupo titulo="Datos" items={NAV_DATOS} pathname={pathname} archivados={archivados} onClose={onClose} />
-                <Grupo titulo="Herramientas" items={NAV_HERRAMIENTAS} pathname={pathname} archivados={archivados} onClose={onClose} />
+                <Grupo titulo="Administrar" items={NAV_DATOS} pathname={pathname} archivados={archivados} onClose={onClose} />
+                <details><summary className="min-h-11 cursor-pointer py-3 text-base">Herramientas y archivo</summary><Grupo titulo="Apoyo" items={NAV_HERRAMIENTAS} pathname={pathname} archivados={archivados} onClose={onClose} /></details>
               </div>
             </nav>
           )}

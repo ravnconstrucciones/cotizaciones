@@ -6,7 +6,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useTheme } from "next-themes";
 import { RavnLogo } from "@/components/ravn-logo";
 import { createClient } from "@/lib/supabase/client";
-import { useRealtimeTable } from "@/hooks/use-realtime-table";
+import { NAV_COCKPIT } from "./nav-config";
 import { MenuOverlay } from "./menu-overlay";
 
 /** Rutas SIN carcasa (login, vistas de impresión/PDF, landing pública y la
@@ -37,7 +37,7 @@ function ToggleTema() {
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
-  const [archivados, setArchivados] = useState(0);
+  const archivados = 0;
   const [menuAbierto, setMenuAbierto] = useState(false);
   // Cmd+K abre el menú directo en modo búsqueda (Spotlight); el botón lo abre
   // para navegar. Distinguimos con esta bandera.
@@ -66,19 +66,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
-  const cargarBadge = useCallback(async () => {
-    const supabase = createClient();
-    const { count } = await supabase
-      .from("eventos")
-      .select("id", { count: "exact", head: true })
-      .eq("estado", "archivado");
-    setArchivados(count ?? 0);
-  }, []);
-
-  useEffect(() => {
-    void cargarBadge();
-  }, [cargarBadge, pathname]);
-  useRealtimeTable("eventos", cargarBadge);
 
   if (
     SIN_CARCASA.some((p) => pathname === p || pathname.startsWith(`${p}/`)) ||
@@ -135,6 +122,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </div>
       </header>
 
+      <nav aria-label="Accesos diarios" className="sticky top-[57px] z-30 grid grid-cols-5 border-b border-cdm-line bg-cdm-bg px-1 print:hidden">
+        {NAV_COCKPIT.map(item => <Link key={item.href} href={item.href}
+          aria-current={pathname === item.href || pathname.startsWith(item.href + "/") ? "page" : undefined}
+          className={`flex min-h-12 items-center justify-center border-b-2 px-1 text-xs sm:text-sm ${pathname === item.href || pathname.startsWith(item.href + "/") ? "border-cdm-fg font-semibold text-cdm-fg" : "border-transparent text-cdm-muted"}`}>
+          {item.href === "/gasto" ? "Registrar" : item.label}
+        </Link>)}
+      </nav>
       <main className="min-w-0 print:pl-0">{children}</main>
 
       <MenuOverlay

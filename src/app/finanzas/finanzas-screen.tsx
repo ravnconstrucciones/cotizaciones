@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { ControlFinancieroBlock } from "./control-financiero-block";
 import { formatMoneyInt } from "@/lib/format-currency";
 import { VolverAlInicio } from "@/components/volver-al-inicio";
 import { CargandoCockpit } from "@/components/cockpit/cargando-cockpit";
@@ -222,14 +221,14 @@ export function FinanzasScreen() {
         {/* Header */}
         <div className="pt-4 pb-6">
           <h1 className="font-geist text-3xl font-semibold tracking-tight text-cdm-fg">
-            Mi economía
+            Presupuesto personal
           </h1>
           <p className="font-mono-hud mt-1 text-[11px] uppercase tracking-[0.18em] text-cdm-muted">
             Personal y RAVN · decisiones con respaldo
           </p>
         </div>
 
-        <ControlFinancieroBlock />
+
 
         {/* Presupuesto: no equivale a saldo conciliado. */}
         <div className={CARD}>
