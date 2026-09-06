@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { motion } from "framer-motion";
+import { agruparAlcancePropuesta } from "@/lib/alcance-propuesta";
+import type { Desglose } from "@/lib/cotizador/tipos";
+import { motion, useReducedMotion } from "framer-motion";
 import type { CotizacionRow } from "@/lib/cotizador/tipos";
 import { formatMoneyInt } from "@/lib/format-currency";
 
@@ -17,6 +19,8 @@ export function PropuestaViva({
   cotizacion: CotizacionRow;
   version: number;
 }) {
+  const reduced = useReducedMotion();
+  const etapas = agruparAlcancePropuesta((cotizacion.desglose as Desglose | null)?.items ?? []);
   const b = cotizacion.revision?.documento_borrador;
   const min = cotizacion.total_min;
   const max = cotizacion.total_max;
@@ -56,41 +60,49 @@ export function PropuestaViva({
   return (
     <motion.article
       key={JSON.stringify(b) + String(min)}
-      initial={{ opacity: 0.6 }}
+      initial={reduced ? false : { opacity: 0.6 }}
       animate={{ opacity: 1 }}
       transition={{ duration: 0.4 }}
-      className="mx-auto my-4 w-full max-w-[520px] bg-[#f2efe8] px-8 py-10 text-[#1a1a18] shadow-[0_24px_48px_-24px_rgba(0,0,0,0.8)]"
-      style={{ fontFamily: "Raleway, sans-serif" }}
+      className="mx-auto my-4 w-full max-w-[520px] bg-[#1c1c1a] px-5 py-8 text-[#f2efe8] sm:px-8 sm:py-10 shadow-[0_24px_48px_-24px_rgba(0,0,0,0.8)]"
+      style={{ fontFamily: "var(--font-raleway, Raleway), sans-serif" }}
     >
-      <p className="text-sm font-extrabold tracking-[0.4em]">R A V N</p>
-      <p className="mt-1 text-[9px] uppercase tracking-[0.2em] text-[#8a857a]">
+      <p className="text-right text-sm font-light tracking-[0.28em]">R A V N .</p>
+      <p className="mt-1 text-[9px] uppercase tracking-[0.2em] text-[#f2efe8]/60">
         Propuesta{b?.cliente ? ` · ${b.cliente}` : ""}{b?.lugar ? ` · ${b.lugar}` : ""}
       </p>
-      <h3 className="mt-6 text-lg font-bold">{cotizacion.titulo}</h3>
+      <p className="mt-8 text-4xl font-light">Propuesta</p>
+      <p className="mt-2 text-xs text-[#f2efe8]/60">Borrador · pendiente de aprobación</p>
+      <h3 className="mt-6 border-b border-white/20 pb-3 text-lg font-light">{cotizacion.titulo}</h3>
+      {etapas.map((etapa) => <section key={etapa.nombre} className="mt-5">
+        <h4 className="text-sm font-semibold">{etapa.nombre}</h4>
+        <ul className="mt-2 space-y-2 text-[13px] leading-relaxed text-[#f2efe8]/80">{etapa.items.map((item,i)=><li key={i}>{item.nombre}{item.tipo !== "mano_de_obra" ? ` (${item.cantidad} ${item.unidad})` : ""}</li>)}</ul>
+      </section>)}
       <div className="mt-4 space-y-3 text-[13px] leading-relaxed">
         {(b?.notas ?? []).map((p, i) => (
           <p key={i}>{p}</p>
         ))}
       </div>
       {min != null && max != null && (
-        <p className="mt-8 text-3xl font-extrabold tabular-nums">
+        <p className="mt-8 text-4xl font-light tabular-nums">
           {min === max
             ? formatMoneyInt(min)
             : `${formatMoneyInt(min)} – ${formatMoneyInt(max)}`}
         </p>
       )}
       {(b?.forma_pago?.length ?? 0) > 0 && (
-        <div className="mt-6 text-[11px] leading-relaxed text-[#4a463e]">
+        <div className="mt-6 text-[11px] leading-relaxed text-[#f2efe8]/75">
+          <h4 className="mb-2 border-b border-white/20 pb-2 text-base font-light">Forma de pago</h4>
           {b!.forma_pago.map((f, i) => (
             <p key={i}>{f}</p>
           ))}
         </div>
       )}
+      {!!b?.plazo?.length && <section className="mt-6 text-sm leading-relaxed"><h4 className="mb-2 border-b border-white/20 pb-2 text-base font-light">Plazo</h4>{b.plazo.map((p,i)=><p key={i}>{p}</p>)}</section>}
       {fotos.length > 0 && (
         <div className="mt-6 grid grid-cols-3 gap-2">
           {fotos.map((f) => (
             // eslint-disable-next-line @next/next/no-img-element
-            <img key={f.id} src={f.url!} alt="" className="aspect-[4/3] w-full object-cover" />
+            <img key={f.id} src={f.url!} alt="Registro incluido en la propuesta" className="aspect-[4/3] w-full object-contain" />
           ))}
         </div>
       )}

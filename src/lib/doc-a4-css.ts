@@ -10,9 +10,9 @@
  * nacer el módulo Diagnósticos, que necesita exactamente el mismo formato.
  */
 export const DOC_A4_CSS = `
-.doc-root { --bg:#1c1c1a; --fg:#f2efe8; --muted:rgba(242,239,232,0.48); --line:rgba(242,239,232,0.18); background:#111; font-family:'Raleway',sans-serif; -webkit-font-smoothing:antialiased; color:var(--fg); min-height:100vh; padding:8mm 0; }
+.doc-root { --bg:#1c1c1a; --fg:#f2efe8; --muted:rgba(242,239,232,0.48); --line:rgba(242,239,232,0.18); background:#111; font-family:var(--font-raleway, Raleway),sans-serif; -webkit-font-smoothing:antialiased; color:var(--fg); min-height:100vh; padding:8mm 0; }
 .doc-root * { box-sizing:border-box; margin:0; padding:0; }
-.doc-page { background:var(--bg); width:210mm; min-height:297mm; padding:14mm 16mm; margin:0 auto 4mm; display:flex; flex-direction:column; position:relative; overflow:hidden; }
+.doc-page { background:var(--bg); width:210mm; min-height:297mm; padding:14mm 16mm; margin:0 auto 4mm; display:flex; flex-direction:column; position:relative; overflow:visible; overflow-wrap:anywhere; }
 .doc-header { display:flex; justify-content:flex-end; margin-bottom:10mm; }
 .doc-brand { font-weight:300; font-size:15pt; letter-spacing:0.28em; padding-right:0.28em; text-transform:uppercase; }
 .doc-title { font-weight:300; font-size:48pt; line-height:1.05; margin-bottom:9mm; }
@@ -38,6 +38,18 @@ export const DOC_A4_CSS = `
 .doc-lista { list-style:none; }
 .doc-lista li { font-size:9pt; font-weight:300; line-height:1.72; color:rgba(242,239,232,0.82); padding-left:4mm; position:relative; margin-bottom:1.5mm; }
 .doc-lista li::before { content:"—"; position:absolute; left:0; color:var(--muted); }
+.doc-root { -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+.doc-section-title, .doc-etapa, .doc-item-title { break-after:avoid; }
+.doc-body p, .doc-p2-text p { orphans:3; widows:3; }
+.doc-p2-section { break-inside:avoid; }
+@media screen and (max-width:820px) {
+  .doc-root { padding:16px 0; }
+  .doc-page { width:100%; min-height:auto; padding:28px 22px; margin-bottom:16px; }
+  .doc-title, .doc-importe-number { font-size:clamp(32px,8vw,56px); }
+  .doc-meta { grid-template-columns:64px minmax(0,1fr); }
+  .doc-aviso { padding:0 16px; font-size:13px; }
+  .doc-footer { gap:16px; flex-wrap:wrap; margin-top:24px; }
+}
 @media print {
   @page { size: A4; margin: 0; }
   .doc-root { background:var(--bg); padding:0; }

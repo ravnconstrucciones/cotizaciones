@@ -1,7 +1,10 @@
 import Link from "next/link";
-import type { CotizacionRow, Desglose, ItemDesglose, Revision } from "@/lib/cotizador/tipos";
+import type { CotizacionRow, Desglose, Revision } from "@/lib/cotizador/tipos";
 import { importeALetrasEs } from "@/lib/numero-a-letras-importe";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
+import { agruparAlcancePropuesta } from "@/lib/alcance-propuesta";
+import { LEYENDA_CONDICION_IVA_PDF } from "@/lib/ravn-propuesta-leyendas";
+import { ImprimirDocumento } from "@/components/imprimir-documento";
 import { DOC_A4_CSS } from "@/lib/doc-a4-css";
 
 export const dynamic = "force-dynamic";
@@ -56,6 +59,7 @@ export default async function DocumentoPage({ params }: Params) {
     .select("id, storage_path")
     .eq("cotizacion_id", id)
     .eq("en_propuesta", true)
+    .eq("tipo", "foto")
     .order("creado_at", { ascending: true });
   const filasFotosConPath = (filasFotos ?? []) as Array<{ id: string; storage_path: string | null }>;
   const pathsFotos = filasFotosConPath
@@ -74,23 +78,20 @@ export default async function DocumentoPage({ params }: Params) {
     .map((f) => ({ id: f.id, url: f.storage_path ? urlPorPathFoto.get(f.storage_path) ?? null : null }))
     .filter((f): f is { id: string; url: string } => f.url != null);
 
-  // Agrupar ítems por etapa, preservando el orden del desglose.
-  const etapas: Array<{ nombre: string; items: ItemDesglose[] }> = [];
-  for (const it of desglose?.items ?? []) {
-    const ultima = etapas[etapas.length - 1];
-    if (ultima && ultima.nombre === it.etapa) ultima.items.push(it);
-    else etapas.push({ nombre: it.etapa, items: [it] });
-  }
+  const etapas = agruparAlcancePropuesta(desglose?.items ?? []);
 
   return (
     <div className="doc-root">
       <style dangerouslySetInnerHTML={{ __html: DOC_A4_CSS }} />
-      <p className="doc-aviso">
+      <div className="doc-aviso">
+        <ImprimirDocumento />
+        <p>
         Para el PDF: Cmd+P → Guardar como PDF (A4, sin márgenes). ·{" "}
         <Link href={`/cotizaciones/${id}/revision`} style={{ textDecoration: "underline" }}>
           volver a la mesa
         </Link>
-      </p>
+        </p>
+      </div>
 
       {/* ── PÁGINA 1: servicios ── */}
       <div className="doc-page">
@@ -149,8 +150,7 @@ export default async function DocumentoPage({ params }: Params) {
           </div>
           <div className="doc-importe-letras">{importeALetrasEs(importe, "ARS")}</div>
           <div className="doc-importe-nota">
-            Incluye materiales y mano de obra. El presupuesto no contempla el Impuesto al
-            Valor Agregado (IVA).
+            {LEYENDA_CONDICION_IVA_PDF}
           </div>
         </div>
         {doc.forma_pago.length > 0 && (

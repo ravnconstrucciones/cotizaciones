@@ -1,3 +1,3 @@
-/** Texto fijo al pie de la sección Notas en el PDF de propuesta comercial. */
+/** Condición comercial del formato RAVN, igual a las propuestas oficiales. */
 export const LEYENDA_CONDICION_IVA_PDF =
-  "Condición ante el IVA: monotributista, factura C; exento de IVA. Por ello los importes no contemplan IVA.";
+  "Condición frente al IVA: monotributista. Los importes son finales y no discriminan IVA.";
