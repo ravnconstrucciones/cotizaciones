@@ -64,13 +64,13 @@ function ProyectoCompacto({
 
   return (
     <div
-      className={`group relative flex flex-col gap-2 rounded-[20px] p-4 ring-1 transition-colors ${
+      className={`group relative aspect-square min-w-0 flex flex-col gap-2 p-4 ring-1 transition-colors ${
         aprobado
           ? "ring-cdm-accent/25 hover:ring-cdm-accent/50"
           : "ring-cdm-line hover:ring-cdm-line/70"
       } bg-white/60 dark:bg-zinc-900/40`}
     >
-      <Link href={`/obras/${p.id}`} className="flex flex-col gap-2">
+      <Link href={`/obras/${p.id}`} className="flex min-h-0 flex-1 flex-col gap-2">
         <div className="flex items-start justify-between gap-2">
           <span className="font-geist text-[13px] font-medium leading-snug text-cdm-fg transition-colors line-clamp-2 group-hover:text-cdm-accent">
             {nombre}
@@ -92,7 +92,7 @@ function ProyectoCompacto({
             <span>{p.cant_gastos} gasto{p.cant_gastos !== 1 ? "s" : ""}</span>
           )}
           {p.cant_items === 0 && p.cant_gastos === 0 && (
-            <span className="italic">Borrador</span>
+            <span>{aprobado ? "Lista para cargar gastos" : "Borrador"}</span>
           )}
         </div>
       </Link>
@@ -217,7 +217,7 @@ export function ObrasScreen() {
   }, [cargar]);
 
   useEffect(() => {
-    if (vista === "todas" && todos === null) {
+    if (todos === null) {
       void cargarTodos();
     }
   }, [vista, todos, cargarTodos]);
@@ -263,9 +263,11 @@ export function ObrasScreen() {
 
   // ACTIVAS = en curso · FINALIZADAS = cerradas (finalizada o cobranza cerrada).
   // Se derivan de la misma carga, así cambiar de pestaña es instantáneo.
+  const orden = new Map((todos ?? []).map((p, i) => [p.id, i]));
+  const proyectosOrdenados = proyectos ? [...proyectos].sort((a,b) => (orden.get(a.presupuestoId) ?? Infinity) - (orden.get(b.presupuestoId) ?? Infinity)) : null;
   const esCerrada = (p: ProyectoFoto) => p.finalizada || p.cobranzaCerrada;
-  const activas = proyectos?.filter((p) => !esCerrada(p)) ?? null;
-  const finalizadas = proyectos?.filter((p) => esCerrada(p)) ?? null;
+  const activas = proyectosOrdenados?.filter((p) => !esCerrada(p)) ?? null;
+  const finalizadas = proyectosOrdenados?.filter((p) => esCerrada(p)) ?? null;
   // Todos los expedientes, incluso obras nuevas sin gastos o ítems.
   const todosVisibles = todos;
 
@@ -365,7 +367,7 @@ export function ObrasScreen() {
         {vista === "todas" && (
           <div className="px-6 pb-16 md:px-10">
             {cargandoTodos && todos === null && (
-              <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                 {Array.from({ length: 6 }).map((_, i) => (
                   <SkeletonGlass key={i} filas={3} anchos={["w-3/4", "w-1/2", "w-2/3"]} />
                 ))}
@@ -381,7 +383,7 @@ export function ObrasScreen() {
                 <p className="font-mono-hud mb-4 text-[10px] uppercase tracking-[0.14em] text-cdm-muted">
                   {todosVisibles.length} proyecto{todosVisibles.length !== 1 ? "s" : ""}
                 </p>
-                <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                   {todosVisibles.map((p) => (
                     <ProyectoCompacto
                       key={p.id}

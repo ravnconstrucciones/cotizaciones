@@ -14,17 +14,10 @@ export type ProyectoRow = {
 };
 
 /**
- * Ordena proyectos: aprobados primero, luego por cant_items DESC.
- * Dentro de cada grupo, los empates se rompen por created_at DESC (más nuevo primero).
+ * Ordena por creación, del último proyecto al primero.
  */
 export function ordenarProyectos(rows: ProyectoRow[]): ProyectoRow[] {
-  return [...rows].sort((a, b) => {
-    const apA = a.presupuesto_aprobado ? 1 : 0;
-    const apB = b.presupuesto_aprobado ? 1 : 0;
-    if (apB !== apA) return apB - apA; // aprobados primero
-    if (b.cant_items !== a.cant_items) return b.cant_items - a.cant_items;
-    return b.created_at.localeCompare(a.created_at);
-  });
+  return [...rows].sort((a, b) => b.created_at.localeCompare(a.created_at) || a.id.localeCompare(b.id));
 }
 
 /** Clasifica un proyecto como "aprobado", "con_items" o "borrador". */

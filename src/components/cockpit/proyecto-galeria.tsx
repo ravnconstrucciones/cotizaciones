@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRef, useState } from "react";
-import { motion } from "framer-motion";
+import { motion, useReducedMotion } from "framer-motion";
 
 /**
  * GALERÍA DE PROYECTOS (rediseño /obras, pedido de Eze: "que quede así como en
@@ -90,13 +90,13 @@ function ProyectoFotoCard({
         hidden: { opacity: 0, y: 18 },
         visible: { opacity: 1, y: 0, transition: { duration: 0.45, ease: [0.22, 1, 0.36, 1] } },
       }}
-      className={`group relative flex h-full w-full flex-col overflow-hidden rounded-[28px] ring-1 transition-shadow duration-300 ${
+      className={`group relative aspect-square min-w-0 flex w-full flex-col overflow-hidden border border-cdm-line ring-1 transition-shadow duration-300 ${
         cerrada
           ? "ring-emerald-500/30 dark:ring-emerald-400/25"
           : "ring-zinc-950/[0.07] dark:ring-white/[0.08]"
       } shadow-[0_1px_2px_rgba(16,24,40,0.04),0_18px_44px_-20px_rgba(16,24,40,0.18)] dark:shadow-[0_1px_2px_rgba(0,0,0,0.4),0_22px_50px_-22px_rgba(0,0,0,0.65)]`}
     >
-      <Link href={`/obras/${p.presupuestoId}`} className="relative block aspect-[16/11] w-full overflow-hidden">
+      <Link href={`/obras/${p.presupuestoId}`} className="relative block min-h-0 flex-1 w-full overflow-hidden">
         {p.fotoUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
@@ -223,54 +223,11 @@ export function GaleriaProyectos({
   proyectos: ProyectoFoto[];
   onFoto: (presupuestoId: string, url: string) => void;
 }) {
-  const scrollerRef = useRef<HTMLDivElement>(null);
-
-  function scroll(dir: -1 | 1) {
-    const el = scrollerRef.current;
-    if (!el) return;
-    el.scrollBy({ left: dir * Math.min(420, el.clientWidth * 0.85), behavior: "smooth" });
-  }
-
+  const reduced = useReducedMotion();
   return (
-    <div className="relative">
-      {/* Flechas (desktop) */}
-      {proyectos.length > 1 && (
-        <div className="absolute -top-12 right-6 z-10 hidden gap-2 md:flex md:right-10">
-          {([-1, 1] as const).map((d) => (
-            <button
-              key={d}
-              type="button"
-              onClick={() => scroll(d)}
-              aria-label={d === -1 ? "Anterior" : "Siguiente"}
-              className="flex h-9 w-9 items-center justify-center rounded-full ring-1 ring-cdm-line text-cdm-muted transition-colors hover:text-cdm-accent hover:ring-cdm-accent/40"
-            >
-              <svg viewBox="0 0 24 24" fill="none" className="h-4 w-4" aria-hidden>
-                <path
-                  d={d === -1 ? "M15 6l-6 6 6 6" : "M9 6l6 6-6 6"}
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </svg>
-            </button>
-          ))}
-        </div>
-      )}
-
-      <motion.div
-        ref={scrollerRef}
-        variants={{ hidden: {}, visible: { transition: { staggerChildren: 0.06 } } }}
-        initial="hidden"
-        animate="visible"
-        className="flex snap-x snap-mandatory gap-5 overflow-x-auto scroll-px-6 px-6 pb-4 md:scroll-px-10 md:px-10 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-      >
-        {proyectos.map((p) => (
-          <div key={p.presupuestoId} className="w-[300px] shrink-0 snap-start sm:w-[340px]">
-            <ProyectoFotoCard p={p} onFoto={onFoto} />
-          </div>
-        ))}
-      </motion.div>
-    </div>
+    <motion.div initial={reduced ? false : { opacity: 0 }} animate={{ opacity: 1 }}
+      className="grid grid-cols-1 gap-4 px-6 pb-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 md:px-10">
+      {proyectos.map((p) => <ProyectoFotoCard key={p.presupuestoId} p={p} onFoto={onFoto} />)}
+    </motion.div>
   );
 }
