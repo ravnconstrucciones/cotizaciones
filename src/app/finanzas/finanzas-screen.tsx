@@ -1,6 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import Link from "next/link";
+import { ControlFinancieroBlock } from "./control-financiero-block";
 import { formatMoneyInt } from "@/lib/format-currency";
 import { VolverAlInicio } from "@/components/volver-al-inicio";
 import { CargandoCockpit } from "@/components/cockpit/cargando-cockpit";
@@ -69,7 +71,7 @@ const SEMAFORO_BG: Record<Semaforo, string> = {
 };
 
 const SEMAFORO_LABEL: Record<Semaforo, string> = {
-  verde: "HOLGADO",
+  verde: "DENTRO DEL TOPE",
   amarillo: "JUSTO",
   rojo: "EN ROJO",
 };
@@ -103,17 +105,13 @@ function fmtFecha(iso: string) {
   return `${d}/${m}`;
 }
 
-type NuevoGasto = { concepto: string; monto: string; categoria: string };
 type NuevoFijo = { nombre: string; monto: string };
 
 export function FinanzasScreen() {
   const [data, setData] = useState<ResumenFinanzas | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [form, setForm] = useState<NuevoGasto>({ concepto: "", monto: "", categoria: "Varios" });
   const [guardando, setGuardando] = useState(false);
-  const [guardadoOk, setGuardadoOk] = useState(false);
-  const [errorGuardar, setErrorGuardar] = useState<string | null>(null);
   const [eliminando, setEliminando] = useState<string | null>(null);
 
   // Edición de fijos
@@ -152,35 +150,6 @@ export function FinanzasScreen() {
     }
   }
 
-  async function guardarGasto(e: React.FormEvent) {
-    e.preventDefault();
-    if (!form.concepto || !form.monto) return;
-    setGuardando(true);
-    setErrorGuardar(null);
-    setGuardadoOk(false);
-    try {
-      const res = await fetch("/api/finanzas", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...form, monto: Number(form.monto) }),
-      });
-      const j = await res.json();
-      if (res.ok) {
-        setForm({ concepto: "", monto: "", categoria: "Varios" });
-        setGuardadoOk(true);
-        setTimeout(() => setGuardadoOk(false), 3000);
-        await load(true); // silent refresh — no loading screen
-      } else {
-        setErrorGuardar(j.error ?? `Error ${res.status}`);
-      }
-    } catch (err) {
-      setErrorGuardar(err instanceof Error ? err.message : "Error de red");
-    } finally {
-      setGuardando(false);
-    }
-  }
-
-  // ── Fijos: agregar / editar monto / borrar (vía /api/finanzas/fijos) ──
   async function agregarFijo() {
     const monto = Number(nuevoFijo.monto);
     if (!nuevoFijo.nombre.trim() || !(monto >= 0)) return;
@@ -253,18 +222,20 @@ export function FinanzasScreen() {
         {/* Header */}
         <div className="pt-4 pb-6">
           <h1 className="font-geist text-3xl font-semibold tracking-tight text-cdm-fg">
-            Finanzas personales
+            Mi economía
           </h1>
           <p className="font-mono-hud mt-1 text-[11px] uppercase tracking-[0.18em] text-cdm-muted">
-            Tu libreta · ciclo de la tarjeta
+            Personal y RAVN · decisiones con respaldo
           </p>
         </div>
 
-        {/* 1 ── HERO: Hoy podés gastar ── */}
+        <ControlFinancieroBlock />
+
+        {/* Presupuesto: no equivale a saldo conciliado. */}
         <div className={CARD}>
           <div className="flex items-baseline justify-between">
             <span className="font-mono-hud text-[10px] uppercase tracking-widest text-cdm-muted">
-              Hoy podés gastar
+              Presupuesto teórico de hoy
             </span>
             <span className={`font-mono-hud text-[10px] font-semibold uppercase tracking-widest ${SEMAFORO_COLOR[sem]}`}>
               {SEMAFORO_LABEL[sem]}
@@ -278,16 +249,16 @@ export function FinanzasScreen() {
               {formatMoneyInt(Math.max(0, data.disponible_hoy))}
             </CifraHeroica>
             <span className="font-mono-hud text-xs text-cdm-muted">
-              de {formatMoneyInt(data.presupuesto_hoy)} fijos por día
+              de {formatMoneyInt(data.presupuesto_hoy)} asignados por día
             </span>
           </div>
           <p className="font-mono-hud mt-2 text-[11px] text-cdm-muted">
             {diaEnRojo ? (
-              <>Te pasaste de lo del día por {formatMoneyInt(-data.disponible_hoy)} — salió de la alcancía. </>
+              <>Te pasaste de lo del día por {formatMoneyInt(-data.disponible_hoy)} — salió del presupuesto acumulado. </>
             ) : (
               <>Hoy gastaste {formatMoneyInt(data.gastado_hoy)}. </>
             )}
-            Alcancía:{" "}
+            Presupuesto no utilizado:{" "}
             <span className={data.ahorrado >= 0 ? "text-emerald-400" : "text-red-400"}>
               {formatMoneyInt(data.ahorrado)}
             </span>{" "}
@@ -335,13 +306,13 @@ export function FinanzasScreen() {
           </div>
           <dl className="mt-4 grid grid-cols-2 gap-x-4 gap-y-2 text-[11px]">
             <div>
-              <dt className="font-mono-hud uppercase tracking-[0.12em] text-cdm-muted">Disponible del ciclo</dt>
+              <dt className="font-mono-hud uppercase tracking-[0.12em] text-cdm-muted">Resto del presupuesto</dt>
               <dd className={`font-geist tabular-nums font-medium ${data.disponible_ciclo >= 0 ? "text-emerald-400" : "text-red-400"}`}>
                 {formatMoneyInt(data.disponible_ciclo)}
               </dd>
             </div>
             <div>
-              <dt className="font-mono-hud uppercase tracking-[0.12em] text-cdm-muted">Alcancía (ahorrado)</dt>
+              <dt className="font-mono-hud uppercase tracking-[0.12em] text-cdm-muted">Presupuesto no utilizado</dt>
               <dd className={`font-geist tabular-nums font-medium ${data.ahorrado >= 0 ? "text-emerald-400" : "text-red-400"}`}>
                 {formatMoneyInt(data.ahorrado)}
               </dd>
@@ -510,48 +481,8 @@ export function FinanzasScreen() {
           <h2 className="font-mono-hud text-[10px] uppercase tracking-widest text-cdm-muted">
             Cargar gasto
           </h2>
-          <form onSubmit={guardarGasto} className="mt-4 space-y-3">
-            <input
-              type="text"
-              placeholder="Concepto"
-              value={form.concepto}
-              onChange={(e) => setForm((f) => ({ ...f, concepto: e.target.value }))}
-              className="font-geist w-full border-0 border-b border-cdm-line bg-transparent px-1 py-2 text-sm text-cdm-fg placeholder:text-cdm-muted/50 transition-[border-color,box-shadow] duration-200 focus-visible:border-cdm-accent focus-visible:outline-none focus-visible:shadow-[0_12px_24px_-16px_rgba(34,211,238,0.6)]"
-            />
-            <input
-              type="number"
-              placeholder="Monto"
-              value={form.monto}
-              onChange={(e) => setForm((f) => ({ ...f, monto: e.target.value }))}
-              className="font-geist tabular-nums w-full border-0 border-b border-cdm-line bg-transparent px-1 py-2 text-sm text-cdm-fg placeholder:text-cdm-muted/50 transition-[border-color,box-shadow] duration-200 focus-visible:border-cdm-accent focus-visible:outline-none focus-visible:shadow-[0_12px_24px_-16px_rgba(34,211,238,0.6)]"
-            />
-            <select
-              value={form.categoria}
-              onChange={(e) => setForm((f) => ({ ...f, categoria: e.target.value }))}
-              className="font-geist w-full rounded-[12px] border border-cdm-line bg-white/40 dark:bg-zinc-900/60 px-4 py-3 text-sm text-cdm-fg focus:border-cdm-accent focus:outline-none"
-            >
-              {CATEGORIAS_ORDEN.map((c) => (
-                <option key={c} value={c}>{c}</option>
-              ))}
-            </select>
-            <button
-              type="submit"
-              disabled={guardando || !form.concepto || !form.monto}
-              className="font-mono-hud w-full cursor-pointer rounded-full border border-cdm-accent/60 bg-cdm-accent/10 px-8 py-3 text-[11px] uppercase tracking-[0.14em] text-cdm-accent transition-colors hover:bg-cdm-accent/20 disabled:opacity-40"
-            >
-              {guardando ? "Guardando…" : "Guardar"}
-            </button>
-            {guardadoOk && (
-              <p className="font-mono-hud text-center text-xs uppercase tracking-widest text-emerald-400">
-                Guardado ✓
-              </p>
-            )}
-            {errorGuardar && (
-              <p className="font-mono-hud text-center text-xs uppercase tracking-widest text-red-400">
-                Error: {errorGuardar}
-              </p>
-            )}
-          </form>
+          <p className="mt-3 text-sm leading-relaxed text-cdm-muted">Indicá si es personal, de empresa o de una obra, y la cuenta con la que pagaste.</p>
+          <Link href="/gasto" className="mt-4 inline-flex min-h-11 items-center border border-cdm-fg px-4 text-sm">Registrar gasto</Link>
         </div>
 
         {/* Últimos gastos */}
