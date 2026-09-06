@@ -124,7 +124,7 @@ function ProyectoCompacto({
 }
 
 export function ObrasScreen() {
-  const [vista, setVista] = useState<Vista>("activas");
+  const [vista, setVista] = useState<Vista>("todas");
   const [proyectos, setProyectos] = useState<ProyectoFoto[] | null>(null);
   const [todos, setTodos] = useState<ProyectoRow[] | null>(null);
   const [cargandoTodos, setCargandoTodos] = useState(false);
@@ -197,7 +197,7 @@ export function ObrasScreen() {
   const cargarTodos = useCallback(async () => {
     setCargandoTodos(true);
     try {
-      const res = await fetch("/api/proyectos");
+      const res = await fetch("/api/proyectos", { cache: "no-store" });
       const j = (await res.json()) as ProyectoRowResponse & { error?: string };
       if (!res.ok) {
         setError(j.error ?? "No se pudo cargar los proyectos.");
@@ -266,9 +266,8 @@ export function ObrasScreen() {
   const esCerrada = (p: ProyectoFoto) => p.finalizada || p.cobranzaCerrada;
   const activas = proyectos?.filter((p) => !esCerrada(p)) ?? null;
   const finalizadas = proyectos?.filter((p) => esCerrada(p)) ?? null;
-  // TODAS sin borradores (presupuestos vacíos: 0 ítems y 0 gastos).
-  const todosVisibles =
-    todos?.filter((p) => !(p.cant_items === 0 && p.cant_gastos === 0)) ?? null;
+  // Todos los expedientes, incluso obras nuevas sin gastos o ítems.
+  const todosVisibles = todos;
 
   const renderGaleria = (lista: ProyectoFoto[] | null, vacio: string) => (
     <>
@@ -300,7 +299,7 @@ export function ObrasScreen() {
             Proyectos
           </h1>
           <p className="font-mono-hud mt-1 text-[11px] uppercase tracking-[0.18em] text-cdm-muted">
-            Galería de obras
+            Todos tus expedientes, obras en curso y finalizadas
           </p>
         </div>
         <Link

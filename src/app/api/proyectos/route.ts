@@ -58,7 +58,7 @@ export async function GET() {
     const proyectos = ordenarProyectos(rows);
 
     const res = NextResponse.json({ proyectos, total: proyectos.length });
-    res.headers.set("Cache-Control", "s-maxage=30");
+    res.headers.set("Cache-Control", "private, no-store");
     return res;
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Error";
