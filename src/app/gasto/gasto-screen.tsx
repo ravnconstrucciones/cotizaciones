@@ -61,11 +61,11 @@ type Resultado = {
 const EASE = [0.22, 1, 0.36, 1] as const;
 
 const CARD =
-  "cdm-card relative overflow-hidden rounded-[24px] ring-1 ring-cdm-line bg-white/60 dark:bg-zinc-900/40 p-5 sm:p-6";
+  "cdm-card relative overflow-hidden rounded-none ring-1 ring-cdm-line bg-white/60 dark:bg-zinc-900/40 p-5 sm:p-6";
 const LABEL =
-  "font-mono-hud text-[10px] uppercase tracking-[0.24em] text-cdm-muted";
+  "font-mono-hud text-xs uppercase tracking-[0.14em] text-cdm-muted";
 const CHIP_BASE =
-  "inline-flex min-h-[44px] items-center gap-2 rounded-full ring-1 px-4 font-mono-hud text-[10px] uppercase tracking-[0.14em] transition-colors";
+  "inline-flex min-h-[44px] items-center gap-2 rounded-none ring-1 px-4 font-mono-hud text-xs uppercase tracking-[0.08em] transition-colors";
 
 const LS_KEY = "ravn.gasto.v1";
 
@@ -140,7 +140,7 @@ function Sheet({
               <button
                 type="button"
                 onClick={onClose}
-                className="font-mono-hud min-h-[44px] px-2 text-[10px] uppercase tracking-[0.14em] text-cdm-muted transition-colors hover:text-cdm-fg focus-visible:outline focus-visible:outline-1 focus-visible:outline-cdm-fg"
+                className="font-mono-hud min-h-[44px] px-2 text-xs uppercase tracking-[0.08em] text-cdm-muted transition-colors hover:text-cdm-fg focus-visible:outline focus-visible:outline-1 focus-visible:outline-cdm-fg"
               >
                 [CERRAR]
               </button>
@@ -684,19 +684,20 @@ export function GastoScreen({
 
   // ── Render ─────────────────────────────────────────────────────────────
   return (
-    <main className="font-geist min-h-[100dvh] bg-cdm-bg text-cdm-fg">
+    <main className="font-raleway min-h-[100dvh] bg-cdm-bg text-cdm-fg">
       <div className="mx-auto w-full max-w-md px-4 pt-[max(1.5rem,env(safe-area-inset-top))] pb-44">
         {/* Mini-header propio: /gasto va SIN carcasa (captura pura). */}
         <header className="mb-6 flex items-center justify-between">
           <RavnLogo align="start" showTagline={false} sizeClassName="text-lg" />
           <Link
             href="/panel"
-            className="font-mono-hud min-h-[44px] inline-flex items-center text-[10px] uppercase tracking-[0.14em] text-cdm-muted transition-colors hover:text-cdm-fg focus-visible:outline focus-visible:outline-1 focus-visible:outline-cdm-fg"
+            className="font-mono-hud min-h-[44px] inline-flex items-center text-xs uppercase tracking-[0.08em] text-cdm-muted transition-colors hover:text-cdm-fg focus-visible:outline focus-visible:outline-1 focus-visible:outline-cdm-fg"
           >
-            [CENTRO DE MANDO]
+            Volver al inicio
           </Link>
         </header>
 
+        <div className="mb-6"><h1 className="text-3xl font-semibold tracking-tight">Registrar movimiento</h1><p className="mt-2 text-sm leading-relaxed text-cdm-muted">Indicá qué pasó, a qué corresponde y la cuenta.</p></div>
         <AnimatePresence mode="wait" initial={false}>
           {resultado ? (
             /* ── Card de éxito: estado REAL del ledger, nunca mentir ── */
@@ -731,22 +732,22 @@ export function GastoScreen({
               </p>
               <p className="mt-4">
                 {resultado.estado === "asentado" && (
-                  <span className="font-mono-hud inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[10px] uppercase tracking-[0.14em] text-emerald-400 ring-1 ring-emerald-400/40">
+                  <span className="font-mono-hud inline-flex items-center gap-1.5 rounded-none px-3 py-1 text-xs uppercase tracking-[0.08em] text-emerald-400 ring-1 ring-emerald-400/40">
                     Asentado en el ledger
                   </span>
                 )}
                 {resultado.estado === "pendiente_cuenta" && (
-                  <span className="font-mono-hud inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[10px] uppercase tracking-[0.14em] text-amber-300 ring-1 ring-amber-400/40">
+                  <span className="font-mono-hud inline-flex items-center gap-1.5 rounded-none px-3 py-1 text-xs uppercase tracking-[0.08em] text-amber-300 ring-1 ring-amber-400/40">
                     Guardado — sin cuenta, queda pendiente
                   </span>
                 )}
                 {resultado.estado === "sin_foto" && (
-                  <span className="font-mono-hud inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[10px] uppercase tracking-[0.14em] text-cdm-muted ring-1 ring-cdm-line">
+                  <span className="font-mono-hud inline-flex items-center gap-1.5 rounded-none px-3 py-1 text-xs uppercase tracking-[0.08em] text-cdm-muted ring-1 ring-cdm-line">
                     Guardado — ledger sin foto inicial
                   </span>
                 )}
                 {resultado.estado === "espejo_pendiente" && (
-                  <span className="font-mono-hud inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[10px] uppercase tracking-[0.14em] text-amber-300 ring-1 ring-amber-400/40">
+                  <span className="font-mono-hud inline-flex items-center gap-1.5 rounded-none px-3 py-1 text-xs uppercase tracking-[0.08em] text-amber-300 ring-1 ring-amber-400/40">
                     Guardado — espejo pendiente
                   </span>
                 )}
@@ -756,7 +757,7 @@ export function GastoScreen({
                   type="button"
                   onClick={() => void reintentarEspejo()}
                   disabled={reintentando}
-                  className="font-mono-hud mt-3 min-h-[44px] px-3 text-[10px] uppercase tracking-[0.14em] text-cdm-muted transition-colors hover:text-cdm-fg disabled:opacity-50"
+                  className="font-mono-hud mt-3 min-h-[44px] px-3 text-xs uppercase tracking-[0.08em] text-cdm-muted transition-colors hover:text-cdm-fg disabled:opacity-50"
                 >
                   {reintentando ? "[REINTENTANDO…]" : "[REINTENTAR ESPEJO]"}
                 </button>
@@ -766,15 +767,15 @@ export function GastoScreen({
                   type="button"
                   onClick={cargarOtro}
                   whileTap={reducir ? undefined : { scale: 0.985 }}
-                  className="font-mono-hud min-h-[52px] w-full rounded-full bg-cdm-fg text-[11px] uppercase tracking-[0.2em] text-cdm-bg transition-opacity hover:opacity-90"
+                  className="font-mono-hud min-h-[52px] w-full rounded-none bg-cdm-fg text-[11px] uppercase tracking-[0.2em] text-cdm-bg transition-opacity hover:opacity-90"
                 >
                   [CARGAR OTRO]
                 </motion.button>
                 <Link
                   href="/panel"
-                  className="font-mono-hud inline-flex min-h-[44px] items-center justify-center text-[10px] uppercase tracking-[0.14em] text-cdm-muted transition-colors hover:text-cdm-fg"
+                  className="font-mono-hud inline-flex min-h-[44px] items-center justify-center text-xs uppercase tracking-[0.08em] text-cdm-muted transition-colors hover:text-cdm-fg"
                 >
-                  [CENTRO DE MANDO]
+                  Volver al inicio
                 </Link>
               </div>
             </motion.section>
@@ -788,7 +789,7 @@ export function GastoScreen({
               <motion.div
                 role="radiogroup"
                 aria-label="Tipo de movimiento"
-                className="relative grid grid-cols-2 rounded-full p-1 ring-1 ring-cdm-line"
+                className="relative grid grid-cols-2 rounded-none p-1 ring-1 ring-cdm-line"
                 {...entrada(0)}
               >
                 {(["gasto", "ingreso"] as const).map((opcion) => {
@@ -815,7 +816,7 @@ export function GastoScreen({
                           setCuentaId(lsRef.current.cuentaPorTipo?.[tipo] ?? null);
                         }
                       }}
-                      className={`relative min-h-[48px] rounded-full font-mono-hud text-[11px] uppercase tracking-[0.16em] transition-colors focus-visible:outline focus-visible:outline-1 focus-visible:outline-cdm-fg ${
+                      className={`relative min-h-[48px] rounded-none font-mono-hud text-sm uppercase tracking-[0.08em] transition-colors focus-visible:outline focus-visible:outline-1 focus-visible:outline-cdm-fg ${
                         activo ? "text-cdm-fg" : "text-cdm-muted hover:text-cdm-fg"
                       }`}
                     >
@@ -823,7 +824,7 @@ export function GastoScreen({
                         <motion.span
                           layoutId="movimientoPill"
                           aria-hidden
-                          className={`absolute inset-0 rounded-full ring-1 ${
+                          className={`absolute inset-0 rounded-none ring-1 ${
                             opcion === "ingreso"
                               ? "bg-emerald-400/10 ring-emerald-400/40"
                               : "bg-cdm-fg/10 ring-cdm-fg/30"
@@ -842,7 +843,7 @@ export function GastoScreen({
               <motion.div
                 role="radiogroup"
                 aria-label="Tipo de gasto"
-                className="relative grid grid-cols-3 rounded-full p-1 ring-1 ring-cdm-line"
+                className="relative grid grid-cols-3 rounded-none p-1 ring-1 ring-cdm-line"
                 {...entrada(0)}
               >
                 {TIPOS.map((t) => {
@@ -854,7 +855,7 @@ export function GastoScreen({
                       role="radio"
                       aria-checked={activo}
                       onClick={() => cambiarTipo(t.id)}
-                      className={`relative min-h-[44px] rounded-full font-mono-hud text-[10px] uppercase tracking-[0.14em] transition-colors focus-visible:outline focus-visible:outline-1 focus-visible:outline-cdm-fg ${
+                      className={`relative min-h-[44px] rounded-none font-mono-hud text-xs uppercase tracking-[0.08em] transition-colors focus-visible:outline focus-visible:outline-1 focus-visible:outline-cdm-fg ${
                         activo ? "text-cdm-fg" : "text-cdm-muted hover:text-cdm-fg"
                       }`}
                     >
@@ -862,7 +863,7 @@ export function GastoScreen({
                         <motion.span
                           layoutId="tipoPill"
                           aria-hidden
-                          className="absolute inset-0 rounded-full bg-cdm-fg/10 ring-1 ring-cdm-fg/30"
+                          className="absolute inset-0 rounded-none bg-cdm-fg/10 ring-1 ring-cdm-fg/30"
                           transition={
                             reducir
                               ? { duration: 0 }
@@ -908,7 +909,7 @@ export function GastoScreen({
                     <button
                       type="button"
                       onClick={() => setModoUsd((v) => !v)}
-                      className="font-mono-hud min-h-[44px] px-2 text-[10px] uppercase tracking-[0.14em] text-cdm-muted transition-colors hover:text-cdm-fg"
+                      className="font-mono-hud min-h-[44px] px-2 text-xs uppercase tracking-[0.08em] text-cdm-muted transition-colors hover:text-cdm-fg"
                       aria-pressed={modoUsd}
                     >
                       {modoUsd ? "[TIPEAR EN $]" : "[TIPEAR EN US$]"}
@@ -988,7 +989,7 @@ export function GastoScreen({
                       autoComplete="off"
                       value={cotStr}
                       onChange={(e) => setCotStr(e.target.value)}
-                      className="mt-1.5 w-full rounded-xl border border-cdm-line bg-cdm-panel px-3 py-2.5 text-base tabular-nums text-cdm-fg focus-visible:border-cdm-fg/50 focus-visible:outline-none"
+                      className="mt-1.5 w-full rounded-none border border-cdm-line bg-cdm-panel px-3 py-2.5 text-base tabular-nums text-cdm-fg focus-visible:border-cdm-fg/50 focus-visible:outline-none"
                     />
                     {modoUsd && montoFinal > 0 && (
                       <p className="mt-2 text-xs text-cdm-muted tabular-nums">
@@ -1025,7 +1026,7 @@ export function GastoScreen({
                   }
                   value={concepto}
                   onChange={(e) => setConcepto(e.target.value)}
-                  className="mt-1.5 w-full rounded-xl border border-cdm-line bg-cdm-panel px-3 py-2.5 text-base text-cdm-fg placeholder:text-cdm-muted focus-visible:border-cdm-fg/50 focus-visible:outline-none"
+                  className="mt-1.5 w-full rounded-none border border-cdm-line bg-cdm-panel px-3 py-2.5 text-base text-cdm-fg placeholder:text-cdm-muted focus-visible:border-cdm-fg/50 focus-visible:outline-none"
                 />
                 {intento && tipo !== "obra" && !concepto.trim() && (
                   <p role="alert" className="mt-2 text-xs text-red-400">
@@ -1136,7 +1137,7 @@ export function GastoScreen({
                   {sesionVencida ? (
                     <Link
                       href="/login?next=/gasto"
-                      className="font-mono-hud mt-2 inline-flex min-h-[44px] items-center text-[10px] uppercase tracking-[0.14em] underline-offset-4 hover:underline"
+                      className="font-mono-hud mt-2 inline-flex min-h-[44px] items-center text-xs uppercase tracking-[0.08em] underline-offset-4 hover:underline"
                     >
                       [ENTRAR DE NUEVO]
                     </Link>
@@ -1144,7 +1145,7 @@ export function GastoScreen({
                     <button
                       type="button"
                       onClick={() => void guardar()}
-                      className="font-mono-hud mt-2 min-h-[44px] text-[10px] uppercase tracking-[0.14em] underline-offset-4 hover:underline"
+                      className="font-mono-hud mt-2 min-h-[44px] text-xs uppercase tracking-[0.08em] underline-offset-4 hover:underline"
                     >
                       [REINTENTAR]
                     </button>
@@ -1170,7 +1171,7 @@ export function GastoScreen({
               onClick={() => void guardar()}
               disabled={guardando || Boolean(motivo)}
               whileTap={reducir || guardando ? undefined : { scale: 0.985 }}
-              className="font-mono-hud min-h-[56px] w-full rounded-full bg-cdm-fg text-[12px] uppercase tracking-[0.24em] text-cdm-bg transition-opacity hover:opacity-90 disabled:opacity-40"
+              className="font-mono-hud min-h-[56px] w-full rounded-none bg-cdm-fg text-[12px] uppercase tracking-[0.24em] text-cdm-bg transition-opacity hover:opacity-90 disabled:opacity-40"
             >
               {guardando
                 ? "[GUARDANDO…]"
@@ -1194,7 +1195,7 @@ export function GastoScreen({
           onChange={(e) => {
             if (e.target.value) setFecha(e.target.value);
           }}
-          className="w-full rounded-xl border border-cdm-line bg-cdm-bg px-3 py-3 text-base text-cdm-fg focus-visible:border-cdm-fg/50 focus-visible:outline-none"
+          className="w-full rounded-none border border-cdm-line bg-cdm-bg px-3 py-3 text-base text-cdm-fg focus-visible:border-cdm-fg/50 focus-visible:outline-none"
           aria-label={esIngreso ? "Fecha del ingreso" : "Fecha del gasto"}
         />
         <button
@@ -1203,7 +1204,7 @@ export function GastoScreen({
             setFecha(hoy);
             setSheet(null);
           }}
-          className="font-mono-hud mt-3 min-h-[44px] text-[10px] uppercase tracking-[0.14em] text-cdm-muted transition-colors hover:text-cdm-fg"
+          className="font-mono-hud mt-3 min-h-[44px] text-xs uppercase tracking-[0.08em] text-cdm-muted transition-colors hover:text-cdm-fg"
         >
           [HOY]
         </button>
@@ -1250,13 +1251,13 @@ export function GastoScreen({
           autoComplete="off"
           placeholder={tipo === "personal" ? "Varios" : "Opcional"}
           onChange={(e) => setCategoria(e.target.value)}
-          className="w-full rounded-xl border border-cdm-line bg-cdm-bg px-3 py-3 text-base text-cdm-fg placeholder:text-cdm-muted focus-visible:border-cdm-fg/50 focus-visible:outline-none"
+          className="w-full rounded-none border border-cdm-line bg-cdm-bg px-3 py-3 text-base text-cdm-fg placeholder:text-cdm-muted focus-visible:border-cdm-fg/50 focus-visible:outline-none"
           aria-label="Categoría del gasto"
         />
         <button
           type="button"
           onClick={() => setSheet(null)}
-          className="font-mono-hud mt-3 min-h-[44px] text-[10px] uppercase tracking-[0.14em] text-cdm-muted transition-colors hover:text-cdm-fg"
+          className="font-mono-hud mt-3 min-h-[44px] text-xs uppercase tracking-[0.08em] text-cdm-muted transition-colors hover:text-cdm-fg"
         >
           [LISTO]
         </button>

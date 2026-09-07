@@ -19,50 +19,17 @@ function proyecto(partial: Partial<ProyectoRow>): ProyectoRow {
 }
 
 describe("ordenarProyectos", () => {
-  it("aprobados aparecen antes que no aprobados", () => {
+  it("muestra primero el más reciente aunque esté vacío o sin aprobar", () => {
     const rows = [
-      proyecto({ id: "a", presupuesto_aprobado: false, cant_items: 10 }),
-      proyecto({ id: "b", presupuesto_aprobado: true, cant_items: 2 }),
+      proyecto({ id: "viejo", presupuesto_aprobado: true, cant_items: 20, created_at: "2026-08-01T00:00:00Z" }),
+      proyecto({ id: "nuevo", created_at: "2026-09-06T00:00:00Z" }),
+      proyecto({ id: "medio", cant_items: 40, created_at: "2026-09-01T00:00:00Z" }),
     ];
-    const result = ordenarProyectos(rows);
-    expect(result[0].id).toBe("b");
-    expect(result[1].id).toBe("a");
+    expect(ordenarProyectos(rows).map(r => r.id)).toEqual(["nuevo", "medio", "viejo"]);
   });
 
-  it("dentro de los no aprobados, más items va primero", () => {
-    const rows = [
-      proyecto({ id: "a", presupuesto_aprobado: false, cant_items: 3 }),
-      proyecto({ id: "b", presupuesto_aprobado: false, cant_items: 15 }),
-      proyecto({ id: "c", presupuesto_aprobado: false, cant_items: 7 }),
-    ];
-    const result = ordenarProyectos(rows);
-    expect(result.map((r) => r.id)).toEqual(["b", "c", "a"]);
-  });
-
-  it("dentro de los aprobados, más items va primero", () => {
-    const rows = [
-      proyecto({ id: "a", presupuesto_aprobado: true, cant_items: 5 }),
-      proyecto({ id: "b", presupuesto_aprobado: true, cant_items: 20 }),
-    ];
-    const result = ordenarProyectos(rows);
-    expect(result[0].id).toBe("b");
-  });
-
-  it("empate de items: más reciente primero", () => {
-    const rows = [
-      proyecto({
-        id: "viejo",
-        cant_items: 5,
-        created_at: "2025-01-01T00:00:00Z",
-      }),
-      proyecto({
-        id: "nuevo",
-        cant_items: 5,
-        created_at: "2026-06-01T00:00:00Z",
-      }),
-    ];
-    const result = ordenarProyectos(rows);
-    expect(result[0].id).toBe("nuevo");
+  it("mantiene un orden estable si coinciden las fechas de creación", () => {
+    expect(ordenarProyectos([proyecto({ id: "b" }), proyecto({ id: "a" })]).map(r => r.id)).toEqual(["a", "b"]);
   });
 
   it("no muta el array original", () => {

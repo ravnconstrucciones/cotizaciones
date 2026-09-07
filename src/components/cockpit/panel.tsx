@@ -179,7 +179,7 @@ function PanelCard({
   setAbierto: React.Dispatch<React.SetStateAction<boolean>>;
 }) {
   const titulo_el = (
-    <h2 className="font-raleway min-w-0 truncate text-[11px] font-bold uppercase tracking-[0.18em] text-cdm-fg">
+    <h2 className="font-raleway min-w-0 text-lg font-semibold tracking-tight text-cdm-fg">
       {titulo}
     </h2>
   );
@@ -197,10 +197,9 @@ function PanelCard({
       className={className}
     >
       <Card
-        interactive
         className="font-raleway flex h-full min-h-0 flex-col"
       >
-        <header className="flex items-center justify-between gap-3 border-b border-cdm-line px-6 py-4">
+        <header className="flex flex-wrap items-center justify-between gap-3 border-b border-cdm-line px-4 py-4 sm:px-6">
           {colapsable ? (
             <button
               type="button"
@@ -251,7 +250,7 @@ function PanelCard({
             )}
           </AnimatePresence>
         ) : (
-          <div className="min-h-0 flex-1 px-6 py-5">{children}</div>
+          <div className="min-h-0 flex-1 px-4 py-5 sm:px-6">{children}</div>
         )}
       </Card>
     </motion.div>
