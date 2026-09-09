@@ -10,6 +10,7 @@ import {
 } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { CapturaIa, type DatosExtraidos } from "./captura-ia";
+import { SelectorOperario } from "./selector-operario";
 import { UltimosGastos } from "./ultimos-gastos";
 import { RavnLogo } from "@/components/ravn-logo";
 import { useEntradaAnimada } from "@/hooks/use-entrada-animada";
@@ -175,6 +176,7 @@ export function GastoScreen({
   const [fecha, setFecha] = useState(hoy);
   const [obraId, setObraId] = useState<string | null>(null);
   const [categoria, setCategoria] = useState("");
+  const [operarioId,setOperarioId] = useState<string|null>(null);
   const [cuentaId, setCuentaId] = useState<string | null>(null);
   const [sheet, setSheet] = useState<SheetId>(null);
   const [guardando, setGuardando] = useState(false);
@@ -184,6 +186,7 @@ export function GastoScreen({
   const [refreshUltimos, setRefreshUltimos] = useState(0);
   const [resultado, setResultado] = useState<Resultado | null>(null);
   const [reintentando, setReintentando] = useState(false);
+  useEffect(()=>setOperarioId(null),[tipo,obraId,movimiento,resultado?.id]);
   /** Nota de lo que entendió la IA (transcripción / avisos) + flash visual
    * breve sobre los campos que precargó. */
   const [iaNota, setIaNota] = useState<string | null>(null);
@@ -467,6 +470,7 @@ export function GastoScreen({
         payload.descripcion = concepto.trim();
         // Rubro fuera de /gasto (01/08, pedido de Eze): siempre sin rubro.
         payload.rubro_id = null;
+        payload.operario_id = operarioId;
         payload.importe = montoFinal;
         // Solo con cuenta USD real: modoUsd ya no sobrevive sin cuentaUsd.
         if (cot > 0 && cuentaUsd) {
@@ -543,7 +547,7 @@ export function GastoScreen({
     }
   }, [
     motivo, guardando, tipo, esIngreso, fecha, cuentaId, obraId, concepto,
-    montoFinal, cot, cuentaUsd, casaDolar, categoria, persistirLs, cargarCuentas,
+    montoFinal, cot, cuentaUsd, casaDolar, categoria, operarioId, persistirLs, cargarCuentas,
   ]);
 
   /** El espejo falló al guardar: reintento manual contra el endpoint genérico. */
@@ -1028,6 +1032,7 @@ export function GastoScreen({
                   onChange={(e) => setConcepto(e.target.value)}
                   className="mt-1.5 w-full rounded-none border border-cdm-line bg-cdm-panel px-3 py-2.5 text-base text-cdm-fg placeholder:text-cdm-muted focus-visible:border-cdm-fg/50 focus-visible:outline-none"
                 />
+                {tipo === "obra" && !esIngreso && <SelectorOperario value={operarioId} onChange={setOperarioId}/>}
                 {intento && tipo !== "obra" && !concepto.trim() && (
                   <p role="alert" className="mt-2 text-xs text-red-400">
                     Poné el concepto.

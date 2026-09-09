@@ -52,3 +52,11 @@ describe("conciliación del resumen",()=>{
     expect(calcularEconomiaObra(p,o,[],[],[]).resultadoArs).toBeNull();
   });
 });
+
+it("hace visibles pagos al operario sin inventar un acuerdo ni duplicar costos",()=>{
+  const r=calcularEconomiaObra({id:"p",created_at:"2026-09-09"},{id:"o",presupuesto_id:"p",monto_total_a_cobrar_ars:100},[{id:"g",presupuesto_id:"p",fecha:"2026-09-09",importe:40,operario_id:"fran",descripcion:"Electricidad"}],[],[]);
+  expect(r.gastadoArs).toBe(40);
+  expect(r.resultadoArs).toBe(60);
+  expect(r.pagosPersonalSinAcuerdoArs).toBe(40);
+  expect(r.moPagadaArs).toBe(0);
+});

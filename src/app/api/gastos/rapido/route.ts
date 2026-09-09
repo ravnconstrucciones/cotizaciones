@@ -4,6 +4,7 @@ import { sincronizarEspejo, type ResultadoSync } from "@/lib/dinero-sync";
 import { estadoDesdeTipo } from "@/lib/cashflow-matching";
 import { roundArs2 } from "@/lib/format-currency";
 import { ORIGEN_GASTO_RAPIDO } from "@/lib/gastos-rapidos";
+import {operarioPorNombre,type Operario} from "@/lib/operarios";
 
 /**
  * CARGA RÁPIDA DE GASTOS — write-point único de la pantalla /gasto.
@@ -289,11 +290,21 @@ export async function POST(req: NextRequest) {
       // Validar ANTES de crear la pata de Caja.
       const moAcuerdoId = str(body.mo_acuerdo_id) || null;
       const planItemId = str(body.plan_item_id) || null;
+      const operarioId = str(body.operario_id) || null;
+      let operario: Operario | null = null;
+      if (operarioId) {
+        const {data,error} = await sb.from("mo_operarios").select("id,nombre,aliases").eq("id",operarioId).maybeSingle();
+        if (error) return malo("No se pudo verificar el operario",500);
+        if (!data) return malo("El operario no existe");
+        operario = data as Operario;
+      }
       for (const [tabla, vinculo] of [["mo_acuerdos", moAcuerdoId], ["obra_plan_items", planItemId]] as const) {
         if (!vinculo) continue;
-        const { data, error } = await sb.from(tabla).select("id,presupuesto_id").eq("id", vinculo).maybeSingle();
+        const { data, error } = await sb.from(tabla).select(tabla==="mo_acuerdos"?"id,presupuesto_id,persona":"id,presupuesto_id").eq("id", vinculo).maybeSingle();
         if (error) return malo("No se pudo verificar el acuerdo o ítem de trabajo", 500);
-        if (!data || data.presupuesto_id !== presupuestoId) return malo("El acuerdo o ítem no pertenece a esta obra");
+        const vinculado=data as {presupuesto_id:string;persona?:string|null}|null;
+        if (!vinculado || vinculado.presupuesto_id !== presupuestoId) return malo("El acuerdo o ítem no pertenece a esta obra");
+        if (tabla==="mo_acuerdos" && operario && vinculado.persona && !operarioPorNombre(vinculado.persona,[operario])) return malo("El operario no coincide con el acuerdo");
       }
       const descripcion = str(body.descripcion);
 
@@ -306,6 +317,7 @@ export async function POST(req: NextRequest) {
         descripcion,
         rubro_id: str(body.rubro_id) || null,
         mo_acuerdo_id: moAcuerdoId,
+        operario_id: operarioId,
         plan_item_id: planItemId,
         cuenta_id: cuentaId,
       });
@@ -344,6 +356,7 @@ export async function POST(req: NextRequest) {
         fecha,
         rubro_id: str(body.rubro_id) || null,
         mo_acuerdo_id: moAcuerdoId,
+        operario_id: operarioId,
         plan_item_id: planItemId,
         descripcion,
         importe,

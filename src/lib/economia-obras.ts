@@ -18,7 +18,7 @@ export type ObraEconomica = {
 export type GastoEconomico = {
   id: string; presupuesto_id: string; importe: unknown; fecha: string;
   descripcion?: string | null; rubro_id?: string | null; plan_item_id?: string | null;
-  mo_acuerdo_id?: string | null; cashflow_item_id?: string | null; cuenta_id?: string | null;
+  mo_acuerdo_id?: string | null; operario_id?: string | null; cashflow_item_id?: string | null; cuenta_id?: string | null;
 };
 export type MovimientoObra = {
   id: string; obra_id: string; tipo: string; monto_real?: unknown; monto_proyectado?: unknown;
@@ -47,6 +47,7 @@ export function calcularEconomiaObra(p: PresEconomico, o: ObraEconomica | null, 
   const sinValuarUsd = suma(egresos.filter(m => m.moneda === "USD").map(m => parseNum(m.monto_usd ?? m.monto_real)));
   const gastadoArs = suma([...propios.map(g => parseNum(g.importe)), ...egresosArs.map(m => parseNum(m.monto_real))]);
   const moPagadaArs = suma(propios.filter(esGastoManoObra).map(g => parseNum(g.importe)));
+  const pagosPersonalSinAcuerdoArs = suma(propios.filter(g => g.operario_id && !esGastoManoObra(g)).map(g => parseNum(g.importe)));
   const propiosAcuerdos = acuerdos.filter(a => a.presupuesto_id === p.id);
   const moPendienteArs = suma(propiosAcuerdos.filter(a => a.moneda === "ARS" && a.estado === "abierto").map(a => Math.max(0, parseNum(a.monto_arreglado) - suma(propios.filter(g => g.mo_acuerdo_id === a.id).map(g => parseNum(g.importe))))));
   const pref = parsePropuestaPrefJsonDesdeMismaFila(p.propuesta_comercial_pref, p.id);
@@ -69,7 +70,7 @@ export function calcularEconomiaObra(p: PresEconomico, o: ObraEconomica | null, 
     cliente: p.nombre_cliente ?? null, aprobado: Boolean(p.presupuesto_aprobado), createdAt: p.created_at,
     finalizada: Boolean(o?.finalizada_at), cobranzaCerrada: Boolean(o?.cobranza_cerrada_at),
     fotoUrl: null as string | null, fotoPath: o?.foto_portada_path ?? null,
-    contratoArs, contratoUsd, esUsd, cotizacion, gastadoArs, moPagadaArs, moPendienteArs,
+    contratoArs, contratoUsd, esUsd, cotizacion, gastadoArs, moPagadaArs, pagosPersonalSinAcuerdoArs, moPendienteArs,
     moPendienteUsd: propiosAcuerdos.some(a => a.moneda === "USD" && a.estado === "abierto"),
     cobradoArs, cobradoUsd, resultadoArs, margenPct, costoCierreArs,
     resultadoProyectadoArs: contratoArs != null && !sinValuarUsd ? roundArs2(contratoArs - costoCierreArs) : null,
