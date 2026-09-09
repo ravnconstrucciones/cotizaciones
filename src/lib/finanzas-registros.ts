@@ -1,10 +1,18 @@
 import { roundArs2 } from "./format-currency";
 export type GastoPersonalRegistro = {id:string;fecha:string;concepto:string;monto:number;categoria:string;fijo_id:string|null;extraordinario:boolean;cuenta_id:string|null;cuenta?:string|null};
+/** Agrupa variantes de escritura sin modificar la categoría del registro original. */
+export function categoriaPersonal(categoria:string) {
+  const nombre=categoria.trim().replace(/\s+/g," ").toLocaleLowerCase("es");
+  if(!nombre)return "Sin categoría";
+  const clave=nombre.normalize("NFD").replace(/[\u0300-\u036f]/g,"");
+  if(clave==="super"||clave==="supermercado")return "Supermercado";
+  return nombre.charAt(0).toLocaleUpperCase("es")+nombre.slice(1);
+}
 export function resumirGastosPersonales(gastos:GastoPersonalRegistro[]) {
   const filas=[...new Map(gastos.map(g=>[g.id,g])).values()];
   const porCategoria=new Map<string,number>(); const porDia=new Map<string,number>();
   let total=0,fijos=0,extraordinarios=0;
-  for(const g of filas){const cents=Math.round(Number(g.monto)*100);total+=cents;if(g.fijo_id)fijos+=cents;else if(g.extraordinario)extraordinarios+=cents;const cat=g.categoria.trim()||"Sin categoría";porCategoria.set(cat,(porCategoria.get(cat)??0)+cents);porDia.set(g.fecha,(porDia.get(g.fecha)??0)+cents);}
+  for(const g of filas){const cents=Math.round(Number(g.monto)*100);total+=cents;if(g.fijo_id)fijos+=cents;else if(g.extraordinario)extraordinarios+=cents;const cat=categoriaPersonal(g.categoria);porCategoria.set(cat,(porCategoria.get(cat)??0)+cents);porDia.set(g.fecha,(porDia.get(g.fecha)??0)+cents);}
   let acumulado=0;
   return {total:total/100,fijos:fijos/100,extraordinarios:extraordinarios/100,variables:(total-fijos-extraordinarios)/100,cantidad:filas.length,
     categorias:[...porCategoria].map(([nombre,centavos])=>({nombre,total:centavos/100,pct:total>0?roundArs2(centavos/total*100):0})).sort((a,b)=>b.total-a.total),
