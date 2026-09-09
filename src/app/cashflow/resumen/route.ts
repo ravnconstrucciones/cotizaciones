@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { parseNum, todayBuenosAires, totalesReales } from "@/lib/cashflow-compute";
-import { importeGastoObraArs } from "@/lib/cashflow-gastos-obra";
+import { importeGastoObraArs, sinEspejosDeGastos } from "@/lib/cashflow-gastos-obra";
 import { parseFormattedNumber, roundArs2 } from "@/lib/format-currency";
 import {
   importeArsParaPropuesta,
@@ -205,6 +205,7 @@ type GastoDb = {
   fecha: string;
   descripcion: string | null;
   importe: unknown;
+  cashflow_item_id?: string | null;
 };
 
 export async function GET() {
@@ -283,7 +284,7 @@ export async function GET() {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    const rows = (data ?? []) as unknown as JoinedRow[];
+    let rows = (data ?? []) as unknown as JoinedRow[];
 
     const { data: obrasData, error: errObras } = obrasResult;
     if (errObras) {
@@ -333,7 +334,7 @@ export async function GET() {
       presIdsAll.length > 0
         ? supabase
             .from("presupuestos_gastos")
-            .select("id, presupuesto_id, fecha, descripcion, importe")
+            .select("id, presupuesto_id, fecha, descripcion, importe, cashflow_item_id")
             .in("presupuesto_id", presIdsAll)
         : Promise.resolve({ data: [] as GastoDb[], error: null }),
       obraIdsSaldoArr.length > 0
@@ -360,11 +361,13 @@ export async function GET() {
           }),
     ]);
 
+    if (gastosResult.error) return NextResponse.json({ error: "No se pudo leer todos los gastos de obra." }, { status: 500 });
     let gastosRows: GastoDb[] = [];
     if (!gastosResult.error && gastosResult.data) {
       gastosRows = gastosResult.data as unknown as GastoDb[];
     }
 
+    rows = sinEspejosDeGastos(rows, gastosRows);
     const gastosTotalPorObraId = new Map<string, number>();
     for (const g of gastosRows) {
       const oid = obraIdPorPresupuestoId.get(g.presupuesto_id);
@@ -499,8 +502,8 @@ export async function GET() {
         finalizada: Boolean(o.finalizada_at),
         // Margen al día (spec §4.2): propuesta − gastado real acumulado.
         margen_al_dia_ars:
-          referencia_propuesta_ars != null
-            ? roundArs2(referencia_propuesta_ars - egTotal)
+          (monto_total_a_cobrar_ars_resp ?? referencia_propuesta_ars) != null
+            ? roundArs2((monto_total_a_cobrar_ars_resp ?? referencia_propuesta_ars ?? 0) - egTotal)
             : null,
         // Costo total estimado (ARS, valuado al blue si la obra es USD): el
         // módulo Salud lo usa para el rédito proyectado real.

@@ -6,7 +6,7 @@ export default function ObrasPage() {
   return (
     <>
       {/* El resumen arranca a bajar con el HTML (ronda 6 — perf). */}
-      <PrefetchDatos rutas={["/cashflow/resumen"]} />
+      <PrefetchDatos rutas={["/api/proyectos"]} />
       <ObrasScreen />
     </>
   );

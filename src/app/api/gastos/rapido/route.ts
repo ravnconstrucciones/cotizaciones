@@ -132,7 +132,7 @@ export async function POST(req: NextRequest) {
     const esReintento = body.reintento === true;
     const buscarReciente = async (
       tabla: "presupuestos_gastos" | "gastos_empresa" | "gastos_personales",
-      filtros: Record<string, string | number | null>
+      filtros: Record<string, string | number | boolean | null>
     ): Promise<string | null> => {
       if (!esReintento) return null;
       const desde = new Date(Date.now() - 2 * 60 * 1000).toISOString();
@@ -146,9 +146,7 @@ export async function POST(req: NextRequest) {
         .limit(1)
         .maybeSingle();
       if (error) {
-        // El dedupe jamás frena el guardado: sin lectura, camino normal.
-        console.error("[gastos/rapido dedupe]", error.message);
-        return null;
+        throw new Error("No se pudo verificar el reintento. No se creó otro gasto; volvé a intentar.");
       }
       return data ? String((data as { id: unknown }).id) : null;
     };
@@ -287,6 +285,16 @@ export async function POST(req: NextRequest) {
         ? String((obraRes.data as { id: unknown }).id)
         : null;
 
+      // Vínculos del relevo: conservar identidad del operario y del trabajo.
+      // Validar ANTES de crear la pata de Caja.
+      const moAcuerdoId = str(body.mo_acuerdo_id) || null;
+      const planItemId = str(body.plan_item_id) || null;
+      for (const [tabla, vinculo] of [["mo_acuerdos", moAcuerdoId], ["obra_plan_items", planItemId]] as const) {
+        if (!vinculo) continue;
+        const { data, error } = await sb.from(tabla).select("id,presupuesto_id").eq("id", vinculo).maybeSingle();
+        if (error) return malo("No se pudo verificar el acuerdo o ítem de trabajo", 500);
+        if (!data || data.presupuesto_id !== presupuestoId) return malo("El acuerdo o ítem no pertenece a esta obra");
+      }
       const descripcion = str(body.descripcion);
 
       // 0) Reintento tras respuesta perdida: ¿ya existe este mismo gasto?
@@ -297,6 +305,8 @@ export async function POST(req: NextRequest) {
         importe,
         descripcion,
         rubro_id: str(body.rubro_id) || null,
+        mo_acuerdo_id: moAcuerdoId,
+        plan_item_id: planItemId,
         cuenta_id: cuentaId,
       });
       if (dupObra) {
@@ -333,6 +343,8 @@ export async function POST(req: NextRequest) {
         presupuesto_id: presupuestoId,
         fecha,
         rubro_id: str(body.rubro_id) || null,
+        mo_acuerdo_id: moAcuerdoId,
+        plan_item_id: planItemId,
         descripcion,
         importe,
         cuenta_id: cuentaId,
@@ -421,11 +433,20 @@ export async function POST(req: NextRequest) {
       return malo("Un gasto personal sale de una cuenta en pesos");
     }
 
+    const fijoId = str(body.fijo_id) || null;
+    if (fijoId) {
+      const { data: fijo, error } = await sb.from("finanzas_fijos").select("id,dueno").eq("id", fijoId).maybeSingle();
+      if (error) return malo("No se pudo verificar el gasto fijo", 500);
+      if (!fijo || fijo.dueno !== "personal") return malo("El fijo no corresponde a gastos personales");
+    }
+    const extraordinario = body.extraordinario === true;
     const dupPer = await buscarReciente("gastos_personales", {
       concepto,
       monto,
       fecha,
       cuenta_id: cuentaId,
+      fijo_id: fijoId,
+      extraordinario,
     });
     if (dupPer) {
       const espejo = await espejar("gastos_personales", dupPer);
@@ -441,6 +462,8 @@ export async function POST(req: NextRequest) {
         fecha,
         origen: "app",
         cuenta_id: cuentaId,
+      fijo_id: fijoId,
+      extraordinario,
         origen_carga: ORIGEN_GASTO_RAPIDO,
       })
       .select("id")

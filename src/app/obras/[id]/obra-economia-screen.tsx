@@ -1,0 +1,43 @@
+"use client";
+import Link from "next/link";
+import { useCallback, useEffect, useState } from "react";
+import { ArrowLeft, FileText, Plus, Ruler, Users } from "lucide-react";
+import { type EconomiaObra, type calcularRubros, type GastoEconomico } from "@/lib/economia-obras";
+import { CostBar, FotoPortada, LoadingCards, Metric, PageIntro, control, money, number, surface } from "@/components/finanzas/finance-ui";
+import { useRealtimeTable } from "@/hooks/use-realtime-table";
+
+type Detalle = ReturnType<typeof calcularRubros> & {obra:EconomiaObra;gastos:GastoEconomico[]};
+function MedirRubro({r,onSave}:{r:Detalle["rubros"][number];onSave:(cantidad:number,unidad:string)=>Promise<void>}) {
+  const [cantidad,setCantidad]=useState(String(r.medicion?.cantidad??""));
+  const [unidad,setUnidad]=useState(r.medicion?.unidad??"m2");
+  const [busy,setBusy]=useState(false); const [error,setError]=useState(""); const [saved,setSaved]=useState(false);
+  return <form className="mt-3 flex flex-wrap items-end gap-2" onSubmit={async e=>{e.preventDefault();setBusy(true);setError("");setSaved(false);try{await onSave(Number(cantidad.replace(",",".")),unidad);setSaved(true);}catch(e){setError(e instanceof Error?e.message:"No se pudo guardar.");}finally{setBusy(false);}}}><label className="min-w-0 flex-1 text-xs text-cdm-muted">Cantidad ejecutada<input required inputMode="decimal" value={cantidad} onChange={e=>{setCantidad(e.target.value);setSaved(false);}} className={`${control} mt-1 w-full`} placeholder="Ej. 80"/></label><label className="text-xs text-cdm-muted">Unidad<select value={unidad} onChange={e=>{setUnidad(e.target.value);setSaved(false);}} className={`${control} mt-1 block`}>{[["m2","m²"],["m","m"],["u","unidades"],["jornal","jornales"],["global","global"]].map(([v,l])=><option key={v} value={v}>{l}</option>)}</select></label><button disabled={busy} className={control}>{busy?"Guardando…":"Guardar"}</button>{(error||saved)&&<p className="w-full text-xs" role="status">{error||"Medición guardada."}</p>}</form>;
+}
+export function ObraEconomiaScreen({presupuestoId}:{presupuestoId:string}) {
+  const [data,setData]=useState<Detalle|null>(null); const [error,setError]=useState("");
+  const cargar=useCallback(async()=>{try{const r=await fetch(`/api/proyectos/${presupuestoId}/analisis`,{cache:"no-store"});const j=await r.json();if(!r.ok)throw new Error(j.error);setData(j);setError("");}catch(e){setError(e instanceof Error?e.message:"No se pudo cargar.");}},[presupuestoId]);
+  useEffect(()=>{void cargar();},[cargar]); useRealtimeTable("presupuestos_gastos",cargar);
+  async function guardar(rubroId:string,cantidad:number,unidad:string){const res=await fetch(`/api/proyectos/${presupuestoId}/analisis`,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({rubroId,cantidad,unidad})});const j=await res.json();if(!res.ok)throw new Error(j.error);await cargar();}
+  const o=data?.obra;
+  return <div className="font-raleway mx-auto max-w-5xl px-4 py-6 pb-16 text-cdm-fg sm:px-8">
+    <Link href="/obras" className="mb-4 inline-flex min-h-11 items-center gap-2 text-sm text-cdm-muted"><ArrowLeft size={16}/>Proyectos</Link>
+    {error&&<p role="alert" className={`${surface} mb-4 p-4 text-sm`}>{error} <button onClick={()=>void cargar()} className="underline">Reintentar</button></p>}
+    {!data||!o?<LoadingCards/>:<>
+      <PageIntro eyebrow={o.finalizada?"Obra finalizada":"Obra en curso"} title={o.nombre} description={o.cliente??"El resultado y el costo de cada trabajo."}/>
+      <section className={`${surface} relative isolate mb-4 overflow-hidden p-5 sm:p-7`}>
+        {o.fotoUrl&&<img src={o.fotoUrl} alt="" className="absolute inset-0 -z-10 h-full w-full object-cover opacity-15 grayscale"/>}
+        <div className="grid grid-cols-2 gap-6"><div><p className="text-sm text-cdm-muted">Resultado directo {o.finalizada?"registrado":"a hoy"}</p><p className="mt-2 break-words text-3xl font-semibold tracking-tight tabular-nums sm:text-4xl">{money(o.resultadoArs)}</p><p className="mt-2 text-sm text-cdm-muted">{o.margenPct==null?(o.contratoArs==null?"Falta el importe del contrato o su cotización":"Todavía no hay costos registrados"):`${number(o.margenPct)}% de margen sobre el contrato`}</p></div><div className="grid gap-4"><Metric label={o.esUsd?"Contrato al cambio pactado":"Contrato"} value={money(o.contratoArs)}/><Metric label="Costo registrado" value={money(o.gastadoArs)}/></div></div>
+        <div className="mt-6"><CostBar total={o.contratoArs} mo={o.moPagadaArs} otros={Math.max(0,o.gastadoArs-o.moPagadaArs)}/></div>
+        <div className="mt-5 grid grid-cols-2 gap-5 border-t border-cdm-line pt-5 sm:grid-cols-4"><Metric label="Mano de obra pagada" value={money(o.moPagadaArs)}/><Metric label="Mano de obra por pagar" value={money(o.moPendienteArs)} detail={o.moPendienteUsd?"Hay además acuerdos en USD":"Acuerdos registrados"}/><Metric label="Cobrado en pesos" value={money(o.cobradoArs)} detail={o.cobradoUsd?`Además US$ ${number(o.cobradoUsd)}`:undefined}/><Metric label="Resultado previsto" value={o.tienePrevision?money(o.resultadoProyectadoArs):"Falta previsión"} detail="Considera costo previsto y MO pendiente"/></div>
+        <p className="mt-4 text-xs leading-relaxed text-cdm-muted">Contrato menos costos directos registrados. El resultado cambia con nuevos gastos; no descuenta estructura de empresa ni impuestos por liquidar.{o.gastosSinCuenta>0?` ${o.gastosSinCuenta} gastos todavía no tienen cuenta de pago.`:""}</p>
+        {o.obraId&&<FotoPortada id={o.id} tieneFoto={Boolean(o.fotoUrl)} onFoto={url=>setData({...data,obra:{...o,fotoUrl:url}})}/>}
+      </section>
+      <nav className="mb-7 flex flex-wrap gap-2" aria-label="Acciones de obra">{[[`/obras/${o.id}/gastos`,"Gastos",Plus],[`/obras/${o.id}/mano-obra`,"Acuerdos y pagos",Users],[`/obras/${o.id}/archivos`,"Fotos y documentos",FileText],[`/obras/${o.id}/plan`,"Plan de trabajo",Ruler]].map(([href,label,Icon])=>{const I=Icon as typeof Plus;return <Link key={String(href)} href={String(href)} className={`${control} inline-flex items-center gap-2`}><I size={16}/>{String(label)}</Link>;})}</nav>
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3"><div><h2 className="text-xl font-semibold tracking-tight">Cuánto costó cada rubro</h2><p className="mt-1 text-sm text-cdm-muted">Cargá la cantidad ejecutada del mismo alcance para guardar tu costo por m² o unidad.</p></div><Link href="/obras/costos" className={`${control} text-sm`}>Mis costos reales →</Link></div>
+      <div className="grid gap-4 sm:grid-cols-2">{data.rubros.map(r=><section key={r.id} className={`${surface} p-5`}><h3 className="text-sm font-semibold">{r.nombre}</h3><div className="mt-4 grid grid-cols-2 gap-3"><Metric label="Costo real registrado" value={money(r.gastadoArs)} detail={`${r.cantidadGastos} gastos · MO ${money(r.moArs)}`}/><Metric label={`Costo por ${r.medicion?.unidad==="m2"?"m²":r.medicion?.unidad??"unidad"}`} value={r.costoUnitario==null?"Falta medición":money(r.costoUnitario)} detail={r.medicion?`${number(r.medicion.cantidad)} ${r.medicion.unidad==="m2"?"m²":r.medicion.unidad} · ${r.medicion.fecha}`:undefined}/></div>{r.id==="sin-rubro"?<Link href={`/obras/${o.id}/gastos`} className="mt-4 inline-flex min-h-11 items-center text-sm underline">Asignar rubros a estos gastos</Link>:<MedirRubro r={r} onSave={(q,u)=>guardar(r.id,q,u)}/>}</section>)}</div>
+      {!data.rubros.length&&<p className={`${surface} p-6 text-sm text-cdm-muted`}>Todavía no hay gastos registrados para analizar.</p>}
+      {o.egresosSinRubroArs>0&&<p className="mt-4 text-sm text-cdm-muted">Además: {money(o.egresosSinRubroArs)} de egresos de caja sin desglose por rubro. Están incluidos en el costo total.</p>}
+      {data.trabajos.length>0&&<details className={`${surface} mt-5 p-5`}><summary className="min-h-11 cursor-pointer font-semibold">Costos por ítem del plan</summary><p className="mb-4 text-xs text-cdm-muted">Sólo gastos vinculados al ítem, divididos por su cantidad en el plan. {money(data.sinAsignarArs)} aún sin asignar a ítems.</p>{data.trabajos.map(t=><div key={t.id} className="flex justify-between gap-4 border-t border-cdm-line py-3 text-sm"><div>{t.nombre}<p className="mt-1 text-xs text-cdm-muted">{t.cantidad} {t.unidad??"sin unidad"} · {t.cantidadGastos} gastos</p></div><div className="text-right font-semibold tabular-nums">{t.costoUnitario==null?"Sin costo vinculado":`${money(t.costoUnitario)} / ${t.unidad}`}<p className="mt-1 text-xs font-normal text-cdm-muted">Total {money(t.gastadoArs)}</p></div></div>)}</details>}
+    </>}
+  </div>;
+}

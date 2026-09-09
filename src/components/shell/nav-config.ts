@@ -1,14 +1,13 @@
 /** Navegación diaria y herramientas de apoyo. Las rutas históricas se conservan. */
 export type NavItem = { href: string; label: string };
 export const NAV_COCKPIT: NavItem[] = [
-  { href: "/panel", label: "Hoy" },
+  { href: "/panel", label: "Inicio" },
   { href: "/obras", label: "Proyectos" },
-  { href: "/finanzas", label: "Economía" },
-  { href: "/compras", label: "Compras" },
+  { href: "/finanzas", label: "Personal" },
+  { href: "/mano-obra", label: "Pagos" },
   { href: "/gasto", label: "Registrar movimiento" },
 ];
 export const NAV_DATOS: NavItem[] = [
-  { href: "/pendientes", label: "Pendientes y agenda" },
   { href: "/dinero", label: "Cuentas y conciliación" },
   { href: "/cashflow", label: "Cobros y pagos de obras" },
   { href: "/empresa", label: "Gastos de empresa" },
@@ -18,7 +17,8 @@ export const NAV_HERRAMIENTAS: NavItem[] = [
   { href: "/diagnosticos", label: "Diagnósticos" },
   { href: "/cotizaciones", label: "Cotizaciones" },
   { href: "/proveedores", label: "Proveedores" },
-  { href: "/mano-obra", label: "Mano de obra" },
+  { href: "/compras", label: "Compras" },
+  { href: "/obras/costos", label: "Mis costos reales" },
   { href: "/inventario", label: "Inventario" },
   { href: "/maestro-precios", label: "Maestro de precios" },
   { href: "/catalogo", label: "SISMAT" },

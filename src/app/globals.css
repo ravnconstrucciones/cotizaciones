@@ -1,5 +1,12 @@
 @import "tailwindcss";
 
+/* Interfaz nativa: sin descargar tres familias extra. Raleway local para marca y documentos. */
+:root {
+  --font-grotesk: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-geist: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-mono-hud: ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+
 /* Variante `light:` (espejo del `dark:` de Tailwind, scoped a la clase
    que aplica next-themes en <html>). Para los ajustes puntuales de
    utilidades que el set de tokens claro no puede cubrir solo. */

@@ -1,239 +1,42 @@
 "use client";
-
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { WavesBackdrop } from "@/components/cockpit/waves-backdrop";
-import { SkeletonGlass } from "@/components/cockpit/skeleton-glass";
-import { useRealtimeTable } from "@/hooks/use-realtime-table";
-import { createClient } from "@/lib/supabase/client";
-import {
-  resumirAcuerdos,
-  type AcuerdoMO,
-  type PagoMO,
-  type ResumenAcuerdo,
-} from "@/lib/mano-obra";
-
-/**
- * Mano de obra GLOBAL (/mano-obra): todos los acuerdos de todas las obras —
- * a quién se le debe, cuánto y hace cuánto no cobra. El detalle y el alta
- * viven en /obras/[id]/mano-obra; esto es el tablero de deuda con gremios.
- */
-
-const fmt = (n: number, moneda = "ARS") =>
-  `${moneda === "USD" ? "US$" : "$"}${Math.round(n).toLocaleString("es-AR")}`;
-
-// "2026-06-26" → "26/06/26" (fecha literal del pago, sin relativos tipo "hace X días")
-const fmtFecha = (iso: string) => {
-  const [a, m, d] = iso.split("-");
-  return `${d}/${m}/${a.slice(2)}`;
-};
-
-type PresupuestoNombre = { id: string; nombre_obra: string | null; nombre_cliente: string | null };
-
-export function ManoObraGlobalScreen() {
-  const [acuerdos, setAcuerdos] = useState<AcuerdoMO[] | null>(null);
-  const [pagos, setPagos] = useState<PagoMO[]>([]);
-  const [nombres, setNombres] = useState<Map<string, string>>(new Map());
-  const [cuentas, setCuentas] = useState<Map<string, string>>(new Map());
-  const [error, setError] = useState<string | null>(null);
-  const [verSaldados, setVerSaldados] = useState(false);
-
-  const cargar = useCallback(async () => {
-    try {
-      const supabase = createClient();
-      const [acs, gs, pres, ctas] = await Promise.all([
-        supabase.from("mo_acuerdos").select("*").order("created_at", { ascending: true }),
-        supabase
-          .from("presupuestos_gastos")
-          .select("id, mo_acuerdo_id, importe, fecha, descripcion, cotizacion_venta_ars_por_usd, cuenta_id")
-          .not("mo_acuerdo_id", "is", null),
-        supabase.from("presupuestos").select("id, nombre_obra, nombre_cliente"),
-        supabase.from("cuentas").select("id, nombre"),
-      ]);
-      if (acs.error) {
-        setError(acs.error.message);
-        return;
-      }
-      setError(null);
-      setAcuerdos((acs.data ?? []) as AcuerdoMO[]);
-      setPagos((gs.data ?? []) as PagoMO[]);
-      setNombres(
-        new Map(
-          ((pres.data ?? []) as PresupuestoNombre[]).map((p) => [
-            p.id,
-            p.nombre_obra?.trim() || p.nombre_cliente?.trim() || "Obra",
-          ]),
-        ),
-      );
-      setCuentas(
-        new Map(((ctas.data ?? []) as { id: string; nombre: string }[]).map((c) => [c.id, c.nombre])),
-      );
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Error de red");
-    }
-  }, []);
-
-  useEffect(() => {
-    void cargar();
-  }, [cargar]);
-  useRealtimeTable("presupuestos_gastos", cargar);
-  useRealtimeTable("mo_acuerdos", cargar);
-
-  // Grupos por obra, en el orden de carga de los acuerdos.
-  const grupos = useMemo(() => {
-    const visibles = (acuerdos ?? []).filter((a) => verSaldados || a.estado === "abierto");
-    const resumenes = resumirAcuerdos(visibles, pagos);
-    const porObra = new Map<string, ResumenAcuerdo[]>();
-    for (const r of resumenes) {
-      const lista = porObra.get(r.acuerdo.presupuesto_id) ?? [];
-      lista.push(r);
-      porObra.set(r.acuerdo.presupuesto_id, lista);
-    }
-    return [...porObra.entries()];
-  }, [acuerdos, pagos, verSaldados]);
-
-  const totalAdeudado = useMemo(
-    () =>
-      grupos
-        .flatMap(([, rs]) => rs)
-        .filter((r) => r.acuerdo.estado === "abierto" && r.acuerdo.moneda === "ARS")
-        .reduce((a, r) => a + r.saldo, 0),
-    [grupos],
-  );
-
-  return (
-    <div className="font-grotesk relative flex min-h-dvh flex-col bg-cdm-bg p-4 text-cdm-fg">
-      <WavesBackdrop />
-      <header className="relative z-10 flex items-baseline justify-between gap-3 px-1">
-        <div className="flex items-baseline gap-4">
-          <Link
-            href="/obras"
-            className="font-mono-hud text-[10px] uppercase tracking-[0.08em] text-cdm-muted transition-colors hover:text-cdm-accent"
-          >
-            [← PROYECTOS]
-          </Link>
-          <h1 className="font-mono-hud flex items-baseline gap-2 text-[11px] font-medium uppercase tracking-[0.22em] text-cdm-muted">
-            <span aria-hidden className="text-cdm-accent/60">{"//////"}</span>
-            MANO DE OBRA
-          </h1>
-        </div>
-        <div className="flex items-baseline gap-4">
-          <Link
-            href="/mano-obra/informe"
-            className="font-mono-hud text-[10px] uppercase tracking-[0.08em] text-cdm-muted transition-colors hover:text-cdm-accent"
-          >
-            [INFORME]
-          </Link>
-          <button
-            type="button"
-            onClick={() => setVerSaldados((v) => !v)}
-            className="font-mono-hud text-[10px] uppercase tracking-[0.08em] text-cdm-muted transition-colors hover:text-cdm-accent"
-          >
-            {verSaldados ? "[OCULTAR SALDADOS]" : "[VER SALDADOS]"}
-          </button>
-        </div>
-      </header>
-
-      <div className="relative z-10 mt-4 flex flex-col gap-4 px-1">
-        {error && <p className="text-[11px] text-red-400">{error}</p>}
-        {!acuerdos && <SkeletonGlass filas={4} anchos={["w-1/2", "w-1/3", "w-2/5", "w-1/4"]} />}
-
-        {grupos.map(([presupuestoId, rs]) => {
-          // Avance de la obra: solo acuerdos abiertos en ARS (mismo criterio que el total)
-          const abiertos = rs.filter((r) => r.acuerdo.estado === "abierto" && r.acuerdo.moneda === "ARS");
-          const arreglado = abiertos.reduce((a, r) => a + Number(r.acuerdo.monto_arreglado), 0);
-          const pagado = abiertos.reduce((a, r) => a + r.pagado, 0);
-          const pct = arreglado > 0 ? Math.round((pagado / arreglado) * 100) : 0;
-          return (
-          <section key={presupuestoId} className="border border-cdm-line p-3">
-            <Link
-              href={`/obras/${presupuestoId}/mano-obra`}
-              className="font-mono-hud text-[11px] font-semibold uppercase tracking-[0.18em] text-cdm-fg transition-colors hover:text-cdm-accent"
-            >
-              {nombres.get(presupuestoId) ?? "Obra"} ↑
-            </Link>
-            <ul className="mt-2 flex flex-col gap-1.5">
-              {rs.map((r) => (
-                <li
-                  key={r.acuerdo.id}
-                  className={`flex flex-col gap-1 text-[12px] ${r.acuerdo.estado === "saldado" ? "opacity-50" : ""}`}
-                >
-                  <div className="flex flex-wrap items-baseline justify-between gap-2">
-                    <span>
-                      {r.acuerdo.persona && <span className="text-cdm-muted">{r.acuerdo.persona} — </span>}
-                      {r.acuerdo.trabajo}
-                      {r.acuerdo.estado === "saldado" && (
-                        <span className="font-mono-hud text-[9px] uppercase tracking-widest text-emerald-400"> ✓</span>
-                      )}
-                    </span>
-                    <span className="font-mono-hud flex flex-wrap items-baseline gap-3">
-                      {r.ultimoPago && (
-                        <span className="text-[10px] text-cdm-muted">último pago {fmtFecha(r.ultimoPago)}</span>
-                      )}
-                      <span className="text-[11px] text-cdm-muted">
-                        arreglado {fmt(Number(r.acuerdo.monto_arreglado), r.acuerdo.moneda)} · pagado{" "}
-                        {fmt(r.pagado, r.acuerdo.moneda)} ({r.porcentajePagado}%)
-                      </span>
-                      <span
-                        className={r.saldo <= 0 ? "text-emerald-400" : "text-cdm-accent"}
-                      >
-                        falta {fmt(r.saldo, r.acuerdo.moneda)}
-                      </span>
-                    </span>
-                  </div>
-                  {/* Cada pago con su fecha y método (la descripción trae el método: transf., efectivo…) */}
-                  {r.pagos.length > 0 && (
-                    <ul className="flex flex-col gap-0.5 pl-3">
-                      {r.pagos.map((p) => (
-                        <li key={p.id} className="flex items-baseline justify-between gap-2 text-[11px] text-cdm-muted">
-                          <span>
-                            {fmtFecha(p.fecha)} · {p.cuenta_id ? (cuentas.get(p.cuenta_id) ?? "medio s/d") : "medio s/d"}
-                            {p.descripcion ? ` · ${p.descripcion}` : ""}
-                          </span>
-                          <span className="font-mono-hud">{fmt(Number(p.importe))}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                </li>
-              ))}
-            </ul>
-            {arreglado > 0 && (
-              <div className="mt-2 border-t border-cdm-line/50 pt-2">
-                <div className="font-mono-hud flex flex-wrap items-baseline gap-3 text-[11px]">
-                  <span className="text-cdm-muted">obra: arreglado {fmt(arreglado)}</span>
-                  <span className="text-cdm-muted">pagado {fmt(pagado)}</span>
-                  <span className={pct >= 100 ? "text-emerald-400" : "text-red-400"}>{pct}% pagado</span>
-                </div>
-                {/* Barra roja mientras falta, verde al completar; se clampa a 100 y el número dice la verdad */}
-                <div className="mt-1.5 h-[3px] w-full bg-cdm-line/60">
-                  <div
-                    className={`h-full ${pct >= 100 ? "bg-emerald-400" : "bg-red-400"}`}
-                    style={{ width: `${Math.min(100, Math.max(0, pct))}%` }}
-                  />
-                </div>
-              </div>
-            )}
-          </section>
-          );
-        })}
-
-        {acuerdos && grupos.length === 0 && (
-          <p className="text-[12px] text-cdm-muted">
-            No hay acuerdos {verSaldados ? "" : "abiertos "}todavía — se cargan desde cada obra
-            (Mano de obra).
-          </p>
-        )}
-
-        {acuerdos && grupos.length > 0 && (
-          <footer className="font-mono-hud flex items-baseline gap-4 border-t border-cdm-line px-1 pt-3 text-[12px]">
-            <span className="text-cdm-muted">TOTAL ADEUDADO (ARS):</span>
-            <span className={totalAdeudado < 0 ? "text-red-400" : "text-cdm-accent"}>
-              {fmt(totalAdeudado)}
-            </span>
-          </footer>
-        )}
-      </div>
-    </div>
-  );
+import {useCallback,useEffect,useMemo,useRef,useState} from "react";
+import {Download,Printer,Share2} from "lucide-react";
+import {useReactToPrint} from "react-to-print";
+import {todayBuenosAires} from "@/lib/cashflow-compute";
+import {semanaRegistro,csvRegistros} from "@/lib/finanzas-registros";
+import {resumenPagosTexto,type PagoPersonal} from "@/lib/registro-pagos";
+import {descargarTexto} from "@/lib/descargar-texto";
+import {PageIntro,Metric,control,money,number,surface} from "@/components/finanzas/finance-ui";
+import {useRealtimeTable} from "@/hooks/use-realtime-table";
+type Acuerdo={id:string;presupuestoId:string;persona:string;trabajo:string;moneda:string;arreglado:number;pagado:number;saldo:number;estado:string;pagosSinCotizacion:number};
+type Datos={pagos:PagoPersonal[];acuerdos:Acuerdo[]};
+export function ManoObraGlobalScreen(){
+  const semana=semanaRegistro(todayBuenosAires());const [desde,setDesde]=useState(semana.desde),[hasta,setHasta]=useState(semana.hasta),[persona,setPersona]=useState(""),[obra,setObra]=useState("");
+  const [data,setData]=useState<Datos|null>(null),[error,setError]=useState(""),[aviso,setAviso]=useState(""),[limite,setLimite]=useState(40);const printRef=useRef<HTMLDivElement>(null);
+  const cargar=useCallback(async()=>{try{const r=await fetch("/api/mano-obra/pagos",{cache:"no-store"});const j=await r.json();if(!r.ok)throw new Error(j.error);setData(j);setError("");}catch(e){setError(e instanceof Error?e.message:"No se pudo conectar.");}},[]);
+  useEffect(()=>{void cargar();},[cargar]);useRealtimeTable("presupuestos_gastos",cargar);useRealtimeTable("mo_acuerdos",cargar);
+  const personas=useMemo(()=>[...new Set([...(data?.pagos??[]).map(p=>p.persona),...(data?.acuerdos??[]).map(p=>p.persona)])].sort((a,b)=>a.localeCompare(b,"es")),[data]);
+  const obras=useMemo(()=>[...new Map((data?.pagos??[]).map(p=>[p.presupuestoId,p.obra])).entries()].sort((a,b)=>a[1].localeCompare(b[1],"es")),[data]);
+  const rangoInvalido=Boolean(desde&&hasta&&desde>hasta);
+  const pagos=useMemo(()=>rangoInvalido?[]:(data?.pagos??[]).filter(p=>(!persona||p.persona===persona)&&(!obra||p.presupuestoId===obra)&&(!desde||p.fecha>=desde)&&(!hasta||p.fecha<=hasta)),[data,persona,obra,desde,hasta,rangoInvalido]);
+  const acuerdos=(data?.acuerdos??[]).filter(a=>(!persona||a.persona===persona)&&(!obra||a.presupuestoId===obra));
+  const total=pagos.reduce((n,p)=>n+Math.round(p.importe*100),0)/100;
+  const deuda=acuerdos.filter(a=>a.moneda==="ARS"&&a.estado==="abierto").reduce((n,a)=>n+Math.round(Math.max(0,a.saldo)*100),0)/100;
+  const texto=resumenPagosTexto(pagos,persona||"Todo el personal",desde,hasta);
+  function setSemana(delta:number){const s=semanaRegistro(todayBuenosAires(),delta);setDesde(s.desde);setHasta(s.hasta);setLimite(40);}
+  function exportar(){descargarTexto(`RAVN_pagos_${desde||"historial"}_${hasta||"completo"}.csv`,csvRegistros(["Operario","Fecha","Obra","Trabajo","Concepto","Importe ARS","Medio / cuenta","ID pago"],pagos.map(p=>[p.persona,p.fecha,p.obra,p.trabajo,p.descripcion,p.importe,p.cuenta,p.id])),"text/csv;charset=utf-8");}
+  const imprimir=useReactToPrint({contentRef:printRef,documentTitle:`RAVN_Pagos_${persona||"personal"}_${desde}_${hasta}`,pageStyle:"@page {size:A4;margin:16mm} body{font-family:Arial,sans-serif;color:#111;background:white} table{width:100%;border-collapse:collapse} th,td{padding:9px 6px;border-bottom:1px solid #ddd;text-align:left;font-size:11px} tr{break-inside:avoid} h1{font-size:26px} h2{font-size:18px} p{font-size:12px}"});
+  async function compartir(){setAviso("");try{if(navigator.share)await navigator.share({title:"RAVN · Resumen de pagos",text:texto});else{descargarTexto(`RAVN_resumen_pagos_${desde||"historial"}.txt`,texto);setAviso("Resumen descargado, listo para adjuntar.");}}catch(e){if(e instanceof Error&&e.name==="AbortError")return;descargarTexto("RAVN_resumen_pagos.txt",texto);setAviso("Resumen descargado, listo para adjuntar.");}}
+  return <div className="font-raleway mx-auto max-w-6xl px-4 py-6 pb-16 text-cdm-fg sm:px-8"><PageIntro eyebrow="RAVN · Personal de obra" title="Cada pago, en orden." description="Elegí operario y período. El resumen usa exactamente los pagos que ves acá." action={<Link href="/gasto" className={control}>Registrar pago</Link>}/>
+    <section className={`${surface} mb-5 p-4`}><div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4"><label className="text-xs text-cdm-muted">Operario<select value={persona} onChange={e=>{setPersona(e.target.value);setLimite(40);}} className={`${control} mt-1 w-full`}><option value="">Todo el personal</option>{personas.map(p=><option key={p}>{p}</option>)}</select></label><label className="text-xs text-cdm-muted">Obra<select value={obra} onChange={e=>setObra(e.target.value)} className={`${control} mt-1 w-full`}><option value="">Todas las obras</option>{obras.map(([id,n])=><option key={id} value={id}>{n}</option>)}</select></label><label className="text-xs text-cdm-muted">Desde<input type="date" value={desde} onChange={e=>setDesde(e.target.value)} className={`${control} mt-1 w-full`}/></label><label className="text-xs text-cdm-muted">Hasta<input type="date" value={hasta} onChange={e=>setHasta(e.target.value)} className={`${control} mt-1 w-full`}/></label></div><div className="mt-3 flex flex-wrap gap-2"><button className={control} onClick={()=>setSemana(0)}>Esta semana</button><button className={control} onClick={()=>setSemana(-1)}>Semana anterior</button><button className={control} onClick={()=>{setDesde("");setHasta("");}}>Todo el historial</button></div></section>
+    {error&&<p className={`${surface} mb-4 p-4 text-sm`} role="alert">{error} <button className="underline" onClick={()=>void cargar()}>Reintentar</button></p>}{rangoInvalido&&<p role="alert" className="mb-4 text-sm">La fecha inicial debe ser anterior o igual a la final.</p>}
+    {!data?<p role="status" className="p-5 text-sm text-cdm-muted">Leyendo los pagos registrados…</p>:<><section className={`${surface} mb-5 grid grid-cols-2 gap-5 p-5 sm:grid-cols-3`}><Metric label="Pagado en el período" value={money(total)}/><Metric label="Pagos registrados" value={String(pagos.length)}/><Metric label="Saldo de acuerdos en pesos" value={money(deuda)} detail="Saldo actual, de todas las fechas"/></section>
+      <div className="mb-4 flex flex-wrap gap-2"><button onClick={exportar} disabled={!pagos.length||!!error} className={`${control} inline-flex items-center gap-2`}><Download size={16}/>Exportar CSV</button><button onClick={()=>imprimir()} disabled={!pagos.length||!!error} className={`${control} inline-flex items-center gap-2`}><Printer size={16}/>Guardar PDF</button><button onClick={()=>void compartir()} disabled={!pagos.length||!!error} className={`${control} inline-flex items-center gap-2`}><Share2 size={16}/>Compartir resumen</button></div>{aviso&&<p role="status" className="mb-4 text-sm">{aviso}</p>}
+      <div className={`${surface} overflow-hidden`}>{pagos.slice(0,limite).map(p=><article key={p.id} className="flex justify-between gap-4 border-b border-cdm-line p-4 last:border-0"><div className="min-w-0"><p className="text-sm font-semibold">{p.persona}</p><Link href={`/obras/${p.presupuestoId}/mano-obra`} className="mt-1 block text-sm underline decoration-cdm-line underline-offset-4">{p.obra}</Link><p className="mt-1 text-xs leading-relaxed text-cdm-muted">{p.descripcion||p.trabajo}</p><p className="mt-2 text-xs text-cdm-muted">{p.fecha} · {p.cuenta}</p></div><p className="shrink-0 text-sm font-semibold tabular-nums">{money(p.importe)}</p></article>)}{!pagos.length&&<p className="p-7 text-sm text-cdm-muted">No hay pagos en este período. Probá “Todo el historial”.</p>}</div>{pagos.length>limite&&<button className={`${control} mt-4`} onClick={()=>setLimite(n=>n+50)}>Ver más pagos ({pagos.length-limite})</button>}
+      <details className={`${surface} mt-5 p-5`}><summary className="min-h-11 cursor-pointer font-semibold">Acuerdos y saldos por operario</summary>{acuerdos.map(a=><Link key={a.id} href={`/obras/${a.presupuestoId}/mano-obra`} className="flex flex-wrap justify-between gap-3 border-t border-cdm-line py-4 text-sm"><div><p className="font-semibold">{a.persona}</p><p className="mt-1 text-cdm-muted">{a.trabajo}</p></div><div className="text-right tabular-nums"><p>{a.moneda==="USD"?`US$ ${number(a.saldo)}`:money(a.saldo)} pendiente</p><p className="mt-1 text-xs text-cdm-muted">Acordado {a.moneda==="USD"?`US$ ${number(a.arreglado)}`:money(a.arreglado)} · {a.estado}</p>{a.pagosSinCotizacion>0&&<p className="mt-1 text-xs">{a.pagosSinCotizacion} pagos sin cotización USD</p>}</div></Link>)}</details>
+      {(data.pagos.some(p=>!p.acuerdoId))&&<p className="mt-4 text-xs leading-relaxed text-cdm-muted">Hay pagos de mano de obra sin acuerdo u operario asignado. Figuran como “Sin operario asignado” hasta completar su vínculo.</p>}
+    </>}
+    <div style={{display:"none"}}><div ref={printRef}><p style={{letterSpacing:".3em"}}>R A V N .</p><h1>Resumen de pagos</h1><h2>{persona||"Todo el personal"}</h2><p>{desde||"Inicio del historial"} al {hasta||"hoy"}{obra?` · ${obras.find(([id])=>id===obra)?.[1]}`:""}</p><table><thead><tr><th>Fecha / operario</th><th>Obra y concepto</th><th>Medio</th><th>Importe ARS</th></tr></thead><tbody>{[...pagos].reverse().map(p=><tr key={p.id}><td>{p.fecha}<br/>{p.persona}</td><td>{p.obra}<br/>{p.descripcion||p.trabajo}</td><td>{p.cuenta}</td><td style={{whiteSpace:"nowrap"}}>{money(p.importe)}</td></tr>)}</tbody></table><h2>Total pagado: {money(total)}</h2><p>{pagos.length} pagos registrados. Emitido {todayBuenosAires()}.</p><p>Resumen informativo de pagos registrados. Los medios no informados se indican expresamente.</p></div></div>
+  </div>;
 }

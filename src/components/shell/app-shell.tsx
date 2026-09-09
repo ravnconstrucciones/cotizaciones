@@ -129,7 +129,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           {item.href === "/gasto" ? "Registrar" : item.label}
         </Link>)}
       </nav>
-      <main className="min-w-0 print:pl-0">{children}</main>
+      <div className="min-w-0 print:pl-0">{children}</div>
 
       <MenuOverlay
         open={menuAbierto}
