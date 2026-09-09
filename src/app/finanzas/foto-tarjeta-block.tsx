@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { formatMoneyInt } from "@/lib/format-currency";
@@ -157,10 +158,10 @@ export function FotoTarjetaBlock() {
   const softwarePct = personalPuro > 0 ? software / personalPuro : 0;
 
   return (
-    <div className={`${CARD} mt-3`}>
+    <details className={`${CARD} mt-3`}><summary className="min-h-11 cursor-pointer text-sm font-semibold">Archivo · {foto.cicloLabel}</summary><p className="mb-4 text-sm text-cdm-muted">Este resumen corresponde a junio de 2026. <Link className="underline" href="/finanzas/tarjetas">Ver tarjetas e informes actuales</Link></p>
       <div className="flex items-baseline justify-between">
         <h2 className="font-mono-hud text-[10px] uppercase tracking-widest text-cdm-muted">
-          Foto de la tarjeta
+          Foto histórica de la tarjeta
         </h2>
         <span className="font-mono-hud text-[10px] uppercase tracking-[0.1em] text-cdm-muted/70">
           {foto.cierre}
@@ -213,6 +214,6 @@ export function FotoTarjetaBlock() {
           empresa
         />
       </div>
-    </div>
+    </details>
   );
 }
