@@ -20,6 +20,7 @@ import {
   type TipoRegistro,
   type VistaPortal,
 } from "@/lib/portal/tipos";
+import { Avances } from "./avances";
 import { AMBAR_SALDO, Barra, EASE, Etiqueta, Seccion, VERDE_PAGADO, Vacio, Wordmark } from "./portal-ui";
 
 /**
@@ -29,7 +30,6 @@ import { AMBAR_SALDO, Barra, EASE, Etiqueta, Seccion, VERDE_PAGADO, Vacio, Wordm
  * Sin porcentajes de avance (pedido de Eze, 15/11/2026): el avance se cuenta en rubros.
  */
 
-type Filtro = { clase: "todo" } | { clase: "tipo"; id: TipoRegistro } | { clase: "rubro"; id: string };
 
 export function PortalCliente({
   vista,
@@ -45,21 +45,12 @@ export function PortalCliente({
   aviso?: string;
 }) {
   const quieto = useReducedMotion();
-  const [filtro, setFiltro] = useState<Filtro>({ clase: "todo" });
   const [verPagos, setVerPagos] = useState(false);
 
-  // Materiales, tickets y videos tienen apartado propio: no se repiten en la bitácora.
-  const esVideo = (r: RegistroPortal) => r.tipo === "video" || r.mediaTipo === "video";
-  const materiales = vista.registros.filter((r) => r.tipo === "material");
+  // Avances: sólo fotos y videos (19/11/2026: sin bitácora ni materiales).
+  const avances = vista.registros.filter((r) => r.tipo !== "material" && r.tipo !== "ticket" && r.mediaUrl);
   const tickets = vista.registros.filter((r) => r.tipo === "ticket");
-  const videos = vista.registros.filter((r) => r.tipo !== "material" && r.tipo !== "ticket" && esVideo(r));
-  const bitacora = vista.registros.filter((r) => r.tipo !== "material" && r.tipo !== "ticket" && !esVideo(r));
   const sumaTickets = totalTickets(tickets);
-  const registros = bitacora.filter((r) =>
-    filtro.clase === "todo" ? true : filtro.clase === "tipo" ? r.tipo === filtro.id : r.rubroId === filtro.id
-  );
-  const rubroActivo = filtro.clase === "rubro" ? vista.rubros.find((r) => r.id === filtro.id) : null;
-  const tiposUsados = (Object.keys(TIPOS_REGISTRO) as TipoRegistro[]).filter((t) => bitacora.some((r) => r.tipo === t));
   const resumen = resumenRubros(vista.rubros);
   const nombreRubro = (id: string | null) => vista.rubros.find((x) => x.id === id)?.nombre ?? null;
 
@@ -67,11 +58,6 @@ export function PortalCliente({
     if (!slug) return;
     await fetch(`/api/portal/${slug}/acceso`, { method: "DELETE" }).catch(() => {});
     window.location.reload();
-  }
-
-  function elegirRubro(id: string) {
-    setFiltro((f) => (f.clase === "rubro" && f.id === id ? { clase: "todo" } : { clase: "rubro", id }));
-    document.getElementById("bitacora")?.scrollIntoView({ behavior: quieto ? "auto" : "smooth", block: "start" });
   }
 
   const meta = [
@@ -185,41 +171,26 @@ export function PortalCliente({
             {vista.rubros.length ? (
               <ul>
                 {vista.rubros.map((r) => {
-                  const cantidad = bitacora.filter((x) => x.rubroId === r.id).length;
                   const tareas = lineasTareas(r.tareas);
-                  const activo = filtro.clase === "rubro" && filtro.id === r.id;
                   return (
-                    <li key={r.id} className="border-b border-[#f2efe8]/15 first:border-t">
-                      <button
-                        type="button"
-                        onClick={() => elegirRubro(r.id)}
-                        aria-pressed={activo}
-                        className={`group block w-full cursor-pointer px-0 py-5 text-left transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#f2efe8] ${activo ? "bg-[#f2efe8]/[0.06] px-4" : "hover:bg-[#f2efe8]/[0.04]"}`}
-                      >
-                        <div className="flex items-baseline justify-between gap-4">
-                          <span className="text-[19px] font-semibold tracking-[-0.02em]">{r.nombre}</span>
-                          <Etiqueta className={`shrink-0 ${r.estado === "pendiente" ? "" : "text-[#f2efe8]"}`}>
-                            {r.estado === "terminado" ? "■ " : r.estado === "en_curso" ? "◧ " : "□ "}
-                            {ESTADOS_RUBRO[r.estado]}
-                          </Etiqueta>
-                        </div>
-                        {tareas.length ? (
-                          <ul className="mt-3 grid gap-1.5 text-[16px] leading-[1.5] text-[#f2efe8]/80">
-                            {tareas.map((t, i) => (
-                              <li key={i} className="grid grid-cols-[14px_minmax(0,1fr)]">
-                                <span aria-hidden className="text-[#f2efe8]/45">–</span>
-                                <span>{t}</span>
-                              </li>
-                            ))}
-                          </ul>
-                        ) : null}
-                        {cantidad ? (
-                          <span className="mt-3 inline-flex items-center gap-1 text-[14px] text-[#f2efe8]/75 group-hover:text-[#f2efe8]">
-                            Ver {cantidad} {cantidad === 1 ? "registro" : "registros"} en la bitácora
-                            <ArrowUpRight size={14} strokeWidth={1.5} aria-hidden className="rotate-90" />
-                          </span>
-                        ) : null}
-                      </button>
+                    <li key={r.id} className="border-b border-[#f2efe8]/15 py-5 first:border-t">
+                      <div className="flex items-baseline justify-between gap-4">
+                        <span className="text-[19px] font-semibold tracking-[-0.02em]">{r.nombre}</span>
+                        <Etiqueta className={`shrink-0 ${r.estado === "pendiente" ? "" : "text-[#f2efe8]"}`}>
+                          {r.estado === "terminado" ? "■ " : r.estado === "en_curso" ? "◧ " : "□ "}
+                          {ESTADOS_RUBRO[r.estado]}
+                        </Etiqueta>
+                      </div>
+                      {tareas.length ? (
+                        <ul className="mt-3 grid gap-1.5 text-[16px] leading-[1.5] text-[#f2efe8]/80">
+                          {tareas.map((t, k) => (
+                            <li key={k} className="grid grid-cols-[14px_minmax(0,1fr)]">
+                              <span aria-hidden className="text-[#f2efe8]/45">–</span>
+                              <span>{t}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      ) : null}
                     </li>
                   );
                 })}
@@ -229,27 +200,14 @@ export function PortalCliente({
             )}
           </Seccion>
 
-          {/* Avances en video */}
-          {videos.length ? (
-            <Seccion titulo="Avances en video" lateral={<Etiqueta>{videos.length} {videos.length === 1 ? "video" : "videos"}</Etiqueta>}>
-              <ol className="grid gap-10">
-                {videos.map((r) => (
-                  <Entrada key={r.id} r={r} rubro={nombreRubro(r.rubroId)} />
-                ))}
-              </ol>
-            </Seccion>
-          ) : null}
-
-          {/* Materiales */}
-          {materiales.length ? (
-            <Seccion titulo="Materiales" lateral={<Etiqueta>{materiales.length} {materiales.length === 1 ? "material" : "materiales"}</Etiqueta>}>
-              <ul>
-                {materiales.map((m) => (
-                  <Material key={m.id} m={m} rubro={nombreRubro(m.rubroId)} />
-                ))}
-              </ul>
-            </Seccion>
-          ) : null}
+          {/* Avances: fotos y videos en tarjetas */}
+          <Seccion titulo="Avances" lateral={<Etiqueta>Fotos y videos</Etiqueta>}>
+            {avances.length ? (
+              <Avances items={avances} nombreRubro={nombreRubro} />
+            ) : (
+              <Vacio>Acá vas a ver las fotos y los videos de cada etapa de tu obra.</Vacio>
+            )}
+          </Seccion>
 
           {/* Pagos */}
           {vista.pagos ? (
@@ -368,44 +326,6 @@ export function PortalCliente({
             </Seccion>
           ) : null}
 
-          {/* Bitácora */}
-          <Seccion
-            id="bitacora"
-            titulo={rubroActivo ? rubroActivo.nombre : "Bitácora de obra"}
-            lateral={<Etiqueta>{registros.length} {registros.length === 1 ? "registro" : "registros"}</Etiqueta>}
-          >
-            {bitacora.length ? (
-              <div className="mb-6 flex flex-wrap gap-2" role="group" aria-label="Filtrar la bitácora">
-                <Chip activo={filtro.clase === "todo"} onClick={() => setFiltro({ clase: "todo" })}>
-                  Todo
-                </Chip>
-                {tiposUsados.map((t) => (
-                  <Chip key={t} activo={filtro.clase === "tipo" && filtro.id === t} onClick={() => setFiltro({ clase: "tipo", id: t })}>
-                    {TIPOS_REGISTRO[t]}
-                  </Chip>
-                ))}
-                {rubroActivo ? (
-                  <Chip activo onClick={() => setFiltro({ clase: "todo" })}>
-                    {rubroActivo.nombre} ×
-                  </Chip>
-                ) : null}
-              </div>
-            ) : null}
-
-            {registros.length ? (
-              <ol className="grid gap-10">
-                {registros.map((r) => (
-                  <Entrada key={r.id} r={r} rubro={nombreRubro(r.rubroId)} />
-                ))}
-              </ol>
-            ) : (
-              <Vacio>
-                {bitacora.length
-                  ? "No hay registros en esta vista."
-                  : "Cada avance y decisión de tu obra queda registrado acá, con fecha."}
-              </Vacio>
-            )}
-          </Seccion>
         </main>
 
         <footer className="flex flex-wrap items-baseline justify-between gap-3 border-t border-[#f2efe8]/15 pt-8 text-[14px] text-[#f2efe8]/75">
@@ -416,21 +336,6 @@ export function PortalCliente({
         </footer>
       </div>
     </div>
-  );
-}
-
-function Chip({ activo, onClick, children }: { activo: boolean; onClick: () => void; children: React.ReactNode }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-pressed={activo}
-      className={`inline-flex min-h-11 cursor-pointer items-center border px-4 text-[14px] font-semibold tracking-[-0.015em] transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#f2efe8] ${
-        activo ? "border-[#f2efe8] bg-[#f2efe8] text-[#070707]" : "border-[#f2efe8]/25 text-[#f2efe8]/80 hover:border-[#f2efe8]/60"
-      }`}
-    >
-      {children}
-    </button>
   );
 }
 
@@ -445,7 +350,6 @@ function DetalleEvento({ e }: { e: EventoAgenda }) {
   );
 }
 
-/** Un material de la obra: qué es, marca, terminación y si ya está definido, comprado o colocado. */
 function Material({ m, rubro }: { m: RegistroPortal; rubro: string | null }) {
   const detalle = [m.material?.producto, m.material?.marca, m.material?.color].filter(Boolean).join(" · ");
   return (
@@ -472,47 +376,6 @@ function Material({ m, rubro }: { m: RegistroPortal; rubro: string | null }) {
         ) : null}
       </div>
       {m.material?.estado ? <Etiqueta className="pt-1 text-right text-[#f2efe8]">{m.material.estado}</Etiqueta> : null}
-    </li>
-  );
-}
-
-function Entrada({ r, rubro }: { r: RegistroPortal; rubro: string | null }) {
-  return (
-    <li>
-      <article>
-        {r.mediaUrl ? (
-          <div className="mb-4 bg-[#0e0e0d]">
-            {r.mediaTipo === "video" ? (
-              <video src={r.mediaUrl} controls playsInline preload="metadata" className="max-h-[78vh] w-full" />
-            ) : (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={r.mediaUrl} alt={r.titulo} loading="lazy" className="max-h-[78vh] w-full object-contain" />
-            )}
-          </div>
-        ) : null}
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-          <span className={`px-2 py-1 text-[12px] font-semibold uppercase tracking-[0.12em] ${r.tipo === "resuelto" ? "bg-[#f2efe8] text-[#070707]" : "border border-[#f2efe8]/30 text-[#f2efe8]"}`}>
-            {TIPOS_REGISTRO[r.tipo]}
-          </span>
-          {rubro ? <span className="text-[14px] text-[#f2efe8]/75">{rubro}</span> : null}
-          <time dateTime={r.fecha} className="text-[14px] tabular-nums text-[#f2efe8]/75">
-            {fechaCorta(r.fecha)}
-          </time>
-        </div>
-        <h3 className="mt-3 text-[20px] font-semibold leading-snug tracking-[-0.025em]">{r.titulo}</h3>
-        {r.texto ? <p className="mt-2 max-w-[62ch] whitespace-pre-wrap text-[16px] leading-[1.6] text-[#f2efe8]/80 [overflow-wrap:anywhere]">{r.texto}</p> : null}
-        {r.linkExterno ? (
-          <a
-            href={r.linkExterno}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="mt-4 inline-flex min-h-11 items-center gap-1.5 text-[14px] font-semibold tracking-[-0.015em] underline underline-offset-4"
-          >
-            {r.tipo === "video" ? "Ver el video completo" : "Abrir el enlace"}
-            <ArrowUpRight size={15} strokeWidth={1.5} aria-hidden />
-          </a>
-        ) : null}
-      </article>
     </li>
   );
 }
