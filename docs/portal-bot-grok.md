@@ -13,6 +13,7 @@ Instructivo para configurar el bot de obras. La clave NO va en este archivo: est
 | `obras` | `buscar?` | Encontrar la obra y su `presupuesto_id`. Siempre el primer paso. |
 | `estado` | `presupuesto_id` | Ver rubros, agenda y registros con sus ids. |
 | `acceso_crear` | `presupuesto_id`, `titulo`, `clave?` | Crea y activa el portal. `titulo` = nombre con el que entra el cliente (corto: "Forna"). Sin `clave` genera una. Devuelve `mensaje` listo para mandarle al cliente. |
+| `config` | `presupuesto_id`, `direccion?`, `fecha_inicio?`, `fecha_entrega?` (AAAA-MM-DD), `mostrar_pagos?` (true/false), `titulo?`, `activo?` | Datos visibles de la obra y prender los pagos. |
 | `rubros_agregar` | `presupuesto_id`, `nombres: []` | Cargar rubros. |
 | `rubro_guardar` | `presupuesto_id`, `rubro_id`, `tareas?`, `estado?` (pendiente/en_curso/terminado) | Qué se hace en el rubro y en qué estado está. |
 | `agenda_crear` | `presupuesto_id`, `fecha` (AAAA-MM-DD), `hora?` (09:30), `titulo`, `quien?`, `detalle?` | Calendario de la semana. |

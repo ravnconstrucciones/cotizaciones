@@ -13,7 +13,7 @@ import { BUCKET_PORTAL, cargarVistaPortal, portalPorObra } from "@/lib/portal/da
  *   estado           { presupuesto_id }                → rubros, agenda y registros (con ids) de esa obra
  *   acceso_crear     { presupuesto_id, titulo, clave? } → crea/activa el portal y fija nombre + contraseña
  *                                                         (si no viene clave la genera); devuelve el mensaje para el cliente
- *   + todas las acciones del panel (rubros_agregar, rubro_guardar, agenda_crear, agenda_borrar,
+ *   + todas las acciones del panel (config: titulo, direccion, fecha_inicio, fecha_entrega, mostrar_pagos, activo; rubros_agregar, rubro_guardar, agenda_crear, agenda_borrar,
  *     registro_crear, registro_publicar, registro_borrar), con { presupuesto_id }.
  * registro_crear acepta `media_url` (https, foto o video hasta 50 MB): el servidor la baja y la guarda.
  * Lo que carga el bot entra como BORRADOR salvo que mande estado: "publicado".
@@ -128,7 +128,7 @@ export async function POST(req: Request) {
     body.media_path = m.path;
   }
 
-  if (["config", "pin", "crear", "firmar"].includes(accion)) return error("Esa acción no está habilitada para el bot. Usá acceso_crear.");
+  if (["pin", "crear", "firmar"].includes(accion)) return error("Esa acción no está habilitada para el bot. Usá acceso_crear.");
   const r = await ejecutarAccionPortal(id, pres, body, { origen: "bot" });
   if (r.error) return error(r.error, r.status);
   return NextResponse.json({ ok: true });
