@@ -5,6 +5,7 @@ import {
   bypassCotizadorWritePermitido,
   credencialCotizadorReadValida,
   credencialCotizadorWriteValida,
+  esRutaPortalCliente,
 } from "@/middleware";
 
 /**
@@ -183,5 +184,30 @@ describe("puerta de entrada (17/08): allowlists nuevas", () => {
   it("la read credential lee los archivos (URLs firmadas para la ola) y no escribe", () => {
     expect(bypassCotizadorReadPermitido("/api/cotizaciones/abc/archivos", "GET")).toBe(true);
     expect(bypassCotizadorReadPermitido("/api/cotizaciones/abc/archivos", "POST")).toBe(false);
+  });
+});
+
+/**
+ * Portal del cliente (15/11/2026): lo único público son la página de la obra,
+ * su resumen y la puerta del PIN. El panel de Eze y el resto de /api siguen
+ * exigiendo sesión.
+ */
+describe("esRutaPortalCliente", () => {
+  it("abre la obra, su resumen y la puerta del código", () => {
+    expect(esRutaPortalCliente("/o/bano-correa-a1b2c3")).toBe(true);
+    expect(esRutaPortalCliente("/o/bano-correa-a1b2c3/resumen")).toBe(true);
+    expect(esRutaPortalCliente("/api/portal/bano-correa-a1b2c3/acceso")).toBe(true);
+    expect(esRutaPortalCliente("/o")).toBe(true);
+    expect(esRutaPortalCliente("/api/portal/acceso")).toBe(true);
+  });
+
+  it("no abre el panel de Eze ni ninguna otra ruta", () => {
+    expect(esRutaPortalCliente("/obras/abc/portal")).toBe(false);
+    expect(esRutaPortalCliente("/api/obras/abc/portal")).toBe(false);
+    expect(esRutaPortalCliente("/api/portal/x/otra")).toBe(false);
+    expect(esRutaPortalCliente("/o/x/../../api/dinero")).toBe(false);
+    expect(esRutaPortalCliente("/obras")).toBe(false);
+    expect(esRutaPortalCliente("/api/portal")).toBe(false);
+    expect(esRutaPortalCliente("/ob")).toBe(false);
   });
 });

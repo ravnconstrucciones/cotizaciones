@@ -135,3 +135,22 @@ Además del ledger existe la vista **`dinero_huerfanos`** (no es tabla, no cuent
 - Módulo `inmobiliario_*` (4 tablas): esquema desplegado (may-2026) sin datos todavía.
 - `retiros_socio`: 0 filas — el modelo "un solo dueño" registra los retiros pero aún no se usó la tabla.
 - Referencias polimórficas sin FK física (por diseño): `eventos.destino_tabla/destino_id`, `movimientos_plata.origen_tipo/origen_id`, `papelera_registros.tabla/registro_id`.
+
+
+## Portal del cliente (2026-11-15) — 4 tablas nuevas
+
+Migración `20261115120000_portal_cliente` aplicada en remoto el 2026-11-15 y verificada contra `pg_class`/`pg_policies`.
+Todas cuelgan de `presupuestos` (`on delete cascade`). RLS habilitado, **cero políticas**, `anon` y `authenticated` sin
+privilegios: sólo el service role lee y escribe (mismo patrón que `obra_rubro_mediciones`).
+
+| Tabla | Propósito | Columnas clave |
+|---|---|---|
+| `obra_portal` | Config 1:1 del portal de la obra. | `presupuesto_id` (PK), `slug` (link `/o/<slug>`), `pin_hash` (scrypt, nunca en claro), `activo`, `mostrar_pagos`, `sesion_version`, `intentos_fallidos`, `bloqueado_hasta`, `titulo`, `direccion`, `fecha_inicio`, `fecha_entrega` |
+| `obra_portal_rubros` | Rubros que ve el cliente: estado y qué se hace. Sin porcentajes desde 16/11/2026. | `nombre`, `tareas` (texto, una por renglón), `estado` (pendiente\|en_curso\|terminado), `orden`; `avance` quedó SIN USO |
+| `obra_portal_registros` | Bitácora que ve el cliente. Distinta de `obra_avances`, que es interna. | `rubro_id → obra_portal_rubros`, `tipo` (avance\|video\|resuelto\|material\|ticket), `titulo`, `texto`, `fecha`, `media_path` (bucket `obra-archivos`, carpeta `portal/<presupuesto_id>/`), `link_externo`, `material` (jsonb), `importe` + `moneda` (sólo ticket, desde 19/11/2026), `estado` (borrador\|publicado), `origen` (app\|bot) |
+| `obra_portal_agenda` | Qué pasa en la obra y cuándo. | `fecha`, `hora`, `titulo`, `quien`, `detalle` |
+
+Los pagos del portal **no se guardan**: se derivan de `obras.monto_total_a_cobrar_*` y de `cashflow_items` (ingresos reales),
+vía `src/lib/economia-obras.ts`. Los **recibos** tampoco: se leen de `obra_archivos` (título o archivo que empieza con
+"Recibo") y sólo se muestran con los pagos. Los **tickets** sí se suben al portal (tipo `ticket`, migración
+`20261119120000_portal_tickets`): los gastos de la app no guardan foto del comprobante y mezclan mano de obra.

@@ -278,3 +278,16 @@ tabla `trabajos_cola` sigue viva: escriben el bot de WhatsApp
 - **Cache pública en ruta autenticada:** `/api/proyectos` setea `Cache-Control: s-maxage=30` (directiva de CDN compartida) mientras todo el resto usa `private, max-age=15`. Detrás del middleware de sesión el riesgo práctico es bajo, pero es inconsistente y conviene pasarlo a `private`.
 - **Auth:** ninguna ruta hace chequeo de sesión propio — todas dependen 100 % del matcher del middleware. Si el matcher se rompe alguna vez, todas quedan abiertas con service_role. `/api/auto-login` es la única fuera del matcher (con doble guardia propia, correcta).
 - **`/api/dolar` devuelve 200 en error** (a propósito, para el flujo manual del front) — no tratarlo como health-check.
+
+
+## Portal del cliente (2026-11-15)
+
+- **Rutas públicas** (el middleware las deja pasar sin sesión, `esRutaPortalCliente`): `/o` (puerta única: nombre de obra +
+  contraseña, 19/11), `/o/<slug>`, `/o/<slug>/resumen`, `POST /api/portal/acceso` `{obra, clave}` y
+  `POST|DELETE /api/portal/<slug>/acceso`. Nada más de `/api` queda abierto.
+- `POST /api/portal/<slug>/acceso` `{clave}` → valida la contraseña de la obra (la elige Eze en el panel, 6 a 40 caracteres) y deja una cookie httpOnly firmada por obra (30 días). Mismo error
+  para slug inexistente, portal apagado y contraseña equivocada; 5 fallos bloquean 15 minutos. Lógica en `src/lib/portal/sesion.ts`.
+- `GET|POST /api/obras/<presupuesto_id>/portal` (con sesión): panel de Eze. `POST {accion}` con `config`, `pin`,
+  `rubros_agregar`, `rubro_guardar`, `rubro_borrar`, `firmar`, `registro_crear`, `registro_publicar`, `registro_borrar`,
+  `agenda_crear`, `agenda_borrar`. Detalle en el encabezado de la ruta.
+- Pantallas: `/obras/<id>/portal` (carga), `/obras/<id>/portal/vista` (vista previa), `/obras/<id>/portal/resumen` (A4 para PDF).

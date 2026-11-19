@@ -12,9 +12,9 @@ import { MenuOverlay } from "./menu-overlay";
 /** Rutas SIN carcasa (login, vistas de impresión/PDF, landing pública y la
  * captura rápida /gasto — que abre standalone desde el atajo del iPhone).
  * Match por SEGMENTO (no startsWith pelado): "/gasto" no debe comerse "/gastos". */
-const SIN_CARCASA = ["/login", "/remito", "/landing", "/gasto"];
+const SIN_CARCASA = ["/login", "/remito", "/landing", "/gasto", "/o"];
 /** Sufijos de ruta que también omiten carcasa (documentos A4 de cotizaciones). */
-const SIN_CARCASA_SUFIJO = ["/documento"];
+const SIN_CARCASA_SUFIJO = ["/documento", "/portal/resumen", "/portal/vista"];
 
 /** Toggle de tema compacto para la barra superior (el destino nombra el modo). */
 function ToggleTema() {

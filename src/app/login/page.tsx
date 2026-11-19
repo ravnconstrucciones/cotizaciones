@@ -1,26 +1,14 @@
 "use client";
 
 import { Suspense, useState } from "react";
-import dynamic from "next/dynamic";
 import { motion, useReducedMotion } from "framer-motion";
 import { createClient } from "@/lib/supabase/client";
 import { useRouter, useSearchParams } from "next/navigation";
 import { RavnLogo } from "@/components/ravn-logo";
 
 /**
- * Shader de líneas de colores (21st.dev "shader lines"): lazy, solo cliente —
- * el fondo full-screen del login. Reemplaza a la malla Waves + niebla cian y
- * al monolito 3D (que quedan solo en el resto del cockpit / ADN).
- */
-const ShaderLines = dynamic(
-  () => import("@/components/cockpit/shader-lines"),
-  { ssr: false }
-);
-
-/**
- * Login (iteración 4 — shader lines): el fondo ahora son las líneas de
- * colores RGB animadas del shader. El form es NEUTRO (sin cian): glass
- * oscuro sobrio sobre el fondo colorido para que se lea bien. La marca
+ * Login: fondo negro liso de marca, sin shader ni animación de fondo
+ * (pedido de Eze, 15/11/2026). El form es NEUTRO (sin cian). La marca
  * "RAVN." va en off-white plano (sin shimmer cian). La lógica de auth no
  * cambió. El resto del cockpit (adentro) sigue cian — esto es SOLO el login.
  */
@@ -71,16 +59,7 @@ function LoginForm() {
   }
 
   return (
-    <main className="font-grotesk relative flex min-h-[100dvh] flex-col items-center justify-center overflow-hidden bg-black px-6 py-12 text-white">
-      {/* Fondo: shader de líneas de colores, full-screen, detrás de todo. */}
-      <ShaderLines className="fixed inset-0 z-0" />
-      {/* Velo oscuro uniforme: baja parejo el brillo del shader (sin columna
-          central) para que las líneas no compitan con el texto. */}
-      <div
-        aria-hidden
-        className="pointer-events-none fixed inset-0 z-[1] bg-black/45"
-      />
-
+    <main className="font-grotesk relative flex min-h-[100dvh] flex-col items-center justify-center overflow-hidden bg-[#070707] px-6 py-12 text-white">
       <div className="relative z-10 flex w-full max-w-sm flex-col items-center gap-10">
         <motion.div
           initial={reducirMovimiento ? false : { opacity: 0, y: -16 }}

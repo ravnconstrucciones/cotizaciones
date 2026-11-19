@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
-import { ArrowLeft, FileText, Plus, Ruler, Users } from "lucide-react";
+import { ArrowLeft, Eye, FileText, Plus, Ruler, Users } from "lucide-react";
 import { type EconomiaObra, type calcularRubros, type GastoEconomico } from "@/lib/economia-obras";
 import { CostBar, FotoPortada, LoadingCards, Metric, PageIntro, control, money, number, surface } from "@/components/finanzas/finance-ui";
 import { useRealtimeTable } from "@/hooks/use-realtime-table";
@@ -32,7 +32,7 @@ export function ObraEconomiaScreen({presupuestoId}:{presupuestoId:string}) {
         <p className="mt-4 text-xs leading-relaxed text-cdm-muted">Contrato menos costos directos registrados. El resultado cambia con nuevos gastos; no descuenta estructura de empresa ni impuestos por liquidar.{o.gastosSinCuenta>0?` ${o.gastosSinCuenta} gastos todavía no tienen cuenta de pago.`:""}</p>
         {o.obraId&&<FotoPortada id={o.id} tieneFoto={Boolean(o.fotoUrl)} onFoto={url=>setData({...data,obra:{...o,fotoUrl:url}})}/>}
       </section>
-      <nav className="mb-7 flex flex-wrap gap-2" aria-label="Acciones de obra">{[[`/obras/${o.id}/gastos`,"Gastos",Plus],[`/obras/${o.id}/mano-obra`,"Acuerdos y pagos",Users],[`/obras/${o.id}/archivos`,"Fotos y documentos",FileText],[`/obras/${o.id}/plan`,"Plan de trabajo",Ruler]].map(([href,label,Icon])=>{const I=Icon as typeof Plus;return <Link key={String(href)} href={String(href)} className={`${control} inline-flex items-center gap-2`}><I size={16}/>{String(label)}</Link>;})}</nav>
+      <nav className="mb-7 flex flex-wrap gap-2" aria-label="Acciones de obra">{[[`/obras/${o.id}/gastos`,"Gastos",Plus],[`/obras/${o.id}/mano-obra`,"Acuerdos y pagos",Users],[`/obras/${o.id}/archivos`,"Fotos y documentos",FileText],[`/obras/${o.id}/plan`,"Plan de trabajo",Ruler],[`/obras/${o.id}/portal`,"Portal del cliente",Eye]].map(([href,label,Icon])=>{const I=Icon as typeof Plus;return <Link key={String(href)} href={String(href)} className={`${control} inline-flex items-center gap-2`}><I size={16}/>{String(label)}</Link>;})}</nav>
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3"><div><h2 className="text-xl font-semibold tracking-tight">Cuánto costó cada rubro</h2><p className="mt-1 text-sm text-cdm-muted">Cargá la cantidad ejecutada del mismo alcance para guardar tu costo por m² o unidad.</p></div><Link href="/obras/costos" className={`${control} text-sm`}>Mis costos reales →</Link></div>
       <div className="grid gap-4 sm:grid-cols-2">{data.rubros.map(r=><section key={r.id} className={`${surface} p-5`}><h3 className="text-sm font-semibold">{r.nombre}</h3><div className="mt-4 grid grid-cols-2 gap-3"><Metric label="Costo real registrado" value={money(r.gastadoArs)} detail={`${r.cantidadGastos} gastos · MO ${money(r.moArs)}`}/><Metric label={`Costo por ${r.medicion?.unidad==="m2"?"m²":r.medicion?.unidad??"unidad"}`} value={r.costoUnitario==null?"Falta medición":money(r.costoUnitario)} detail={r.medicion?`${number(r.medicion.cantidad)} ${r.medicion.unidad==="m2"?"m²":r.medicion.unidad} · ${r.medicion.fecha}`:undefined}/></div>{r.id==="sin-rubro"?<Link href={`/obras/${o.id}/gastos`} className="mt-4 inline-flex min-h-11 items-center text-sm underline">Asignar rubros a estos gastos</Link>:<MedirRubro r={r} onSave={(q,u)=>guardar(r.id,q,u)}/>}</section>)}</div>
       {!data.rubros.length&&<p className={`${surface} p-6 text-sm text-cdm-muted`}>Todavía no hay gastos registrados para analizar.</p>}

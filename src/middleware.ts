@@ -210,7 +210,27 @@ export function credencialCotizadorReadValida(
   );
 }
 
+/**
+ * Portal del cliente (15/11/2026): /o (puerta única: nombre de obra + contraseña, 19/11),
+ * /o/<slug> y sus puertas /api/portal/acceso y /api/portal/<slug>/acceso
+ * son públicas a propósito — el cliente no tiene usuario de Supabase. Cada
+ * página valida su propia cookie firmada por obra (src/lib/portal/sesion.ts).
+ * Nada más de /api queda abierto por acá.
+ */
+export function esRutaPortalCliente(pathname: string): boolean {
+  return (
+    /^\/o\/?$/.test(pathname) ||
+    /^\/o\/[a-z0-9-]+(\/resumen)?\/?$/.test(pathname) ||
+    /^\/api\/portal\/acceso$/.test(pathname) ||
+    /^\/api\/portal\/[a-z0-9-]+\/acceso$/.test(pathname)
+  );
+}
+
 export async function middleware(request: NextRequest) {
+  if (esRutaPortalCliente(request.nextUrl.pathname)) {
+    return NextResponse.next({ request });
+  }
+
   // El Cotizador standalone recibe una credencial distinta, incapaz de usar
   // las escrituras que el puente conversacional legacy todavía necesita.
   const claveCotizadorRead = request.headers.get("x-ravn-cotizador-read");
