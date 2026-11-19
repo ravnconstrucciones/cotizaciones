@@ -1,9 +1,9 @@
 "use client";
 
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
-import { ChevronLeft, ChevronRight, Play, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, X } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { fechaCorta, type RegistroPortal } from "@/lib/portal/tipos";
+import type { RegistroPortal } from "@/lib/portal/tipos";
 import { EASE } from "./portal-ui";
 
 /**
@@ -11,6 +11,7 @@ import { EASE } from "./portal-ui";
  * tarjetas grandes que se deslizan de costado (estilo cards de 21st.dev).
  * Los videos se reproducen solos, mudos, cuando la tarjeta está a la vista.
  * Tocar una tarjeta la abre a pantalla completa, con flechas y deslizar.
+ * Tarjetas con bordes redondeados y sólo el título (pedido de Eze, 19/11).
  */
 export function Avances({ items, nombreRubro }: { items: RegistroPortal[]; nombreRubro: (id: string | null) => string | null }) {
   const [abierto, setAbierto] = useState<number | null>(null);
@@ -31,7 +32,7 @@ export function Avances({ items, nombreRubro }: { items: RegistroPortal[]; nombr
           className="flex snap-x snap-mandatory gap-3 overflow-x-auto scroll-px-5 px-5 pb-2 [scrollbar-width:none] sm:scroll-px-8 sm:px-8 [&::-webkit-scrollbar]:hidden"
         >
           {items.map((r, i) => (
-            <Tarjeta key={r.id} r={r} rubro={nombreRubro(r.rubroId)} indice={i} onAbrir={() => setAbierto(i)} />
+            <Tarjeta key={r.id} r={r} indice={i} onAbrir={() => setAbierto(i)} />
           ))}
         </div>
       </div>
@@ -73,7 +74,7 @@ function Flecha({ onClick, etiqueta, children }: { onClick: () => void; etiqueta
   );
 }
 
-function Tarjeta({ r, rubro, indice, onAbrir }: { r: RegistroPortal; rubro: string | null; indice: number; onAbrir: () => void }) {
+function Tarjeta({ r, indice, onAbrir }: { r: RegistroPortal; indice: number; onAbrir: () => void }) {
   const quieto = useReducedMotion();
   const video = useRef<HTMLVideoElement>(null);
   const esVideo = r.mediaTipo === "video";
@@ -102,7 +103,7 @@ function Tarjeta({ r, rubro, indice, onAbrir }: { r: RegistroPortal; rubro: stri
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true, margin: "-40px" }}
       transition={{ duration: 0.7, ease: EASE, delay: Math.min(indice, 4) * 0.08 }}
-      className="group relative aspect-[4/5] w-[78%] shrink-0 cursor-pointer snap-start overflow-hidden bg-[#0e0e0d] text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#f2efe8] sm:w-[46%] lg:w-[38%]"
+      className="group relative aspect-[4/5] w-[78%] shrink-0 cursor-pointer snap-start overflow-hidden rounded-[22px] bg-[#0e0e0d] text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#f2efe8] [transform:translateZ(0)] sm:w-[46%] lg:w-[38%]"
     >
       {r.mediaUrl ? (
         esVideo ? (
@@ -129,21 +130,8 @@ function Tarjeta({ r, rubro, indice, onAbrir }: { r: RegistroPortal; rubro: stri
       {/* Velo para que el texto se lea sobre cualquier foto. */}
       <div aria-hidden className="absolute inset-0 bg-gradient-to-t from-[#070707] via-[#070707]/25 to-transparent" />
 
-      <div className="absolute left-4 right-4 top-4 flex items-center justify-between">
-        <span className="bg-[#070707]/70 px-2 py-1 text-[12px] font-semibold uppercase tracking-[0.12em] text-[#f2efe8] backdrop-blur-sm">
-          {fechaCorta(r.fecha)}
-        </span>
-        {esVideo ? (
-          <span className="inline-flex size-10 items-center justify-center bg-[#f2efe8] text-[#070707]">
-            <Play size={16} strokeWidth={2} fill="currentColor" aria-hidden />
-          </span>
-        ) : null}
-      </div>
-
       <div className="absolute inset-x-0 bottom-0 p-5">
-        {rubro ? <p className="text-[12px] font-semibold uppercase tracking-[0.14em] text-[#f2efe8]/75">{rubro}</p> : null}
-        <p className="mt-1.5 text-[clamp(19px,4.6vw,24px)] font-semibold leading-[1.12] tracking-[-0.03em] text-[#f2efe8]">{r.titulo}</p>
-        <span aria-hidden className="mt-4 block h-px w-10 bg-[#f2efe8]/60 transition-all duration-500 group-hover:w-20" />
+        <p className="text-[clamp(19px,4.6vw,24px)] font-semibold leading-[1.12] tracking-[-0.03em] text-[#f2efe8]">{r.titulo}</p>
       </div>
     </motion.button>
   );
@@ -181,7 +169,6 @@ function Visor({
     };
   }, [cerrar, ir]);
 
-  const rubro = nombreRubro(r.rubroId);
   return (
     <motion.div
       role="dialog"
@@ -255,10 +242,7 @@ function Visor({
       </div>
 
       <div className="px-5 pb-8 pt-4">
-        <p className="text-[12px] font-semibold uppercase tracking-[0.14em] text-[#f2efe8]/75">
-          {[fechaCorta(r.fecha), rubro].filter(Boolean).join(" · ")}
-        </p>
-        <p className="mt-1.5 text-[20px] font-semibold leading-snug tracking-[-0.025em] text-[#f2efe8]">{r.titulo}</p>
+        <p className="text-[20px] font-semibold leading-snug tracking-[-0.025em] text-[#f2efe8]">{r.titulo}</p>
         {r.texto ? <p className="mt-1 max-w-[62ch] text-[15px] leading-relaxed text-[#f2efe8]/80">{r.texto}</p> : null}
       </div>
     </motion.div>
