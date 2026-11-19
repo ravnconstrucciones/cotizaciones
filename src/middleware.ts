@@ -222,6 +222,7 @@ export function esRutaPortalCliente(pathname: string): boolean {
     /^\/o\/?$/.test(pathname) ||
     /^\/o\/[a-z0-9-]+(\/resumen)?\/?$/.test(pathname) ||
     /^\/api\/portal\/acceso$/.test(pathname) ||
+    pathname === "/api/portal-bot" || // el bot de Grok: la ruta exige su propia clave (RAVN_PORTAL_BOT_SECRET)
     /^\/api\/portal\/[a-z0-9-]+\/acceso$/.test(pathname)
   );
 }

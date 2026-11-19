@@ -199,6 +199,7 @@ describe("esRutaPortalCliente", () => {
     expect(esRutaPortalCliente("/api/portal/bano-correa-a1b2c3/acceso")).toBe(true);
     expect(esRutaPortalCliente("/o")).toBe(true);
     expect(esRutaPortalCliente("/api/portal/acceso")).toBe(true);
+    expect(esRutaPortalCliente("/api/portal-bot")).toBe(true);
   });
 
   it("no abre el panel de Eze ni ninguna otra ruta", () => {
@@ -208,6 +209,7 @@ describe("esRutaPortalCliente", () => {
     expect(esRutaPortalCliente("/o/x/../../api/dinero")).toBe(false);
     expect(esRutaPortalCliente("/obras")).toBe(false);
     expect(esRutaPortalCliente("/api/portal")).toBe(false);
+    expect(esRutaPortalCliente("/api/portal-bot/x")).toBe(false);
     expect(esRutaPortalCliente("/ob")).toBe(false);
   });
 });
