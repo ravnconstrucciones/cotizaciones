@@ -134,13 +134,13 @@ export function PortalCliente({
                 <p className="text-[clamp(26px,6.5vw,38px)] font-semibold leading-[1.1] tracking-[-0.035em]">
                   {resumen.terminados} de {resumen.total} {resumen.total === 1 ? "rubro terminado" : "rubros terminados"}
                 </p>
-                {/* Un tramo por rubro: lleno = terminado, medio = en curso, vacío = pendiente. */}
+                {/* Un tramo por rubro: lleno = terminado, verde = en curso, vacío = pendiente. */}
                 <ol className="mt-5 flex gap-1.5" aria-label="Estado de cada rubro">
                   {vista.rubros.map((r) => (
                     <li
                       key={r.id}
                       title={`${r.nombre}: ${ESTADOS_RUBRO[r.estado]}`}
-                      className={`h-1.5 flex-1 ${r.estado === "terminado" ? "bg-[#f2efe8]" : r.estado === "en_curso" ? "bg-[#f2efe8]/45" : "bg-[#f2efe8]/15"}`}
+                      className={`h-1.5 flex-1 ${r.estado === "terminado" ? "bg-[#f2efe8]" : r.estado === "en_curso" ? "bg-[#5fd08a]" : "bg-[#f2efe8]/15"}`}
                     >
                       <span className="sr-only">
                         {r.nombre}: {ESTADOS_RUBRO[r.estado]}
@@ -186,8 +186,8 @@ export function PortalCliente({
                     <li key={r.id} className="border-b border-[#f2efe8]/15 py-5 first:border-t">
                       <div className="flex items-baseline justify-between gap-4">
                         <span className="text-[19px] font-semibold tracking-[-0.02em]">{r.nombre}</span>
-                        <Etiqueta className={`shrink-0 ${r.estado === "pendiente" ? "" : "text-[#f2efe8]"}`}>
-                          {r.estado === "terminado" ? "■ " : r.estado === "en_curso" ? "◧ " : "□ "}
+                        <Etiqueta className={`shrink-0 ${r.estado === "en_curso" ? "text-[#5fd08a]" : r.estado === "terminado" ? "text-[#f2efe8]" : ""}`}>
+                          {r.estado === "terminado" ? "✓ " : r.estado === "en_curso" ? "● " : "□ "}
                           {ESTADOS_RUBRO[r.estado]}
                         </Etiqueta>
                       </div>
