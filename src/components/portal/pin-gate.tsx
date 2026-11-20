@@ -26,6 +26,8 @@ export function PinGate({ slug, obra }: { slug: string; obra: string }) {
       });
       const j = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string };
       if (res.ok && j.ok) {
+        // Al entrar, el cliente arranca en la agenda (pedido de Eze, 20/11/2026).
+        window.location.hash = "agenda";
         window.location.reload();
         return;
       }

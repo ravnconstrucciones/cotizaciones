@@ -28,7 +28,8 @@ export function PuertaObra() {
       });
       const j = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string; destino?: string };
       if (res.ok && j.ok && j.destino) {
-        window.location.assign(j.destino);
+        // Al entrar, el cliente arranca en la agenda (pedido de Eze, 20/11/2026).
+        window.location.assign(`${j.destino}#agenda`);
         return;
       }
       setError(j.error ?? "No pudimos validar el acceso. Probá de nuevo.");
