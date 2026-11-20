@@ -21,6 +21,7 @@ import {
   type VistaPortal,
 } from "@/lib/portal/tipos";
 import { Avances } from "./avances";
+import { Botonera } from "./botonera";
 import { AMBAR_SALDO, Barra, EASE, Etiqueta, Seccion, VERDE_PAGADO, Vacio, Wordmark } from "./portal-ui";
 
 /**
@@ -53,6 +54,13 @@ export function PortalCliente({
   const sumaTickets = totalTickets(tickets);
   const resumen = resumenRubros(vista.rubros);
   const nombreRubro = (id: string | null) => vista.rubros.find((x) => x.id === id)?.nombre ?? null;
+  const secciones = [
+    { id: "agenda", label: "Agenda" },
+    { id: "rubros", label: "Rubros" },
+    { id: "avances", label: "Avances" },
+    ...(vista.pagos ? [{ id: "pagos", label: "Pagos" }] : []),
+    ...(tickets.length ? [{ id: "tickets", label: "Tickets" }] : []),
+  ];
 
   async function salir() {
     if (!slug) return;
@@ -63,7 +71,6 @@ export function PortalCliente({
   const meta = [
     vista.obra.direccion,
     vista.obra.inicio && `Inicio ${fechaCorta(vista.obra.inicio)}`,
-    vista.obra.entrega && `Entrega estimada ${fechaCorta(vista.obra.entrega)}`,
   ].filter(Boolean) as string[];
 
   return (
@@ -99,6 +106,8 @@ export function PortalCliente({
             ) : null}
           </nav>
         </header>
+
+        <Botonera items={secciones} />
 
         <main>
           {/* Portada */}
@@ -165,6 +174,7 @@ export function PortalCliente({
 
           {/* Rubros */}
           <Seccion
+            id="rubros"
             titulo="Rubros de tu obra"
             lateral={<Etiqueta>{vista.rubros.length} {vista.rubros.length === 1 ? "rubro" : "rubros"}</Etiqueta>}
           >
@@ -201,7 +211,7 @@ export function PortalCliente({
           </Seccion>
 
           {/* Avances: fotos y videos en tarjetas */}
-          <Seccion titulo="Avances" lateral={<Etiqueta>Fotos y videos</Etiqueta>}>
+          <Seccion id="avances" titulo="Avances" lateral={<Etiqueta>Fotos y videos</Etiqueta>}>
             {avances.length ? (
               <Avances items={avances} nombreRubro={nombreRubro} />
             ) : (
@@ -211,7 +221,7 @@ export function PortalCliente({
 
           {/* Pagos */}
           {vista.pagos ? (
-            <Seccion titulo="Pagos" lateral={<Etiqueta className="!text-[#5fd08a]">{vista.pagos.resumen.pct}% abonado</Etiqueta>}>
+            <Seccion id="pagos" titulo="Pagos" lateral={<Etiqueta className="!text-[#5fd08a]">{vista.pagos.resumen.pct}% abonado</Etiqueta>}>
               <dl className="grid grid-cols-1 gap-6 sm:grid-cols-3">
                 {(
                   [
@@ -313,7 +323,7 @@ export function PortalCliente({
 
           {/* Tickets */}
           {tickets.length ? (
-            <Seccion titulo="Tickets de compra" lateral={<Etiqueta>{tickets.length} {tickets.length === 1 ? "ticket" : "tickets"}</Etiqueta>}>
+            <Seccion id="tickets" titulo="Tickets de compra" lateral={<Etiqueta>{tickets.length} {tickets.length === 1 ? "ticket" : "tickets"}</Etiqueta>}>
               <p className="mb-6 text-[clamp(22px,5.5vw,30px)] font-semibold tabular-nums leading-none tracking-[-0.04em]">
                 {[sumaTickets.ARS > 0 && dinero(sumaTickets.ARS, "ARS"), sumaTickets.USD > 0 && dinero(sumaTickets.USD, "USD")].filter(Boolean).join(" · ")}
                 <span className="ml-3 align-middle text-[14px] font-normal tracking-normal text-[#f2efe8]/75">en total</span>
@@ -399,7 +409,7 @@ function CalendarioSemana({ agenda, hoy }: { agenda: EventoAgenda[]; hoy: string
     "inline-flex size-11 cursor-pointer items-center justify-center border border-[#f2efe8]/25 text-[#f2efe8]/80 transition-colors hover:border-[#f2efe8]/60 hover:text-[#f2efe8] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#f2efe8]";
 
   return (
-    <Seccion titulo="Calendario de la semana" lateral={<Etiqueta>Agenda</Etiqueta>}>
+    <Seccion id="agenda" titulo="Calendario de la semana" lateral={<Etiqueta>Agenda</Etiqueta>}>
       <div className="mb-4 flex items-center justify-between gap-4">
         <p className="text-[16px]">
           {nombreSemana ? <span className="font-semibold tracking-[-0.015em]">{nombreSemana}</span> : null}

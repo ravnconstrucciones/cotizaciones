@@ -104,11 +104,11 @@ export function ResumenDoc({ vista, volverHref }: { vista: VistaPortal; volverHr
               <span className="doc-meta-value">{vista.obra.direccion}</span>
             </>
           ) : null}
-          {vista.obra.inicio || vista.obra.entrega ? (
+          {vista.obra.inicio ? (
             <>
               <span className="doc-meta-label">Plazo</span>
               <span className="doc-meta-value">
-                {[vista.obra.inicio && `Inicio ${fechaCorta(vista.obra.inicio)}`, vista.obra.entrega && `Entrega estimada ${fechaCorta(vista.obra.entrega)}`]
+                {[vista.obra.inicio && `Inicio ${fechaCorta(vista.obra.inicio)}`]
                   .filter(Boolean)
                   .join(" · ")}
               </span>

@@ -51,7 +51,7 @@ export function Seccion({
   return (
     <motion.section
       id={id}
-      className="scroll-mt-6 border-t border-[#f2efe8]/15 py-10 sm:py-14"
+      className="scroll-mt-14 border-t border-[#f2efe8]/15 py-10 sm:py-14"
       initial={quieto ? false : { opacity: 0, y: 18 }}
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true, margin: "0px 0px -12% 0px" }}
