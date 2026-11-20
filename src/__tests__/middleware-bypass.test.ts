@@ -222,6 +222,11 @@ describe("destinoHostPortal", () => {
     expect(destinoHostPortal(H, "/forna-ab12cd")).toEqual({ tipo: "rewrite", ruta: "/o/forna-ab12cd" });
     expect(destinoHostPortal(H, "/forna-ab12cd/resumen")).toEqual({ tipo: "rewrite", ruta: "/o/forna-ab12cd/resumen" });
   });
+  it("deja bajar el instructivo PDF en los dos dominios", () => {
+    expect(destinoHostPortal(H, "/portal-instructivo.pdf")).toBeNull();
+    expect(esRutaPortalCliente("/portal-instructivo.pdf")).toBe(true);
+    expect(esRutaPortalCliente("/carta-presentacion-ravn.pdf")).toBe(false);
+  });
   it("las direcciones viejas con /o pasan a la versión limpia", () => {
     expect(destinoHostPortal(H, "/o")).toEqual({ tipo: "redirect", ruta: "/" });
     expect(destinoHostPortal(H, "/o/forna-ab12cd")).toEqual({ tipo: "redirect", ruta: "/forna-ab12cd" });

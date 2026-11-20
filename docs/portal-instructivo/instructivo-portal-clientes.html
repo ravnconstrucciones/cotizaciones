@@ -1,0 +1,196 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Portal RAVN · Cómo usarlo</title>
+<link href="https://fonts.googleapis.com/css2?family=Raleway:wght@200;300;500;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  @page { size: A4; margin: 0; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  :root { --bg:#ffffff; --tx:#0b0b0a; --mu:rgba(11,11,10,.6); --ln:rgba(11,11,10,.14); --ok:#2f9e5a; }
+  html, body { background: var(--bg); color: var(--tx); font-family: Inter, "Helvetica Neue", Arial, sans-serif; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .pag { width: 210mm; height: 297mm; padding: 18mm 20mm 16mm; position: relative; page-break-after: always; overflow: hidden; display: flex; flex-direction: column; }
+  .pag:last-child { page-break-after: auto; }
+  .cab { display: flex; justify-content: space-between; align-items: baseline; font-family: Raleway; }
+  .marca { font-weight: 300; font-size: 12pt; letter-spacing: .45em; }
+  .cab span:last-child { font-size: 8pt; letter-spacing: .22em; text-transform: uppercase; color: var(--mu); font-weight: 500; }
+  .eti { font-family: Raleway; font-weight: 600; font-size: 7.5pt; letter-spacing: .24em; text-transform: uppercase; color: var(--mu); }
+  h1 { font-family: Raleway; font-weight: 200; font-size: 46pt; line-height: 1.02; letter-spacing: -.01em; margin-top: 8mm; }
+  .bajada { font-size: 12pt; line-height: 1.55; color: var(--mu); max-width: 140mm; margin-top: 6mm; }
+  h2 { font-family: Raleway; font-weight: 300; font-size: 20pt; letter-spacing: -.005em; margin-bottom: 4mm; }
+  p, li { font-size: 10.5pt; line-height: 1.6; }
+  .mu { color: var(--mu); }
+  .regla { border-top: 1px solid var(--ln); margin: 8mm 0 7mm; }
+  .paso { display: grid; grid-template-columns: 11mm 1fr; align-items: start; margin-top: 5mm; }
+  .num { font-family: Raleway; font-weight: 200; font-size: 17pt; line-height: 1; }
+  .paso b { font-weight: 600; }
+  .url { display: inline-block; margin-top: 1.5mm; font-weight: 600; font-size: 12pt; letter-spacing: -.01em; border-bottom: 1px solid var(--tx); padding-bottom: .5mm; }
+  .cap { display: block; width: 100%; border: 1px solid var(--ln); margin-top: 4mm; }
+  .cap-pie { font-size: 8.5pt; color: var(--mu); margin-top: 2mm; }
+  .lado { display: grid; grid-template-columns: 74mm 1fr; gap: 9mm; align-items: start; margin-top: 4mm; }
+  .caja { border: 1px solid var(--ln); padding: 5mm 6mm; margin-top: 6mm; }
+  .caja p + p { margin-top: 2mm; }
+  .botonera { display: flex; border: 1px solid var(--ln); margin: 4mm 0 2mm; }
+  .botonera span { flex: 1; text-align: center; padding: 3mm 0; font-size: 9.5pt; font-weight: 600; border-right: 1px solid var(--ln); }
+  .botonera span:last-child { border-right: 0; }
+  .botonera span:first-child { box-shadow: inset 0 -2px 0 var(--tx); }
+  .sec { display: grid; grid-template-columns: 34mm 1fr; gap: 6mm; padding: 5.5mm 0; border-top: 1px solid var(--ln); }
+  .sec:last-of-type { border-bottom: 1px solid var(--ln); }
+  .sec h3 { font-family: Raleway; font-weight: 600; font-size: 12pt; letter-spacing: .01em; }
+  .sec ul { padding-left: 4mm; margin-top: 1.5mm; }
+  .sec li { margin-top: .8mm; }
+  .hoy { display: inline-flex; align-items: center; background: rgba(47,158,90,.12); border-left: 2px solid var(--ok); padding: .6mm 2.5mm; color: var(--ok); font-weight: 600; font-size: 9pt; letter-spacing: .12em; text-transform: uppercase; }
+  .pie { margin-top: auto; display: flex; justify-content: space-between; align-items: end; padding-top: 6mm; border-top: 1px solid var(--ln); font-size: 8.5pt; color: var(--mu); }
+  .pie .marca { color: var(--tx); font-size: 10pt; }
+  .dos { display: grid; grid-template-columns: 1fr 1fr; gap: 8mm; }
+  .contacto { font-family: Raleway; font-weight: 300; font-size: 24pt; letter-spacing: .01em; margin-top: 2mm; }
+</style>
+</head>
+<body>
+
+<!-- 1 · Portada + paso 1 -->
+<section class="pag">
+  <div class="cab"><span class="marca">RAVN.</span><span>Instructivo para clientes</span></div>
+
+  <p class="eti" style="margin-top:18mm">Portal RAVN</p>
+  <h1>Tu obra,<br>a la vista.</h1>
+  <p class="bajada">Desde el portal seguís tu obra en cualquier momento y desde el celular: qué se hace esta semana, cómo avanza cada rubro, fotos y videos, y el estado de los pagos. Lo actualizamos nosotros; vos sólo entrás a mirar.</p>
+
+  <div class="regla"></div>
+
+  <h2>Cómo entrar</h2>
+  <div class="paso">
+    <span class="num">01</span>
+    <div>
+      <p>Entrá a nuestra web <b>ravnconstrucciones.com.ar</b>, abrí <b>Obra + diseño</b> y bajá hasta el final: tocá <b>PORTAL CLIENTES · Accedé al portal</b>. También tenés “Portal RAVN” en el menú, o podés ir directo a:</p>
+      <span class="url">portal.ravnconstrucciones.com.ar</span>
+    </div>
+  </div>
+  <img class="cap" src="cap-web-portal.png" alt="Cartel Portal Clientes en la web de RAVN">
+  <p class="cap-pie">El acceso al portal, al final de la página Obra + diseño.</p>
+
+  <div class="pie"><span>Nosotros nos encargamos. De todo.</span><span class="marca">RAVN.</span></div>
+</section>
+
+<!-- 2 · Pasos 2 y 3 + botonera -->
+<section class="pag">
+  <div class="cab"><span class="marca">RAVN.</span><span>Portal RAVN · Cómo entrar</span></div>
+
+  <div class="lado" style="margin-top:14mm">
+    <img class="cap" style="margin-top:0" src="cap-acceso.png" alt="Pantalla de acceso al portal">
+    <div>
+      <div class="paso" style="margin-top:0">
+        <span class="num">02</span>
+        <p>Escribí el <b>nombre de la obra</b> y la <b>contraseña</b>. Los dos te los mandamos por WhatsApp. No importan las mayúsculas ni los acentos del nombre. El ojito al lado de la contraseña te deja ver lo que escribiste.</p>
+      </div>
+      <div class="paso">
+        <span class="num">03</span>
+        <p>Tocá <b>Entrar</b>. El portal se abre directo en la <b>agenda</b> de la semana.</p>
+      </div>
+      <div class="caja">
+        <p><b>Tip:</b> agregalo a la pantalla de inicio y queda como una app.</p>
+        <p class="mu">iPhone (Safari): botón Compartir → “Agregar a inicio”. Android (Chrome): menú ⋮ → “Agregar a la pantalla principal”. El celular recuerda que ya entraste.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="regla"></div>
+
+  <p class="eti">Adentro del portal</p>
+  <h2 style="margin-top:3mm">Una botonera para moverte</h2>
+  <p class="mu">Arriba queda siempre fija la botonera. Tocá cualquier botón y la página baja sola hasta esa parte; la raya marca dónde estás.</p>
+  <div class="botonera"><span>Agenda</span><span>Rubros</span><span>Avances</span><span>Pagos</span><span>Tickets</span></div>
+  <p class="mu" style="font-size:9pt">Si subís hasta arriba de todo ves la portada: el nombre de tu obra y cuántos rubros están terminados.</p>
+
+  <div class="pie"><span>portal.ravnconstrucciones.com.ar</span><span class="marca">RAVN.</span></div>
+</section>
+
+<!-- 3 · Secciones -->
+<section class="pag">
+  <div class="cab"><span class="marca">RAVN.</span><span>Portal RAVN · Qué vas a ver</span></div>
+
+  <div style="margin-top:14mm">
+    <div class="sec">
+      <h3>Agenda</h3>
+      <div>
+        <p>Calendario de la semana, de lunes a domingo, con lo que está previsto cada día y quién viene.</p>
+        <ul>
+          <li>El día de hoy aparece resaltado en verde: <span class="hoy">Hoy</span></li>
+          <li>Con las flechas ‹ › pasás a la semana anterior o a la siguiente; “Hoy” te devuelve a esta semana.</li>
+          <li>Abajo te avisa qué es lo próximo que viene en la obra.</li>
+        </ul>
+      </div>
+    </div>
+    <div class="sec">
+      <h3>Rubros</h3>
+      <div>
+        <p>Cada parte del trabajo (por ejemplo pintura, electricidad, muebles) con su estado y las tareas que incluye.</p>
+        <ul>
+          <li><b>Pendiente</b>: todavía no arrancó.</li>
+          <li><b>En curso</b>: se está haciendo.</li>
+          <li><b>Terminado</b>: listo.</li>
+        </ul>
+      </div>
+    </div>
+    <div class="sec">
+      <h3>Avances</h3>
+      <div><p>Fotos y videos de la obra, del más nuevo al más viejo. Deslizá las tarjetas de costado para recorrerlas y tocá una para verla a pantalla completa. Los videos se reproducen ahí mismo.</p></div>
+    </div>
+    <div class="sec">
+      <h3>Pagos</h3>
+      <div>
+        <p>Cuánto es el presupuesto, cuánto llevás pagado y cuánto falta, con el porcentaje abonado.</p>
+        <ul>
+          <li><b>Ver el presupuesto</b> abre el presupuesto en PDF.</li>
+          <li><b>Ver el detalle de pagos</b> lista cada pago con su fecha.</li>
+          <li>En <b>Recibos</b> descargás el recibo de cada pago.</li>
+        </ul>
+      </div>
+    </div>
+    <div class="sec">
+      <h3>Tickets</h3>
+      <div><p>Los tickets de compra de materiales de tu obra, con su importe y la foto del comprobante (“Ver el ticket”).</p></div>
+    </div>
+    <div class="sec">
+      <h3>Resumen PDF</h3>
+      <div><p>Arriba a la derecha. Descarga un resumen de la obra para guardar o imprimir.</p></div>
+    </div>
+  </div>
+
+  <div class="pie"><span>portal.ravnconstrucciones.com.ar</span><span class="marca">RAVN.</span></div>
+</section>
+
+<!-- 4 · Seguridad y contacto -->
+<section class="pag">
+  <div class="cab"><span class="marca">RAVN.</span><span>Portal RAVN · Seguridad y ayuda</span></div>
+
+  <div class="dos" style="margin-top:14mm">
+    <div>
+      <p class="eti">Seguridad</p>
+      <ul style="padding-left:4mm; margin-top:3mm">
+        <li>La contraseña es sólo para vos: no la compartas.</li>
+        <li>Si la escribís mal varias veces seguidas, el acceso se frena unos minutos. Esperá y probá de nuevo.</li>
+        <li>En una computadora compartida, tocá <b>Salir</b> al terminar.</li>
+      </ul>
+    </div>
+    <div>
+      <p class="eti">¿No podés entrar?</p>
+      <ul style="padding-left:4mm; margin-top:3mm">
+        <li>Revisá que el nombre de la obra sea el que te mandamos.</li>
+        <li>Revisá la contraseña con el ojito.</li>
+        <li>Si sigue sin andar, escribinos y lo resolvemos.</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="caja" style="margin-top:14mm">
+    <p class="eti">Cualquier duda</p>
+    <p class="contacto">WhatsApp +54 9 11 2498-4298</p>
+    <p class="mu">ravnconstrucciones.com.ar</p>
+  </div>
+
+  <div class="pie"><span>Nosotros nos encargamos. De todo.</span><span class="marca">RAVN.</span></div>
+</section>
+
+</body>
+</html>

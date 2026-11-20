@@ -340,6 +340,10 @@ export function PortalCliente({
 
         <footer className="flex flex-wrap items-baseline justify-between gap-3 border-t border-[#f2efe8]/15 pt-8 text-[14px] text-[#f2efe8]/75">
           <span>Nosotros nos encargamos. De todo.</span>
+          <a href="/portal-instructivo.pdf" target="_blank" rel="noopener" className="inline-flex items-center gap-2 underline underline-offset-4 hover:text-[#f2efe8]">
+            <Download size={14} strokeWidth={1.5} aria-hidden />
+            Cómo usar el portal (PDF)
+          </a>
           <a href="https://ravnconstrucciones.com.ar" className="underline underline-offset-4 hover:text-[#f2efe8]">
             ravnconstrucciones.com.ar
           </a>

@@ -220,12 +220,16 @@ export function credencialCotizadorReadValida(
 export function esRutaPortalCliente(pathname: string): boolean {
   return (
     /^\/o\/?$/.test(pathname) ||
+    pathname === INSTRUCTIVO_PORTAL || // instructivo PDF para clientes (20/11/2026)
     /^\/o\/[a-z0-9-]+(\/resumen)?\/?$/.test(pathname) ||
     /^\/api\/portal\/acceso$/.test(pathname) ||
     pathname === "/api/portal-bot" || // el bot de Grok: la ruta exige su propia clave (RAVN_PORTAL_BOT_SECRET)
     /^\/api\/portal\/[a-z0-9-]+\/acceso$/.test(pathname)
   );
 }
+
+/** Instructivo para clientes, público en los dos dominios (20/11/2026). */
+export const INSTRUCTIVO_PORTAL = "/portal-instructivo.pdf";
 
 /** Dominio propio del portal del cliente (20/11/2026): sólo sirve el portal. */
 export const HOST_PORTAL = "portal.ravnconstrucciones.com.ar";
@@ -246,6 +250,7 @@ export function destinoHostPortal(
   if (pathname === "/") return { tipo: "rewrite", ruta: "/o" };
   if (pathname.startsWith("/_next/") || /\.(png|jpe?g|svg|ico|webp|txt|xml|webmanifest)$/.test(pathname)) return null;
   if (/^\/api\/(portal\/|portal-bot$)/.test(pathname)) return null;
+  if (pathname === INSTRUCTIVO_PORTAL) return null;
   const conO = pathname.match(/^\/o(\/.*)?$/);
   if (conO) return { tipo: "redirect", ruta: conO[1] && conO[1] !== "/" ? conO[1] : "/" };
   const obra = pathname.match(/^\/([a-z0-9-]{4,60})(\/resumen)?\/?$/);

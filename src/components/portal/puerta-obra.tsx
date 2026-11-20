@@ -1,7 +1,7 @@
 "use client";
 
 import { motion, useReducedMotion } from "framer-motion";
-import { Eye, EyeOff } from "lucide-react";
+import { Download, Eye, EyeOff } from "lucide-react";
 import { useState } from "react";
 import { RavnIso } from "@/components/ravn-iso";
 import { EASE } from "./portal-ui";
@@ -124,6 +124,15 @@ export function PuertaObra() {
         </form>
 
         <p className="mt-10 text-[14px] leading-relaxed text-[#f2efe8]/80">Si no tenés tus datos de acceso, pedilos a tu contacto en RAVN.</p>
+        <a
+          href="/portal-instructivo.pdf"
+          target="_blank"
+          rel="noopener"
+          className="mt-4 inline-flex min-h-11 items-center gap-2 text-[14px] font-semibold text-[#f2efe8]/85 underline underline-offset-4 transition-colors hover:text-[#f2efe8] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#f2efe8]"
+        >
+          <Download size={15} strokeWidth={1.5} aria-hidden />
+          Cómo usar el portal (PDF)
+        </a>
       </motion.main>
     </div>
   );
