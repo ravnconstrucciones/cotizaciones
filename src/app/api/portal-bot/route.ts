@@ -20,7 +20,7 @@ import { BUCKET_PORTAL, cargarVistaPortal, portalPorObra } from "@/lib/portal/da
  */
 
 const MAX_BYTES = 50 * 1024 * 1024;
-const ENTRADA = "https://ravn-app-one-five.vercel.app/o";
+const ENTRADA = "https://portal.ravnconstrucciones.com.ar";
 const TIPOS_MEDIA: Record<string, string> = {
   "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp", "image/heic": "heic",
   "video/mp4": "mp4", "video/quicktime": "mov", "video/webm": "webm",

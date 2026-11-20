@@ -5,6 +5,7 @@ import {
   bypassCotizadorWritePermitido,
   credencialCotizadorReadValida,
   credencialCotizadorWriteValida,
+  destinoHostPortal,
   esRutaPortalCliente,
 } from "@/middleware";
 
@@ -211,5 +212,26 @@ describe("esRutaPortalCliente", () => {
     expect(esRutaPortalCliente("/api/portal")).toBe(false);
     expect(esRutaPortalCliente("/api/portal-bot/x")).toBe(false);
     expect(esRutaPortalCliente("/ob")).toBe(false);
+  });
+});
+
+describe("destinoHostPortal", () => {
+  const H = "portal.ravnconstrucciones.com.ar";
+  it("en el dominio del portal la raíz y la app interna van a la entrada", () => {
+    expect(destinoHostPortal(H, "/")).toBe("/o");
+    expect(destinoHostPortal(H, "/obras")).toBe("/o");
+    expect(destinoHostPortal(H, "/api/dinero")).toBe("/o");
+    expect(destinoHostPortal("PORTAL.ravnconstrucciones.com.ar:443", "/login")).toBe("/o");
+  });
+  it("deja pasar el portal y los recursos estáticos", () => {
+    expect(destinoHostPortal(H, "/o")).toBeNull();
+    expect(destinoHostPortal(H, "/o/forna-ab12cd")).toBeNull();
+    expect(destinoHostPortal(H, "/api/portal/acceso")).toBeNull();
+    expect(destinoHostPortal(H, "/_next/static/chunks/a.js")).toBeNull();
+    expect(destinoHostPortal(H, "/favicon.ico")).toBeNull();
+  });
+  it("no toca los otros dominios", () => {
+    expect(destinoHostPortal("ravn-app-one-five.vercel.app", "/obras")).toBeNull();
+    expect(destinoHostPortal(null, "/")).toBeNull();
   });
 });

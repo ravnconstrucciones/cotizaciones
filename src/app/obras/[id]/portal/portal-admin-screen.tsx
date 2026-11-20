@@ -108,8 +108,8 @@ export function PortalAdminScreen({ presupuestoId }: { presupuestoId: string }) 
 
   const portal = data?.portal ?? null;
   const vista = data?.vista ?? null;
-  const link = portal && typeof window !== "undefined" ? `${window.location.origin}/o/${portal.slug}` : "";
-  const entrada = typeof window !== "undefined" ? `${window.location.origin}/o` : "/o";
+  const link = portal ? `https://portal.ravnconstrucciones.com.ar/o/${portal.slug}` : "";
+  const entrada = "https://portal.ravnconstrucciones.com.ar";
   const nombreEntrada = portal?.titulo?.trim() || data?.obra?.nombre_obra?.trim() || "";
   const borradores = vista?.registros.filter((r) => r.estado === "borrador") ?? [];
   const publicados = vista?.registros.filter((r) => r.estado === "publicado") ?? [];

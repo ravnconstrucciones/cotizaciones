@@ -227,7 +227,29 @@ export function esRutaPortalCliente(pathname: string): boolean {
   );
 }
 
+/** Dominio propio del portal del cliente (20/11/2026): sólo sirve el portal. */
+export const HOST_PORTAL = "portal.ravnconstrucciones.com.ar";
+
+/**
+ * En el dominio del portal, la raíz abre la entrada (/o) y cualquier ruta que no
+ * sea del portal vuelve a la entrada: desde ahí nunca se llega a la app interna.
+ * Devuelve la ruta a la que redirigir, o null si la ruta se sirve tal cual.
+ */
+export function destinoHostPortal(host: string | null, pathname: string): string | null {
+  if ((host ?? "").split(":")[0].toLowerCase() !== HOST_PORTAL) return null;
+  if (esRutaPortalCliente(pathname)) return null;
+  if (pathname.startsWith("/_next/") || /\.(png|jpe?g|svg|ico|webp|txt|xml|webmanifest)$/.test(pathname)) return null;
+  return "/o";
+}
+
 export async function middleware(request: NextRequest) {
+  const destinoPortal = destinoHostPortal(request.headers.get("host"), request.nextUrl.pathname);
+  if (destinoPortal) {
+    const url = request.nextUrl.clone();
+    url.pathname = destinoPortal;
+    url.search = "";
+    return NextResponse.redirect(url);
+  }
   if (esRutaPortalCliente(request.nextUrl.pathname)) {
     return NextResponse.next({ request });
   }

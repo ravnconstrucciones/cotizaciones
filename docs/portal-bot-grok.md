@@ -3,7 +3,8 @@
 Instructivo para configurar el bot de obras. La clave NO va en este archivo: está en
 `RAVN_PORTAL_BOT_SECRET` (`.env.local` y Vercel). Se le pega al bot a mano.
 
-**Dirección:** `POST https://ravn-app-one-five.vercel.app/api/portal-bot`
+**Dirección:** `POST https://ravn-app-one-five.vercel.app/api/portal-bot` (también responde en `https://portal.ravnconstrucciones.com.ar/api/portal-bot`)
+**Entrada del cliente:** https://portal.ravnconstrucciones.com.ar
 **Encabezados:** `Authorization: Bearer <clave>` · `Content-Type: application/json`
 
 ## Qué puede hacer (campo `accion`)
