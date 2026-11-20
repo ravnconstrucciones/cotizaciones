@@ -3,6 +3,7 @@ import { createSupabaseAdminClient } from "@/lib/supabase/server";
 import { nombreObraPortal, type PortalRow } from "@/lib/portal/datos";
 import { MAX_INTENTOS, MINUTOS_BLOQUEO, claveValida, crearSesion, nombreCookie, verificarPin } from "@/lib/portal/sesion";
 import { normalizarNombreObra } from "@/lib/portal/tipos";
+import { rutaObra } from "@/lib/portal/acceso-cliente";
 
 /**
  * POST /api/portal/acceso — puerta única del portal (pedido de Eze, 19/11/2026):
@@ -14,7 +15,7 @@ import { normalizarNombreObra } from "@/lib/portal/tipos";
  * para nombre inexistente y contraseña equivocada, y el mismo bloqueo por obra
  * que la puerta por enlace (5 fallos → 15 minutos).
  *
- * Responde { ok, destino: "/o/<slug>" } y deja la cookie de esa obra.
+ * Responde { ok, destino } (la obra, sin "/o" en el dominio del portal) y deja la cookie de esa obra.
  */
 
 const ERROR_GENERICO = "El nombre de la obra o la contraseña no son correctos.";
@@ -58,12 +59,12 @@ export async function POST(req: Request) {
   }
 
   const sesion = crearSesion(portal.presupuesto_id, portal.sesion_version, ahora);
-  const res = NextResponse.json({ ok: true, destino: `/o/${portal.slug}` });
+  const res = NextResponse.json({ ok: true, destino: rutaObra(req.headers.get("host"), portal.slug) });
   res.cookies.set(nombreCookie(portal.slug), sesion.valor, {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     sameSite: "lax",
-    path: `/o/${portal.slug}`,
+    path: "/",
     maxAge: sesion.maxAge,
   });
   return res;

@@ -108,7 +108,7 @@ export function PortalAdminScreen({ presupuestoId }: { presupuestoId: string }) 
 
   const portal = data?.portal ?? null;
   const vista = data?.vista ?? null;
-  const link = portal ? `https://portal.ravnconstrucciones.com.ar/o/${portal.slug}` : "";
+  const link = portal ? `https://portal.ravnconstrucciones.com.ar/${portal.slug}` : "";
   const entrada = "https://portal.ravnconstrucciones.com.ar";
   const nombreEntrada = portal?.titulo?.trim() || data?.obra?.nombre_obra?.trim() || "";
   const borradores = vista?.registros.filter((r) => r.estado === "borrador") ?? [];

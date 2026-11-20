@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { PinGate } from "@/components/portal/pin-gate";
 import { PortalCliente } from "@/components/portal/portal-cliente";
 import { Wordmark } from "@/components/portal/portal-ui";
-import { accesoCliente } from "@/lib/portal/acceso-cliente";
+import { accesoCliente, rutaObraActual } from "@/lib/portal/acceso-cliente";
 import { cargarVistaPortal } from "@/lib/portal/datos";
 
 export const dynamic = "force-dynamic";
@@ -23,7 +23,7 @@ export default async function PortalPage({ params }: Params) {
   if (acceso.estado === "pin") return <PinGate slug={slug} obra={acceso.obra} />;
 
   const vista = await cargarVistaPortal(acceso.portal);
-  return <PortalCliente vista={vista} slug={slug} resumenHref={`/o/${slug}/resumen`} />;
+  return <PortalCliente vista={vista} slug={slug} resumenHref={`${await rutaObraActual(slug)}/resumen`} />;
 }
 
 function NoDisponible() {

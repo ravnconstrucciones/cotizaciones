@@ -1,4 +1,4 @@
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { nombreObraPortal, portalPorSlug, type PortalRow } from "./datos";
 import { nombreCookie, sesionValida } from "./sesion";
 
@@ -9,6 +9,15 @@ import { nombreCookie, sesionValida } from "./sesion";
  *                 lleva el nombre de la obra para mostrarlo en la puerta
  *   "ok"        → cookie válida para ESTA obra
  */
+/** Ruta de una obra según el dominio: sin "/o" en portal.ravnconstrucciones.com.ar. */
+export function rutaObra(host: string | null, slug: string): string {
+  return (host ?? "").split(":")[0].toLowerCase() === "portal.ravnconstrucciones.com.ar" ? `/${slug}` : `/o/${slug}`;
+}
+
+export async function rutaObraActual(slug: string): Promise<string> {
+  return rutaObra((await headers()).get("host"), slug);
+}
+
 export async function accesoCliente(
   slug: string
 ): Promise<{ estado: "no_existe" } | { estado: "pin"; obra: string } | { estado: "ok"; portal: PortalRow }> {

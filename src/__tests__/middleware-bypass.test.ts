@@ -217,16 +217,23 @@ describe("esRutaPortalCliente", () => {
 
 describe("destinoHostPortal", () => {
   const H = "portal.ravnconstrucciones.com.ar";
-  it("en el dominio del portal la raíz y la app interna van a la entrada", () => {
-    expect(destinoHostPortal(H, "/")).toBe("/o");
-    expect(destinoHostPortal(H, "/obras")).toBe("/o");
-    expect(destinoHostPortal(H, "/api/dinero")).toBe("/o");
-    expect(destinoHostPortal("PORTAL.ravnconstrucciones.com.ar:443", "/login")).toBe("/o");
+  it("muestra la entrada y las obras sin /o en la dirección", () => {
+    expect(destinoHostPortal(H, "/")).toEqual({ tipo: "rewrite", ruta: "/o" });
+    expect(destinoHostPortal(H, "/forna-ab12cd")).toEqual({ tipo: "rewrite", ruta: "/o/forna-ab12cd" });
+    expect(destinoHostPortal(H, "/forna-ab12cd/resumen")).toEqual({ tipo: "rewrite", ruta: "/o/forna-ab12cd/resumen" });
   });
-  it("deja pasar el portal y los recursos estáticos", () => {
-    expect(destinoHostPortal(H, "/o")).toBeNull();
-    expect(destinoHostPortal(H, "/o/forna-ab12cd")).toBeNull();
+  it("las direcciones viejas con /o pasan a la versión limpia", () => {
+    expect(destinoHostPortal(H, "/o")).toEqual({ tipo: "redirect", ruta: "/" });
+    expect(destinoHostPortal(H, "/o/forna-ab12cd")).toEqual({ tipo: "redirect", ruta: "/forna-ab12cd" });
+  });
+  it("la app interna vuelve a la entrada", () => {
+    expect(destinoHostPortal(H, "/obras/abc/portal")).toEqual({ tipo: "redirect", ruta: "/" });
+    expect(destinoHostPortal(H, "/api/dinero")).toEqual({ tipo: "redirect", ruta: "/" });
+    expect(destinoHostPortal("PORTAL.ravnconstrucciones.com.ar:443", "/obras/x")).toEqual({ tipo: "redirect", ruta: "/" });
+  });
+  it("deja pasar las APIs del portal y los estáticos", () => {
     expect(destinoHostPortal(H, "/api/portal/acceso")).toBeNull();
+    expect(destinoHostPortal(H, "/api/portal-bot")).toBeNull();
     expect(destinoHostPortal(H, "/_next/static/chunks/a.js")).toBeNull();
     expect(destinoHostPortal(H, "/favicon.ico")).toBeNull();
   });

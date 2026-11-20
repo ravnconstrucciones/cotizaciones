@@ -231,24 +231,38 @@ export function esRutaPortalCliente(pathname: string): boolean {
 export const HOST_PORTAL = "portal.ravnconstrucciones.com.ar";
 
 /**
- * En el dominio del portal, la raíz abre la entrada (/o) y cualquier ruta que no
- * sea del portal vuelve a la entrada: desde ahí nunca se llega a la app interna.
- * Devuelve la ruta a la que redirigir, o null si la ruta se sirve tal cual.
+ * En el dominio del portal las direcciones van sin "/o" (pedido de Eze, 20/11):
+ *   /                 → muestra la entrada (/o)
+ *   /<slug>[/resumen] → muestra la obra (/o/<slug>[/resumen])
+ *   /o, /o/<slug>     → redirige a la versión sin "/o"
+ * Las APIs del portal y los estáticos pasan tal cual; cualquier otra ruta (la
+ * app interna) vuelve a la entrada. null = no es el dominio del portal o no hay cambio.
  */
-export function destinoHostPortal(host: string | null, pathname: string): string | null {
+export function destinoHostPortal(
+  host: string | null,
+  pathname: string
+): { tipo: "rewrite" | "redirect"; ruta: string } | null {
   if ((host ?? "").split(":")[0].toLowerCase() !== HOST_PORTAL) return null;
-  if (esRutaPortalCliente(pathname)) return null;
+  if (pathname === "/") return { tipo: "rewrite", ruta: "/o" };
   if (pathname.startsWith("/_next/") || /\.(png|jpe?g|svg|ico|webp|txt|xml|webmanifest)$/.test(pathname)) return null;
-  return "/o";
+  if (/^\/api\/(portal\/|portal-bot$)/.test(pathname)) return null;
+  const conO = pathname.match(/^\/o(\/.*)?$/);
+  if (conO) return { tipo: "redirect", ruta: conO[1] && conO[1] !== "/" ? conO[1] : "/" };
+  const obra = pathname.match(/^\/([a-z0-9-]{4,60})(\/resumen)?\/?$/);
+  if (obra && obra[1] !== "api") return { tipo: "rewrite", ruta: `/o/${obra[1]}${obra[2] ?? ""}` };
+  return { tipo: "redirect", ruta: "/" };
 }
 
 export async function middleware(request: NextRequest) {
   const destinoPortal = destinoHostPortal(request.headers.get("host"), request.nextUrl.pathname);
   if (destinoPortal) {
     const url = request.nextUrl.clone();
-    url.pathname = destinoPortal;
-    url.search = "";
-    return NextResponse.redirect(url);
+    url.pathname = destinoPortal.ruta;
+    if (destinoPortal.tipo === "redirect") {
+      url.search = "";
+      return NextResponse.redirect(url);
+    }
+    return NextResponse.rewrite(url);
   }
   if (esRutaPortalCliente(request.nextUrl.pathname)) {
     return NextResponse.next({ request });

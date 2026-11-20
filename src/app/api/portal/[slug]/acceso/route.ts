@@ -72,7 +72,7 @@ export async function POST(req: Request, ctx: Params) {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     sameSite: "lax",
-    path: `/o/${slug}`,
+    path: "/",
     maxAge: sesion.maxAge,
   });
   return res;
@@ -81,6 +81,6 @@ export async function POST(req: Request, ctx: Params) {
 export async function DELETE(_req: Request, ctx: Params) {
   const { slug } = await ctx.params;
   const res = NextResponse.json({ ok: true });
-  res.cookies.set(nombreCookie(slug), "", { path: `/o/${slug}`, maxAge: 0 });
+  res.cookies.set(nombreCookie(slug), "", { path: "/", maxAge: 0 });
   return res;
 }
