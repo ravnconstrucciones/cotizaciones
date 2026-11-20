@@ -12,6 +12,8 @@ import { MenuOverlay } from "./menu-overlay";
 /** Rutas SIN carcasa (login, vistas de impresión/PDF, landing pública y la
  * captura rápida /gasto — que abre standalone desde el atajo del iPhone).
  * Match por SEGMENTO (no startsWith pelado): "/gasto" no debe comerse "/gastos". */
+/** Dominio propio del portal del cliente (igual que HOST_PORTAL en middleware.ts). */
+const HOST_PORTAL = "portal.ravnconstrucciones.com.ar";
 const SIN_CARCASA = ["/login", "/remito", "/landing", "/gasto", "/o"];
 /** Sufijos de ruta que también omiten carcasa (documentos A4 de cotizaciones). */
 const SIN_CARCASA_SUFIJO = ["/documento", "/portal/resumen", "/portal/vista"];
@@ -67,7 +69,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }, []);
 
 
+  // En portal.ravnconstrucciones.com.ar las direcciones no llevan /o (rewrite del
+  // middleware): en el navegador usePathname da "/<slug>", así que se mira el host.
+  // En el servidor el pathname ya es "/o/<slug>", por eso no hay desfasaje al hidratar.
+  const esHostPortal =
+    typeof window !== "undefined" && window.location.hostname === HOST_PORTAL;
+
   if (
+    esHostPortal ||
     SIN_CARCASA.some((p) => pathname === p || pathname.startsWith(`${p}/`)) ||
     SIN_CARCASA_SUFIJO.some((s) => pathname.endsWith(s))
   )
