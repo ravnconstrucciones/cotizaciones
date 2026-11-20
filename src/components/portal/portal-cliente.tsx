@@ -439,10 +439,10 @@ function CalendarioSemana({ agenda, hoy }: { agenda: EventoAgenda[]; hoy: string
           return (
             <li
               key={d}
-              className={`grid grid-cols-[64px_minmax(0,1fr)] gap-4 border-b border-[#f2efe8]/15 py-4 first:border-t ${esHoy ? "bg-[#f2efe8]/[0.06] px-3" : ""} ${paso && !esHoy ? "text-[#f2efe8]/60" : ""}`}
+              className={`grid grid-cols-[64px_minmax(0,1fr)] gap-4 border-b border-[#f2efe8]/15 py-4 first:border-t ${esHoy ? "border-l-2 border-l-[#5fd08a] bg-[#5fd08a]/[0.12] px-3" : ""} ${paso && !esHoy ? "text-[#f2efe8]/60" : ""}`}
             >
               <div className="leading-none">
-                <span className="block text-[12px] font-semibold uppercase tracking-[0.12em] opacity-80">{esHoy ? "Hoy" : f.dia.slice(0, 3)}</span>
+                <span className={`block text-[12px] font-semibold uppercase tracking-[0.12em] ${esHoy ? "text-[#5fd08a]" : "opacity-80"}`}>{esHoy ? "Hoy" : f.dia.slice(0, 3)}</span>
                 <span className="mt-1 block text-[26px] font-semibold tabular-nums tracking-[-0.04em]">{f.num}</span>
               </div>
               {eventos.length ? (
