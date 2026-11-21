@@ -11,6 +11,8 @@ import { BUCKET_PORTAL, cargarVistaPortal, portalPorObra } from "@/lib/portal/da
  * Body JSON { accion, ... }:
  *   obras            { buscar? }                       → obras de la app con el estado de su portal
  *   estado           { presupuesto_id }                → rubros, agenda y registros (con ids) de esa obra
+ *   obra_crear       { titulo, cliente?, direccion? }   → da de alta la obra (como "+ NUEVA OBRA" del cockpit) y devuelve
+ *                                                         su presupuesto_id; si ya hay una con ese título devuelve esa (existente: true)
  *   acceso_crear     { presupuesto_id, titulo, clave? } → crea/activa el portal y fija nombre + contraseña
  *                                                         (si no viene clave la genera); devuelve el mensaje para el cliente
  *   + todas las acciones del panel (config: titulo, direccion, fecha_inicio, fecha_entrega, mostrar_pagos, activo; rubros_agregar, rubro_guardar, agenda_crear, agenda_borrar,
@@ -122,6 +124,43 @@ export async function POST(req: Request) {
         return { presupuesto_id: o.id, obra: o.nombre_obra, cliente: o.nombre_cliente, portal: p ? { titulo: p.titulo, activo: p.activo, con_clave: Boolean(p.pin_hash) } : null };
       }),
     });
+  }
+
+  if (accion === "obra_crear") {
+    const titulo = typeof body.titulo === "string" ? body.titulo.trim().slice(0, 200) : "";
+    const cliente = typeof body.cliente === "string" ? body.cliente.trim().slice(0, 200) : "";
+    const direccion = typeof body.direccion === "string" ? body.direccion.trim().slice(0, 300) : "";
+    if (!titulo) return error("Falta titulo: el nombre de la obra.");
+
+    // Si el bot reintenta, no duplicar: misma obra (título exacto, sin importar mayúsculas) → devolver esa.
+    const { data: previas } = await sb.from("presupuestos").select("id,nombre_obra,nombre_cliente").ilike("nombre_obra", titulo.replace(/[%_\\]/g, "\\$&")).limit(1);
+    if (previas?.length) {
+      const p = previas[0];
+      return NextResponse.json({ ok: true, existente: true, presupuesto_id: p.id, obra: p.nombre_obra, cliente: p.nombre_cliente });
+    }
+
+    const { data: nueva, error: e } = await sb
+      .from("presupuestos")
+      .insert({
+        nombre_obra: titulo,
+        nombre_cliente: cliente || titulo,
+        ...(direccion ? { domicilio: direccion } : {}),
+        presupuesto_aprobado: true,
+        estado: "en_curso",
+        fecha: new Date().toISOString().slice(0, 10),
+      })
+      .select("id")
+      .single();
+    if (e || !nueva) return error(`No se pudo crear la obra: ${e?.message ?? "sin respuesta"}`, 500);
+    const presupuestoId = String(nueva.id);
+
+    // El trigger presupuestos_after_insert_obra crea la fila en obras; se asegura igual (mismo patrón que /api/obras).
+    const { data: obra } = await sb.from("obras").select("id").eq("presupuesto_id", presupuestoId).maybeSingle();
+    if (!obra) {
+      const ins = await sb.from("obras").insert({ presupuesto_id: presupuestoId });
+      if (ins.error) return error(`Se creó el presupuesto pero no la obra: ${ins.error.message}`, 500);
+    }
+    return NextResponse.json({ ok: true, existente: false, presupuesto_id: presupuestoId, obra: titulo, cliente: cliente || titulo, direccion: direccion || null });
   }
 
   const id = typeof body.presupuesto_id === "string" ? body.presupuesto_id.trim() : "";
