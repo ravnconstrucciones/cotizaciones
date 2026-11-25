@@ -134,9 +134,10 @@ export async function cargarVistaPortal(
     titulo: f.titulo,
     texto: f.texto,
     fecha: f.fecha,
-    mediaUrl: f.media_path ? urls.get(f.media_path) ?? null : null,
+    // Un PDF no se muestra como foto: va como enlace "Ver".
+    mediaUrl: f.media_path && !f.media_path.endsWith(".pdf") ? urls.get(f.media_path) ?? null : null,
     mediaTipo: f.media_tipo,
-    linkExterno: f.link_externo,
+    linkExterno: f.link_externo ?? (f.media_path?.endsWith(".pdf") ? urls.get(f.media_path) ?? null : null),
     material: f.material,
     estado: f.estado,
     origen: f.origen,
@@ -154,10 +155,10 @@ export async function cargarVistaPortal(
       if (eco.obraId) {
         const { data } = await sb
           .from("cashflow_items")
-          .select("id,obra_id,tipo,categoria,monto_real,fecha_real,estado,deleted_at,moneda,monto_usd")
+          .select("id,obra_id,tipo,categoria,monto_real,fecha_real,estado,deleted_at,moneda,monto_usd,descripcion,notas")
           .eq("obra_id", eco.obraId)
           .eq("tipo", "ingreso");
-        detalle = ((data ?? []) as MovimientoObra[])
+        detalle = ((data ?? []) as (MovimientoObra & { descripcion?: string | null; notas?: string | null })[])
           .filter(esMovimientoReal)
           .map((m) => {
             const usd = m.moneda === "USD";
@@ -166,7 +167,11 @@ export async function cargarVistaPortal(
               fecha: String(m.fecha_real),
               monto: parseNum(usd ? m.monto_usd ?? m.monto_real : m.monto_real),
               moneda: usd ? ("USD" as const) : ("ARS" as const),
-              concepto: CONCEPTOS[m.categoria ?? ""] ?? "Pago",
+              // Los pagos del bot llevan su concepto escrito (Anticipo, Cuota 2, Saldo…).
+              concepto:
+                m.notas?.startsWith("Cargado por Portal Ravn Manager") && m.descripcion && !m.descripcion.startsWith("Pago en ")
+                  ? m.descripcion
+                  : CONCEPTOS[m.categoria ?? ""] ?? "Pago",
             };
           })
           .sort((a, b) => b.fecha.localeCompare(a.fecha));

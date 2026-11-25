@@ -104,15 +104,42 @@ async function pathSubido(mp: unknown, presupuestoId: string): Promise<{ path?: 
   return { path: p };
 }
 
-/** PDF por pdf_base64 o pdf_path. */
-async function pdfDe(body: Record<string, unknown>, presupuestoId: string, nombre: string): Promise<{ path?: string; error?: string }> {
-  if (typeof body.pdf_base64 === "string" && body.pdf_base64) return guardarBase64(body.pdf_base64, nombre, presupuestoId);
-  if (body.pdf_path) {
-    const r = await pathSubido(body.pdf_path, presupuestoId);
-    if (r.path && !r.path.endsWith(".pdf")) return { error: "pdf_path tiene que ser un .pdf." };
+const pesos = (n: number, moneda: string) =>
+  `${moneda === "USD" ? "US$" : "$"} ${n.toLocaleString("es-AR", { maximumFractionDigits: 2 })}`;
+
+const EXT_DOC = /\.(pdf|jpg|jpeg|png|heic|webp)$/;
+
+/**
+ * Documento (presupuesto o recibo) en PDF o imagen: archivo_base64 + archivo_nombre (o pdf_base64, se asume .pdf),
+ * o archivo_path / pdf_path de subida_crear. `null` si no vino ninguno.
+ */
+async function archivoDe(body: Record<string, unknown>, presupuestoId: string): Promise<{ path?: string; error?: string } | null> {
+  const b64 = typeof body.archivo_base64 === "string" && body.archivo_base64 ? body.archivo_base64 : typeof body.pdf_base64 === "string" && body.pdf_base64 ? body.pdf_base64 : "";
+  if (b64) {
+    const nombre = typeof body.archivo_nombre === "string" && body.archivo_nombre.trim() ? body.archivo_nombre.trim() : "documento.pdf";
+    if (!EXT_DOC.test(nombre.toLowerCase())) return { error: "El documento va en PDF o imagen (JPG, PNG, HEIC)." };
+    return guardarBase64(b64, nombre, presupuestoId);
+  }
+  const mp = body.archivo_path ?? body.pdf_path;
+  if (mp) {
+    const r = await pathSubido(mp, presupuestoId);
+    if (r.path && !EXT_DOC.test(r.path)) return { error: "El documento va en PDF o imagen (JPG, PNG, HEIC)." };
     return r;
   }
-  return { error: "Falta el PDF: mandá pdf_base64 o pdf_path (de subida_crear)." };
+  return null;
+}
+
+const MARCA_BOT = "Cargado por Portal Ravn Manager";
+const categoriaDe = (concepto: string) => (/anticipo/i.test(concepto) ? "anticipo" : /saldo|final/i.test(concepto) ? "cuota_final" : "cuota_avance");
+const fechaCorta = (iso: string) => iso.split("-").reverse().join("/");
+const tituloRecibo = (fecha: string, importe: number, moneda: string, concepto: string, medio: string) =>
+  `Recibo ${fechaCorta(fecha)} · ${concepto} · ${pesos(importe, moneda)} · ${medio}`;
+
+/** Resumen de pagos tal como lo ve el cliente (para que el bot verifique). */
+async function resumenDe(presupuestoId: string) {
+  const portal = await portalPorObra(presupuestoId);
+  const vista = portal ? await cargarVistaPortal({ ...portal, mostrar_pagos: true }) : null;
+  return vista?.pagos?.resumen ?? null;
 }
 
 async function obraIdDe(presupuestoId: string): Promise<string | null> {
@@ -123,8 +150,42 @@ async function obraIdDe(presupuestoId: string): Promise<string | null> {
   return ins.data ? String(ins.data.id) : null;
 }
 
-const pesos = (n: number, moneda: string) =>
-  `${moneda === "USD" ? "US$" : "$"} ${n.toLocaleString("es-AR", { maximumFractionDigits: 2 })}`;
+/** Lo que devuelve la acción ayuda: si se agrega una acción, se agrega acá. */
+const AYUDA = {
+  autenticacion: "Header Authorization: Bearer <clave del bot>. Body JSON { accion, ...campos }. Todas salvo obras/obra_crear/ayuda piden presupuesto_id.",
+  archivos: {
+    chicos: "Hasta ~3 MB: archivo en base64 dentro del JSON (Vercel corta el pedido en 4,5 MB).",
+    grandes: "Hasta 50 MB: subida_crear { media_nombre } → PUT upload_url con los bytes y el content_type → pasar el media_path que devolvió.",
+    formatos: "Fotos JPG/PNG/HEIC/WEBP, videos MP4/MOV, PDF. Presupuestos y recibos: PDF o imagen. Avances: foto, video o PDF (el PDF se ve como enlace).",
+  },
+  formatos_de_campo: { fecha: "14/11/2026 o 2026-11-14", importe: "3500000 o \"3.500.000\"", moneda: "ARS | USD", hora: "09:30" },
+  acciones: {
+    ayuda: { campos: {}, hace: "Esta lista." },
+    obras: { campos: { buscar: "opcional" }, hace: "Lista obras con presupuesto_id y estado de su portal." },
+    obra_crear: { campos: { titulo: "obligatorio", cliente: "opcional", direccion: "opcional" }, hace: "Alta de obra; devuelve presupuesto_id (si ya existe ese título devuelve esa, existente: true)." },
+    obra_editar: { campos: { presupuesto_id: "", titulo: "opc", cliente: "opc", direccion: "opc" }, hace: "Cambia nombre, cliente o dirección de la obra." },
+    estado: { campos: { presupuesto_id: "" }, hace: "Todo lo cargado con sus ids: rubros, agenda, registros, pagos (detalle con pago_id) y recibos." },
+    acceso_crear: { campos: { presupuesto_id: "", titulo: "nombre con el que entra el cliente", clave: "opcional (si no, la genera)" }, hace: "Crea y activa el portal; devuelve el mensaje para el cliente." },
+    acceso_editar: { campos: { presupuesto_id: "", titulo: "opc", clave: "opc", activo: "opc true/false", mostrar_pagos: "opc true/false" }, hace: "Cambia nombre de acceso, contraseña (cierra sesiones abiertas), activa/desactiva el portal o la solapa Pagos." },
+    config: { campos: { presupuesto_id: "", direccion: "opc", fecha_inicio: "opc", fecha_entrega: "opc" }, hace: "Datos de portada del portal." },
+    presupuesto_subir: { campos: { presupuesto_id: "", importe: "", moneda: "", archivo_base64: "", archivo_nombre: "presupuesto.pdf", archivo_path: "en vez de base64" }, hace: "Total a cobrar + botón Ver el presupuesto; prende la solapa Pagos." },
+    presupuesto_editar: { campos: { presupuesto_id: "", importe: "opc", moneda: "opc", "archivo_base64+archivo_nombre | archivo_path": "opc" }, hace: "Cambia el total y/o el PDF (queda el último)." },
+    pago_crear: { campos: { presupuesto_id: "", fecha: "", importe: "", moneda: "", medio: "efectivo | transferencia", concepto: "Anticipo, Cuota 2, Saldo…", "archivo_base64+archivo_nombre | archivo_path": "recibo" }, hace: "Suma a pagado, recalcula saldo, el recibo va a Recibos. Devuelve pago_id y resumen." },
+    pago_editar: { campos: { presupuesto_id: "", pago_id: "", fecha: "opc", importe: "opc", moneda: "opc", medio: "opc", concepto: "opc", "archivo_base64+archivo_nombre | archivo_path": "opc, reemplaza el recibo" }, hace: "Corrige un pago." },
+    pago_borrar: { campos: { presupuesto_id: "", pago_id: "" }, hace: "Saca un pago y su recibo." },
+    rubros_agregar: { campos: { presupuesto_id: "", nombres: ["Pintura", "Electricidad"] }, hace: "Agrega rubros." },
+    rubro_guardar: { campos: { presupuesto_id: "", rubro_id: "", nombre: "opc", tareas: "opc, una por línea", estado: "pendiente | en_curso | terminado" }, hace: "Edita un rubro." },
+    rubro_borrar: { campos: { presupuesto_id: "", rubro_id: "" }, hace: "Borra un rubro." },
+    agenda_crear: { campos: { presupuesto_id: "", fecha: "", titulo: "", hora: "opc", quien: "opc", detalle: "opc" }, hace: "Agrega un evento a la agenda." },
+    agenda_editar: { campos: { presupuesto_id: "", evento_id: "", fecha: "opc", titulo: "opc", hora: "opc", quien: "opc", detalle: "opc" }, hace: "Edita un evento." },
+    agenda_borrar: { campos: { presupuesto_id: "", evento_id: "" }, hace: "Borra un evento." },
+    subida_crear: { campos: { presupuesto_id: "", media_nombre: "foto01.jpg | video01.mp4 | recibo.pdf" }, hace: "Link para subir un archivo grande; devuelve upload_url y media_path." },
+    registro_crear: { campos: { presupuesto_id: "", titulo: "", tipo: "avance | video | resuelto | material | ticket", texto: "opc", fecha: "opc", rubro_id: "opc", importe: "ticket", estado: "borrador (default) | publicado", "media_base64+media_nombre | media_url | media_path": "opc" }, hace: "Carga un avance, ticket o material." },
+    registro_editar: { campos: { presupuesto_id: "", registro_id: "", titulo: "opc", texto: "opc", fecha: "opc", estado: "opc", rubro_id: "opc", importe: "opc", "media_base64+media_nombre | media_path": "opc, reemplaza el archivo" }, hace: "Corrige un registro." },
+    registro_publicar: { campos: { presupuesto_id: "", registro_id: "" }, hace: "Publica un borrador." },
+    registro_borrar: { campos: { presupuesto_id: "", registro_id: "" }, hace: "Borra un registro y su archivo." },
+  },
+};
 
 const error = (mensaje: string, status = 400) => NextResponse.json({ ok: false, error: mensaje }, { status });
 
@@ -166,6 +227,8 @@ export async function POST(req: Request) {
   const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
   const accion = typeof body.accion === "string" ? body.accion : "";
   const sb = createSupabaseAdminClient();
+
+  if (accion === "ayuda" || !accion) return NextResponse.json({ ok: true, ...AYUDA });
 
   if (accion === "obras") {
     const buscar = typeof body.buscar === "string" ? body.buscar.trim().slice(0, 80) : "";
@@ -260,79 +323,158 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: true, entrada: ENTRADA, obra: titulo, clave, mensaje });
   }
 
-  if (accion === "presupuesto_subir") {
-    const importe = importeOk(body.importe);
-    if (!(importe > 0)) return error("Falta importe (total del presupuesto).");
-    const moneda = body.moneda === "USD" ? "USD" : "ARS";
-    const pdf = await pdfDe(body, id, "presupuesto.pdf");
-    if (pdf.error) return error(pdf.error);
+  if (accion === "presupuesto_subir" || accion === "presupuesto_editar") {
+    const editar = accion === "presupuesto_editar";
+    const importe = body.importe === undefined && editar ? null : importeOk(body.importe);
+    if (importe !== null && !(importe > 0)) return error("Falta importe (total del presupuesto).");
+    const archivo = await archivoDe(body, id);
+    if (archivo?.error) return error(archivo.error);
+    if (!archivo && !editar) return error("Falta el presupuesto: archivo_base64 + archivo_nombre (PDF o imagen) o archivo_path.");
+    if (importe === null && !archivo) return error("No mandaste nada para cambiar (importe y/o archivo).");
     const obraId = await obraIdDe(id);
     if (!obraId) return error("No se pudo ubicar la obra.", 500);
-    const { error: e1 } = await sb
-      .from("obras")
-      .update(moneda === "USD" ? { monto_total_a_cobrar_usd: importe } : { monto_total_a_cobrar_ars: importe, monto_total_a_cobrar_usd: null })
-      .eq("id", obraId);
-    if (e1) return error(e1.message, 500);
-    const { error: e2 } = await sb.from("obra_archivos").insert({ presupuesto_id: id, tipo: "presupuesto", titulo: `Presupuesto ${pesos(importe, moneda)}`, storage_path: pdf.path });
-    if (e2) return error(e2.message, 500);
-    await sb.from("obra_portal").update({ mostrar_pagos: true }).eq("presupuesto_id", id);
-    return NextResponse.json({ ok: true, total: importe, moneda, mostrar_pagos: true });
+    const { data: o } = await sb.from("obras").select("monto_total_a_cobrar_ars,monto_total_a_cobrar_usd").eq("id", obraId).single();
+    const moneda = body.moneda === "USD" || (body.moneda === undefined && Number(o?.monto_total_a_cobrar_usd) > 0) ? "USD" : "ARS";
+    const total = importe ?? Number(moneda === "USD" ? o?.monto_total_a_cobrar_usd : o?.monto_total_a_cobrar_ars) ?? 0;
+    if (importe !== null) {
+      const { error: e1 } = await sb
+        .from("obras")
+        .update(moneda === "USD" ? { monto_total_a_cobrar_usd: importe } : { monto_total_a_cobrar_ars: importe, monto_total_a_cobrar_usd: null })
+        .eq("id", obraId);
+      if (e1) return error(e1.message, 500);
+    }
+    if (archivo?.path) {
+      // El portal muestra el último presupuesto subido.
+      const { error: e2 } = await sb.from("obra_archivos").insert({ presupuesto_id: id, tipo: "presupuesto", titulo: `Presupuesto ${pesos(total, moneda)}`, storage_path: archivo.path });
+      if (e2) return error(e2.message, 500);
+    }
+    if (!editar) await sb.from("obra_portal").update({ mostrar_pagos: true }).eq("presupuesto_id", id);
+    return NextResponse.json({ ok: true, total, moneda, resumen: await resumenDe(id) });
   }
 
-  if (accion === "pago_crear") {
-    const importe = importeOk(body.importe);
-    if (!(importe > 0)) return error("Falta importe del pago.");
-    const fecha = fechaIso(body.fecha);
-    if (!fecha) return error("Falta fecha (14/11/2026 o 2026-11-14).");
-    const moneda = body.moneda === "USD" ? "USD" : "ARS";
-    const medio = body.medio === "transferencia" ? "transferencia" : body.medio === "efectivo" ? "efectivo" : "";
-    if (!medio) return error("medio tiene que ser efectivo o transferencia.");
-    const pdf = await pdfDe(body, id, "recibo.pdf");
-    if (pdf.error) return error(pdf.error);
+  if (accion === "pago_crear" || accion === "pago_editar") {
+    const editar = accion === "pago_editar";
     const obraId = await obraIdDe(id);
     if (!obraId) return error("No se pudo ubicar la obra.", 500);
-    const { data: pago, error: e1 } = await sb
-      .from("cashflow_items")
-      .insert({
-        obra_id: obraId,
-        tipo: "ingreso",
-        categoria: "cuota_avance",
-        descripcion: `Pago en ${medio} (portal)`,
-        monto_proyectado: importe,
-        fecha_proyectada: fecha,
-        monto_real: importe,
-        fecha_real: fecha,
-        estado: "cobrado",
-        moneda,
-        monto_usd: moneda === "USD" ? importe : null,
-        adjunto_path: pdf.path,
-        notas: "Cargado por Portal Ravn Manager",
-      })
-      .select("id")
-      .single();
-    if (e1 || !pago) return error(e1?.message ?? "No se pudo cargar el pago.", 500);
-    const [a, m, d] = fecha.split("-");
-    const { error: e2 } = await sb.from("obra_archivos").insert({
-      presupuesto_id: id,
-      tipo: "documento",
-      titulo: `Recibo ${d}/${m}/${a} · ${pesos(importe, moneda)} · ${medio}`,
-      storage_path: pdf.path,
-    });
-    if (e2) return error(`Se cargó el pago pero no el recibo: ${e2.message}`, 500);
-    const portal = await portalPorObra(id);
-    const vista = portal ? await cargarVistaPortal({ ...portal, mostrar_pagos: true }) : null;
-    return NextResponse.json({ ok: true, pago_id: pago.id, resumen: vista?.pagos?.resumen ?? null });
+    type Fila = { id: string; monto_real: number; fecha_real: string; moneda: string; descripcion: string; notas: string; adjunto_path: string | null; cuenta_id: string | null };
+    let previo: Fila | null = null;
+    if (editar) {
+      const pagoId = typeof body.pago_id === "string" ? body.pago_id.trim() : "";
+      const { data } = await sb.from("cashflow_items").select("id,monto_real,fecha_real,moneda,descripcion,notas,adjunto_path,cuenta_id").eq("id", pagoId).eq("obra_id", obraId).eq("tipo", "ingreso").is("deleted_at", null).maybeSingle();
+      if (!data) return error("Pago no encontrado en esta obra (usá estado para ver los pago_id).", 404);
+      previo = data as Fila;
+      if (previo.cuenta_id) return error("Ese pago está asentado en una caja de la app: no se edita desde el bot.");
+    }
+    const importe = body.importe === undefined && previo ? Number(previo.monto_real) : importeOk(body.importe);
+    if (!(importe > 0)) return error("Falta importe del pago.");
+    const fecha = body.fecha === undefined && previo ? previo.fecha_real : fechaIso(body.fecha);
+    if (!fecha) return error("Falta fecha (14/11/2026 o 2026-11-14).");
+    const moneda = body.moneda === undefined && previo ? previo.moneda : body.moneda === "USD" ? "USD" : "ARS";
+    const medioPrevio = previo?.notas.match(/medio: (\w+)/)?.[1] ?? (previo?.descripcion.match(/Pago en (\w+)/)?.[1] ?? "");
+    const medio = body.medio === undefined && previo ? medioPrevio : body.medio === "transferencia" || body.medio === "efectivo" ? String(body.medio) : "";
+    if (!medio) return error("medio tiene que ser efectivo o transferencia.");
+    const conceptoPrevio = previo && !previo.descripcion.startsWith("Pago en ") ? previo.descripcion : "Pago";
+    const concepto = typeof body.concepto === "string" && body.concepto.trim() ? body.concepto.trim().slice(0, 60) : conceptoPrevio;
+    const archivo = await archivoDe(body, id);
+    if (archivo?.error) return error(archivo.error);
+    if (!archivo && !editar) return error("Falta el recibo: archivo_base64 + archivo_nombre (PDF o imagen) o archivo_path.");
+    const path = archivo?.path ?? previo?.adjunto_path ?? null;
+    const fila = {
+      tipo: "ingreso",
+      categoria: categoriaDe(concepto),
+      descripcion: concepto,
+      monto_proyectado: importe,
+      fecha_proyectada: fecha,
+      monto_real: importe,
+      fecha_real: fecha,
+      estado: "cobrado",
+      moneda,
+      monto_usd: moneda === "USD" ? importe : null,
+      adjunto_path: path,
+      notas: `${MARCA_BOT} · medio: ${medio}`,
+    };
+    let pagoId = previo?.id ?? "";
+    if (previo) {
+      const { error: e } = await sb.from("cashflow_items").update(fila).eq("id", previo.id);
+      if (e) return error(e.message, 500);
+    } else {
+      const { data, error: e } = await sb.from("cashflow_items").insert({ ...fila, obra_id: obraId }).select("id").single();
+      if (e || !data) return error(e?.message ?? "No se pudo cargar el pago.", 500);
+      pagoId = String(data.id);
+    }
+    // Recibo: una fila en obra_archivos ligada por el path del archivo.
+    const titulo = tituloRecibo(fecha, importe, moneda, concepto, medio);
+    if (previo?.adjunto_path) {
+      const { data: rec } = await sb.from("obra_archivos").select("id").eq("presupuesto_id", id).eq("storage_path", previo.adjunto_path).maybeSingle();
+      if (rec) await sb.from("obra_archivos").update({ titulo, storage_path: path }).eq("id", rec.id);
+      else if (path) await sb.from("obra_archivos").insert({ presupuesto_id: id, tipo: "documento", titulo, storage_path: path });
+      if (archivo?.path && previo.adjunto_path !== archivo.path) await sb.storage.from(BUCKET_PORTAL).remove([previo.adjunto_path]);
+    } else if (path) {
+      const { error: e2 } = await sb.from("obra_archivos").insert({ presupuesto_id: id, tipo: "documento", titulo, storage_path: path });
+      if (e2) return error(`Se cargó el pago pero no el recibo: ${e2.message}`, 500);
+    }
+    return NextResponse.json({ ok: true, pago_id: pagoId, resumen: await resumenDe(id) });
   }
 
   if (accion === "pago_borrar") {
     const pagoId = typeof body.pago_id === "string" ? body.pago_id.trim() : "";
     const obraId = await obraIdDe(id);
-    const { data: fila } = await sb.from("cashflow_items").select("id,adjunto_path,notas").eq("id", pagoId).eq("obra_id", obraId ?? "").maybeSingle();
+    const { data: fila } = await sb.from("cashflow_items").select("id,adjunto_path,cuenta_id").eq("id", pagoId).eq("obra_id", obraId ?? "").eq("tipo", "ingreso").maybeSingle();
     if (!fila) return error("Pago no encontrado en esta obra.", 404);
-    if (fila.notas !== "Cargado por Portal Ravn Manager") return error("Ese pago no lo cargó el bot: se corrige a mano.");
+    if (fila.cuenta_id) return error("Ese pago está asentado en una caja de la app: no se borra desde el bot.");
     await sb.from("cashflow_items").update({ deleted_at: new Date().toISOString() }).eq("id", pagoId);
     if (fila.adjunto_path) await sb.from("obra_archivos").delete().eq("presupuesto_id", id).eq("storage_path", fila.adjunto_path);
-    return NextResponse.json({ ok: true });
+    return NextResponse.json({ ok: true, resumen: await resumenDe(id) });
+  }
+
+  if (accion === "obra_editar") {
+    const cambios: Record<string, unknown> = {};
+    if (typeof body.titulo === "string" && body.titulo.trim()) cambios.nombre_obra = body.titulo.trim().slice(0, 200);
+    if (typeof body.cliente === "string" && body.cliente.trim()) cambios.nombre_cliente = body.cliente.trim().slice(0, 200);
+    if (typeof body.direccion === "string") cambios.domicilio = body.direccion.trim().slice(0, 300) || null;
+    if (!Object.keys(cambios).length) return error("No mandaste nada para cambiar (titulo, cliente, direccion).");
+    const { error: e } = await sb.from("presupuestos").update(cambios).eq("id", id);
+    if (e) return error(e.message, 500);
+    // La dirección que ve el cliente es la del portal: se mantiene igual.
+    if ("domicilio" in cambios) await sb.from("obra_portal").update({ direccion: cambios.domicilio }).eq("presupuesto_id", id);
+    return NextResponse.json({ ok: true, cambios: Object.keys(cambios) });
+  }
+
+  if (accion === "acceso_editar") {
+    const titulo = typeof body.titulo === "string" ? body.titulo.trim().slice(0, 200) : "";
+    const clave = typeof body.clave === "string" ? body.clave.trim() : "";
+    const pasos: Record<string, unknown>[] = [];
+    if (titulo) pasos.push({ accion: "config", titulo });
+    if (clave) pasos.push({ accion: "pin", clave });
+    if (typeof body.activo === "boolean") pasos.push({ accion: "config", activo: body.activo });
+    if (typeof body.mostrar_pagos === "boolean") pasos.push({ accion: "config", mostrar_pagos: body.mostrar_pagos });
+    if (!pasos.length) return error("No mandaste nada para cambiar (titulo, clave, activo, mostrar_pagos).");
+    for (const paso of pasos) {
+      const r = await ejecutarAccionPortal(id, pres, paso, { origen: "bot" });
+      if (r.error) return error(r.error, r.status);
+    }
+    const portal = await portalPorObra(id);
+    const mensaje = clave || titulo ? `Te paso el acceso a tu obra:\n${ENTRADA}\nObra: ${portal?.titulo ?? titulo}${clave ? `\nContraseña: ${clave}` : ""}` : null;
+    return NextResponse.json({ ok: true, obra: portal?.titulo ?? null, activo: portal?.activo ?? null, mensaje });
+  }
+
+  if (accion === "agenda_editar") {
+    const eventoId = typeof body.evento_id === "string" ? body.evento_id.trim() : "";
+    const cambios: Record<string, unknown> = {};
+    if (body.fecha !== undefined) { const f = fechaIso(body.fecha); if (!f) return error("fecha inválida."); cambios.fecha = f; }
+    if (body.hora !== undefined) {
+      const h = typeof body.hora === "string" ? body.hora.trim() : "";
+      if (h && !/^[0-2]\d:[0-5]\d$/.test(h)) return error("La hora va como 09:30.");
+      cambios.hora = h || null;
+    }
+    if (typeof body.titulo === "string" && body.titulo.trim()) cambios.titulo = body.titulo.trim().slice(0, 200);
+    if (body.quien !== undefined) cambios.quien = typeof body.quien === "string" ? body.quien.trim().slice(0, 120) || null : null;
+    if (body.detalle !== undefined) cambios.detalle = typeof body.detalle === "string" ? body.detalle.trim().slice(0, 500) || null : null;
+    if (!Object.keys(cambios).length) return error("No mandaste nada para cambiar (fecha, hora, titulo, quien, detalle).");
+    const { data, error: e } = await sb.from("obra_portal_agenda").update(cambios).eq("id", eventoId).eq("presupuesto_id", id).select("id");
+    if (e) return error(e.message, 500);
+    if (!data?.length) return error("Evento no encontrado en esta obra (usá estado para ver los ids).", 404);
+    return NextResponse.json({ ok: true, cambios: Object.keys(cambios) });
   }
 
   if (accion === "registro_editar") {
@@ -359,7 +501,7 @@ export async function POST(req: Request) {
     }
     if (nuevoPath) {
       cambios.media_path = nuevoPath;
-      cambios.media_tipo = /\.(mp4|mov|webm)$/.test(nuevoPath) ? "video" : "imagen";
+      cambios.media_tipo = nuevoPath.endsWith(".pdf") ? null : /\.(mp4|mov|webm)$/.test(nuevoPath) ? "video" : "imagen";
     }
     if (!Object.keys(cambios).length) return error("No mandaste nada para cambiar.");
     const { error: e } = await sb.from("obra_portal_registros").update(cambios).eq("id", registroId).eq("presupuesto_id", id);

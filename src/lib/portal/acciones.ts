@@ -154,7 +154,7 @@ export async function ejecutarAccionPortal(
         texto: texto(body.texto, 4000) || null,
         fecha: fechaOk(body.fecha) ?? undefined,
         media_path: mediaPath || null,
-        media_tipo: mediaPath ? (EXT_VIDEO.has(ext) ? "video" : "imagen") : null,
+        media_tipo: mediaPath && ext !== "pdf" ? (EXT_VIDEO.has(ext) ? "video" : "imagen") : null,
         link_externo: link || null,
         material,
         importe,
@@ -216,7 +216,7 @@ export async function ejecutarAccionPortal(
     }
 
     default:
-      return falla("Acción desconocida.");
+      return falla("Acción desconocida. Pedí { accion: \"ayuda\" } para ver la lista.");
   }
 
   return { firma };
