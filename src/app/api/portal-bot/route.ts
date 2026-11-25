@@ -24,6 +24,15 @@ import { BUCKET_PORTAL, cargarVistaPortal, portalPorObra } from "@/lib/portal/da
  *   - `media_path`: el que devolvió subida_crear después de subir el archivo.
  *   subida_crear { presupuesto_id, media_nombre } → { upload_url, media_path }: el bot hace
  *     PUT <upload_url> con los bytes crudos (hasta 50 MB) y después registro_crear con ese media_path.
+ * Pagos (mismo formato que Forna: total, pagado, saldo, "Ver el presupuesto" y Recibos):
+ *   presupuesto_subir { presupuesto_id, importe, moneda: ARS|USD, pdf_base64 | pdf_path }  → fija el total a cobrar,
+ *                      sube el PDF como presupuesto de la obra y prende la solapa Pagos.
+ *   pago_crear        { presupuesto_id, fecha, importe, moneda, medio: efectivo|transferencia, pdf_base64 | pdf_path }
+ *                      → suma a pagado (ingreso cobrado de la obra, sin cuenta: no toca cajas) y el PDF va a Recibos.
+ *   pago_borrar       { presupuesto_id, pago_id }  → para corregir un pago mal cargado.
+ *   (pdf_path = el media_path de subida_crear con media_nombre *.pdf, para PDFs de más de ~3 MB.)
+ * registro_editar { presupuesto_id, registro_id, titulo?, texto?, fecha?, estado?, rubro_id?, importe?, media_base64+media_nombre | media_path? }
+ *   corrige un registro ya cargado (publicado o borrador).
  * Lo que carga el bot entra como BORRADOR salvo que mande estado: "publicado".
  */
 
@@ -32,13 +41,14 @@ const ENTRADA = "https://portal.ravnconstrucciones.com.ar";
 const TIPOS_MEDIA: Record<string, string> = {
   "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp", "image/heic": "heic",
   "video/mp4": "mp4", "video/quicktime": "mov", "video/webm": "webm",
+  "application/pdf": "pdf",
 };
 
 const POR_EXTENSION: Record<string, string> = {
   jpg: "image/jpeg", jpeg: "image/jpeg", png: "image/png", heic: "image/heic", webp: "image/webp",
-  mp4: "video/mp4", mov: "video/quicktime", webm: "video/webm",
+  mp4: "video/mp4", mov: "video/quicktime", webm: "video/webm", pdf: "application/pdf",
 };
-const FORMATOS = "Mandá foto JPG/PNG/HEIC o video MP4/MOV.";
+const FORMATOS = "Mandá foto JPG/PNG/HEIC, video MP4/MOV o PDF.";
 
 /** Tipo a partir del nombre (foto01.jpg → image/jpeg). */
 function tipoPorNombre(nombre: unknown): { tipo?: string; ext?: string; error?: string } {
@@ -65,6 +75,56 @@ async function guardarBase64(b64: string, nombre: unknown, presupuestoId: string
   const { error: e } = await createSupabaseAdminClient().storage.from(BUCKET_PORTAL).upload(path, buf, { contentType: t.tipo });
   return e ? { error: `No se pudo guardar el archivo: ${e.message}` } : { path };
 }
+
+/** "3.500.000", "$ 3.500.000,50", 3500000 → número; NaN si no se entiende. */
+function importeOk(v: unknown): number {
+  if (typeof v === "number") return v;
+  if (typeof v !== "string") return NaN;
+  const t = v.replace(/[^0-9.,]/g, "");
+  if (!t) return NaN;
+  return Number(/,\d{1,2}$/.test(t) ? t.replace(/\./g, "").replace(",", ".") : t.replace(/[.,]/g, ""));
+}
+
+/** "14/11/2026" o "2026-11-14" → "2026-11-14". */
+function fechaIso(v: unknown): string | null {
+  const t = typeof v === "string" ? v.trim() : "";
+  let m = t.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (m) return t;
+  m = t.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  return m ? `${m[3]}-${m[2].padStart(2, "0")}-${m[1].padStart(2, "0")}` : null;
+}
+
+/** Path de un archivo subido para esta obra que existe en storage, o error. */
+async function pathSubido(mp: unknown, presupuestoId: string): Promise<{ path?: string; error?: string }> {
+  const p = typeof mp === "string" ? mp.trim() : "";
+  if (!new RegExp(`^portal/${presupuestoId}/[0-9]+-[0-9a-f]{6}\\.[a-z0-9]+$`).test(p)) return { error: "Path inválido: usá el media_path que devolvió subida_crear." };
+  const nombre = p.split("/").pop()!;
+  const { data } = await createSupabaseAdminClient().storage.from(BUCKET_PORTAL).list(`portal/${presupuestoId}`, { search: nombre, limit: 1 });
+  if (!data?.some((f) => f.name === nombre)) return { error: "El archivo no está subido todavía (hacé el PUT a upload_url primero)." };
+  return { path: p };
+}
+
+/** PDF por pdf_base64 o pdf_path. */
+async function pdfDe(body: Record<string, unknown>, presupuestoId: string, nombre: string): Promise<{ path?: string; error?: string }> {
+  if (typeof body.pdf_base64 === "string" && body.pdf_base64) return guardarBase64(body.pdf_base64, nombre, presupuestoId);
+  if (body.pdf_path) {
+    const r = await pathSubido(body.pdf_path, presupuestoId);
+    if (r.path && !r.path.endsWith(".pdf")) return { error: "pdf_path tiene que ser un .pdf." };
+    return r;
+  }
+  return { error: "Falta el PDF: mandá pdf_base64 o pdf_path (de subida_crear)." };
+}
+
+async function obraIdDe(presupuestoId: string): Promise<string | null> {
+  const sb = createSupabaseAdminClient();
+  const { data } = await sb.from("obras").select("id").eq("presupuesto_id", presupuestoId).maybeSingle();
+  if (data) return String(data.id);
+  const ins = await sb.from("obras").insert({ presupuesto_id: presupuestoId }).select("id").single();
+  return ins.data ? String(ins.data.id) : null;
+}
+
+const pesos = (n: number, moneda: string) =>
+  `${moneda === "USD" ? "US$" : "$"} ${n.toLocaleString("es-AR", { maximumFractionDigits: 2 })}`;
 
 const error = (mensaje: string, status = 400) => NextResponse.json({ ok: false, error: mensaje }, { status });
 
@@ -179,6 +239,7 @@ export async function POST(req: Request) {
       rubros: vista.rubros,
       agenda: vista.agenda,
       registros: vista.registros.map((r) => ({ id: r.id, tipo: r.tipo, titulo: r.titulo, fecha: r.fecha, estado: r.estado, rubro_id: r.rubroId })),
+      pagos: vista.pagos ? { resumen: vista.pagos.resumen, detalle: vista.pagos.detalle, recibos: vista.pagos.recibos.map((r) => r.titulo) } : null,
     });
   }
 
@@ -197,6 +258,114 @@ export async function POST(req: Request) {
     }
     const mensaje = `Te paso el acceso a tu obra:\n${ENTRADA}\nObra: ${titulo}\nContraseña: ${clave}`;
     return NextResponse.json({ ok: true, entrada: ENTRADA, obra: titulo, clave, mensaje });
+  }
+
+  if (accion === "presupuesto_subir") {
+    const importe = importeOk(body.importe);
+    if (!(importe > 0)) return error("Falta importe (total del presupuesto).");
+    const moneda = body.moneda === "USD" ? "USD" : "ARS";
+    const pdf = await pdfDe(body, id, "presupuesto.pdf");
+    if (pdf.error) return error(pdf.error);
+    const obraId = await obraIdDe(id);
+    if (!obraId) return error("No se pudo ubicar la obra.", 500);
+    const { error: e1 } = await sb
+      .from("obras")
+      .update(moneda === "USD" ? { monto_total_a_cobrar_usd: importe } : { monto_total_a_cobrar_ars: importe, monto_total_a_cobrar_usd: null })
+      .eq("id", obraId);
+    if (e1) return error(e1.message, 500);
+    const { error: e2 } = await sb.from("obra_archivos").insert({ presupuesto_id: id, tipo: "presupuesto", titulo: `Presupuesto ${pesos(importe, moneda)}`, storage_path: pdf.path });
+    if (e2) return error(e2.message, 500);
+    await sb.from("obra_portal").update({ mostrar_pagos: true }).eq("presupuesto_id", id);
+    return NextResponse.json({ ok: true, total: importe, moneda, mostrar_pagos: true });
+  }
+
+  if (accion === "pago_crear") {
+    const importe = importeOk(body.importe);
+    if (!(importe > 0)) return error("Falta importe del pago.");
+    const fecha = fechaIso(body.fecha);
+    if (!fecha) return error("Falta fecha (14/11/2026 o 2026-11-14).");
+    const moneda = body.moneda === "USD" ? "USD" : "ARS";
+    const medio = body.medio === "transferencia" ? "transferencia" : body.medio === "efectivo" ? "efectivo" : "";
+    if (!medio) return error("medio tiene que ser efectivo o transferencia.");
+    const pdf = await pdfDe(body, id, "recibo.pdf");
+    if (pdf.error) return error(pdf.error);
+    const obraId = await obraIdDe(id);
+    if (!obraId) return error("No se pudo ubicar la obra.", 500);
+    const { data: pago, error: e1 } = await sb
+      .from("cashflow_items")
+      .insert({
+        obra_id: obraId,
+        tipo: "ingreso",
+        categoria: "cuota_avance",
+        descripcion: `Pago en ${medio} (portal)`,
+        monto_proyectado: importe,
+        fecha_proyectada: fecha,
+        monto_real: importe,
+        fecha_real: fecha,
+        estado: "cobrado",
+        moneda,
+        monto_usd: moneda === "USD" ? importe : null,
+        adjunto_path: pdf.path,
+        notas: "Cargado por Portal Ravn Manager",
+      })
+      .select("id")
+      .single();
+    if (e1 || !pago) return error(e1?.message ?? "No se pudo cargar el pago.", 500);
+    const [a, m, d] = fecha.split("-");
+    const { error: e2 } = await sb.from("obra_archivos").insert({
+      presupuesto_id: id,
+      tipo: "documento",
+      titulo: `Recibo ${d}/${m}/${a} · ${pesos(importe, moneda)} · ${medio}`,
+      storage_path: pdf.path,
+    });
+    if (e2) return error(`Se cargó el pago pero no el recibo: ${e2.message}`, 500);
+    const portal = await portalPorObra(id);
+    const vista = portal ? await cargarVistaPortal({ ...portal, mostrar_pagos: true }) : null;
+    return NextResponse.json({ ok: true, pago_id: pago.id, resumen: vista?.pagos?.resumen ?? null });
+  }
+
+  if (accion === "pago_borrar") {
+    const pagoId = typeof body.pago_id === "string" ? body.pago_id.trim() : "";
+    const obraId = await obraIdDe(id);
+    const { data: fila } = await sb.from("cashflow_items").select("id,adjunto_path,notas").eq("id", pagoId).eq("obra_id", obraId ?? "").maybeSingle();
+    if (!fila) return error("Pago no encontrado en esta obra.", 404);
+    if (fila.notas !== "Cargado por Portal Ravn Manager") return error("Ese pago no lo cargó el bot: se corrige a mano.");
+    await sb.from("cashflow_items").update({ deleted_at: new Date().toISOString() }).eq("id", pagoId);
+    if (fila.adjunto_path) await sb.from("obra_archivos").delete().eq("presupuesto_id", id).eq("storage_path", fila.adjunto_path);
+    return NextResponse.json({ ok: true });
+  }
+
+  if (accion === "registro_editar") {
+    const registroId = typeof body.registro_id === "string" ? body.registro_id.trim() : "";
+    const { data: fila } = await sb.from("obra_portal_registros").select("id,tipo,media_path").eq("id", registroId).eq("presupuesto_id", id).maybeSingle();
+    if (!fila) return error("Registro no encontrado en esta obra.", 404);
+    const cambios: Record<string, unknown> = {};
+    const txt = (v: unknown, max: number) => (typeof v === "string" ? v.trim().slice(0, max) : undefined);
+    if (body.titulo !== undefined) { const t = txt(body.titulo, 200); if (!t) return error("El título no puede quedar vacío."); cambios.titulo = t; }
+    if (body.texto !== undefined) cambios.texto = txt(body.texto, 4000) || null;
+    if (body.fecha !== undefined) { const f = fechaIso(body.fecha); if (!f) return error("fecha inválida."); cambios.fecha = f; }
+    if (body.estado !== undefined) { if (!["borrador", "publicado"].includes(String(body.estado))) return error("estado: borrador o publicado."); cambios.estado = body.estado; }
+    if (body.rubro_id !== undefined) cambios.rubro_id = txt(body.rubro_id, 60) || null;
+    if (body.importe !== undefined) { const n = importeOk(body.importe); if (!(n > 0)) return error("importe inválido."); cambios.importe = n; }
+    let nuevoPath: string | undefined;
+    if (typeof body.media_base64 === "string" && body.media_base64) {
+      const r = await guardarBase64(body.media_base64, body.media_nombre, id);
+      if (r.error) return error(r.error);
+      nuevoPath = r.path;
+    } else if (body.media_path) {
+      const r = await pathSubido(body.media_path, id);
+      if (r.error) return error(r.error);
+      nuevoPath = r.path;
+    }
+    if (nuevoPath) {
+      cambios.media_path = nuevoPath;
+      cambios.media_tipo = /\.(mp4|mov|webm)$/.test(nuevoPath) ? "video" : "imagen";
+    }
+    if (!Object.keys(cambios).length) return error("No mandaste nada para cambiar.");
+    const { error: e } = await sb.from("obra_portal_registros").update(cambios).eq("id", registroId).eq("presupuesto_id", id);
+    if (e) return error(e.message, 500);
+    if (nuevoPath && fila.media_path && fila.media_path !== nuevoPath) await sb.storage.from(BUCKET_PORTAL).remove([fila.media_path]);
+    return NextResponse.json({ ok: true, cambios: Object.keys(cambios) });
   }
 
   if (accion === "subida_crear") {
@@ -225,12 +394,9 @@ export async function POST(req: Request) {
       body.media_path = m.path;
     } else if (body.media_path !== undefined && body.media_path !== null && body.media_path !== "") {
       // Sólo paths que salieron de subida_crear para esta obra, y que el archivo exista.
-      const mp = typeof body.media_path === "string" ? body.media_path.trim() : "";
-      if (!new RegExp(`^portal/${id}/[0-9]+-[0-9a-f]{6}\\.[a-z0-9]+$`).test(mp)) return error("media_path inválido: usá el que devolvió subida_crear.");
-      const nombre = mp.split("/").pop()!;
-      const { data: hay } = await sb.storage.from(BUCKET_PORTAL).list(`portal/${id}`, { search: nombre, limit: 1 });
-      if (!hay?.some((f) => f.name === nombre)) return error("El archivo de media_path no está subido todavía (hacé el PUT a upload_url primero).");
-      body.media_path = mp;
+      const r = await pathSubido(body.media_path, id);
+      if (r.error) return error(r.error);
+      body.media_path = r.path;
     }
     delete body.media_base64;
   }
